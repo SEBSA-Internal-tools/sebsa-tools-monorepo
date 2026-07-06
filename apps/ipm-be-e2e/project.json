@@ -1,0 +1,17 @@
+{
+  "name": "ipm-be-e2e",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "implicitDependencies": ["ipm-be"],
+  "targets": {
+    "e2e": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/{e2eProjectRoot}"],
+      "dependsOn": ["ipm-be:build", "ipm-be:serve"],
+      "options": {
+        "jestConfig": "apps/ipm-be-e2e/jest.config.cts",
+        "passWithNoTests": true
+      }
+    }
+  }
+}
