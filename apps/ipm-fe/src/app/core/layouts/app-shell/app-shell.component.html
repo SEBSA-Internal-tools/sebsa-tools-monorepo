@@ -1,0 +1,78 @@
+<main class="app-shell">
+  <aside class="sidebar" aria-label="Primary navigation">
+    <section class="brand-block">
+      <div class="brand-copy">
+        <h1>SEBSA PMT</h1>
+        <p>Enterprise PM Tool</p>
+      </div>
+    </section>
+
+    <button type="button" class="new-task-button">
+      <span class="material-symbols-outlined button-icon" aria-hidden="true">add</span>
+      <span>New Task</span>
+    </button>
+
+    <nav class="nav-list">
+      <a
+        *ngFor="let item of navigationItems"
+        class="nav-item"
+        [routerLink]="item.path"
+        routerLinkActive="active"
+        [routerLinkActiveOptions]="{ exact: true }"
+      >
+        <span class="nav-icon" aria-hidden="true">
+          <span class="material-symbols-outlined">{{ item.icon }}</span>
+        </span>
+        <span class="nav-label">{{ item.label }}</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <button type="button" class="nav-item settings-item">
+        <span class="nav-icon" aria-hidden="true">
+          <span class="material-symbols-outlined">settings</span>
+        </span>
+        <span class="nav-label">Settings</span>
+      </button>
+    </div>
+  </aside>
+
+  <div class="content-wrapper">
+    <header class="top-navbar">
+      <div class="search-container">
+        <span class="material-symbols-outlined search-icon" aria-hidden="true">search</span>
+        <input
+          type="search"
+          placeholder="Search tasks, projects, or documents..."
+          class="search-input"
+          aria-label="Global search"
+        />
+      </div>
+
+      <div class="navbar-actions">
+        <button
+          type="button"
+          class="action-btn"
+          [attr.aria-label]="themeService.buttonLabel"
+          (click)="toggleTheme()"
+        >
+          <span class="material-symbols-outlined" aria-hidden="true">{{ themeService.iconName }}</span>
+        </button>
+
+        <button type="button" class="action-btn" aria-label="Help and Support">
+          <span class="material-symbols-outlined" aria-hidden="true">help</span>
+        </button>
+
+        <button type="button" class="user-profile-btn" aria-expanded="false" aria-label="User account menu">
+          <span class="material-symbols-outlined avatar-icon" aria-hidden="true">account_circle</span>
+          <span class="user-name">Admin User</span>
+          <span class="material-symbols-outlined dropdown-icon" aria-hidden="true">arrow_drop_down</span>
+        </button>
+      </div>
+    </header>
+
+    <section class="page-content">
+      <router-outlet></router-outlet>
+    </section>
+  </div>
+</main>
