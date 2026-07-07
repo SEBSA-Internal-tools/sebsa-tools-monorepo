@@ -1,0 +1,241 @@
+.login-container {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  font-family: 'Segoe UI', 'Inter', sans-serif;
+}
+
+.left-panel {
+  flex: 1;
+  background-color: #0b1a30;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  /* Optional: subtle starry background could be added here if needed */
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-image: radial-gradient(circle at 20% 30%, rgba(217, 37, 97, 0.05) 0%, transparent 5%),
+                      radial-gradient(circle at 70% 60%, rgba(255, 255, 255, 0.03) 0%, transparent 5%);
+    pointer-events: none;
+  }
+}
+
+.brand-content {
+  text-align: center;
+  color: white;
+  z-index: 1;
+  max-width: 80%;
+
+  .brand-logo {
+    max-width: 380px;
+    height: auto;
+    margin-bottom: -20px;
+  }
+
+  .brand-dash {
+    width: 60px;
+    height: 4px;
+    background-color: #d92561;
+    margin: 0 auto 24px;
+  }
+
+  h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0 0 16px;
+    letter-spacing: -0.02em;
+  }
+
+  p {
+    font-size: 1rem;
+    color: #8da2c0;
+    margin: 0;
+  }
+}
+
+.right-panel {
+  flex: 1;
+  background-color: #fcfcfd;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.login-form-container {
+  width: 100%;
+  max-width: 420px;
+  padding: 40px;
+
+  h2 {
+    font-size: 1.75rem;
+    color: #111827;
+    margin: 0 0 8px;
+    font-weight: 700;
+  }
+
+  .subtitle {
+    color: #6b7280;
+    font-size: 0.95rem;
+    margin: 0 0 32px;
+  }
+}
+
+.error-alert {
+  display: flex;
+  background-color: #fce8e8;
+  border: 1px solid #f5c6c6;
+  border-radius: 4px;
+  padding: 16px;
+  margin-bottom: 24px;
+  
+  .error-icon {
+    color: #d32f2f;
+    margin-right: 12px;
+    font-size: 1.25rem;
+  }
+
+  .error-text {
+    display: flex;
+    flex-direction: column;
+    
+    strong {
+      color: #7f1d1d;
+      font-size: 0.85rem;
+      margin-bottom: 4px;
+    }
+
+    span {
+      color: #991b1b;
+      font-size: 0.8rem;
+      line-height: 1.4;
+    }
+  }
+}
+
+.form-group {
+  margin-bottom: 20px;
+
+  label {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #374151;
+    margin-bottom: 8px;
+  }
+
+  .label-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+
+    .forgot-password {
+      font-size: 0.8rem;
+      color: #d92561;
+      text-decoration: none;
+      
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+  }
+
+  .input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+
+    .input-icon {
+      position: absolute;
+      left: 12px;
+      color: #9ca3af;
+      font-size: 1.2rem;
+      pointer-events: none;
+    }
+
+    .input-icon-right {
+      position: absolute;
+      right: 12px;
+      color: #9ca3af;
+      font-size: 1.2rem;
+      cursor: pointer;
+      
+      &:hover {
+        color: #6b7280;
+      }
+    }
+
+    input {
+      width: 100%;
+      padding: 12px 40px;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      font-size: 0.95rem;
+      color: #111827;
+      background-color: #ffffff;
+      transition: border-color 0.2s, box-shadow 0.2s;
+
+      &:focus {
+        outline: none;
+        border-color: #d92561;
+        box-shadow: 0 0 0 3px rgba(217, 37, 97, 0.1);
+      }
+      
+      &.error-input {
+        border-color: #ef4444; /* as per image it looks like error state on email if authentication failed */
+      }
+      
+      &.error-input:focus {
+        border-color: #ef4444;
+        box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+      }
+    }
+  }
+}
+
+.sign-in-button {
+  width: 100%;
+  background-color: #c20e4d;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 14px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 12px;
+  transition: background-color 0.2s;
+
+  &:hover {
+    background-color: #a80b41;
+  }
+}
+
+.login-footer {
+  margin-top: 48px;
+  text-align: center;
+  
+  p {
+    color: #6b7280;
+    font-size: 0.8rem;
+    line-height: 1.5;
+    margin: 0;
+  }
+}
+
+.copyright {
+  position: absolute;
+  bottom: 24px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  color: #9ca3af;
+  font-size: 0.75rem;
+}
