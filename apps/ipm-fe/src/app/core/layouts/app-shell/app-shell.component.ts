@@ -23,4 +23,8 @@ export class AppShellComponent {
   protected toggleTheme(): void {
     this.themeService.toggleTheme();
   }
+
+  protected setAccent(mode: 'pink' | 'blue' | 'emerald' | 'amber' | 'violet'): void {
+    this.themeService.setAccent(mode);
+  }
 }

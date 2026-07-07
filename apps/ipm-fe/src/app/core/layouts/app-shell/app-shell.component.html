@@ -50,6 +50,18 @@
       </div>
 
       <div class="navbar-actions">
+        <div class="accent-picker" [attr.aria-label]="themeService.accentLabel">
+          <button
+            *ngFor="let accent of themeService.accentOptions"
+            type="button"
+            class="accent-swatch"
+            [class.active]="themeService.currentAccent.mode === accent.mode"
+            [attr.aria-label]="'Use ' + accent.label + ' accent'"
+            [style.--swatch-color]="accent.color"
+            (click)="setAccent(accent.mode)"
+          ></button>
+        </div>
+
         <button
           type="button"
           class="action-btn"

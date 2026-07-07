@@ -60,7 +60,7 @@
   color: var(--app-accent-on);
   font-size: 0.86rem;
   font-weight: 500;
-  box-shadow: 0 7px 16px rgba(217, 37, 97, 0.22);
+  box-shadow: 0 7px 16px var(--app-accent-shadow);
   cursor: pointer;
   transition: box-shadow 0.2s ease, transform 0.1s ease;
 }
@@ -105,7 +105,7 @@
 .nav-item.active {
   background: linear-gradient(180deg, var(--app-accent-strong) 0%, var(--app-accent) 100%);
   color: var(--app-accent-on);
-  box-shadow: 0 7px 16px rgba(217, 37, 97, 0.18);
+  box-shadow: 0 7px 16px var(--app-accent-shadow);
 }
 
 .nav-item:hover:not(.active) {
@@ -202,6 +202,36 @@
   align-items: center;
   gap: 16px;
   justify-self: end;
+}
+
+.accent-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border: 1px solid var(--app-border);
+  border-radius: 999px;
+  background: var(--app-surface-elevated);
+}
+
+.accent-swatch {
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: var(--swatch-color);
+  cursor: pointer;
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.08);
+}
+
+.accent-swatch.active {
+  transform: scale(1.15);
+  box-shadow: 0 0 0 2px var(--app-surface), 0 0 0 4px var(--swatch-color);
+}
+
+.accent-swatch:hover {
+  transform: scale(1.08);
 }
 
 .action-btn {

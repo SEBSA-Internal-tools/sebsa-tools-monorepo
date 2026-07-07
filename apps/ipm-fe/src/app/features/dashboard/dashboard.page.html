@@ -1,0 +1,134 @@
+<section class="workspace-page dashboard-page">
+  <div class="dashboard-grid">
+    <header class="dashboard-hero workspace-card">
+      <div class="hero-copy">
+        <p class="workspace-eyebrow">Project Management Overview</p>
+        <h2>Keep delivery, team load, and blockers in one view</h2>
+        <p>
+          This dashboard gives a fast read on project health, task flow, and release risk so a PM can decide what
+          needs attention first.
+        </p>
+      </div>
+
+      <div class="hero-metrics">
+        <div class="hero-metric">
+          <span class="material-symbols-outlined" aria-hidden="true">schedule</span>
+          <strong>7</strong>
+          <span>days to next release checkpoint</span>
+        </div>
+        <div class="hero-metric">
+          <span class="material-symbols-outlined" aria-hidden="true">group</span>
+          <strong>24</strong>
+          <span>team members active this sprint</span>
+        </div>
+      </div>
+    </header>
+
+    <section class="summary-grid">
+      <article *ngFor="let card of summaryCards" class="summary-card workspace-card">
+        <div class="summary-icon">
+          <span class="material-symbols-outlined" aria-hidden="true">{{ card.icon }}</span>
+        </div>
+        <p>{{ card.label }}</p>
+        <strong>{{ card.value }}</strong>
+        <span>{{ card.change }}</span>
+      </article>
+    </section>
+
+    <section class="dashboard-main">
+      <article class="workspace-card section-card">
+        <div class="section-header">
+          <div>
+            <p class="workspace-eyebrow">Portfolio Health</p>
+            <h3>Current projects</h3>
+          </div>
+          <button type="button" class="section-link">View all</button>
+        </div>
+
+        <div class="portfolio-list">
+          <div *ngFor="let project of portfolioCards" class="portfolio-item">
+            <div class="portfolio-copy">
+              <div class="portfolio-title-row">
+                <h4>{{ project.name }}</h4>
+                <span class="status-pill" [ngClass]="project.statusTone">{{ project.status }}</span>
+              </div>
+              <p>{{ project.owner }}</p>
+            </div>
+
+            <div class="progress-block">
+              <div class="progress-bar">
+                <span [style.width.%]="project.progress"></span>
+              </div>
+              <div class="progress-meta">
+                <span>{{ project.progress }}% complete</span>
+                <span>Due {{ project.due }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="workspace-card section-card timeline-card">
+        <div class="section-header">
+          <div>
+            <p class="workspace-eyebrow">Milestones</p>
+            <h3>Delivery timeline</h3>
+          </div>
+        </div>
+
+        <div class="timeline-list">
+          <div *ngFor="let milestone of milestones" class="timeline-item" [class.complete]="milestone.complete">
+            <div class="timeline-dot"></div>
+            <div class="timeline-copy">
+              <strong>{{ milestone.title }}</strong>
+              <span>{{ milestone.owner }} • {{ milestone.date }}</span>
+            </div>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section class="dashboard-secondary">
+      <article class="workspace-card section-card">
+        <div class="section-header">
+          <div>
+            <p class="workspace-eyebrow">Resource Load</p>
+            <h3>Team capacity</h3>
+          </div>
+        </div>
+
+        <div class="workload-list">
+          <div *ngFor="let person of workload" class="workload-row">
+            <div class="person-meta">
+              <strong>{{ person.name }}</strong>
+              <span>{{ person.role }}</span>
+            </div>
+            <div class="workload-meter">
+              <span [style.width.%]="person.load"></span>
+            </div>
+            <span class="workload-value">{{ person.load }}%</span>
+          </div>
+        </div>
+      </article>
+
+      <article class="workspace-card section-card activity-card">
+        <div class="section-header">
+          <div>
+            <p class="workspace-eyebrow">Recent Activity</p>
+            <h3>What changed</h3>
+          </div>
+        </div>
+
+        <div class="activity-list">
+          <div *ngFor="let item of activity" class="activity-item">
+            <div class="activity-badge">{{ item.actor.charAt(0) }}</div>
+            <p>
+              <strong>{{ item.actor }}</strong> {{ item.action }} <span>{{ item.target }}</span>
+            </p>
+            <time>{{ item.time }}</time>
+          </div>
+        </div>
+      </article>
+    </section>
+  </div>
+</section>
