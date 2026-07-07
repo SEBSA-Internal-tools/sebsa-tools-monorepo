@@ -3,13 +3,18 @@ import { AppShellComponent } from './core/layouts/app-shell/app-shell.component'
 
 export const appRoutes: Route[] = [
 	{
+		path: 'login',
+		loadComponent: () =>
+			import('./features/login/login.page').then((m) => m.LoginPageComponent),
+	},
+	{
 		path: '',
 		component: AppShellComponent,
 		children: [
 			{
 				path: '',
 				pathMatch: 'full',
-				redirectTo: 'dashboard',
+				redirectTo: '/login',
 			},
 			{
 				path: 'dashboard',
