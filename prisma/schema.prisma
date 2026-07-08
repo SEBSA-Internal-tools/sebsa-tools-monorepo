@@ -1,8 +1,4 @@
 // SEBSA Internal Project Management Tool — Database Schema
-//
-// Modeled from docs/SEBSA_PMT_Functional_Specification_v1_4 1.docx (v1.4).
-// See docs/database-architecture.md for entity/relationship rationale and
-// the assumptions made where the FSD was ambiguous.
 
 generator client {
   provider = "prisma-client-js"
@@ -18,7 +14,7 @@ datasource db {
 // ---------------------------------------------------------------------------
 
 /// System-wide access tier. EXECUTIVE gets read-only visibility across every
-/// project (FSD 4.2) without needing per-project membership rows; project-scoped
+/// project without needing per-project membership rows; project-scoped
 /// roles (Owner/Manager/Member/Viewer) live in the Role/ProjectMember tables.
 enum SystemRole {
   SYSTEM_ADMIN
@@ -26,7 +22,7 @@ enum SystemRole {
   REGULAR_USER
 }
 
-/// Fixed project lifecycle (FSD 5.2 — "Basic for Now", not customizable per project).
+/// Fixed project lifecycle ("Basic for Now", not customizable per project).
 enum ProjectStatus {
   PLANNING
   ACTIVE
@@ -35,7 +31,7 @@ enum ProjectStatus {
   ARCHIVED
 }
 
-/// FSD 5.2 Project Type / Category.
+/// Project Type / Category.
 enum ProjectType {
   IFS_IMPLEMENTATION
   IFS_SUPPORT
@@ -46,7 +42,7 @@ enum ProjectType {
   CUSTOM
 }
 
-/// FSD 5.4 "Task Type Definitions" table (authoritative 7-value list).
+/// "Task Type Definitions" table (authoritative 7-value list).
 enum TaskType {
   EPIC
   STORY
@@ -57,7 +53,7 @@ enum TaskType {
   SUBTASK
 }
 
-/// FSD 5.4 Task Priority. Default: MEDIUM.
+/// Task Priority. Default: MEDIUM.
 enum Priority {
   CRITICAL
   HIGH
@@ -65,7 +61,7 @@ enum Priority {
   LOW
 }
 
-/// FSD 5.6 Sprint lifecycle. Only one sprint per project may be ACTIVE
+/// Sprint lifecycle. Only one sprint per project may be ACTIVE
 /// (enforced by a partial unique index — see migration.sql).
 enum SprintStatus {
   PLANNED
@@ -73,7 +69,7 @@ enum SprintStatus {
   COMPLETED
 }
 
-/// FSD 5.5 Dependency Types. BLOCKED_BY is intentionally omitted: it is the
+/// Dependency Types. BLOCKED_BY is intentionally omitted: it is the
 /// inverse of BLOCKS and is derived at query time from the reverse relation,
 /// avoiding a redundant mirrored row per link.
 enum DependencyType {
@@ -96,7 +92,7 @@ enum EntityType {
   PROJECT_MEMBER
 }
 
-/// FSD 5.10 / 7 — actions recorded in the immutable activity/audit trail.
+/// Actions recorded in the immutable activity/audit trail.
 enum ActivityAction {
   CREATED
   UPDATED
@@ -115,7 +111,7 @@ enum ActivityAction {
   MILESTONE_REACHED
 }
 
-/// FSD 5.14 Notifications & Alerts.
+/// Notifications & Alerts.
 enum NotificationType {
   TASK_ASSIGNED
   STATUS_CHANGE
@@ -125,7 +121,7 @@ enum NotificationType {
   SPRINT_EVENT
 }
 
-/// FSD 5.14 — delivery channels a notification preference can target.
+/// Delivery channels a notification preference can target.
 enum NotificationChannel {
   IN_APP
   EMAIL
@@ -133,13 +129,13 @@ enum NotificationChannel {
   TEAMS
 }
 
-/// FSD 5.12 Saved Filter Views apply to either a task list or a project list.
+/// Saved Filter Views apply to either a task list or a project list.
 enum SavedFilterEntityType {
   TASK
   PROJECT
 }
 
-/// FSD 5.15 Integrations & API.
+/// Integrations & API.
 enum IntegrationType {
   SLACK
   MS_TEAMS
@@ -156,7 +152,7 @@ enum IntegrationType {
 // Identity & Access
 // ---------------------------------------------------------------------------
 
-/// FSD 5.9 — normalized lookup so department names are consistent across
+/// Normalized lookup so department names are consistent across
 /// users and usable for dashboard grouping/filtering, instead of a free-text
 /// column that would drift (typos, casing) across records.
 model Department {
@@ -170,7 +166,7 @@ model Department {
   @@map("departments")
 }
 
-/// FSD 5.1 / 4 — a user account. Admin-provisioned only (no self-registration).
+/// A user account. Admin-provisioned only (no self-registration).
 model User {
   id           String     @id @default(uuid())
   name         String
@@ -204,7 +200,7 @@ model User {
   @@map("users")
 }
 
-/// FSD 4.2 — a project-scoped role. Seeded with the five described roles
+/// A project-scoped role. Seeded with the five described roles
 /// (Project Owner, Project Manager, Member, Viewer/Stakeholder — Executive is
 /// modeled as a SystemRole instead, see enum comment) plus any custom roles
 /// Project Owners/Admins define, distinguished by isSystemDefault.
@@ -230,9 +226,9 @@ model Role {
   @@map("roles")
 }
 
-/// FSD 5.9 — join of User <-> Project with an assigned Role. Soft-deleted on
+/// Join of User <-> Project with an assigned Role. Soft-deleted on
 /// removal (rather than hard-deleted) so "historical task contributions are
-/// retained" (FSD 5.9) even after a member leaves a project.
+/// retained" even after a member leaves a project.
 model ProjectMember {
   id        String    @id @default(uuid())
   projectId String
@@ -262,7 +258,7 @@ model ProjectMember {
 // Projects
 // ---------------------------------------------------------------------------
 
-/// FSD 5.2 — the top-level engagement/initiative entity.
+/// The top-level engagement/initiative entity.
 model Project {
   id            String        @id @default(uuid())
   name          String
@@ -295,10 +291,10 @@ model Project {
   @@map("projects")
 }
 
-/// FSD 5.2 "Custom Workflow Stages" — each project owns its own ordered list
+/// "Custom Workflow Stages" — each project owns its own ordered list
 /// of task statuses (add/rename/reorder/remove), so Task.status is a FK here
 /// rather than a fixed enum. New projects are expected to be seeded with the
-/// FSD 5.2 "Default Task Workflow Statuses" (New, In Analysis, ... Cancelled)
+/// "Default Task Workflow Statuses" (New, In Analysis, ... Cancelled)
 /// by application logic at project-creation time — no seed data is included
 /// in this migration per the infrastructure-only scope of this task.
 model WorkflowStage {
@@ -321,11 +317,10 @@ model WorkflowStage {
   @@map("workflow_stages")
 }
 
-/// FSD 5.7 — named checkpoint with a target date; progress is derived from
+/// Named checkpoint with a target date; progress is derived from
 /// its associated tasks. Modeled as one-to-many (Task.milestoneId) rather
 /// than many-to-many: a task advances exactly one checkpoint, matching how
-/// the FSD describes milestone progress being "tracked as associated tasks
-/// complete" (see docs/database-architecture.md assumption #2).
+/// the milestone progress being "tracked as associated tasks complete".
 model Milestone {
   id          String    @id @default(uuid())
   projectId   String
@@ -343,8 +338,7 @@ model Milestone {
   @@map("milestones")
 }
 
-/// FSD 5.6 Sprint & Backlog Management. Tasks with sprintId = null sit in
-/// the backlog.
+/// Sprint & Backlog Management. Tasks with sprintId = null sit in the backlog.
 model Sprint {
   id        String       @id @default(uuid())
   projectId String
@@ -366,7 +360,7 @@ model Sprint {
   @@map("sprints")
 }
 
-/// FSD 5.4 Custom Labels/Tags, scoped per project.
+/// Custom Labels/Tags, scoped per project.
 model Label {
   id        String   @id @default(uuid())
   projectId String
@@ -386,10 +380,8 @@ model Label {
 // Tasks
 // ---------------------------------------------------------------------------
 
-/// FSD 5.4/5.5 — the core work item. Subtasks are Task rows that reference a
-/// parentTaskId (self-relation) rather than a separate table, since the FSD
-/// requires subtasks to carry their own assignee/status/due date — i.e. the
-/// full Task shape (FSD 5.5).
+/// The core work item. Subtasks are Task rows that reference a
+/// parentTaskId (self-relation) rather than a separate table.
 model Task {
   id                  String    @id @default(uuid())
   projectId           String
@@ -436,7 +428,7 @@ model Task {
   @@map("tasks")
 }
 
-/// FSD 5.4 "Assigned to one or more project members" — M:N join.
+/// "Assigned to one or more project members" — M:N join.
 model TaskAssignee {
   id         String   @id @default(uuid())
   taskId     String
@@ -451,7 +443,7 @@ model TaskAssignee {
   @@map("task_assignees")
 }
 
-/// FSD 5.13 "Watch / Follow Task" — M:N join.
+/// "Watch / Follow Task" — M:N join.
 model TaskWatcher {
   id        String   @id @default(uuid())
   taskId    String
@@ -479,7 +471,7 @@ model TaskLabel {
   @@map("task_labels")
 }
 
-/// FSD 5.5 — directional dependency link. A row (source, BLOCKS, target)
+/// Directional dependency link. A row (source, BLOCKS, target)
 /// means "source blocks target" / "target is blocked by source"; the
 /// BLOCKED_BY direction is derived by reading incomingLinks instead of
 /// storing a mirrored inverse row. Circular-dependency prevention is a
@@ -500,7 +492,7 @@ model TaskDependency {
   @@map("task_dependencies")
 }
 
-/// FSD 5.4 "Auto - Time Monitoring" — every workflow-stage transition is
+/// "Auto - Time Monitoring" — every workflow-stage transition is
 /// recorded so time-in-status can be computed by diffing consecutive
 /// changedAt values per task. Distinct from the general ActivityLog because
 /// it needs a strict fromStage/toStage shape for that computation, rather
@@ -527,7 +519,7 @@ model TaskStatusHistory {
 // Collaboration
 // ---------------------------------------------------------------------------
 
-/// FSD 5.13 — threaded comments per task, via self-relation for replies.
+/// Threaded comments per task, via self-relation for replies.
 model Comment {
   id              String    @id @default(uuid())
   taskId          String
@@ -551,7 +543,7 @@ model Comment {
   @@map("comments")
 }
 
-/// FSD 5.13 "@Mention" — explicit records so mention-driven notifications
+/// "@Mention" — explicit records so mention-driven notifications
 /// can be queried without re-parsing comment body text.
 model CommentMention {
   id              String   @id @default(uuid())
@@ -567,7 +559,7 @@ model CommentMention {
   @@map("comment_mentions")
 }
 
-/// FSD 5.4/5.13 — a file attached to either a task or a comment (exactly
+/// A file attached to either a task or a comment (exactly
 /// one of taskId/commentId is set). The CHECK constraint enforcing that is
 /// added by hand in the initial migration since Prisma's schema DSL has no
 /// native CHECK-constraint syntax.
@@ -595,7 +587,7 @@ model Attachment {
 // Audit, Notifications, Search
 // ---------------------------------------------------------------------------
 
-/// FSD 5.10/7 — a single immutable, append-only ledger backing the Task
+/// A single immutable, append-only ledger backing the Task
 /// Activity Log, Project Timeline View, Contributor Summary, and Global
 /// Audit Log requirements. entityId is a raw UUID (not a real FK) because
 /// one log table must reference rows across many unrelated tables; see
@@ -620,7 +612,7 @@ model ActivityLog {
   @@map("activity_logs")
 }
 
-/// FSD 5.14 Notifications & Alerts.
+/// Notifications & Alerts.
 model Notification {
   id                String           @id @default(uuid())
   userId            String
@@ -639,7 +631,7 @@ model Notification {
   @@map("notifications")
 }
 
-/// FSD 5.14 "Per-User Notification Preferences" — which events trigger
+/// "Per-User Notification Preferences" — which events trigger
 /// notifications and through which channels.
 model NotificationPreference {
   id        String              @id @default(uuid())
@@ -656,7 +648,7 @@ model NotificationPreference {
   @@map("notification_preferences")
 }
 
-/// FSD 5.12 "Saved Filter Views" — per-user named filter combinations.
+/// "Saved Filter Views" — per-user named filter combinations.
 model SavedFilter {
   id         String                @id @default(uuid())
   userId     String
@@ -676,7 +668,7 @@ model SavedFilter {
 // Integrations & API
 // ---------------------------------------------------------------------------
 
-/// FSD 5.15 "Per-Project Integration Config" — structure only; no business
+/// "Per-Project Integration Config" — structure only; no business
 /// logic is wired up as part of this infrastructure task.
 model Integration {
   id        String          @id @default(uuid())
@@ -693,7 +685,7 @@ model Integration {
   @@map("integrations")
 }
 
-/// FSD 5.15 "Webhooks" — external systems subscribing to project events.
+/// "Webhooks" — external systems subscribing to project events.
 model Webhook {
   id               String   @id @default(uuid())
   projectId        String
@@ -710,7 +702,7 @@ model Webhook {
   @@map("webhooks")
 }
 
-/// FSD 5.15 "Public REST API ... secured with token-based authentication".
+/// "Public REST API ... secured with token-based authentication".
 model ApiToken {
   id         String    @id @default(uuid())
   userId     String

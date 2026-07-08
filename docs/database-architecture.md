@@ -2,7 +2,7 @@
 
 This document describes the backend data infrastructure for the SEBSA Internal
 Project Management Tool: the PostgreSQL schema, how it was derived from the
-[Functional Specification Document](./SEBSA_PMT_Functional_Specification_v1_4%201.docx)
+[Functional Specification Document](<./SEBSA_PMT_Functional_Specification_v1_4%201.docx>)
 (FSD v1.4), and the day-to-day Prisma/Docker workflows for developers.
 
 ## Contents
@@ -51,10 +51,10 @@ without duplicating the connection logic.
 `docker/docker-compose.yml` defines two services on a dedicated bridge
 network (`sebsa-pm-network`) with named, persistent volumes:
 
-| Service | Image | Purpose | Default host port |
-|---|---|---|---|
-| `postgres` | `postgres:16-alpine` | Application database | `5432` (`DATABASE_PORT`) |
-| `pgadmin` | `dpage/pgadmin4` | Web UI for inspecting Postgres | `5050` (`PGADMIN_PORT`) |
+| Service      | Image                  | Purpose                        | Default host port            |
+| ------------ | ---------------------- | ------------------------------ | ---------------------------- |
+| `postgres` | `postgres:16-alpine` | Application database           | `5432` (`DATABASE_PORT`) |
+| `pgadmin`  | `dpage/pgadmin4`     | Web UI for inspecting Postgres | `5050` (`PGADMIN_PORT`)  |
 
 Both services use `restart: unless-stopped` and read all credentials from
 environment variables — nothing is hardcoded in the compose file.
@@ -74,8 +74,7 @@ docker compose up -d postgres
 ```
 
 Data persists in the named volume `sebsa-pm-postgres-data` across restarts;
-`docker compose down` stops the containers without deleting it, `docker
-compose down -v` deletes the volumes too.
+`docker compose down` stops the containers without deleting it, `docker compose down -v` deletes the volumes too.
 
 ### Accessing pgAdmin
 
@@ -155,21 +154,24 @@ clearly marked "Hand-authored constraints" section).
 
 ## Entity relationship overview
 
-Grouped by functional area (FSD section references in parentheses):
+Grouped by functional area:
 
-**Identity & Access** (FSD §4, §5.1, §5.9)
+**Identity & Access**
+
 - `Department` 1—N `User`
 - `User.systemRole` (`SYSTEM_ADMIN` / `EXECUTIVE` / `REGULAR_USER`) — system-wide tier
 - `Project` 1—N `Role` (project-scoped, custom permission flags)
 - `Project` 1—N `ProjectMember` N—1 `User`, each with one `Role`
 
-**Projects** (FSD §5.2, §5.7)
+**Projects**
+
 - `Project` 1—N `WorkflowStage` (customizable per-project task statuses)
 - `Project` 1—N `Milestone`
 - `Project` 1—N `Sprint`
 - `Project` 1—N `Label`
 
-**Tasks** (FSD §5.4, §5.5, §5.6)
+**Tasks**
+
 - `Task` N—1 `WorkflowStage` (current status)
 - `Task` 1—N `Task` (self-relation via `parentTaskId`, for subtasks)
 - `Task` N—1 `Sprint?` (null = backlog), N—1 `Milestone?`
@@ -179,17 +181,20 @@ Grouped by functional area (FSD section references in parentheses):
 - `Task` N—N `Task` via `TaskDependency` (BLOCKS / RELATES_TO / DUPLICATE_OF)
 - `Task` 1—N `TaskStatusHistory` (workflow-stage transitions, for time-in-status)
 
-**Collaboration** (FSD §5.4, §5.13)
+**Collaboration** 
+
 - `Task` 1—N `Comment`, `Comment` 1—N `Comment` (self-relation, threaded replies)
 - `Comment` 1—N `CommentMention`
 - `Attachment` optionally belongs to a `Task` **or** a `Comment` (exactly one)
 
-**Audit, Notifications, Search** (FSD §5.10, §5.12, §5.14)
+**Audit, Notifications, Search**
+
 - `ActivityLog` — single immutable ledger (see below)
 - `Notification` / `NotificationPreference` — per-user, per-channel
 - `SavedFilter` — per-user named filter combinations
 
-**Integrations & API** (FSD §5.15)
+**Integrations & API**
+
 - `Integration`, `Webhook` — per-project configuration
 - `ApiToken` — per-user REST API tokens
 
@@ -200,64 +205,55 @@ calls were made while normalizing it. Flag any of these to the technical
 architect if they don't match intent:
 
 1. **Executive/Senior Manager is a `SystemRole`, not a project `Role`.**
-   FSD §4.2 gives this role "read-only access to **all** projects" — modeling
+   This role "read-only access to **all** projects" — modeling
    it as a `ProjectMember` row would require adding every executive to every
    project. Instead, `User.systemRole` has three tiers
    (`SYSTEM_ADMIN` / `EXECUTIVE` / `REGULAR_USER`), and Project
    Owner/Manager/Member/Viewer remain project-scoped `Role` rows.
-
 2. **Milestone ↔ Task is one-to-many**, not many-to-many. `Task.milestoneId`
    is a single nullable FK. This matches how the FSD describes milestone
    progress ("tracked as associated tasks complete") without over-normalizing
    into a join table for a relationship the FSD never describes as
    many-sided.
-
 3. **Task type enum uses the 7-value "Task Type Definitions" table**
-   (Epic, Story, Task, Bug, Improvement, Test, Sub-task) from FSD §5.4,
+   (Epic, Story, Task, Bug, Improvement, Test, Sub-task),
    rather than the 5-value list mentioned earlier in the same section, since
    the definitions table is the more complete, authoritative source.
-
 4. **Subtasks are `Task` rows with a self-referencing `parentTaskId`**, not a
-   separate `Subtask` table. FSD §5.5 requires each subtask to carry its own
+   separate `Subtask` table. Requires each subtask to carry its own
    assignee, status, and due date — i.e. the full shape of a `Task` — so
    duplicating that shape in a second table would violate normalization.
-
 5. **`TaskDependency` stores only one direction per link.** A row
    `(source, BLOCKS, target)` means "source blocks target" (target is
    blocked-by source). The inverse `BLOCKED_BY` view is derived at query
    time from `Task.incomingLinks` instead of writing a second, mirrored row.
-   Circular-dependency prevention (FSD §5.5) is a graph-traversal rule
+   Circular-dependency prevention is a graph-traversal rule
    enforced in the application/service layer — it cannot be expressed as a
    database constraint.
-
 6. **`ActivityLog` is a single, immutable, append-only table** backing the
    Task Activity Log, Project Timeline View, Contributor Summary, and Global
-   Audit Log requirements (FSD §5.10, §7), instead of one log table per
+   Audit Log requirements, instead of one log table per
    entity. `entityType` + `entityId` act as a polymorphic pointer — `entityId`
    is a plain UUID column, not a foreign key, because one table cannot hold a
    real FK to many unrelated parent tables. The trade-off: referential
    integrity for log entries is enforced by the application, not the
    database. This was deemed acceptable since log rows are never the target
    of a cascade and are immutable once written.
-
 7. **`Department` is a normalized lookup table**, not a free-text column on
-   `User`. FSD §5.9 requires department-based grouping/filtering, which a
+   `User`. Requires department-based grouping/filtering, which a
    free-text field would make inconsistent (typos, casing drift).
-
 8. **Nice-to-Have items are not modeled yet**: emoji reactions on comments
-   and CI/CD build-status sync (FSD §5.13, §5.15) are deferred — adding them
+   and CI/CD build-status sync are deferred — adding them
    now would be speculative schema for features not yet prioritized.
-
 9. **Section 9 "Future Implementations" are explicitly out of scope**: no
    time-tracking/billing tables, Gantt/critical-path fields, ERP sync, or
-   AI-feature tables exist in this schema. FSD §5.4's "Auto - Time
+   AI-feature tables exist in this schema. "Auto - Time
    Monitoring" (Must Have, distinct from future billable time tracking) is
    covered by `TaskStatusHistory`, which lets time-in-stage be computed by
    diffing consecutive `changedAt` timestamps per task.
-
 10. **`Integration` / `Webhook` / `ApiToken` are included now**, even though
-    authentication/business logic isn't implemented yet, because FSD §5.15
-    marks the underlying features Must-Have and the tables are structural
+    authentication/business logic isn't implemented yet, because
+    the underlying features Must-Have and the tables are structural
     only (no auth logic wired up in this task).
 
 ## Constraints added by hand
@@ -268,23 +264,24 @@ SQL at the bottom of `prisma/migrations/<timestamp>_init/migration.sql`,
 with `schema.prisma` documented (via comments) to explain why the DSL-level
 constraint doesn't fully match what the database enforces:
 
-1. **Max one active sprint per project** (FSD §5.6):
+1. **Max one active sprint per project**:
+
    ```sql
    CREATE UNIQUE INDEX "sprints_one_active_per_project"
      ON "sprints"("projectId") WHERE "status" = 'ACTIVE';
    ```
-
-2. **One active membership per user per project** (FSD §5.9 — removed
+2. **One active membership per user per project** (removed
    members are soft-deleted so their historical contributions survive, but a
    removed member must be able to be re-added later without hitting a
    uniqueness conflict against their old, soft-deleted row):
+
    ```sql
    CREATE UNIQUE INDEX "project_members_one_active_per_user"
      ON "project_members"("projectId", "userId") WHERE "deletedAt" IS NULL;
    ```
-
-3. **Attachment belongs to exactly one parent** (FSD §5.4/§5.13 — a file is
+3. **Attachment belongs to exactly one parent** (a file is
    attached to a task *or* a comment, never both, never neither):
+
    ```sql
    ALTER TABLE "attachments" ADD CONSTRAINT "attachments_exactly_one_parent"
      CHECK ((("taskId" IS NOT NULL)::int + ("commentId" IS NOT NULL)::int) = 1);
@@ -292,15 +289,15 @@ constraint doesn't fully match what the database enforces:
 
 ## Common commands
 
-| Command | Purpose |
-|---|---|
-| `docker compose -f docker/docker-compose.yml up -d` | Start Postgres + pgAdmin |
-| `docker compose -f docker/docker-compose.yml down` | Stop containers (keep data) |
-| `npx prisma studio` | Browse/edit data in a local GUI |
-| `npx prisma format` | Format and lint-check `schema.prisma` |
-| `npx prisma validate` | Validate the schema without touching the DB |
-| `npx prisma migrate dev --name <name>` | Create + apply a new migration (dev) |
-| `npx prisma migrate deploy` | Apply pending migrations (CI/staging/prod) |
-| `npx prisma migrate status` | Show which migrations are applied/pending |
-| `npx prisma generate` | Regenerate the Prisma Client after a schema change |
-| `npx nx serve ipm-be` | Run the NestJS API locally |
+| Command                                               | Purpose                                            |
+| ----------------------------------------------------- | -------------------------------------------------- |
+| `docker compose -f docker/docker-compose.yml up -d` | Start Postgres + pgAdmin                           |
+| `docker compose -f docker/docker-compose.yml down`  | Stop containers (keep data)                        |
+| `npx prisma studio`                                 | Browse/edit data in a local GUI                    |
+| `npx prisma format`                                 | Format and lint-check`schema.prisma`             |
+| `npx prisma validate`                               | Validate the schema without touching the DB        |
+| `npx prisma migrate dev --name <name>`              | Create + apply a new migration (dev)               |
+| `npx prisma migrate deploy`                         | Apply pending migrations (CI/staging/prod)         |
+| `npx prisma migrate status`                         | Show which migrations are applied/pending          |
+| `npx prisma generate`                               | Regenerate the Prisma Client after a schema change |
+| `npx nx serve ipm-be`                               | Run the NestJS API locally                         |
