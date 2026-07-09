@@ -1,0 +1,25 @@
+<article class="workspace-card section">
+  <div class="section-header">
+    <div class="section-title">
+      <p class="eyebrow">Resource Load</p>
+      <h2>Team capacity</h2>
+    </div>
+  </div>
+
+  <div class="workload-list">
+    @for (person of workload; track person.name) {
+      <div class="workload-item">
+        <div class="workload-info">
+          <strong class="person-name">{{ person.name }}</strong>
+          <span class="person-role">{{ person.role }}</span>
+        </div>
+        <div class="workload-bar">
+          <div class="workload-meter">
+            <span [style.width.%]="person.load"></span>
+          </div>
+          <span class="workload-value">{{ person.load }}%</span>
+        </div>
+      </div>
+    }
+  </div>
+</article>

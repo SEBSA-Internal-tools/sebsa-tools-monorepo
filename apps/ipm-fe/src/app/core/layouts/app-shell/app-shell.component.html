@@ -7,7 +7,7 @@
       </div>
     </section>
 
-    <button type="button" class="new-task-button">
+    <button type="button" class="new-task-button" aria-haspopup="dialog" [attr.aria-expanded]="isTaskModalOpen" (click)="openTaskModal()">
       <span class="material-symbols-outlined button-icon" aria-hidden="true">add</span>
       <span>New Task</span>
     </button>
@@ -87,4 +87,10 @@
       <router-outlet></router-outlet>
     </section>
   </div>
+
+  <app-task-modal
+    [open]="isTaskModalOpen"
+    (closed)="closeTaskModal()"
+    (saved)="handleTaskSaved($event)"
+  ></app-task-modal>
 </main>

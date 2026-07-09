@@ -1,0 +1,33 @@
+<article class="workspace-card section">
+  <div class="section-header">
+    <div class="section-title">
+      <p class="eyebrow">Portfolio Health</p>
+      <h2>Current projects</h2>
+    </div>
+    <button type="button" class="btn-link">View all</button>
+  </div>
+
+  <div class="portfolio-list">
+    @for (project of projects; track project.name) {
+      <div class="project-card">
+        <div class="project-head">
+          <div>
+            <h3>{{ project.name }}</h3>
+            <p class="owner">{{ project.owner }}</p>
+          </div>
+          <span class="badge" [class]="project.statusTone">{{ project.status }}</span>
+        </div>
+
+        <div class="progress">
+          <div class="progress-bar">
+            <div class="progress-fill" [style.width.%]="project.progress"></div>
+          </div>
+          <div class="progress-text">
+            <span>{{ project.progress }}% complete</span>
+            <span>Due {{ project.due }}</span>
+          </div>
+        </div>
+      </div>
+    }
+  </div>
+</article>
