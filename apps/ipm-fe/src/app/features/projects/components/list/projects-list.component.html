@@ -1,0 +1,132 @@
+<article class="workspace-card section">
+  <!-- Header with Title and New Project Button -->
+  <div class="section-header">
+    <div class="section-title">
+      <p class="eyebrow">Portfolio</p>
+      <h2>Projects</h2>
+    </div>
+    <button type="button" class="btn-new-project" (click)="onNewProject()">
+      <span class="material-symbols-outlined">add</span>
+      New project
+    </button>
+  </div>
+
+  <!-- Search and Filter Section -->
+  <div class="search-filter-section">
+    <div class="search-box">
+      <span class="material-symbols-outlined search-icon">search</span>
+      <input
+        type="text"
+        [(ngModel)]="searchQuery"
+        (ngModelChange)="onSearchChange()"
+        placeholder="Search projects..."
+        class="search-input"
+      />
+      <button
+        type="button"
+        *ngIf="searchQuery"
+        (click)="searchQuery = ''; onSearchChange()"
+        class="clear-btn"
+      >
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+
+    <!-- Filter Tabs -->
+    <div class="filter-tabs">
+      <button
+        type="button"
+        class="filter-btn"
+        [class.active]="selectedStatus === 'all'"
+        (click)="onStatusChange('all')"
+      >
+        All
+      </button>
+      <button
+        type="button"
+        class="filter-btn"
+        [class.active]="selectedStatus === 'Open'"
+        (click)="onStatusChange('Open')"
+      >
+        <span class="material-symbols-outlined">check_circle</span>
+        Open <span class="count">{{ getOpenCount() }}</span>
+      </button>
+      <button
+        type="button"
+        class="filter-btn"
+        [class.active]="selectedStatus === 'Closed'"
+        (click)="onStatusChange('Closed')"
+      >
+        <span class="material-symbols-outlined">cancel</span>
+        Closed <span class="count">{{ getClosedCount() }}</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Projects List View -->
+  <div class="projects-list-container">
+    @if (filteredProjects().length > 0) {
+      <div class="projects-list">
+        <!-- Table Header -->
+        <div class="list-header">
+          <div class="col-project">Project</div>
+          <div class="col-owner">Owner</div>
+          <div class="col-status">Status</div>
+          <div class="col-visibility">Visibility</div>
+          <div class="col-updated">Last Updated</div>
+          <div class="col-actions">Actions</div>
+        </div>
+
+        <!-- Project Items -->
+        @for (project of filteredProjects(); track project.id) {
+          <div class="list-item" [class]="getStatusClass(project.status)">
+            <div class="col-project">
+              <div class="project-cell">
+                <span class="material-symbols-outlined project-icon">{{
+                  project.icon || 'folder'
+                }}</span>
+                <span class="project-name">{{ project.name }}</span>
+              </div>
+            </div>
+
+            <div class="col-owner">{{ project.owner }}</div>
+
+            <div class="col-status">
+              <span class="badge" [class]="project.status.toLowerCase()">
+                {{ project.status }}
+              </span>
+            </div>
+
+            <div class="col-visibility">
+              <span class="visibility-badge">
+                <span class="material-symbols-outlined">{{
+                  project.visibility === 'Private' ? 'lock' : 'public'
+                }}</span>
+                {{ project.visibility }}
+              </span>
+            </div>
+
+            <div class="col-updated">{{ project.lastUpdated }}</div>
+
+            <div class="col-actions">
+              <button
+                type="button"
+                class="btn-delete"
+                (click)="onDeleteProject(project.id)"
+                title="Delete project"
+              >
+                <span class="material-symbols-outlined">delete</span>
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+    } @else {
+      <div class="empty-state">
+        <span class="material-symbols-outlined empty-icon">folder_open</span>
+        <h3>No projects found</h3>
+        <p>Try adjusting your search or filters to find projects.</p>
+      </div>
+    }
+  </div>
+</article>
