@@ -1,0 +1,20 @@
+<article class="workspace-card section timeline-section">
+  <div class="section-header">
+    <div class="section-title">
+      <p class="eyebrow">Milestones</p>
+      <h2>Delivery timeline</h2>
+    </div>
+  </div>
+
+  <div class="timeline">
+    @for (milestone of milestones; track milestone.title) {
+      <div class="timeline-item" [class.done]="milestone.complete">
+        <div class="timeline-marker"></div>
+        <div class="timeline-body">
+          <strong>{{ milestone.title }}</strong>
+          <p>{{ milestone.owner }} • {{ milestone.date }}</p>
+        </div>
+      </div>
+    }
+  </div>
+</article>

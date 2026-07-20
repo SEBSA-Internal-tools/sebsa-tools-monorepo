@@ -1,0 +1,12 @@
+<div class="cards-grid">
+  @for (card of cards; track card.label) {
+    <div class="card workspace-card">
+      <div class="card-icon">
+        <span class="material-symbols-outlined">{{ card.icon }}</span>
+      </div>
+      <p class="card-label">{{ card.label }}</p>
+      <strong class="card-value">{{ card.value }}</strong>
+      <span class="card-meta">{{ card.change }}</span>
+    </div>
+  }
+</div>
