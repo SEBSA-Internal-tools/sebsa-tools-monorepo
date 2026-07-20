@@ -79,7 +79,15 @@
 
         <!-- Project Items -->
         @for (project of filteredProjects(); track project.id) {
-          <div class="list-item" [class]="getStatusClass(project.status)">
+          <div
+            class="list-item"
+            [class]="getStatusClass(project.status)"
+            role="button"
+            tabindex="0"
+            (click)="onProjectClick(project.id, $event)"
+            (keydown.enter)="onProjectClick(project.id, $event)"
+            (keydown.space)="onProjectClick(project.id, $event)"
+          >
             <div class="col-project">
               <div class="project-cell">
                 <span class="material-symbols-outlined project-icon">{{

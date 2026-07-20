@@ -11,6 +11,18 @@ export interface ProjectItem {
   icon?: string;
 }
 
+export interface Task {
+  id: string;
+  title: string;
+  category: string;
+  status: 'new' | 'todo' | 'inprogress' | 'done';
+  priority: 'High' | 'Medium' | 'Low';
+  duration: string;
+  assignee?: string;
+  dueDate: string;
+  projectId: string;
+}
+
 export interface ProjectsHeroData {
   title: string;
   description: string;
@@ -99,5 +111,100 @@ export class ProjectsService {
         'A flexible workspace to manage your ERP implementations, tasks, and consulting workflows. Built to be flexible and adaptable, giving you a live canvas to filter, sort, and group issues.',
       ctaLabel: 'Learn more',
     };
+  }
+
+  getAllProjects(): ProjectItem[] {
+    return this.projects$.value;
+  }
+
+  private tasks$ = new BehaviorSubject<Task[]>([
+    {
+      id: 'PMT-089',
+      title: 'Review legacy data mapping docs',
+      category: 'Data Migration',
+      status: 'new',
+      priority: 'High',
+      duration: 'In stage: 2d',
+      assignee: 'Sarah Miller',
+      dueDate: '2024-01-15',
+      projectId: '954',
+    },
+    {
+      id: 'PMT-092',
+      title: 'Setup initial staging environment',
+      category: 'Infrastructure',
+      status: 'todo',
+      priority: 'High',
+      duration: 'In stage: 1d',
+      assignee: 'James Chen',
+      dueDate: '2024-01-10',
+      projectId: '954',
+    },
+    {
+      id: 'PMT-093',
+      title: 'Create migration scripts',
+      category: 'Development',
+      status: 'inprogress',
+      priority: 'Medium',
+      duration: 'In stage: 3d',
+      assignee: 'Emma Rodriguez',
+      dueDate: '2024-01-20',
+      projectId: '954',
+    },
+    {
+      id: 'PMT-094',
+      title: 'Test data migration',
+      category: 'Testing',
+      status: 'done',
+      priority: 'High',
+      duration: 'In stage: 2d',
+      assignee: 'David Kim',
+      dueDate: '2024-01-12',
+      projectId: '954',
+    },
+    {
+      id: 'PMT-095',
+      title: 'Document process flows',
+      category: 'Documentation',
+      status: 'new',
+      priority: 'Low',
+      duration: 'In stage: 1d',
+      dueDate: '2024-01-25',
+      projectId: '954',
+    },
+  ]);
+
+  getTasks(projectId: string): Task[] {
+    return this.tasks$.value.filter((t) => t.projectId === projectId);
+  }
+
+  updateTaskStatus(taskId: string, newStatus: string): void {
+    const tasks = this.tasks$.value.map((t) =>
+      t.id === taskId ? { ...t, status: newStatus as Task['status'] } : t
+    );
+    this.tasks$.next(tasks);
+  }
+
+  createTask(formData: {
+    title: string;
+    projectId: string;
+    assignee: string;
+    priority: 'High' | 'Medium' | 'Low';
+    dueDate: string;
+    description: string;
+  }): void {
+    const newTask: Task = {
+      id: `PMT-${String(this.tasks$.value.length + 1).padStart(3, '0')}`,
+      title: formData.title,
+      category: 'Development',
+      status: 'new',
+      priority: formData.priority,
+      duration: 'Just now',
+      assignee: formData.assignee || undefined,
+      dueDate: formData.dueDate,
+      projectId: formData.projectId,
+    };
+    const currentTasks = this.tasks$.value;
+    this.tasks$.next([...currentTasks, newTask]);
   }
 }

@@ -287,6 +287,7 @@
   background: var(--app-surface-soft);
   transition: all 0.2s ease;
   cursor: pointer;
+  outline: none;
 
   @media (max-width: 1024px) {
     grid-template-columns: 2fr 1fr 0.7fr 1fr 0.9fr 0.6fr;
@@ -297,6 +298,16 @@
   &:hover {
     background: var(--app-surface);
     border-color: var(--app-accent);
+  }
+
+  &:focus {
+    background: var(--app-accent-soft);
+    box-shadow: inset 0 0 0 2px var(--app-accent);
+  }
+
+  &:focus:not(:focus-visible) {
+    box-shadow: none;
+    background: var(--app-surface-soft);
   }
 
   &.status-closed {

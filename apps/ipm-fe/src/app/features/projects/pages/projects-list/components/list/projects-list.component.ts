@@ -4,10 +4,12 @@ import {
   Output,
   EventEmitter,
   ChangeDetectionStrategy,
+  inject,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import type { ProjectItem } from '../../services/projects.service';
+import { Router } from '@angular/router';
+import type { ProjectItem } from '../../../../services/projects.service';
 
 @Component({
   standalone: true,
@@ -22,6 +24,8 @@ export class ProjectsListComponent {
   @Output() newProjectClick = new EventEmitter<void>();
   @Output() searchChange = new EventEmitter<string>();
   @Output() deleteProject = new EventEmitter<string>();
+
+  private router = inject(Router);
 
   searchQuery = '';
   selectedStatus: 'all' | 'Open' | 'Closed' = 'all';
@@ -65,6 +69,14 @@ export class ProjectsListComponent {
     if (confirm('Are you sure you want to delete this project?')) {
       this.deleteProject.emit(projectId);
     }
+  }
+
+  onProjectClick(projectId: string, event: Event): void {
+    const target = event.target as HTMLElement;
+    if (target.closest('.col-actions')) {
+      return;
+    }
+    this.router.navigate(['/projects', projectId]);
   }
 
   getStatusIcon(status: 'Open' | 'Closed'): string {

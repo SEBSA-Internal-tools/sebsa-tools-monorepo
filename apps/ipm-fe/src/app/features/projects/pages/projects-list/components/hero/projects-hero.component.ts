@@ -1,6 +1,6 @@
 import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import type { ProjectsHeroData } from '../../services/projects.service';
+import type { ProjectsHeroData } from '../../../../services/projects.service';
 
 @Component({
   standalone: true,

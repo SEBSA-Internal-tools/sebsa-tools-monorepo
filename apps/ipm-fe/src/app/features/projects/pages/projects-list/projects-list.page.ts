@@ -1,11 +1,11 @@
 import { Component, inject, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Observable } from 'rxjs';
-import { ProjectsService } from './services/projects.service';
+import { ProjectsService } from '../../services/projects.service';
 import { ProjectsHeroComponent } from './components/hero/projects-hero.component';
 import { ProjectsListComponent } from './components/list/projects-list.component';
-import { CreateProjectModalComponent, type ProjectFormData } from './components/modal/create-project-modal.component';
-import type { ProjectsHeroData, ProjectItem } from './services/projects.service';
+import { CreateProjectModalComponent, type ProjectFormData } from '../../components/modals/create-project/create-project-modal.component';
+import type { ProjectsHeroData, ProjectItem } from '../../services/projects.service';
 
 @Component({
   standalone: true,
@@ -16,8 +16,8 @@ import type { ProjectsHeroData, ProjectItem } from './services/projects.service'
     ProjectsListComponent,
     CreateProjectModalComponent,
   ],
-  templateUrl: './projects.page.html',
-  styleUrl: './projects.page.scss',
+  templateUrl: './projects-list.page.html',
+  styleUrl: './projects-list.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ProjectsPageComponent {
