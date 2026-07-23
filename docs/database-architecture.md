@@ -138,9 +138,19 @@ npx prisma generate
 npx prisma migrate deploy
 ```
 
-No seed data is included in this initial migration (per project scope) — use
-`prisma/seed.ts` + the `prisma db seed` command if/when seed data is needed
-later.
+A dev-only seed exists at `prisma/seed.ts`, wired via `package.json#prisma.seed`
+(the classic config style — a `prisma.config.ts` was tried instead but it
+disables Prisma's automatic `.env` loading, which everything else in this repo
+relies on, so it was reverted). Run it with:
+
+```bash
+npx prisma db seed
+```
+
+It `upsert`s exactly one `Department` and one `SYSTEM_ADMIN` test user (prints
+the test credentials to stdout) so authentication can be exercised end-to-end
+without a real user existing yet — it is idempotent and safe to re-run, and
+is not meant to represent real data.
 
 ### A note on the initial migration
 

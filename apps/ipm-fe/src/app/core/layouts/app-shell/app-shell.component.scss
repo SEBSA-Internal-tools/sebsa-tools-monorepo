@@ -257,6 +257,10 @@
   font-size: 1.25rem;
 }
 
+.profile-menu-wrapper {
+  position: relative;
+}
+
 .user-profile-btn {
   display: flex;
   align-items: center;
@@ -268,6 +272,59 @@
   border-radius: 6px;
   color: var(--app-text);
   transition: background-color 0.2s, border-color 0.2s;
+}
+
+.profile-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 200px;
+  background: var(--app-surface-elevated);
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
+  overflow: hidden;
+  z-index: 20;
+}
+
+.profile-menu-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.profile-menu-name {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--app-text);
+}
+
+.profile-menu-email {
+  font-size: 0.74rem;
+  color: var(--app-text-subtle);
+}
+
+.profile-menu-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 0;
+  background: transparent;
+  color: var(--app-text-muted);
+  font-size: 0.86rem;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.profile-menu-item:hover {
+  background-color: var(--app-hover);
+  color: var(--app-text);
 }
 
 .user-profile-btn:hover {

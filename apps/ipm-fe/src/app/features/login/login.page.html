@@ -13,11 +13,11 @@
       <h2>Welcome back</h2>
       <p class="subtitle">Sign in to your SEBSA account</p>
 
-      <div class="error-alert" *ngIf="hasError">
+      <div class="error-alert" *ngIf="hasError()">
         <span class="material-symbols-outlined error-icon">error</span>
         <div class="error-text">
           <strong>Authentication Failed</strong>
-          <span>Invalid email or password. 3 attempts remaining before account lockout.</span>
+          <span>{{ errorMessage() }}</span>
         </div>
       </div>
 
@@ -26,7 +26,7 @@
           <label>Corporate Email Address</label>
           <div class="input-wrapper">
             <span class="material-symbols-outlined input-icon">mail</span>
-            <input type="email" tabindex="1" name="email" [(ngModel)]="email" placeholder="user@sebsa.com" [class.error-input]="hasError" />
+            <input type="email" tabindex="1" name="email" [(ngModel)]="email" placeholder="user@sebsa.com" [class.error-input]="hasError()" />
           </div>
         </div>
 

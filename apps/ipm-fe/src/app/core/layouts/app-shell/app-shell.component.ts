@@ -1,7 +1,8 @@
 import { CommonModule } from '@angular/common';
-import { Component } from '@angular/core';
-import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { Component, inject } from '@angular/core';
+import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { ThemeService } from '../../services/theme.service';
+import { AuthService } from '../../services/auth.service';
 import { TaskModalComponent, type NewTaskDraft } from '../../components/task-modal/task-modal.component';
 
 @Component({
@@ -11,6 +12,9 @@ import { TaskModalComponent, type NewTaskDraft } from '../../components/task-mod
   styleUrl: './app-shell.component.scss',
 })
 export class AppShellComponent {
+  private readonly router = inject(Router);
+  protected readonly authService = inject(AuthService);
+
   protected readonly navigationItems = [
     { label: 'Dashboard', icon: 'home', path: '/dashboard' },
     { label: 'My Tasks', icon: 'search', path: '/tasks' },
@@ -21,8 +25,19 @@ export class AppShellComponent {
 
   protected isTaskModalOpen = false;
   protected lastCreatedTask: NewTaskDraft | null = null;
+  protected isProfileMenuOpen = false;
 
   constructor(protected readonly themeService: ThemeService) {}
+
+  protected toggleProfileMenu(): void {
+    this.isProfileMenuOpen = !this.isProfileMenuOpen;
+  }
+
+  protected logout(): void {
+    this.isProfileMenuOpen = false;
+    this.authService.logout();
+    this.router.navigate(['/login']);
+  }
 
   protected toggleTheme(): void {
     this.themeService.toggleTheme();
