@@ -1,0 +1,27 @@
+.workspace-page {
+  display: block;
+  width: 100%;
+  padding: 20px 16px;
+
+  @media (min-width: 768px) {
+    padding: 28px 24px;
+  }
+
+  @media (min-width: 1024px) {
+    padding: 32px;
+  }
+}
+
+.projects-container {
+  width: 100%;
+  display: grid;
+  gap: 28px;
+
+  @media (min-width: 768px) {
+    gap: 32px;
+  }
+
+  @media (min-width: 1024px) {
+    gap: 40px;
+  }
+}

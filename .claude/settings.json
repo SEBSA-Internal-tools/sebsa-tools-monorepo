@@ -6,7 +6,13 @@
       "Bash(npx prisma *)",
       "Bash(npm ls *)",
       "Bash(node -e \"console.log\\(require\\('prisma/package.json'\\).version\\)\")",
-      "Bash(npm view *)"
+      "Bash(npm view *)",
+      "Bash(npm run *)",
+      "Bash(npx nx *)",
+      "Bash(curl -s http://localhost:4201)",
+      "Bash(curl -s http://localhost:4201/dashboard)",
+      "Bash(cat)",
+      "Read(//tmp/**)"
     ]
   }
 }

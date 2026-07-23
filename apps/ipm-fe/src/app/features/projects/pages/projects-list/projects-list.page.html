@@ -1,0 +1,21 @@
+<section class="workspace-page">
+  <div class="projects-container">
+    <!-- Hero Section -->
+    <projects-hero [data]="heroData"></projects-hero>
+
+    <!-- Projects List Section -->
+    <projects-list
+      [projects]="projects$ | async"
+      (newProjectClick)="onNewProject()"
+      (searchChange)="onSearch($event)"
+      (deleteProject)="onDeleteProject($event)"
+    ></projects-list>
+  </div>
+
+  <!-- Create Project Modal -->
+  <create-project-modal
+    [isOpen]="isModalOpen"
+    (close)="closeCreateModal()"
+    (submit)="onCreateProject($event)"
+  ></create-project-modal>
+</section>

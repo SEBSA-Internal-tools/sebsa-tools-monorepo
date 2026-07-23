@@ -1,0 +1,17 @@
+<header class="hero-section workspace-card" *ngIf="data">
+  <div class="hero-content">
+    <p class="eyebrow">Project Management Overview</p>
+    <h1>{{ data.title }}</h1>
+    <p class="description">{{ data.description }}</p>
+  </div>
+
+  <div class="hero-stats">
+    @for (stat of data.stats; track stat.icon) {
+      <div class="stat-box">
+        <span class="material-symbols-outlined">{{ stat.icon }}</span>
+        <strong>{{ stat.value }}</strong>
+        <span>{{ stat.label }}</span>
+      </div>
+    }
+  </div>
+</header>

@@ -20,6 +20,7 @@
   background: linear-gradient(180deg, var(--app-surface) 0%, var(--app-surface-soft) 100%);
   border-right: 1px solid var(--app-border);
   height: 100%;
+  overflow-y: auto;
 }
 
 .brand-block {
@@ -145,6 +146,7 @@
   flex-direction: column;
   min-width: 0;
   height: 100%;
+  min-height: 0;
 }
 
 .top-navbar {
@@ -290,7 +292,8 @@
 
 .page-content {
   flex: 1;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   min-height: 0;
   background: var(--app-background);
 }

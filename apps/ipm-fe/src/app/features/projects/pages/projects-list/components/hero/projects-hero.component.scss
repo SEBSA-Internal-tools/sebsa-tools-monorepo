@@ -1,0 +1,116 @@
+.hero-section {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 24px;
+  align-items: center;
+  padding: 32px;
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+  width: 100%;
+
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+    gap: 20px;
+    padding: 24px;
+  }
+
+  @media (min-width: 1024px) {
+    padding: 40px;
+  }
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 400px;
+    height: 400px;
+    background: radial-gradient(circle, var(--app-accent-soft) 0%, transparent 70%);
+    border-radius: 50%;
+    opacity: 0.4;
+    pointer-events: none;
+    z-index: 0;
+
+    @media (max-width: 768px) {
+      width: 250px;
+      height: 250px;
+    }
+  }
+}
+
+.hero-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 80px;
+  height: 80px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, var(--app-accent-soft), rgba(217, 37, 97, 0.05));
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+
+  @media (max-width: 768px) {
+    width: 64px;
+    height: 64px;
+    border-radius: 12px;
+  }
+
+  .material-symbols-outlined {
+    font-size: 40px;
+    color: var(--app-accent);
+    font-weight: 700;
+
+    @media (max-width: 768px) {
+      font-size: 32px;
+    }
+  }
+}
+
+.hero-content {
+  position: relative;
+  z-index: 1;
+  max-width: 680px;
+
+  .eyebrow {
+    margin: 0 0 12px;
+    color: var(--app-accent);
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  h1 {
+    margin: 0 0 16px;
+    color: var(--app-text);
+    font-size: clamp(1.8rem, 4vw, 2.5rem);
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    font-weight: 700;
+  }
+
+  .description {
+    margin: 0 0 20px;
+    max-width: 50ch;
+    font-size: 0.98rem;
+    line-height: 1.65;
+    color: var(--app-text-muted);
+  }
+
+  .cta-link {
+    display: inline-block;
+    color: var(--app-accent);
+    font-weight: 600;
+    font-size: 0.9rem;
+    text-decoration: none;
+    padding: 8px 0;
+    border-bottom: 2px solid transparent;
+    transition: border-color 0.2s ease;
+
+    &:hover {
+      border-bottom-color: var(--app-accent);
+    }
+  }
+}
