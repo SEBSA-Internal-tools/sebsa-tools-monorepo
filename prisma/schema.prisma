@@ -1,0 +1,720 @@
+// SEBSA Internal Project Management Tool — Database Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+/// System-wide access tier. EXECUTIVE gets read-only visibility across every
+/// project without needing per-project membership rows; project-scoped
+/// roles (Owner/Manager/Member/Viewer) live in the Role/ProjectMember tables.
+enum SystemRole {
+  SYSTEM_ADMIN
+  EXECUTIVE
+  REGULAR_USER
+}
+
+/// Fixed project lifecycle ("Basic for Now", not customizable per project).
+enum ProjectStatus {
+  PLANNING
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  ARCHIVED
+}
+
+/// Project Type / Category.
+enum ProjectType {
+  IFS_IMPLEMENTATION
+  IFS_SUPPORT
+  INTERNAL
+  CUSTOMIZATION
+  UPGRADE
+  CONFIGURATION
+  CUSTOM
+}
+
+/// "Task Type Definitions" table (authoritative 7-value list).
+enum TaskType {
+  EPIC
+  STORY
+  TASK
+  BUG
+  IMPROVEMENT
+  TEST
+  SUBTASK
+}
+
+/// Task Priority. Default: MEDIUM.
+enum Priority {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+
+/// Sprint lifecycle. Only one sprint per project may be ACTIVE
+/// (enforced by a partial unique index — see migration.sql).
+enum SprintStatus {
+  PLANNED
+  ACTIVE
+  COMPLETED
+}
+
+/// Dependency Types. BLOCKED_BY is intentionally omitted: it is the
+/// inverse of BLOCKS and is derived at query time from the reverse relation,
+/// avoiding a redundant mirrored row per link.
+enum DependencyType {
+  BLOCKS
+  RELATES_TO
+  DUPLICATE_OF
+}
+
+/// Entities that ActivityLog, Notification and SavedFilter can point at.
+/// Used as a lightweight polymorphic discriminator alongside a raw UUID
+/// (entityId) rather than a real FK, since a single log/notification table
+/// must reference many unrelated tables — see docs/database-architecture.md.
+enum EntityType {
+  PROJECT
+  TASK
+  COMMENT
+  SPRINT
+  MILESTONE
+  USER
+  PROJECT_MEMBER
+}
+
+/// Actions recorded in the immutable activity/audit trail.
+enum ActivityAction {
+  CREATED
+  UPDATED
+  STATUS_CHANGED
+  DELETED
+  RESTORED
+  ASSIGNED
+  UNASSIGNED
+  COMMENTED
+  ATTACHMENT_ADDED
+  MEMBER_ADDED
+  MEMBER_REMOVED
+  ROLE_CHANGED
+  SPRINT_STARTED
+  SPRINT_COMPLETED
+  MILESTONE_REACHED
+}
+
+/// Notifications & Alerts.
+enum NotificationType {
+  TASK_ASSIGNED
+  STATUS_CHANGE
+  MENTION
+  DUE_DATE_REMINDER
+  OVERDUE_ALERT
+  SPRINT_EVENT
+}
+
+/// Delivery channels a notification preference can target.
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  SLACK
+  TEAMS
+}
+
+/// Saved Filter Views apply to either a task list or a project list.
+enum SavedFilterEntityType {
+  TASK
+  PROJECT
+}
+
+/// Integrations & API.
+enum IntegrationType {
+  SLACK
+  MS_TEAMS
+  GOOGLE_CALENDAR
+  OUTLOOK
+  GITHUB
+  GITLAB
+  GOOGLE_DRIVE
+  DROPBOX
+  CI_CD
+}
+
+// ---------------------------------------------------------------------------
+// Identity & Access
+// ---------------------------------------------------------------------------
+
+/// Normalized lookup so department names are consistent across
+/// users and usable for dashboard grouping/filtering, instead of a free-text
+/// column that would drift (typos, casing) across records.
+model Department {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users User[]
+
+  @@map("departments")
+}
+
+/// A user account. Admin-provisioned only (no self-registration).
+model User {
+  id           String     @id @default(uuid())
+  name         String
+  email        String     @unique
+  passwordHash String
+  systemRole   SystemRole @default(REGULAR_USER)
+  departmentId String
+  isActive     Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  deletedAt    DateTime?
+
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+
+  createdProjects       Project[]                @relation("ProjectCreatedBy")
+  projectMemberships    ProjectMember[]
+  createdTasks          Task[]                   @relation("TaskCreatedBy")
+  taskAssignments       TaskAssignee[]
+  taskWatches           TaskWatcher[]
+  comments              Comment[]
+  commentMentions       CommentMention[]
+  uploadedAttachments   Attachment[]
+  activityLogEntries    ActivityLog[]
+  notifications         Notification[]
+  notificationPrefs     NotificationPreference[]
+  savedFilters          SavedFilter[]
+  taskStatusTransitions TaskStatusHistory[]
+  apiTokens             ApiToken[]
+
+  @@index([departmentId])
+  @@map("users")
+}
+
+/// A project-scoped role. Seeded with the five described roles
+/// (Project Owner, Project Manager, Member, Viewer/Stakeholder — Executive is
+/// modeled as a SystemRole instead, see enum comment) plus any custom roles
+/// Project Owners/Admins define, distinguished by isSystemDefault.
+model Role {
+  id                       String   @id @default(uuid())
+  projectId                String
+  name                     String
+  isSystemDefault          Boolean  @default(false)
+  canCreateTask            Boolean  @default(false)
+  canDeleteTask            Boolean  @default(false)
+  canManageMembers         Boolean  @default(false)
+  canConfigureIntegrations Boolean  @default(false)
+  canManageWorkflow        Boolean  @default(false)
+  isReadOnly               Boolean  @default(false)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  project Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  members ProjectMember[]
+
+  @@unique([projectId, name])
+  @@index([projectId])
+  @@map("roles")
+}
+
+/// Join of User <-> Project with an assigned Role. Soft-deleted on
+/// removal (rather than hard-deleted) so "historical task contributions are
+/// retained" even after a member leaves a project.
+model ProjectMember {
+  id        String    @id @default(uuid())
+  projectId String
+  userId    String
+  roleId    String
+  joinedAt  DateTime  @default(now())
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Restrict)
+  role    Role    @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  // Prisma's DSL cannot express a partial unique index, so the real
+  // "one active membership per user per project" constraint is a hand-added
+  // partial unique index (WHERE deletedAt IS NULL) in the initial migration
+  // — see docs/database-architecture.md "Constraints added by hand". A
+  // plain @@index (not @@unique) is kept here purely for query performance
+  // so this model stays truthful about what the DB actually enforces.
+  @@index([projectId])
+  @@index([userId])
+  @@map("project_members")
+}
+
+// ---------------------------------------------------------------------------
+// Projects
+// ---------------------------------------------------------------------------
+
+/// The top-level engagement/initiative entity.
+model Project {
+  id            String        @id @default(uuid())
+  name          String
+  description   String?
+  type          ProjectType
+  customType    String?
+  status        ProjectStatus @default(PLANNING)
+  startDate     DateTime?
+  targetEndDate DateTime?
+  color         String?
+  createdById   String
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  deletedAt     DateTime?
+
+  createdBy User @relation("ProjectCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  roles          Role[]
+  members        ProjectMember[]
+  workflowStages WorkflowStage[]
+  milestones     Milestone[]
+  sprints        Sprint[]
+  tasks          Task[]
+  labels         Label[]
+  integrations   Integration[]
+  webhooks       Webhook[]
+
+  @@index([status])
+  @@index([createdById])
+  @@map("projects")
+}
+
+/// "Custom Workflow Stages" — each project owns its own ordered list
+/// of task statuses (add/rename/reorder/remove), so Task.status is a FK here
+/// rather than a fixed enum. New projects are expected to be seeded with the
+/// "Default Task Workflow Statuses" (New, In Analysis, ... Cancelled)
+/// by application logic at project-creation time — no seed data is included
+/// in this migration per the infrastructure-only scope of this task.
+model WorkflowStage {
+  id        String   @id @default(uuid())
+  projectId String
+  name      String
+  order     Int
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project           Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks             Task[]
+  statusHistoryFrom TaskStatusHistory[] @relation("StatusHistoryFrom")
+  statusHistoryTo   TaskStatusHistory[] @relation("StatusHistoryTo")
+
+  @@unique([projectId, name])
+  @@unique([projectId, order])
+  @@index([projectId])
+  @@map("workflow_stages")
+}
+
+/// Named checkpoint with a target date; progress is derived from
+/// its associated tasks. Modeled as one-to-many (Task.milestoneId) rather
+/// than many-to-many: a task advances exactly one checkpoint, matching how
+/// the milestone progress being "tracked as associated tasks complete".
+model Milestone {
+  id          String    @id @default(uuid())
+  projectId   String
+  name        String
+  description String?
+  targetDate  DateTime
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks   Task[]
+
+  @@index([projectId])
+  @@map("milestones")
+}
+
+/// Sprint & Backlog Management. Tasks with sprintId = null sit in the backlog.
+model Sprint {
+  id        String       @id @default(uuid())
+  projectId String
+  name      String
+  goal      String?
+  startDate DateTime
+  endDate   DateTime
+  status    SprintStatus @default(PLANNED)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks   Task[]
+
+  // NOTE: a partial unique index enforcing "max one ACTIVE sprint per
+  // project" is added by hand in the initial migration.
+  @@index([projectId])
+  @@index([projectId, status])
+  @@map("sprints")
+}
+
+/// Custom Labels/Tags, scoped per project.
+model Label {
+  id        String   @id @default(uuid())
+  projectId String
+  name      String
+  color     String?
+  createdAt DateTime @default(now())
+
+  project Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks   TaskLabel[]
+
+  @@unique([projectId, name])
+  @@index([projectId])
+  @@map("labels")
+}
+
+// ---------------------------------------------------------------------------
+// Tasks
+// ---------------------------------------------------------------------------
+
+/// The core work item. Subtasks are Task rows that reference a
+/// parentTaskId (self-relation) rather than a separate table.
+model Task {
+  id                  String    @id @default(uuid())
+  projectId           String
+  parentTaskId        String?
+  title               String
+  description         String?
+  type                TaskType  @default(TASK)
+  priority            Priority  @default(MEDIUM)
+  workflowStageId     String
+  sprintId            String?
+  milestoneId         String?
+  startDate           DateTime?
+  dueDate             DateTime?
+  storyPoints         Float?
+  reminderLeadMinutes Int?
+  createdById         String
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  deletedAt           DateTime?
+
+  project       Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parentTask    Task?         @relation("TaskSubtasks", fields: [parentTaskId], references: [id], onDelete: Cascade)
+  subtasks      Task[]        @relation("TaskSubtasks")
+  workflowStage WorkflowStage @relation(fields: [workflowStageId], references: [id], onDelete: Restrict)
+  sprint        Sprint?       @relation(fields: [sprintId], references: [id], onDelete: SetNull)
+  milestone     Milestone?    @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  createdBy     User          @relation("TaskCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  assignees     TaskAssignee[]
+  watchers      TaskWatcher[]
+  labels        TaskLabel[]
+  comments      Comment[]
+  attachments   Attachment[]
+  statusHistory TaskStatusHistory[]
+  outgoingLinks TaskDependency[]    @relation("TaskDependencySource")
+  incomingLinks TaskDependency[]    @relation("TaskDependencyTarget")
+
+  @@index([projectId])
+  @@index([parentTaskId])
+  @@index([workflowStageId])
+  @@index([sprintId])
+  @@index([milestoneId])
+  @@index([dueDate])
+  @@map("tasks")
+}
+
+/// "Assigned to one or more project members" — M:N join.
+model TaskAssignee {
+  id         String   @id @default(uuid())
+  taskId     String
+  userId     String
+  assignedAt DateTime @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, userId])
+  @@index([userId])
+  @@map("task_assignees")
+}
+
+/// "Watch / Follow Task" — M:N join.
+model TaskWatcher {
+  id        String   @id @default(uuid())
+  taskId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, userId])
+  @@index([userId])
+  @@map("task_watchers")
+}
+
+/// M:N join between Task and Label.
+model TaskLabel {
+  taskId  String
+  labelId String
+
+  task  Task  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  label Label @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, labelId])
+  @@index([labelId])
+  @@map("task_labels")
+}
+
+/// Directional dependency link. A row (source, BLOCKS, target)
+/// means "source blocks target" / "target is blocked by source"; the
+/// BLOCKED_BY direction is derived by reading incomingLinks instead of
+/// storing a mirrored inverse row. Circular-dependency prevention is a
+/// graph-traversal business rule enforced at the application layer, not
+/// expressible as a DB constraint.
+model TaskDependency {
+  id           String         @id @default(uuid())
+  sourceTaskId String
+  targetTaskId String
+  type         DependencyType
+  createdAt    DateTime       @default(now())
+
+  sourceTask Task @relation("TaskDependencySource", fields: [sourceTaskId], references: [id], onDelete: Cascade)
+  targetTask Task @relation("TaskDependencyTarget", fields: [targetTaskId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceTaskId, targetTaskId, type])
+  @@index([targetTaskId])
+  @@map("task_dependencies")
+}
+
+/// "Auto - Time Monitoring" — every workflow-stage transition is
+/// recorded so time-in-status can be computed by diffing consecutive
+/// changedAt values per task. Distinct from the general ActivityLog because
+/// it needs a strict fromStage/toStage shape for that computation, rather
+/// than a free-form description.
+model TaskStatusHistory {
+  id          String   @id @default(uuid())
+  taskId      String
+  fromStageId String?
+  toStageId   String
+  changedById String
+  changedAt   DateTime @default(now())
+
+  task      Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  fromStage WorkflowStage? @relation("StatusHistoryFrom", fields: [fromStageId], references: [id], onDelete: SetNull)
+  toStage   WorkflowStage  @relation("StatusHistoryTo", fields: [toStageId], references: [id], onDelete: Restrict)
+  changedBy User           @relation(fields: [changedById], references: [id], onDelete: Restrict)
+
+  @@index([taskId])
+  @@index([toStageId])
+  @@map("task_status_history")
+}
+
+// ---------------------------------------------------------------------------
+// Collaboration
+// ---------------------------------------------------------------------------
+
+/// Threaded comments per task, via self-relation for replies.
+model Comment {
+  id              String    @id @default(uuid())
+  taskId          String
+  authorId        String
+  parentCommentId String?
+  body            String
+  isEdited        Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  task          Task             @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  author        User             @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  parentComment Comment?         @relation("CommentReplies", fields: [parentCommentId], references: [id], onDelete: Cascade)
+  replies       Comment[]        @relation("CommentReplies")
+  mentions      CommentMention[]
+  attachments   Attachment[]
+
+  @@index([taskId])
+  @@index([parentCommentId])
+  @@map("comments")
+}
+
+/// "@Mention" — explicit records so mention-driven notifications
+/// can be queried without re-parsing comment body text.
+model CommentMention {
+  id              String   @id @default(uuid())
+  commentId       String
+  mentionedUserId String
+  createdAt       DateTime @default(now())
+
+  comment       Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  mentionedUser User    @relation(fields: [mentionedUserId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, mentionedUserId])
+  @@index([mentionedUserId])
+  @@map("comment_mentions")
+}
+
+/// A file attached to either a task or a comment (exactly
+/// one of taskId/commentId is set). The CHECK constraint enforcing that is
+/// added by hand in the initial migration since Prisma's schema DSL has no
+/// native CHECK-constraint syntax.
+model Attachment {
+  id           String   @id @default(uuid())
+  taskId       String?
+  commentId    String?
+  fileName     String
+  filePath     String
+  fileSize     Int
+  mimeType     String
+  uploadedById String
+  createdAt    DateTime @default(now())
+
+  task       Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  comment    Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  uploadedBy User     @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@index([taskId])
+  @@index([commentId])
+  @@map("attachments")
+}
+
+// ---------------------------------------------------------------------------
+// Audit, Notifications, Search
+// ---------------------------------------------------------------------------
+
+/// A single immutable, append-only ledger backing the Task
+/// Activity Log, Project Timeline View, Contributor Summary, and Global
+/// Audit Log requirements. entityId is a raw UUID (not a real FK) because
+/// one log table must reference rows across many unrelated tables; see
+/// docs/database-architecture.md for the trade-off this accepts.
+model ActivityLog {
+  id          String         @id @default(uuid())
+  projectId   String?
+  entityType  EntityType
+  entityId    String
+  action      ActivityAction
+  actorId     String?
+  description String
+  metadata    Json?
+  createdAt   DateTime       @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+  @@index([entityType, entityId])
+  @@index([actorId])
+  @@index([createdAt])
+  @@map("activity_logs")
+}
+
+/// Notifications & Alerts.
+model Notification {
+  id                String           @id @default(uuid())
+  userId            String
+  type              NotificationType
+  title             String
+  message           String
+  relatedEntityType EntityType?
+  relatedEntityId   String?
+  isRead            Boolean          @default(false)
+  readAt            DateTime?
+  createdAt         DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+/// "Per-User Notification Preferences" — which events trigger
+/// notifications and through which channels.
+model NotificationPreference {
+  id        String              @id @default(uuid())
+  userId    String
+  channel   NotificationChannel
+  eventType NotificationType
+  isEnabled Boolean             @default(true)
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, channel, eventType])
+  @@map("notification_preferences")
+}
+
+/// "Saved Filter Views" — per-user named filter combinations.
+model SavedFilter {
+  id         String                @id @default(uuid())
+  userId     String
+  name       String
+  entityType SavedFilterEntityType
+  criteria   Json
+  createdAt  DateTime              @default(now())
+  updatedAt  DateTime              @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name])
+  @@map("saved_filters")
+}
+
+// ---------------------------------------------------------------------------
+// Integrations & API
+// ---------------------------------------------------------------------------
+
+/// "Per-Project Integration Config" — structure only; no business
+/// logic is wired up as part of this infrastructure task.
+model Integration {
+  id        String          @id @default(uuid())
+  projectId String
+  type      IntegrationType
+  isEnabled Boolean         @default(false)
+  config    Json?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, type])
+  @@map("integrations")
+}
+
+/// "Webhooks" — external systems subscribing to project events.
+model Webhook {
+  id               String   @id @default(uuid())
+  projectId        String
+  url              String
+  secret           String
+  subscribedEvents String[]
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("webhooks")
+}
+
+/// "Public REST API ... secured with token-based authentication".
+model ApiToken {
+  id         String    @id @default(uuid())
+  userId     String
+  name       String
+  tokenHash  String    @unique
+  lastUsedAt DateTime?
+  expiresAt  DateTime?
+  createdAt  DateTime  @default(now())
+  revokedAt  DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("api_tokens")
+}
