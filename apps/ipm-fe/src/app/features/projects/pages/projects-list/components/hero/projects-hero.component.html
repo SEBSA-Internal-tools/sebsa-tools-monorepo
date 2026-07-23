@@ -1,0 +1,12 @@
+<header class="hero-section workspace-card" *ngIf="data">
+  <div class="hero-icon">
+    <span class="material-symbols-outlined">folder_open</span>
+  </div>
+
+  <div class="hero-content">
+    <p class="eyebrow">Portfolio</p>
+    <h1>{{ data.title }}</h1>
+    <p class="description">{{ data.description }}</p>
+    <a href="#" class="cta-link">{{ data.ctaLabel }}</a>
+  </div>
+</header>

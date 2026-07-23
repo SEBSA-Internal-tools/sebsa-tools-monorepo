@@ -29,7 +29,14 @@ export const appRoutes: Route[] = [
 			{
 				path: 'projects',
 				loadComponent: () =>
-					import('./features/projects/projects.page').then((m) => m.ProjectsPageComponent),
+					import('./features/projects/pages/projects-list/projects-list.page').then((m) => m.ProjectsPageComponent),
+			},
+			{
+				path: 'projects/:id',
+				loadComponent: () =>
+					import('./features/projects/pages/project-detail/project-detail.page').then(
+						(m) => m.ProjectDetailPageComponent
+					),
 			},
 			{
 				path: 'calendar',
