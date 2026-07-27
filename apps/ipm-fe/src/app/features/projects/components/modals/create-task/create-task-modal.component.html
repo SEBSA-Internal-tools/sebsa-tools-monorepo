@@ -19,9 +19,31 @@
         <!-- Project Field -->
         <div class="form-group full-width">
           <label class="form-label">Project</label>
-          <div class="project-display">
-            <span class="project-name">{{ projectName }}</span>
-          </div>
+          @if (projectId) {
+            <div class="project-display">
+              <span class="project-name">{{ projectName }}</span>
+            </div>
+          } @else {
+            <select [(ngModel)]="selectedProjectId" (change)="onProjectSelect(selectedProjectId)" class="form-select">
+              <option value="">Select a project...</option>
+              @for (project of availableProjects; track project.id) {
+                <option [value]="project.id">{{ project.name }}</option>
+              }
+            </select>
+          }
+        </div>
+
+        <!-- Sprint Selection -->
+        <div class="form-group full-width">
+          <label for="sprint" class="form-label">Sprint</label>
+          <select id="sprint" [(ngModel)]="selectedSprintId" class="form-select">
+            <option value="">No sprint (Backlog)</option>
+            @for (sprint of availableSprints; track sprint.id) {
+              <option [value]="sprint.id">
+                {{ sprint.name }} ({{ sprint.status }})
+              </option>
+            }
+          </select>
         </div>
 
         <!-- Task Title -->

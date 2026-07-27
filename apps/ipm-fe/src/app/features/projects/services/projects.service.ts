@@ -21,6 +21,19 @@ export interface Task {
   assignee?: string;
   dueDate: string;
   projectId: string;
+  sprintId?: string;
+}
+
+export interface Sprint {
+  id: string;
+  name: string;
+  projectId: string;
+  status: 'planned' | 'active' | 'completed';
+  startDate: string;
+  endDate: string;
+  description?: string;
+  createdAt: string;
+  tasks?: Task[];
 }
 
 export interface ProjectsHeroData {
@@ -117,6 +130,39 @@ export class ProjectsService {
     return this.projects$.value;
   }
 
+  private sprints$ = new BehaviorSubject<Sprint[]>([
+    {
+      id: 'SPR-001',
+      name: 'Sprint 1: Foundation Setup',
+      projectId: '954',
+      status: 'completed',
+      startDate: '2024-01-01',
+      endDate: '2024-01-14',
+      description: 'Initial infrastructure and database setup',
+      createdAt: '2023-12-15',
+    },
+    {
+      id: 'SPR-002',
+      name: 'Sprint 2: Data Migration',
+      projectId: '954',
+      status: 'active',
+      startDate: '2024-01-15',
+      endDate: '2024-01-31',
+      description: 'Legacy data migration and validation',
+      createdAt: '2024-01-01',
+    },
+    {
+      id: 'SPR-003',
+      name: 'Sprint 3: Testing & QA',
+      projectId: '954',
+      status: 'planned',
+      startDate: '2024-02-01',
+      endDate: '2024-02-14',
+      description: 'Comprehensive testing and quality assurance',
+      createdAt: '2024-01-10',
+    },
+  ]);
+
   private tasks$ = new BehaviorSubject<Task[]>([
     {
       id: 'PMT-089',
@@ -128,6 +174,7 @@ export class ProjectsService {
       assignee: 'Sarah Miller',
       dueDate: '2024-01-15',
       projectId: '954',
+      sprintId: 'SPR-002',
     },
     {
       id: 'PMT-092',
@@ -139,6 +186,7 @@ export class ProjectsService {
       assignee: 'James Chen',
       dueDate: '2024-01-10',
       projectId: '954',
+      sprintId: 'SPR-001',
     },
     {
       id: 'PMT-093',
@@ -150,6 +198,7 @@ export class ProjectsService {
       assignee: 'Emma Rodriguez',
       dueDate: '2024-01-20',
       projectId: '954',
+      sprintId: 'SPR-002',
     },
     {
       id: 'PMT-094',
@@ -161,6 +210,7 @@ export class ProjectsService {
       assignee: 'David Kim',
       dueDate: '2024-01-12',
       projectId: '954',
+      sprintId: 'SPR-002',
     },
     {
       id: 'PMT-095',
@@ -171,6 +221,7 @@ export class ProjectsService {
       duration: 'In stage: 1d',
       dueDate: '2024-01-25',
       projectId: '954',
+      sprintId: 'SPR-003',
     },
   ]);
 
@@ -192,6 +243,7 @@ export class ProjectsService {
     priority: 'High' | 'Medium' | 'Low';
     dueDate: string;
     description: string;
+    sprintId?: string;
   }): void {
     const newTask: Task = {
       id: `PMT-${String(this.tasks$.value.length + 1).padStart(3, '0')}`,
@@ -203,8 +255,61 @@ export class ProjectsService {
       assignee: formData.assignee || undefined,
       dueDate: formData.dueDate,
       projectId: formData.projectId,
+      sprintId: formData.sprintId,
     };
     const currentTasks = this.tasks$.value;
     this.tasks$.next([...currentTasks, newTask]);
+  }
+
+  getSprints(projectId: string): Sprint[] {
+    return this.sprints$.value.filter((s) => s.projectId === projectId);
+  }
+
+  getSprintById(sprintId: string): Sprint | undefined {
+    return this.sprints$.value.find((s) => s.id === sprintId);
+  }
+
+  getSprintTasks(sprintId: string): Task[] {
+    return this.tasks$.value.filter((t) => t.sprintId === sprintId);
+  }
+
+  createSprint(formData: {
+    name: string;
+    projectId: string;
+    startDate: string;
+    endDate: string;
+    description?: string;
+  }): Sprint {
+    const newSprint: Sprint = {
+      id: `SPR-${String(this.sprints$.value.length + 1).padStart(3, '0')}`,
+      name: formData.name,
+      projectId: formData.projectId,
+      status: 'planned',
+      startDate: formData.startDate,
+      endDate: formData.endDate,
+      description: formData.description,
+      createdAt: new Date().toISOString().split('T')[0],
+    };
+    const currentSprints = this.sprints$.value;
+    this.sprints$.next([...currentSprints, newSprint]);
+    return newSprint;
+  }
+
+  deleteSprint(sprintId: string): void {
+    const currentSprints = this.sprints$.value;
+    const updatedSprints = currentSprints.filter((s) => s.id !== sprintId);
+    this.sprints$.next(updatedSprints);
+
+    const tasks = this.tasks$.value.map((t) =>
+      t.sprintId === sprintId ? { ...t, sprintId: undefined } : t
+    );
+    this.tasks$.next(tasks);
+  }
+
+  updateSprintStatus(sprintId: string, status: Sprint['status']): void {
+    const sprints = this.sprints$.value.map((s) =>
+      s.id === sprintId ? { ...s, status } : s
+    );
+    this.sprints$.next(sprints);
   }
 }

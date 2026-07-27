@@ -1,0 +1,236 @@
+.team-container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 24px;
+
+  @media (min-width: 768px) {
+    padding: 32px;
+  }
+}
+
+.team-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+
+  .header-info {
+    flex: 1;
+    min-width: 0;
+
+    h3 {
+      margin: 0 0 4px;
+      color: var(--app-text);
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+
+    .member-count {
+      margin: 0;
+      color: var(--app-text-muted);
+      font-size: 0.9rem;
+    }
+  }
+}
+
+.btn-add-member {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
+
+  .material-symbols-outlined {
+    font-size: 20px;
+  }
+
+  &:hover {
+    background: #2563eb;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    transform: translateY(-1px);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+
+  @media (max-width: 640px) {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+.team-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+
+  @media (max-width: 768px) {
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 16px;
+  }
+
+  @media (max-width: 640px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.team-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: 12px;
+  transition: all 0.2s ease;
+
+  &:hover {
+    border-color: #3b82f6;
+    box-shadow: 0 4px 16px rgba(59, 130, 246, 0.1);
+    transform: translateY(-2px);
+  }
+}
+
+.card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.member-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(135deg, #3b82f6, #06b6d4);
+  color: white;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+
+.status-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--app-surface-soft);
+  border: 2px solid var(--app-border);
+  font-size: 14px;
+  flex-shrink: 0;
+
+  .material-symbols-outlined {
+    font-size: 14px;
+  }
+
+  &.active {
+    background: rgba(16, 185, 129, 0.2);
+    border-color: #047857;
+    color: #047857;
+  }
+
+  &.away {
+    background: rgba(245, 158, 11, 0.2);
+    border-color: #b45309;
+    color: #b45309;
+  }
+
+  &.offline {
+    background: rgba(148, 163, 184, 0.2);
+    border-color: #64748b;
+    color: #64748b;
+  }
+}
+
+.member-info {
+  flex: 1;
+  min-width: 0;
+
+  h4 {
+    margin: 0 0 4px;
+    color: var(--app-text);
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.3;
+  }
+
+  .role {
+    margin: 0 0 4px;
+    color: #3b82f6;
+    font-size: 0.85rem;
+    font-weight: 500;
+  }
+
+  .email {
+    margin: 0;
+    color: var(--app-text-muted);
+    font-size: 0.8rem;
+    word-break: break-word;
+  }
+}
+
+.join-date {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--app-text-subtle);
+  padding: 8px 0;
+  border-top: 1px solid var(--app-border);
+  border-bottom: 1px solid var(--app-border);
+
+  .material-symbols-outlined {
+    font-size: 16px;
+  }
+}
+
+.card-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  color: var(--app-text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  .material-symbols-outlined {
+    font-size: 16px;
+  }
+
+  &:hover {
+    background: var(--app-hover);
+    border-color: #3b82f6;
+    color: #3b82f6;
+  }
+
+  &:active {
+    transform: scale(0.95);
+  }
+}
