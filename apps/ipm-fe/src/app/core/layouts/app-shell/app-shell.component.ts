@@ -2,10 +2,10 @@ import { CommonModule } from '@angular/common';
 import { Component } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { ThemeService } from '../../services/theme.service';
-import { TaskModalComponent, type NewTaskDraft } from '../../components/task-modal/task-modal.component';
+import { CreateTaskModalComponent, type TaskFormData } from '../../../features/projects/components/modals/create-task/create-task-modal.component';
 
 @Component({
-  imports: [CommonModule, RouterLink, RouterLinkActive, RouterOutlet, TaskModalComponent],
+  imports: [CommonModule, RouterLink, RouterLinkActive, RouterOutlet, CreateTaskModalComponent],
   selector: 'app-shell',
   templateUrl: './app-shell.component.html',
   styleUrl: './app-shell.component.scss',
@@ -20,7 +20,7 @@ export class AppShellComponent {
   ] as const;
 
   protected isTaskModalOpen = false;
-  protected lastCreatedTask: NewTaskDraft | null = null;
+  protected lastCreatedTask: TaskFormData | null = null;
 
   constructor(protected readonly themeService: ThemeService) {}
 
@@ -36,7 +36,7 @@ export class AppShellComponent {
     this.isTaskModalOpen = false;
   }
 
-  protected handleTaskSaved(task: NewTaskDraft): void {
+  protected handleTaskSaved(task: TaskFormData): void {
     this.lastCreatedTask = task;
     this.closeTaskModal();
   }

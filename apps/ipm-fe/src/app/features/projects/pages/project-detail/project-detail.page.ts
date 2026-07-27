@@ -6,6 +6,9 @@ import { ProjectDetailHeaderComponent } from './components/header/project-detail
 import { ProjectNavTabsComponent } from './components/nav-tabs/project-nav-tabs.component';
 import { ProjectKanbanComponent } from './components/kanban/project-kanban.component';
 import { ProjectTaskListComponent } from './components/task-list/project-task-list.component';
+import { ProjectTeamComponent } from './components/team/project-team.component';
+import { ProjectSprintComponent } from './components/sprint/project-sprint.component';
+import { ProjectOverviewComponent } from './components/overview/project-overview.component';
 import { CreateTaskModalComponent, type TaskFormData } from '../../components/modals/create-task/create-task-modal.component';
 import type { ProjectItem } from '../../services/projects.service';
 
@@ -18,6 +21,9 @@ import type { ProjectItem } from '../../services/projects.service';
     ProjectNavTabsComponent,
     ProjectKanbanComponent,
     ProjectTaskListComponent,
+    ProjectTeamComponent,
+    ProjectSprintComponent,
+    ProjectOverviewComponent,
     CreateTaskModalComponent,
   ],
   templateUrl: './project-detail.page.html',
@@ -30,7 +36,7 @@ export class ProjectDetailPageComponent implements OnInit {
   private projectsService = inject(ProjectsService);
 
   project: ProjectItem | null = null;
-  activeTab: 'overview' | 'kanban' | 'tasklist' | 'calendar' | 'sprint' = 'kanban';
+  activeTab: 'overview' | 'kanban' | 'tasklist' | 'calendar' | 'sprint' | 'team' = 'kanban';
   isTaskModalOpen = false;
 
   ngOnInit(): void {

@@ -1,0 +1,203 @@
+<div class="overview-dashboard">
+  <!-- Header Section -->
+  <div class="dashboard-header">
+    <h2>Project Overview</h2>
+    <p class="header-subtitle">{{ project.name }}</p>
+  </div>
+
+  <!-- Main Dashboard Grid -->
+  <div class="dashboard-grid">
+    <!-- Section 1: Project Statistics Cards -->
+    <div class="stats-section">
+      <div class="section-title">Project Statistics</div>
+
+      <div class="stats-cards">
+        <!-- Total Tasks Card -->
+        <div class="stat-card">
+          <div class="stat-icon" style="background: #eff6ff">
+            <span class="material-symbols-outlined" style="color: #3b82f6">task_alt</span>
+          </div>
+          <div class="stat-content">
+            <p class="stat-label">Total Tasks</p>
+            <p class="stat-value">{{ taskStats().total }}</p>
+          </div>
+        </div>
+
+        <!-- Completed Tasks Card -->
+        <div class="stat-card">
+          <div class="stat-icon" style="background: #f0fdf4">
+            <span class="material-symbols-outlined" style="color: #10b981">check_circle</span>
+          </div>
+          <div class="stat-content">
+            <p class="stat-label">Completed</p>
+            <p class="stat-value">{{ taskStats().completed }}</p>
+          </div>
+        </div>
+
+        <!-- In Progress Card -->
+        <div class="stat-card">
+          <div class="stat-icon" style="background: #fef3c7">
+            <span class="material-symbols-outlined" style="color: #f59e0b">schedule</span>
+          </div>
+          <div class="stat-content">
+            <p class="stat-label">In Progress</p>
+            <p class="stat-value">{{ taskStats().inProgress }}</p>
+          </div>
+        </div>
+
+        <!-- Overdue Card -->
+        <div class="stat-card critical">
+          <div class="stat-icon" style="background: #fee2e2">
+            <span class="material-symbols-outlined" style="color: #ef4444">warning</span>
+          </div>
+          <div class="stat-content">
+            <p class="stat-label">Overdue</p>
+            <p class="stat-value">{{ taskStats().overdue }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 2: Progress & Sprint Status -->
+    <div class="progress-section">
+      <!-- Overall Progress -->
+      <div class="progress-card">
+        <div class="card-header">
+          <h3>Overall Progress</h3>
+          <span class="progress-percentage">{{ getCompletionPercentage() }}%</span>
+        </div>
+
+        <div class="progress-bar-container">
+          <div class="progress-bar">
+            <div
+              class="progress-fill"
+              [style.width.%]="getCompletionPercentage()"
+            ></div>
+          </div>
+        </div>
+
+        <div class="progress-info">
+          <span>{{ taskStats().completed }} of {{ taskStats().total }} tasks completed</span>
+        </div>
+      </div>
+
+      <!-- Sprint Status -->
+      <div class="sprint-status-card">
+        <div class="card-header">
+          <h3>Sprints</h3>
+        </div>
+
+        <div class="sprint-stats">
+          <div class="sprint-stat">
+            <span class="sprint-count">{{ sprintStats().active }}</span>
+            <span class="sprint-label">Active</span>
+          </div>
+          <div class="sprint-stat">
+            <span class="sprint-count">{{ sprintStats().planned }}</span>
+            <span class="sprint-label">Planned</span>
+          </div>
+          <div class="sprint-stat">
+            <span class="sprint-count">{{ sprintStats().completed }}</span>
+            <span class="sprint-label">Completed</span>
+          </div>
+        </div>
+
+        @if (activeSprint()) {
+          <div class="active-sprint-info">
+            <div class="sprint-name">
+              <span class="material-symbols-outlined">flag</span>
+              {{ activeSprint()!.name }}
+            </div>
+            <p class="sprint-dates">
+              {{ activeSprint()!.startDate }} to {{ activeSprint()!.endDate }}
+            </p>
+          </div>
+        }
+      </div>
+    </div>
+
+    <!-- Section 3: Recent Tasks -->
+    <div class="recent-tasks">
+      <div class="card-header">
+        <h3>Recent Tasks</h3>
+      </div>
+
+      @if (recentTasks().length > 0) {
+        <div class="tasks-list">
+          @for (task of recentTasks(); track task.id) {
+            <div class="task-item">
+              <div class="task-left">
+                <div class="task-id-badge">{{ task.id }}</div>
+                <div class="task-info">
+                  <p class="task-title">{{ task.title }}</p>
+                  <span class="task-category">{{ task.category }}</span>
+                </div>
+              </div>
+
+              <div class="task-right">
+                <span
+                  [class]="'priority-badge priority-' + task.priority.toLowerCase()"
+                  [style.backgroundColor]="getPriorityColor(task.priority)"
+                >
+                  {{ task.priority }}
+                </span>
+                <span
+                  [class]="'status-badge status-' + task.status"
+                  [style.borderLeftColor]="getTaskStatusColor(task.status)"
+                >
+                  <span class="material-symbols-outlined">
+                    {{ getTaskStatusIcon(task.status) }}
+                  </span>
+                  {{ getTaskStatusLabel(task.status) }}
+                </span>
+              </div>
+            </div>
+          }
+        </div>
+      } @else {
+        <div class="empty-state">
+          <span class="material-symbols-outlined">inbox</span>
+          <p>No tasks yet</p>
+        </div>
+      }
+    </div>
+
+    <!-- Section 4: Project Info -->
+    <div class="project-info">
+      <div class="card-header">
+        <h3>Project Information</h3>
+      </div>
+
+      <div class="info-grid">
+        <div class="info-item">
+          <span class="info-label">Owner</span>
+          <span class="info-value">{{ project.owner }}</span>
+        </div>
+
+        <div class="info-item">
+          <span class="info-label">Status</span>
+          <div class="status-badge-inline">
+            <span
+              [class]="'status-badge-text ' + (project.status === 'Open' ? 'status-open' : 'status-closed')"
+            >
+              {{ project.status }}
+            </span>
+          </div>
+        </div>
+
+        <div class="info-item">
+          <span class="info-label">Visibility</span>
+          <span class="info-value">
+            <span class="material-symbols-outlined">{{ project.visibility === 'Private' ? 'lock' : 'public' }}</span>
+            {{ project.visibility }}
+          </span>
+        </div>
+
+        <div class="info-item">
+          <span class="info-label">Last Updated</span>
+          <span class="info-value">{{ project.lastUpdated }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

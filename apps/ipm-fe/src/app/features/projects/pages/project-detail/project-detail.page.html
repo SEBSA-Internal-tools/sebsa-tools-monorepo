@@ -24,11 +24,7 @@
           <project-task-list [projectId]="project.id"></project-task-list>
         }
         @case ('overview') {
-          <div class="overview-placeholder">
-            <span class="material-symbols-outlined">dashboard</span>
-            <h3>Project Overview</h3>
-            <p>Overview content coming soon</p>
-          </div>
+          <project-overview [project]="project"></project-overview>
         }
         @case ('calendar') {
           <div class="overview-placeholder">
@@ -38,11 +34,10 @@
           </div>
         }
         @case ('sprint') {
-          <div class="overview-placeholder">
-            <span class="material-symbols-outlined">sprint</span>
-            <h3>Sprint View</h3>
-            <p>Sprint content coming soon</p>
-          </div>
+          <project-sprint [projectId]="project.id"></project-sprint>
+        }
+        @case ('team') {
+          <project-team [projectId]="project.id"></project-team>
         }
       }
     </div>

@@ -1,0 +1,123 @@
+@if (isOpen) {
+  <div class="modal-overlay" (click)="onBackdropClick()"></div>
+
+  <div class="modal-container">
+    <!-- Modal Header -->
+    <div class="modal-header">
+      <div class="header-content">
+        <p class="header-label">ASSIGN USERS</p>
+        <h2>Add team members to project</h2>
+      </div>
+      <button type="button" class="close-btn" (click)="onCancel()" title="Close">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+
+    <!-- Modal Body -->
+    <div class="modal-body">
+      <!-- Email Input Section -->
+      <div class="email-input-section">
+        <div class="form-group full-width">
+          <label for="email" class="form-label">
+            Email Address <span class="required">*</span>
+          </label>
+          <div class="email-input-wrapper">
+            <input
+              id="email"
+              type="email"
+              [(ngModel)]="emailInput"
+              placeholder="Enter user email (e.g., sarah.miller@sebsa.com)"
+              class="form-input"
+              [disabled]="isLoading()"
+              (keyup.enter)="onAddUser()"
+            />
+            <button
+              type="button"
+              class="btn-add-user"
+              (click)="onAddUser()"
+              [disabled]="isLoading() || !emailInput.trim()"
+            >
+              @if (isLoading()) {
+                <span class="material-symbols-outlined spin">hourglass_empty</span>
+              } @else {
+                <span class="material-symbols-outlined">add</span>
+              }
+              <span class="btn-text">Add</span>
+            </button>
+          </div>
+          <p class="form-helper">
+            Type the email address and press Enter or click Add
+          </p>
+        </div>
+
+        <!-- Messages -->
+        @if (errorMessage()) {
+          <div class="message error-message">
+            <span class="material-symbols-outlined">error</span>
+            {{ errorMessage() }}
+          </div>
+        }
+        @if (successMessage()) {
+          <div class="message success-message">
+            <span class="material-symbols-outlined">check_circle</span>
+            {{ successMessage() }}
+          </div>
+        }
+      </div>
+
+      <!-- Selected Users Section -->
+      <div class="selected-users-section">
+        <h3 class="section-title">
+          Selected Users
+          <span class="user-count">({{ selectedUsers().length }})</span>
+        </h3>
+
+        @if (selectedUsers().length > 0) {
+          <div class="selected-users-list">
+            @for (user of selectedUsers(); track user.id) {
+              <div class="user-item">
+                <div class="user-avatar">
+                  {{ getUserInitials(user.name) }}
+                </div>
+                <div class="user-details">
+                  <h4 class="user-name">{{ user.name }}</h4>
+                  <p class="user-position">{{ user.position }}</p>
+                  <p class="user-email">{{ user.email }}</p>
+                </div>
+                <button
+                  type="button"
+                  class="btn-remove"
+                  (click)="onRemoveUser(user.id)"
+                  title="Remove user"
+                >
+                  <span class="material-symbols-outlined">close</span>
+                </button>
+              </div>
+            }
+          </div>
+        } @else {
+          <div class="empty-state">
+            <span class="material-symbols-outlined">person_add</span>
+            <p>No users added yet. Start by entering an email address above.</p>
+          </div>
+        }
+      </div>
+    </div>
+
+    <!-- Modal Footer -->
+    <div class="modal-footer">
+      <button type="button" class="btn-cancel" (click)="onCancel()">
+        Cancel
+      </button>
+      <button
+        type="button"
+        class="btn-assign"
+        (click)="onSubmit()"
+        [disabled]="selectedUsers().length === 0"
+      >
+        <span class="material-symbols-outlined">person_add</span>
+        Assign Users ({{ selectedUsers().length }})
+      </button>
+    </div>
+  </div>
+}
