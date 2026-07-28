@@ -1,7 +1,9 @@
-import { Component } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
+import { Component, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { AuthService } from '../../core/services/auth.service';
 
 @Component({
   standalone: true,
@@ -11,18 +13,28 @@ import { FormsModule } from '@angular/forms';
   styleUrls: ['./login.page.scss'],
 })
 export class LoginPageComponent {
+  private readonly authService = inject(AuthService);
+  private readonly router = inject(Router);
+
   email = '';
   password = '';
-  hasError = false;
 
-  constructor(private router: Router) {}
+  // Signals (not plain fields): this app has no zone.js, so a plain field
+  // mutated inside an RxJS subscribe callback (outside any Angular-bound
+  // event context) won't reliably schedule a re-render.
+  readonly hasError = signal(false);
+  readonly errorMessage = signal('');
 
   login() {
-    if (this.email === 'user@sebsa.com' && this.password === 'password') {
-      this.hasError = false;
-      this.router.navigate(['/dashboard']);
-    } else {
-      this.hasError = true;
-    }
+    this.authService.login(this.email, this.password).subscribe({
+      next: () => {
+        this.hasError.set(false);
+        this.router.navigate(['/dashboard']);
+      },
+      error: (error: HttpErrorResponse) => {
+        this.hasError.set(true);
+        this.errorMessage.set(error.error?.message ?? 'Invalid email or password.');
+      },
+    });
   }
 }

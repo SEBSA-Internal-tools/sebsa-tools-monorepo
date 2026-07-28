@@ -12,7 +12,12 @@
       "Bash(curl -s http://localhost:4201)",
       "Bash(curl -s http://localhost:4201/dashboard)",
       "Bash(cat)",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "Bash(git push *)",
+      "Bash(git branch *)",
+      "Bash(git ls-remote *)",
+      "Bash(git remote *)",
+      "Bash(docker exec *)"
     ]
   }
 }

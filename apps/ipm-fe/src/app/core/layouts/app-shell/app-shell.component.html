@@ -75,11 +75,30 @@
           <span class="material-symbols-outlined" aria-hidden="true">help</span>
         </button>
 
-        <button type="button" class="user-profile-btn" aria-expanded="false" aria-label="User account menu">
-          <span class="material-symbols-outlined avatar-icon" aria-hidden="true">account_circle</span>
-          <span class="user-name">Admin User</span>
-          <span class="material-symbols-outlined dropdown-icon" aria-hidden="true">arrow_drop_down</span>
-        </button>
+        <div class="profile-menu-wrapper">
+          <button
+            type="button"
+            class="user-profile-btn"
+            [attr.aria-expanded]="isProfileMenuOpen"
+            aria-label="User account menu"
+            (click)="toggleProfileMenu()"
+          >
+            <span class="material-symbols-outlined avatar-icon" aria-hidden="true">account_circle</span>
+            <span class="user-name">{{ authService.currentUser()?.name ?? 'Account' }}</span>
+            <span class="material-symbols-outlined dropdown-icon" aria-hidden="true">arrow_drop_down</span>
+          </button>
+
+          <div class="profile-menu" *ngIf="isProfileMenuOpen">
+            <div class="profile-menu-header">
+              <span class="profile-menu-name">{{ authService.currentUser()?.name }}</span>
+              <span class="profile-menu-email">{{ authService.currentUser()?.email }}</span>
+            </div>
+            <button type="button" class="profile-menu-item" (click)="logout()">
+              <span class="material-symbols-outlined" aria-hidden="true">logout</span>
+              <span>Logout</span>
+            </button>
+          </div>
+        </div>
       </div>
     </header>
 

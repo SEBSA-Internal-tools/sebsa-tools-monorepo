@@ -3,7 +3,9 @@ import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from '@sebsa-pm-tool/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { AuthModule } from './auth/auth.module';
 import appConfig from '../config/app.config';
+import authConfig from '../config/auth.config';
 import databaseConfig from '../config/database.config';
 import { envValidationSchema } from '../config/env.validation';
 
@@ -11,13 +13,14 @@ import { envValidationSchema } from '../config/env.validation';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig, databaseConfig],
+      load: [appConfig, authConfig, databaseConfig],
       validationSchema: envValidationSchema,
       validationOptions: {
         abortEarly: false,
       },
     }),
     PrismaModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],
