@@ -8,7 +8,15 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ProjectsService, Task, Sprint } from '../../../../services/projects.service';
-import type { ProjectItem } from '../../../../services/projects.service';
+import type { Project, ProjectStatus } from '@sebsa-pm-tool/shared-models';
+
+const STATUS_LABELS: Record<ProjectStatus, string> = {
+  PLANNING: 'Planning',
+  ACTIVE: 'Active',
+  ON_HOLD: 'On Hold',
+  COMPLETED: 'Completed',
+  ARCHIVED: 'Archived',
+};
 
 interface TaskStats {
   total: number;
@@ -33,7 +41,7 @@ interface SprintStats {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ProjectOverviewComponent implements OnInit {
-  @Input() project!: ProjectItem;
+  @Input() project!: Project;
 
   private projectsService = inject(ProjectsService);
 
@@ -179,6 +187,14 @@ export class ProjectOverviewComponent implements OnInit {
       default:
         return status;
     }
+  }
+
+  statusClass(): string {
+    return this.project.status.toLowerCase().replace(/_/g, '-');
+  }
+
+  statusLabel(): string {
+    return STATUS_LABELS[this.project.status] ?? this.project.status;
   }
 
   getSprintStatusBadgeClass(status: Sprint['status']): string {

@@ -15,31 +15,38 @@
     </button>
   </div>
 
+  @if (errorMessage()) {
+    <div class="team-error">{{ errorMessage() }}</div>
+  }
+
   <div class="team-grid">
     @for (member of teamMembers(); track member.id) {
       <div class="team-card">
         <!-- Card Header -->
         <div class="card-header">
-          <div class="member-avatar">{{ member.avatar }}</div>
-          <span class="status-indicator" [class]="getStatusClass(member.status)" [title]="member.status">
-            <span class="material-symbols-outlined">{{ getStatusIcon(member.status) }}</span>
-          </span>
+          <div class="member-avatar">{{ initials(member.user.name) }}</div>
+          <button
+            type="button"
+            class="btn-remove-member"
+            (click)="onRemoveMember(member.id)"
+            title="Remove from project"
+          >
+            <span class="material-symbols-outlined">person_remove</span>
+          </button>
         </div>
 
         <!-- Member Info -->
         <div class="member-info">
-          <h4>{{ member.name }}</h4>
-          <p class="role">{{ member.role }}</p>
-          <p class="email">{{ member.email }}</p>
+          <h4>{{ member.user.name }}</h4>
+          <p class="role">{{ member.role.name }}</p>
+          <p class="email">{{ member.user.email }}</p>
         </div>
 
         <!-- Join Date -->
         <div class="join-date">
           <span class="material-symbols-outlined">calendar_today</span>
-          <span>Joined {{ member.joinDate }}</span>
+          <span>Joined {{ member.joinedAt | date: 'mediumDate' }}</span>
         </div>
-
-
       </div>
     }
   </div>

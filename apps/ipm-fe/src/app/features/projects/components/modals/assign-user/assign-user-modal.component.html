@@ -65,6 +65,18 @@
         }
       </div>
 
+      <!-- Role Selector -->
+      <div class="form-group full-width">
+        <label for="role" class="form-label">
+          Assign as <span class="required">*</span>
+        </label>
+        <select id="role" [(ngModel)]="selectedRoleId" class="form-input">
+          @for (role of availableRoles(); track role.id) {
+            <option [value]="role.id">{{ role.name }}</option>
+          }
+        </select>
+      </div>
+
       <!-- Selected Users Section -->
       <div class="selected-users-section">
         <h3 class="section-title">
@@ -81,7 +93,6 @@
                 </div>
                 <div class="user-details">
                   <h4 class="user-name">{{ user.name }}</h4>
-                  <p class="user-position">{{ user.position }}</p>
                   <p class="user-email">{{ user.email }}</p>
                 </div>
                 <button

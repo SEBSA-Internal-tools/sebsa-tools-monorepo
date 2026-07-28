@@ -7,21 +7,25 @@ import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { RolesGuard } from './roles.guard';
 
+const jwtModule = JwtModule.registerAsync({
+  imports: [ConfigModule],
+  inject: [ConfigService],
+  useFactory: (configService: ConfigService) => ({
+    secret: configService.get<string>('auth.jwtSecret'),
+    signOptions: {
+      expiresIn: configService.get<string>('auth.jwtExpiresIn') as StringValue,
+    },
+  }),
+});
+
 @Module({
-  imports: [
-    JwtModule.registerAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        secret: configService.get<string>('auth.jwtSecret'),
-        signOptions: {
-          expiresIn: configService.get<string>('auth.jwtExpiresIn') as StringValue,
-        },
-      }),
-    }),
-  ],
+  imports: [jwtModule],
   controllers: [AuthController],
   providers: [AuthService, JwtAuthGuard, RolesGuard],
-  exports: [JwtAuthGuard, RolesGuard],
+  // JwtModule is re-exported (not just JwtAuthGuard/RolesGuard) because Nest
+  // resolves a guard referenced via @UseGuards(JwtAuthGuard) using the
+  // *consuming* module's injector, not AuthModule's — so JwtService must be
+  // visible wherever JwtAuthGuard/RolesGuard get used, not just importable.
+  exports: [jwtModule, JwtAuthGuard, RolesGuard],
 })
 export class AuthModule {}

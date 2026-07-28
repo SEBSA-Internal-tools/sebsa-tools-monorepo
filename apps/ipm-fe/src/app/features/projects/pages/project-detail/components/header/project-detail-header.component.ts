@@ -1,6 +1,14 @@
 import { Component, Input, Output, EventEmitter, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import type { ProjectItem } from '../../../../services/projects.service';
+import type { Project, ProjectStatus } from '@sebsa-pm-tool/shared-models';
+
+const STATUS_LABELS: Record<ProjectStatus, string> = {
+  PLANNING: 'Planning',
+  ACTIVE: 'Active',
+  ON_HOLD: 'On Hold',
+  COMPLETED: 'Completed',
+  ARCHIVED: 'Archived',
+};
 
 @Component({
   standalone: true,
@@ -17,15 +25,19 @@ import type { ProjectItem } from '../../../../services/projects.service';
           <div class="project-avatar">{{ getInitials() }}</div>
           <div class="project-info">
             <h1>{{ project.name }}</h1>
-            <p class="project-owner">By {{ project.owner }}</p>
+            <p class="project-owner">By {{ project.createdBy.name }}</p>
           </div>
         </div>
       </div>
 
       <div class="header-right">
-        <span class="badge" [class]="project.status.toLowerCase()">
-          {{ project.status }}
+        <span class="badge" [class]="statusClass()">
+          {{ statusLabel() }}
         </span>
+        <button type="button" class="edit-btn" (click)="onEditClick()" title="Edit project">
+          <span class="material-symbols-outlined">edit</span>
+          Edit
+        </button>
       </div>
     </header>
   `,
@@ -143,22 +155,63 @@ import type { ProjectItem } from '../../../../services/projects.service';
       letter-spacing: 0.05em;
       white-space: nowrap;
 
-      &.open {
+      &.planning {
+        background: rgba(100, 116, 139, 0.15);
+        color: #475569;
+      }
+
+      &.active {
         background: rgba(16, 185, 129, 0.15);
         color: #047857;
       }
 
-      &.closed {
+      &.on-hold {
+        background: rgba(245, 158, 11, 0.15);
+        color: #b45309;
+      }
+
+      &.completed {
+        background: rgba(37, 99, 235, 0.15);
+        color: #1d4ed8;
+      }
+
+      &.archived {
         background: rgba(239, 68, 68, 0.15);
         color: #991b1b;
+      }
+    }
+
+    .edit-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      background: transparent;
+      border: 1px solid var(--app-border);
+      border-radius: 8px;
+      color: var(--app-text);
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+
+      .material-symbols-outlined {
+        font-size: 18px;
+      }
+
+      &:hover {
+        background: var(--app-hover);
+        border-color: var(--app-accent);
+        color: var(--app-accent);
       }
     }
   `],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ProjectDetailHeaderComponent {
-  @Input() project!: ProjectItem;
+  @Input() project!: Project;
   @Output() backClick = new EventEmitter<void>();
+  @Output() editClick = new EventEmitter<void>();
 
   getInitials(): string {
     return this.project.name
@@ -169,7 +222,19 @@ export class ProjectDetailHeaderComponent {
       .slice(0, 2);
   }
 
+  statusClass(): string {
+    return this.project.status.toLowerCase().replace(/_/g, '-');
+  }
+
+  statusLabel(): string {
+    return STATUS_LABELS[this.project.status] ?? this.project.status;
+  }
+
   onBackClick(): void {
     this.backClick.emit();
+  }
+
+  onEditClick(): void {
+    this.editClick.emit();
   }
 }

@@ -25,3 +25,19 @@
     gap: 40px;
   }
 }
+
+.page-error {
+  padding: 14px 18px;
+  border-radius: 8px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: #991b1b;
+  font-size: 0.9rem;
+}
+
+.page-loading {
+  padding: 40px;
+  text-align: center;
+  color: var(--app-text-muted);
+  font-size: 0.95rem;
+}

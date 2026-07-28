@@ -42,24 +42,16 @@
       >
         All
       </button>
-      <button
-        type="button"
-        class="filter-btn"
-        [class.active]="selectedStatus === 'Open'"
-        (click)="onStatusChange('Open')"
-      >
-        <span class="material-symbols-outlined">check_circle</span>
-        Open <span class="count">{{ getOpenCount() }}</span>
-      </button>
-      <button
-        type="button"
-        class="filter-btn"
-        [class.active]="selectedStatus === 'Closed'"
-        (click)="onStatusChange('Closed')"
-      >
-        <span class="material-symbols-outlined">cancel</span>
-        Closed <span class="count">{{ getClosedCount() }}</span>
-      </button>
+      @for (status of statusOptions; track status) {
+        <button
+          type="button"
+          class="filter-btn"
+          [class.active]="selectedStatus === status"
+          (click)="onStatusChange(status)"
+        >
+          {{ statusLabels[status] }} <span class="count">{{ getStatusCount(status) }}</span>
+        </button>
+      }
     </div>
   </div>
 
@@ -70,9 +62,9 @@
         <!-- Table Header -->
         <div class="list-header">
           <div class="col-project">Project</div>
-          <div class="col-owner">Owner</div>
+          <div class="col-owner">Created By</div>
           <div class="col-status">Status</div>
-          <div class="col-visibility">Visibility</div>
+          <div class="col-members">Members</div>
           <div class="col-updated">Last Updated</div>
           <div class="col-actions">Actions</div>
         </div>
@@ -81,7 +73,7 @@
         @for (project of filteredProjects(); track project.id) {
           <div
             class="list-item"
-            [class]="getStatusClass(project.status)"
+            [class]="statusClass(project.status)"
             role="button"
             tabindex="0"
             (click)="onProjectClick(project.id, $event)"
@@ -91,30 +83,26 @@
             <div class="col-project">
               <div class="project-cell">
                 <span class="material-symbols-outlined project-icon">{{
-                  project.icon || 'folder'
+                  projectTypeIcon(project.type)
                 }}</span>
                 <span class="project-name">{{ project.name }}</span>
               </div>
             </div>
 
-            <div class="col-owner">{{ project.owner }}</div>
+            <div class="col-owner">{{ project.createdBy.name }}</div>
 
             <div class="col-status">
-              <span class="badge" [class]="project.status.toLowerCase()">
-                {{ project.status }}
+              <span class="badge" [class]="statusClass(project.status)">
+                {{ statusLabel(project.status) }}
               </span>
             </div>
 
-            <div class="col-visibility">
-              <span class="visibility-badge">
-                <span class="material-symbols-outlined">{{
-                  project.visibility === 'Private' ? 'lock' : 'public'
-                }}</span>
-                {{ project.visibility }}
-              </span>
+            <div class="col-members">
+              <span class="material-symbols-outlined">group</span>
+              {{ project.memberCount }}
             </div>
 
-            <div class="col-updated">{{ project.lastUpdated }}</div>
+            <div class="col-updated">{{ project.updatedAt | date: 'mediumDate' }}</div>
 
             <div class="col-actions">
               <button

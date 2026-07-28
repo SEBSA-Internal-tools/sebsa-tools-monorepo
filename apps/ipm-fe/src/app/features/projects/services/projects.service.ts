@@ -1,15 +1,16 @@
-import { Injectable } from '@angular/core';
-import { Observable, of, shareReplay, BehaviorSubject } from 'rxjs';
-
-export interface ProjectItem {
-  id: string;
-  name: string;
-  owner: string;
-  status: 'Open' | 'Closed';
-  visibility: 'Private' | 'Public';
-  lastUpdated: string;
-  icon?: string;
-}
+import { Injectable, inject } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Observable, BehaviorSubject } from 'rxjs';
+import {
+  Project,
+  ProjectSummary,
+  ProjectRole,
+  ProjectMemberSummary,
+  CreateProjectRequest,
+  UpdateProjectRequest,
+  AddProjectMemberRequest,
+  UpdateProjectMemberRoleRequest,
+} from '@sebsa-pm-tool/shared-models';
 
 export interface Task {
   id: string;
@@ -46,75 +47,57 @@ export interface ProjectsHeroData {
   providedIn: 'root',
 })
 export class ProjectsService {
-  private projects$ = new BehaviorSubject<ProjectItem[]>([
-    {
-      id: '954',
-      name: '@SEBSA / Global ERP Rollout',
-      owner: 'SEBSA',
-      status: 'Open',
-      visibility: 'Private',
-      lastUpdated: 'Oct 24, 2023',
-      icon: 'folder_open',
-    },
-    {
-      id: '902',
-      name: '@SEBSA / Q4 Financial Audit Prep',
-      owner: 'SEBSA',
-      status: 'Closed',
-      visibility: 'Public',
-      lastUpdated: 'Oct 20, 2023',
-      icon: 'assessment',
-    },
-    {
-      id: '1',
-      name: "@Sanjeewa001's untitled project",
-      owner: 'Sanjeewa001',
-      status: 'Open',
-      visibility: 'Private',
-      lastUpdated: 'May 1, 2024',
-      icon: 'folder',
-    },
-  ]);
+  private readonly http = inject(HttpClient);
 
-  getProjects(): Observable<ProjectItem[]> {
-    return this.projects$.asObservable().pipe(shareReplay(1));
+  // ---------------------------------------------------------------------------
+  // Projects — real backend, see apps/ipm-be/src/app/projects/
+  // ---------------------------------------------------------------------------
+
+  getProjects(): Observable<ProjectSummary[]> {
+    return this.http.get<ProjectSummary[]>('/api/projects');
   }
 
-  getOpenProjects(): Observable<ProjectItem[]> {
-    return of(this.projects$.value.filter((p) => p.status === 'Open')).pipe(
-      shareReplay(1)
+  getProject(id: string): Observable<Project> {
+    return this.http.get<Project>(`/api/projects/${id}`);
+  }
+
+  createProject(dto: CreateProjectRequest): Observable<Project> {
+    return this.http.post<Project>('/api/projects', dto);
+  }
+
+  updateProject(id: string, dto: UpdateProjectRequest): Observable<Project> {
+    return this.http.patch<Project>(`/api/projects/${id}`, dto);
+  }
+
+  deleteProject(id: string): Observable<void> {
+    return this.http.delete<void>(`/api/projects/${id}`);
+  }
+
+  getRoles(id: string): Observable<ProjectRole[]> {
+    return this.http.get<ProjectRole[]>(`/api/projects/${id}/roles`);
+  }
+
+  getMembers(id: string): Observable<ProjectMemberSummary[]> {
+    return this.http.get<ProjectMemberSummary[]>(`/api/projects/${id}/members`);
+  }
+
+  addMember(id: string, dto: AddProjectMemberRequest): Observable<ProjectMemberSummary> {
+    return this.http.post<ProjectMemberSummary>(`/api/projects/${id}/members`, dto);
+  }
+
+  updateMemberRole(
+    id: string,
+    memberId: string,
+    dto: UpdateProjectMemberRoleRequest,
+  ): Observable<ProjectMemberSummary> {
+    return this.http.patch<ProjectMemberSummary>(
+      `/api/projects/${id}/members/${memberId}`,
+      dto,
     );
   }
 
-  getClosedProjects(): Observable<ProjectItem[]> {
-    return of(this.projects$.value.filter((p) => p.status === 'Closed')).pipe(
-      shareReplay(1)
-    );
-  }
-
-  addProject(project: Omit<ProjectItem, 'id'>): void {
-    const newProject: ProjectItem = {
-      ...project,
-      id: String(Date.now()),
-    };
-    const currentProjects = this.projects$.value;
-    this.projects$.next([...currentProjects, newProject]);
-  }
-
-  deleteProject(projectId: string): void {
-    const currentProjects = this.projects$.value;
-    const updatedProjects = currentProjects.filter((p) => p.id !== projectId);
-    this.projects$.next(updatedProjects);
-  }
-
-  searchProjects(query: string): Observable<ProjectItem[]> {
-    return of(
-      this.projects$.value.filter(
-        (p) =>
-          p.name.toLowerCase().includes(query.toLowerCase()) ||
-          p.owner.toLowerCase().includes(query.toLowerCase())
-      )
-    ).pipe(shareReplay(1));
+  removeMember(id: string, memberId: string): Observable<void> {
+    return this.http.delete<void>(`/api/projects/${id}/members/${memberId}`);
   }
 
   getHeroData(): ProjectsHeroData {
@@ -126,9 +109,10 @@ export class ProjectsService {
     };
   }
 
-  getAllProjects(): ProjectItem[] {
-    return this.projects$.value;
-  }
+  // ---------------------------------------------------------------------------
+  // Tasks & Sprints — still mock. No backend module for these yet (deferred);
+  // do not break the Kanban/task-list/sprint tabs while Projects goes real.
+  // ---------------------------------------------------------------------------
 
   private sprints$ = new BehaviorSubject<Sprint[]>([
     {

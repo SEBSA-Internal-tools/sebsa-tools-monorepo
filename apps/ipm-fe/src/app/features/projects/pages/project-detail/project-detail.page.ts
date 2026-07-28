@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
+import { Component, inject, OnInit, signal, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ProjectsService } from '../../services/projects.service';
@@ -10,7 +10,11 @@ import { ProjectTeamComponent } from './components/team/project-team.component';
 import { ProjectSprintComponent } from './components/sprint/project-sprint.component';
 import { ProjectOverviewComponent } from './components/overview/project-overview.component';
 import { CreateTaskModalComponent, type TaskFormData } from '../../components/modals/create-task/create-task-modal.component';
-import type { ProjectItem } from '../../services/projects.service';
+import {
+  CreateProjectModalComponent,
+  type ProjectFormData,
+} from '../../components/modals/create-project/create-project-modal.component';
+import type { Project } from '@sebsa-pm-tool/shared-models';
 
 @Component({
   standalone: true,
@@ -25,6 +29,7 @@ import type { ProjectItem } from '../../services/projects.service';
     ProjectSprintComponent,
     ProjectOverviewComponent,
     CreateTaskModalComponent,
+    CreateProjectModalComponent,
   ],
   templateUrl: './project-detail.page.html',
   styleUrl: './project-detail.page.scss',
@@ -35,20 +40,36 @@ export class ProjectDetailPageComponent implements OnInit {
   private router = inject(Router);
   private projectsService = inject(ProjectsService);
 
-  project: ProjectItem | null = null;
+  readonly project = signal<Project | null>(null);
+  readonly isLoading = signal(false);
+  readonly errorMessage = signal('');
+
   activeTab: 'overview' | 'kanban' | 'tasklist' | 'calendar' | 'sprint' | 'team' = 'kanban';
   isTaskModalOpen = false;
+  isEditModalOpen = false;
 
   ngOnInit(): void {
     const projectId = this.route.snapshot.paramMap.get('id');
-    if (projectId) {
-      const projects = this.projectsService.getAllProjects();
-      this.project = projects.find((p) => p.id === projectId) || null;
-
-      if (!this.project) {
-        this.router.navigate(['/projects']);
-      }
+    if (!projectId) {
+      this.router.navigate(['/projects']);
+      return;
     }
+    this.loadProject(projectId);
+  }
+
+  private loadProject(projectId: string): void {
+    this.isLoading.set(true);
+    this.errorMessage.set('');
+    this.projectsService.getProject(projectId).subscribe({
+      next: (project) => {
+        this.project.set(project);
+        this.isLoading.set(false);
+      },
+      error: () => {
+        this.isLoading.set(false);
+        this.router.navigate(['/projects']);
+      },
+    });
   }
 
   onTabChange(tab: typeof this.activeTab): void {
@@ -66,6 +87,37 @@ export class ProjectDetailPageComponent implements OnInit {
   onCreateTask(formData: TaskFormData): void {
     this.projectsService.createTask(formData);
     this.closeTaskModal();
+  }
+
+  onEditClick(): void {
+    this.isEditModalOpen = true;
+  }
+
+  closeEditModal(): void {
+    this.isEditModalOpen = false;
+  }
+
+  onEditProject(formData: ProjectFormData): void {
+    const current = this.project();
+    if (!current) return;
+
+    this.errorMessage.set('');
+    this.projectsService
+      .updateProject(current.id, {
+        name: formData.name,
+        description: formData.description || undefined,
+        type: formData.type,
+        customType: formData.customType,
+      })
+      .subscribe({
+        next: (updated) => {
+          this.project.set(updated);
+          this.closeEditModal();
+        },
+        error: () => {
+          this.errorMessage.set('Failed to update project. Please try again.');
+        },
+      });
   }
 
   goBack(): void {
