@@ -4,9 +4,12 @@ import {
   Output,
   EventEmitter,
   ChangeDetectionStrategy,
+  OnChanges,
+  inject,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ProjectsService, Sprint } from '../../../services/projects.service';
 
 export interface TaskFormData {
   title: string;
@@ -15,6 +18,7 @@ export interface TaskFormData {
   priority: 'High' | 'Medium' | 'Low';
   dueDate: string;
   description: string;
+  sprintId?: string;
 }
 
 @Component({
@@ -25,19 +29,25 @@ export interface TaskFormData {
   styleUrl: './create-task-modal.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class CreateTaskModalComponent {
+export class CreateTaskModalComponent implements OnChanges {
   @Input() isOpen = false;
   @Input() projectId = '';
   @Input() projectName = '';
   @Output() close = new EventEmitter<void>();
   @Output() submit = new EventEmitter<TaskFormData>();
 
+  private projectsService = inject(ProjectsService);
+
   taskTitle = '';
   assignee = '';
   priority: 'High' | 'Medium' | 'Low' = 'High';
   dueDate = '';
   description = '';
+  selectedSprintId = '';
+  selectedProjectId = '';
+  selectedProjectName = '';
 
+  availableProjects: Array<{ id: string; name: string }> = [];
   availableAssignees = [
     'Sarah Miller',
     'James Chen',
@@ -46,6 +56,37 @@ export class CreateTaskModalComponent {
     'Lisa Anderson',
     'Michael Brown',
   ];
+
+  availableSprints: Sprint[] = [];
+
+  ngOnChanges(): void {
+    if (this.isOpen) {
+      if (this.projectId) {
+        this.selectedProjectId = this.projectId;
+        this.selectedProjectName = this.projectName;
+        this.availableSprints = this.projectsService.getSprints(this.projectId);
+      } else {
+        this.loadAvailableProjects();
+      }
+    }
+  }
+
+  private loadAvailableProjects(): void {
+    const projects = this.projectsService.getAllProjects();
+    this.availableProjects = projects.map(p => ({ id: p.id, name: p.name }));
+    if (this.availableProjects.length > 0 && !this.selectedProjectId) {
+      this.onProjectSelect(this.availableProjects[0].id);
+    }
+  }
+
+  onProjectSelect(projectId: string): void {
+    this.selectedProjectId = projectId;
+    const project = this.availableProjects.find(p => p.id === projectId);
+    if (project) {
+      this.selectedProjectName = project.name;
+      this.availableSprints = this.projectsService.getSprints(projectId);
+    }
+  }
 
   onCancel(): void {
     this.resetForm();
@@ -58,13 +99,20 @@ export class CreateTaskModalComponent {
       return;
     }
 
+    const finalProjectId = this.projectId || this.selectedProjectId;
+    if (!finalProjectId) {
+      alert('Please select a project');
+      return;
+    }
+
     const formData: TaskFormData = {
       title: this.taskTitle,
-      projectId: this.projectId,
+      projectId: finalProjectId,
       assignee: this.assignee,
       priority: this.priority,
       dueDate: this.dueDate,
       description: this.description,
+      sprintId: this.selectedSprintId || undefined,
     };
 
     this.submit.emit(formData);
@@ -77,6 +125,7 @@ export class CreateTaskModalComponent {
     this.priority = 'High';
     this.dueDate = '';
     this.description = '';
+    this.selectedSprintId = '';
   }
 
   onBackdropClick(): void {

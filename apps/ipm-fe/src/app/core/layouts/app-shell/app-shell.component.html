@@ -107,9 +107,9 @@
     </section>
   </div>
 
-  <app-task-modal
-    [open]="isTaskModalOpen"
-    (closed)="closeTaskModal()"
-    (saved)="handleTaskSaved($event)"
-  ></app-task-modal>
+  <create-task-modal
+    [isOpen]="isTaskModalOpen"
+    (close)="closeTaskModal()"
+    (submit)="handleTaskSaved($event)"
+  ></create-task-modal>
 </main>
