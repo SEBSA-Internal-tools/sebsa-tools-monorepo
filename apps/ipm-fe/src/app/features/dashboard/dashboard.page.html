@@ -5,5 +5,8 @@
 
     <!-- Summary Cards -->
     <dashboard-summary-cards [cards]="(summaryCards$ | async)"></dashboard-summary-cards>
+
+    <!-- Project Health & Status Matrix -->
+    <app-dashboard-project-health-matrix [projectHealthMatrix]="(projectHealthMatrix$ | async)"></app-dashboard-project-health-matrix>
   </div>
 </section>

@@ -6,6 +6,7 @@ import { PortfolioService } from './portfolio.service';
 import { TimelineService } from './timeline.service';
 import { WorkloadService } from './workload.service';
 import { ActivityService } from './activity.service';
+import { ProjectHealthMatrixService } from './project-health-matrix.service';
 
 // Data Models/Interfaces
 export interface HeroData {
@@ -54,6 +55,18 @@ export interface ActivityItem {
   time: string;
 }
 
+export interface ProjectHealthMatrix {
+  projectName: string;
+  health: string;
+  healthStatus: 'success' | 'warning' | 'danger';
+  budget: number;
+  timeline: number;
+  resources: number;
+  risks: number;
+  completionPercentage: number;
+  team: string[];
+}
+
 export interface DashboardState {
   loading: boolean;
   error: string | null;
@@ -66,6 +79,7 @@ export interface DashboardData {
   timeline$: Observable<Milestone[] | null>;
   workload$: Observable<TeamMember[] | null>;
   activity$: Observable<ActivityItem[] | null>;
+  projectHealthMatrix$: Observable<ProjectHealthMatrix[] | null>;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -76,7 +90,8 @@ export class DashboardService {
     private portfolioService: PortfolioService,
     private timelineService: TimelineService,
     private workloadService: WorkloadService,
-    private activityService: ActivityService
+    private activityService: ActivityService,
+    private projectHealthMatrixService: ProjectHealthMatrixService
   ) {}
 
   getDashboardData(): DashboardData {
@@ -107,6 +122,10 @@ export class DashboardService {
         shareReplay(1)
       ),
       activity$: this.activityService.getRecentActivity().pipe(
+        catchError(handleError),
+        shareReplay(1)
+      ),
+      projectHealthMatrix$: this.projectHealthMatrixService.getProjectHealthMatrix().pipe(
         catchError(handleError),
         shareReplay(1)
       ),

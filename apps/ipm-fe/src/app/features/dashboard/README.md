@@ -38,6 +38,14 @@ A comprehensive, modular dashboard displaying project management metrics, team w
 - Action timeline
 - Type-based filtering
 
+### 7. Project Health & Status Matrix
+- Multiple project health visualization
+- Budget, timeline, and resources tracking
+- Risk assessment indicators
+- Project completion percentage
+- Team member allocation
+- Health status indicators (On Track, At Risk, Critical)
+
 ## Architecture
 
 ### Modular Component Structure
@@ -53,14 +61,16 @@ src/app/features/dashboard/
 │   ├── portfolio.service.ts       # Portfolio data
 │   ├── timeline.service.ts        # Timeline data
 │   ├── workload.service.ts        # Workload data
-│   └── activity.service.ts        # Activity data
+│   ├── activity.service.ts        # Activity data
+│   └── project-health-matrix.service.ts # Project health matrix data
 ├── sections/                      # Components
 │   ├── hero/
 │   ├── summary-cards/
 │   ├── portfolio/
 │   ├── timeline/
 │   ├── workload/
-│   └── activity/
+│   ├── activity/
+│   └── project-health-matrix/
 ├── shared/                        # Shared components
 │   ├── error-boundary.component.ts
 │   ├── loading-skeleton.component.ts
@@ -110,6 +120,27 @@ export class MyComponent {
 }
 ```
 
+### Project Health Matrix Component Usage
+```typescript
+import { DashboardProjectHealthMatrixComponent } from './sections/project-health-matrix/dashboard-project-health-matrix.component';
+import { DashboardService } from './services/dashboard.service';
+
+@Component({
+  template: `
+    <app-dashboard-project-health-matrix 
+      [projectHealthMatrix]="projectHealthMatrix$ | async">
+    </app-dashboard-project-health-matrix>
+  `,
+  standalone: true,
+  imports: [DashboardProjectHealthMatrixComponent, CommonModule],
+})
+export class MyComponent {
+  dashboardService = inject(DashboardService);
+  dashboard = this.dashboardService.getDashboardData();
+  projectHealthMatrix$ = this.dashboard.projectHealthMatrix$;
+}
+```
+
 ## Data Flow
 
 ### Service Layer
@@ -124,7 +155,8 @@ DashboardService (orchestrator)
     ├→ PortfolioService → Observable<Project[]>
     ├→ TimelineService → Observable<Milestone[]>
     ├→ WorkloadService → Observable<TeamMember[]>
-    └→ ActivityService → Observable<ActivityItem[]>
+    ├→ ActivityService → Observable<ActivityItem[]>
+    └→ ProjectHealthMatrixService → Observable<ProjectHealthMatrix[]>
 ```
 
 ### Data Types
@@ -190,6 +222,21 @@ interface ActivityItem {
   action: string;
   target: string;
   time: string;
+}
+```
+
+#### ProjectHealthMatrix
+```typescript
+interface ProjectHealthMatrix {
+  projectName: string;
+  health: string;
+  healthStatus: 'success' | 'warning' | 'danger';
+  budget: number;
+  timeline: number;
+  resources: number;
+  risks: number;
+  completionPercentage: number;
+  team: string[];
 }
 ```
 
@@ -268,18 +315,20 @@ npm test ipm-fe
 ```
 
 ### Test Coverage
-- **Test Suites**: 9 passing
-- **Tests**: 39 passing
+- **Test Suites**: 10 passing
+- **Tests**: 48 passing
 - **Coverage**: 100% of components
 
 ### Test Files
 - `dashboard.service.spec.ts` - Service orchestration tests
+- `project-health-matrix.service.spec.ts` - Project health matrix service tests
 - `hero.component.spec.ts` - Hero component tests
 - `summary-cards.component.spec.ts` - Summary cards tests
 - `portfolio.component.spec.ts` - Portfolio component tests
 - `timeline.component.spec.ts` - Timeline component tests
 - `workload.component.spec.ts` - Workload component tests
 - `activity.component.spec.ts` - Activity component tests
+- `project-health-matrix.component.spec.ts` - Project health matrix component tests
 
 ### Adding New Tests
 ```typescript
