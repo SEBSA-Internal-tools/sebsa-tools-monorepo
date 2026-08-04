@@ -3,12 +3,12 @@
 This document describes the backend data infrastructure for the SEBSA Internal
 Project Management Tool: the PostgreSQL schema, how it was derived from the
 [Functional Specification Document](<./SEBSA_PMT_Functional_Specification_v1_4%201.docx>)
-(FSD v1.4), and the day-to-day Prisma/Docker workflows for developers.
+(FSD v1.4), and the day-to-day Prisma workflows for developers.
 
 ## Contents
 
 - [Folder structure](#folder-structure)
-- [Docker setup](#docker-setup)
+- [Database hosting](#database-hosting)
 - [Environment configuration](#environment-configuration)
 - [Prisma workflow](#prisma-workflow)
 - [Migration workflow](#migration-workflow)
@@ -46,58 +46,66 @@ sebsa-pm-tool/
 so any future app or library in this Nx workspace can inject `PrismaService`
 without duplicating the connection logic.
 
-## Docker setup
+## Database hosting
 
-`docker/docker-compose.yml` defines two services on a dedicated bridge
-network (`sebsa-pm-network`) with named, persistent volumes:
+The team shares **one Neon Postgres instance** — everyone's app points at the
+same database, so everyone sees the same projects/tasks/users. This replaced
+local Docker Postgres once the team grew past a couple of people (local
+Docker instances are never shared between machines — each person would have
+had their own empty database) and once company policy ruled out running
+containers on local machines entirely.
 
-| Service      | Image                  | Purpose                        | Default host port            |
-| ------------ | ---------------------- | ------------------------------ | ---------------------------- |
-| `postgres` | `postgres:16-alpine` | Application database           | `5432` (`DATABASE_PORT`) |
-| `pgadmin`  | `dpage/pgadmin4`     | Web UI for inspecting Postgres | `5050` (`PGADMIN_PORT`)  |
+Because Prisma only ever talks to whatever `DATABASE_URL` points at, **none
+of the schema, migrations, or application code changed** when we moved off
+Docker — this was purely an environment-variable swap.
 
-Both services use `restart: unless-stopped` and read all credentials from
-environment variables — nothing is hardcoded in the compose file.
+### Getting access
 
-### Starting Postgres
+1. Ask a teammate (or whoever administers the Neon project) for the shared
+   connection string — it is **not** committed anywhere in this repo, and
+   should be treated as a real credential (share it via a password manager or
+   similar, not chat/email in plaintext where it'll sit around indefinitely).
+2. Copy `.env.example` to `.env` at the workspace root and fill in the real
+   `DATABASE_*` values, matching the format already in `.env.example`. Neon
+   requires `?sslmode=require` on the connection string — it's already in the
+   example.
+3. Run `npx prisma generate` once. You do **not** need to run
+   `npx prisma migrate deploy` yourself — the schema already exists on the
+   shared database; running migrations is only needed when the schema itself
+   changes (see [Migration workflow](#migration-workflow)).
+4. Ask an admin for a login (admin-only user provisioning, no self-registration
+   — see FSD §5.1).
+
+### Browsing the data
+
+Neon's web console (your Neon project dashboard → "Tables"/"SQL Editor") is
+the easiest way to look at data directly — no local tooling needed. Prisma
+Studio also works against the shared database exactly like it would against
+any Postgres instance:
 
 ```bash
-cd docker
-cp .env.example .env   # first time only — fill in real values
-docker compose up -d
+npx prisma studio
 ```
 
-This starts both `postgres` and `pgadmin`. To start only the database:
+Be mindful that both of these let you edit **the real shared data** — this
+isn't a personal sandbox anymore.
 
-```bash
-docker compose up -d postgres
-```
+### Docker (optional, no longer the default)
 
-Data persists in the named volume `sebsa-pm-postgres-data` across restarts;
-`docker compose down` stops the containers without deleting it, `docker compose down -v` deletes the volumes too.
-
-### Accessing pgAdmin
-
-1. Open `http://localhost:5050` (or your configured `PGADMIN_PORT`).
-2. Log in with `PGADMIN_DEFAULT_EMAIL` / `PGADMIN_DEFAULT_PASSWORD` from
-   `docker/.env`.
-3. Register a new server pointing at host `postgres` (the service name on the
-   `sebsa-pm-network` bridge network), port `5432`, using the
-   `DATABASE_USER` / `DATABASE_PASSWORD` / `DATABASE_NAME` from the same file.
+`docker/docker-compose.yml` still exists and still works if you want a fully
+local, disposable Postgres for offline experimentation (or for spinning up an
+ephemeral database in CI, where "no containers on laptops" doesn't apply) —
+see the file itself for usage. It defines two services: `postgres`
+(`postgres:16-alpine`, the actual database) and `pgadmin` (`dpage/pgadmin4`,
+a web UI for browsing it, now superseded by Neon's own console for the shared
+database). Nobody needs to run either of these for day-to-day development
+anymore.
 
 ## Environment configuration
 
-Two separate `.env` files exist, because docker-compose and the NestJS app
-read variables from different working directories:
-
-- **`docker/.env`** (from `docker/.env.example`) — consumed by
-  `docker compose` when run from the `docker/` directory. Controls the
-  Postgres and pgAdmin containers only.
-- **`.env`** at the workspace root (from `.env.example`) — consumed by
-  Prisma CLI and the NestJS app (`@nestjs/config`). Must point at the same
-  host/port/credentials as `docker/.env` for local development.
-
-Neither file is committed; both are covered by `.gitignore`.
+`.env` at the workspace root (copied from `.env.example`) is consumed by
+Prisma CLI and the NestJS app (`@nestjs/config`). It is never committed —
+covered by `.gitignore` — since it holds the real shared database credential.
 
 `apps/ipm-be/src/config/env.validation.ts` uses Joi to fail fast at startup
 if a required variable is missing or malformed — there is no hardcoded
@@ -301,9 +309,8 @@ constraint doesn't fully match what the database enforces:
 
 | Command                                               | Purpose                                            |
 | ----------------------------------------------------- | -------------------------------------------------- |
-| `docker compose -f docker/docker-compose.yml up -d` | Start Postgres + pgAdmin                           |
-| `docker compose -f docker/docker-compose.yml down`  | Stop containers (keep data)                        |
-| `npx prisma studio`                                 | Browse/edit data in a local GUI                    |
+| `npx prisma studio`                                 | Browse/edit the shared Neon data in a local GUI    |
+| `docker compose -f docker/docker-compose.yml up -d` | (optional) start a local disposable Postgres + pgAdmin instead |
 | `npx prisma format`                                 | Format and lint-check`schema.prisma`             |
 | `npx prisma validate`                               | Validate the schema without touching the DB        |
 | `npx prisma migrate dev --name <name>`              | Create + apply a new migration (dev)               |
