@@ -4,6 +4,8 @@ import { PrismaModule } from '@sebsa-pm-tool/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
+import { ProjectsModule } from './projects/projects.module';
+import { UsersModule } from './users/users.module';
 import appConfig from '../config/app.config';
 import authConfig from '../config/auth.config';
 import databaseConfig from '../config/database.config';
@@ -21,6 +23,8 @@ import { envValidationSchema } from '../config/env.validation';
     }),
     PrismaModule,
     AuthModule,
+    ProjectsModule,
+    UsersModule,
   ],
   controllers: [AppController],
   providers: [AppService],

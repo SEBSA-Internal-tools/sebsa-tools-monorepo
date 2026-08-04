@@ -3,21 +3,22 @@ import {
   Input,
   Output,
   EventEmitter,
+  OnChanges,
   ChangeDetectionStrategy,
+  inject,
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { UsersService } from '../../../../../core/services/users.service';
+import { ProjectsService } from '../../../services/projects.service';
+import type { ProjectRole, UserSummary } from '@sebsa-pm-tool/shared-models';
 
-export interface AssignedUser {
-  id: string;
-  name: string;
-  email: string;
-  position: string;
-}
+export type AssignedUser = UserSummary;
 
 export interface AssignUserFormData {
   users: AssignedUser[];
+  roleId: string;
 }
 
 @Component({
@@ -28,7 +29,10 @@ export interface AssignUserFormData {
   styleUrl: './assign-user-modal.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class AssignUserModalComponent {
+export class AssignUserModalComponent implements OnChanges {
+  private readonly usersService = inject(UsersService);
+  private readonly projectsService = inject(ProjectsService);
+
   @Input() isOpen = false;
   @Input() projectId = '';
   @Output() close = new EventEmitter<void>();
@@ -40,45 +44,21 @@ export class AssignUserModalComponent {
   errorMessage = signal('');
   successMessage = signal('');
 
-  // Mock backend data - in real app, this would come from an API
-  private mockUserDatabase: Record<string, AssignedUser> = {
-    'sarah.miller@sebsa.com': {
-      id: '1',
-      name: 'Sarah Miller',
-      email: 'sarah.miller@sebsa.com',
-      position: 'Project Manager',
-    },
-    'james.chen@sebsa.com': {
-      id: '2',
-      name: 'James Chen',
-      email: 'james.chen@sebsa.com',
-      position: 'Lead Developer',
-    },
-    'emma.rodriguez@sebsa.com': {
-      id: '3',
-      name: 'Emma Rodriguez',
-      email: 'emma.rodriguez@sebsa.com',
-      position: 'QA Engineer',
-    },
-    'david.kim@sebsa.com': {
-      id: '4',
-      name: 'David Kim',
-      email: 'david.kim@sebsa.com',
-      position: 'Backend Developer',
-    },
-    'lisa.anderson@sebsa.com': {
-      id: '5',
-      name: 'Lisa Anderson',
-      email: 'lisa.anderson@sebsa.com',
-      position: 'UI/UX Designer',
-    },
-    'michael.brown@sebsa.com': {
-      id: '6',
-      name: 'Michael Brown',
-      email: 'michael.brown@sebsa.com',
-      position: 'DevOps Engineer',
-    },
-  };
+  readonly availableRoles = signal<ProjectRole[]>([]);
+  selectedRoleId = '';
+
+  ngOnChanges(): void {
+    if (this.isOpen && this.projectId) {
+      this.projectsService.getRoles(this.projectId).subscribe({
+        next: (roles) => {
+          this.availableRoles.set(roles);
+          const memberRole = roles.find((role) => role.name === 'Member');
+          this.selectedRoleId = memberRole?.id ?? roles[0]?.id ?? '';
+        },
+        error: () => this.availableRoles.set([]),
+      });
+    }
+  }
 
   onAddUser(): void {
     const email = this.emailInput.trim().toLowerCase();
@@ -90,36 +70,34 @@ export class AssignUserModalComponent {
       return;
     }
 
-    // Check if user already added
-    if (this.selectedUsers().some(u => u.email.toLowerCase() === email)) {
+    if (this.selectedUsers().some((u) => u.email.toLowerCase() === email)) {
       this.errorMessage.set('This user is already added');
       return;
     }
 
     this.isLoading.set(true);
 
-    // Simulate API call with timeout
-    setTimeout(() => {
-      const user = this.mockUserDatabase[email];
-
-      if (user) {
-        this.selectedUsers.update(users => [...users, user]);
-        this.emailInput = '';
-        this.successMessage.set(
-          `${user.name} has been added to the project`
-        );
+    this.usersService.search(email).subscribe({
+      next: (results) => {
+        const user = results.find((u) => u.email.toLowerCase() === email);
         this.isLoading.set(false);
-      } else {
-        this.errorMessage.set(
-          'User not found. Please check the email address'
-        );
+        if (user) {
+          this.selectedUsers.update((users) => [...users, user]);
+          this.emailInput = '';
+          this.successMessage.set(`${user.name} has been added to the list`);
+        } else {
+          this.errorMessage.set('User not found. Please check the email address');
+        }
+      },
+      error: () => {
         this.isLoading.set(false);
-      }
-    }, 800);
+        this.errorMessage.set('Could not look up that user. Please try again.');
+      },
+    });
   }
 
   onRemoveUser(userId: string): void {
-    this.selectedUsers.update(users => users.filter(u => u.id !== userId));
+    this.selectedUsers.update((users) => users.filter((u) => u.id !== userId));
     this.clearMessages();
   }
 
@@ -133,9 +111,14 @@ export class AssignUserModalComponent {
       this.errorMessage.set('Please add at least one user');
       return;
     }
+    if (!this.selectedRoleId) {
+      this.errorMessage.set('Please select a role');
+      return;
+    }
 
     const formData: AssignUserFormData = {
       users: this.selectedUsers(),
+      roleId: this.selectedRoleId,
     };
 
     this.submit.emit(formData);

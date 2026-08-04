@@ -1,9 +1,14 @@
-@if (project) {
+@if (errorMessage()) {
+  <div class="page-error">{{ errorMessage() }}</div>
+}
+
+@if (project(); as project) {
   <div class="project-detail-container">
     <!-- Project Header -->
     <project-detail-header
       [project]="project"
       (backClick)="goBack()"
+      (editClick)="onEditClick()"
     ></project-detail-header>
 
     <!-- Navigation Tabs -->
@@ -50,7 +55,15 @@
     (close)="closeTaskModal()"
     (submit)="onCreateTask($event)"
   ></create-task-modal>
-} @else {
+
+  <!-- Edit Project Modal -->
+  <create-project-modal
+    [isOpen]="isEditModalOpen"
+    [editingProject]="project"
+    (close)="closeEditModal()"
+    (submit)="onEditProject($event)"
+  ></create-project-modal>
+} @else if (isLoading()) {
   <div class="loading">
     <span class="material-symbols-outlined">hourglass_empty</span>
     <p>Loading project...</p>

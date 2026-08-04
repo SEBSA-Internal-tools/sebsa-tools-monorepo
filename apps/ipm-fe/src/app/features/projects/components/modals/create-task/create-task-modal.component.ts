@@ -6,6 +6,7 @@ import {
   ChangeDetectionStrategy,
   OnChanges,
   inject,
+  signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -47,7 +48,7 @@ export class CreateTaskModalComponent implements OnChanges {
   selectedProjectId = '';
   selectedProjectName = '';
 
-  availableProjects: Array<{ id: string; name: string }> = [];
+  readonly availableProjects = signal<Array<{ id: string; name: string }>>([]);
   availableAssignees = [
     'Sarah Miller',
     'James Chen',
@@ -72,16 +73,21 @@ export class CreateTaskModalComponent implements OnChanges {
   }
 
   private loadAvailableProjects(): void {
-    const projects = this.projectsService.getAllProjects();
-    this.availableProjects = projects.map(p => ({ id: p.id, name: p.name }));
-    if (this.availableProjects.length > 0 && !this.selectedProjectId) {
-      this.onProjectSelect(this.availableProjects[0].id);
-    }
+    this.projectsService.getProjects().subscribe({
+      next: (projects) => {
+        const mapped = projects.map((p) => ({ id: p.id, name: p.name }));
+        this.availableProjects.set(mapped);
+        if (mapped.length > 0 && !this.selectedProjectId) {
+          this.onProjectSelect(mapped[0].id);
+        }
+      },
+      error: () => this.availableProjects.set([]),
+    });
   }
 
   onProjectSelect(projectId: string): void {
     this.selectedProjectId = projectId;
-    const project = this.availableProjects.find(p => p.id === projectId);
+    const project = this.availableProjects().find((p) => p.id === projectId);
     if (project) {
       this.selectedProjectName = project.name;
       this.availableSprints = this.projectsService.getSprints(projectId);

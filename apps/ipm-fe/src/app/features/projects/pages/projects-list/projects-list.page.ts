@@ -1,11 +1,13 @@
-import { Component, inject, ChangeDetectionStrategy } from '@angular/core';
+import { Component, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Observable } from 'rxjs';
-import { ProjectsService } from '../../services/projects.service';
+import { ProjectsService, ProjectsHeroData } from '../../services/projects.service';
 import { ProjectsHeroComponent } from './components/hero/projects-hero.component';
 import { ProjectsListComponent } from './components/list/projects-list.component';
-import { CreateProjectModalComponent, type ProjectFormData } from '../../components/modals/create-project/create-project-modal.component';
-import type { ProjectsHeroData, ProjectItem } from '../../services/projects.service';
+import {
+  CreateProjectModalComponent,
+  type ProjectFormData,
+} from '../../components/modals/create-project/create-project-modal.component';
+import type { ProjectSummary } from '@sebsa-pm-tool/shared-models';
 
 @Component({
   standalone: true,
@@ -23,9 +25,31 @@ import type { ProjectsHeroData, ProjectItem } from '../../services/projects.serv
 export class ProjectsPageComponent {
   private projectsService = inject(ProjectsService);
 
-  projects$: Observable<ProjectItem[]> = this.projectsService.getProjects();
+  readonly projects = signal<ProjectSummary[]>([]);
+  readonly isLoading = signal(false);
+  readonly errorMessage = signal('');
+
   heroData: ProjectsHeroData = this.projectsService.getHeroData();
   isModalOpen = false;
+
+  constructor() {
+    this.loadProjects();
+  }
+
+  private loadProjects(): void {
+    this.isLoading.set(true);
+    this.errorMessage.set('');
+    this.projectsService.getProjects().subscribe({
+      next: (projects) => {
+        this.projects.set(projects);
+        this.isLoading.set(false);
+      },
+      error: () => {
+        this.errorMessage.set('Failed to load projects. Please try again.');
+        this.isLoading.set(false);
+      },
+    });
+  }
 
   openCreateModal(): void {
     this.isModalOpen = true;
@@ -40,29 +64,49 @@ export class ProjectsPageComponent {
   }
 
   onCreateProject(formData: ProjectFormData): void {
-    const newProject = {
-      name: formData.name,
-      owner: formData.teamMembers.length > 0 ? formData.teamMembers[0].name : 'You',
-      status: 'Open' as const,
-      visibility: 'Private' as const,
-      lastUpdated: new Date().toLocaleDateString(),
-      icon: 'folder',
-    };
-    this.projectsService.addProject(newProject);
-    this.projects$ = this.projectsService.getProjects();
-    this.closeCreateModal();
+    this.errorMessage.set('');
+    this.projectsService
+      .createProject({
+        name: formData.name,
+        description: formData.description || undefined,
+        type: formData.type,
+        customType: formData.customType,
+      })
+      .subscribe({
+        next: (project) => {
+          this.closeCreateModal();
+          this.loadProjects();
+          this.assignInitialMembers(project.id, formData.memberIds);
+        },
+        error: () => {
+          this.errorMessage.set('Failed to create project. Please try again.');
+        },
+      });
   }
 
-  onSearch(query: string): void {
-    if (query.trim()) {
-      this.projects$ = this.projectsService.searchProjects(query);
-    } else {
-      this.projects$ = this.projectsService.getProjects();
-    }
+  /** Best-effort: add the members picked in the create modal, using the project's default "Member" role. */
+  private assignInitialMembers(projectId: string, memberIds: string[]): void {
+    if (memberIds.length === 0) return;
+
+    this.projectsService.getRoles(projectId).subscribe({
+      next: (roles) => {
+        const memberRole = roles.find((role) => role.name === 'Member');
+        if (!memberRole) return;
+        memberIds.forEach((userId) => {
+          this.projectsService
+            .addMember(projectId, { userId, roleId: memberRole.id })
+            .subscribe({ error: () => undefined });
+        });
+      },
+      error: () => undefined,
+    });
   }
 
   onDeleteProject(projectId: string): void {
-    this.projectsService.deleteProject(projectId);
-    this.projects$ = this.projectsService.getProjects();
+    this.errorMessage.set('');
+    this.projectsService.deleteProject(projectId).subscribe({
+      next: () => this.loadProjects(),
+      error: () => this.errorMessage.set('Failed to delete project. Please try again.'),
+    });
   }
 }

@@ -26,7 +26,7 @@
           } @else {
             <select [(ngModel)]="selectedProjectId" (change)="onProjectSelect(selectedProjectId)" class="form-select">
               <option value="">Select a project...</option>
-              @for (project of availableProjects; track project.id) {
+              @for (project of availableProjects(); track project.id) {
                 <option [value]="project.id">{{ project.name }}</option>
               }
             </select>

@@ -3,13 +3,20 @@
     <!-- Hero Section -->
     <projects-hero [data]="heroData"></projects-hero>
 
-    <!-- Projects List Section -->
-    <projects-list
-      [projects]="projects$ | async"
-      (newProjectClick)="onNewProject()"
-      (searchChange)="onSearch($event)"
-      (deleteProject)="onDeleteProject($event)"
-    ></projects-list>
+    @if (errorMessage()) {
+      <div class="page-error">{{ errorMessage() }}</div>
+    }
+
+    @if (isLoading()) {
+      <div class="page-loading">Loading projects&hellip;</div>
+    } @else {
+      <!-- Projects List Section -->
+      <projects-list
+        [projects]="projects()"
+        (newProjectClick)="onNewProject()"
+        (deleteProject)="onDeleteProject($event)"
+      ></projects-list>
+    }
   </div>
 
   <!-- Create Project Modal -->

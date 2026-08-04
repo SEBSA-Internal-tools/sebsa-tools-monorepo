@@ -170,32 +170,27 @@
 
       <div class="info-grid">
         <div class="info-item">
-          <span class="info-label">Owner</span>
-          <span class="info-value">{{ project.owner }}</span>
+          <span class="info-label">Created By</span>
+          <span class="info-value">{{ project.createdBy.name }}</span>
         </div>
 
         <div class="info-item">
           <span class="info-label">Status</span>
           <div class="status-badge-inline">
-            <span
-              [class]="'status-badge-text ' + (project.status === 'Open' ? 'status-open' : 'status-closed')"
-            >
-              {{ project.status }}
+            <span [class]="'status-badge-text status-' + statusClass()">
+              {{ statusLabel() }}
             </span>
           </div>
         </div>
 
         <div class="info-item">
-          <span class="info-label">Visibility</span>
-          <span class="info-value">
-            <span class="material-symbols-outlined">{{ project.visibility === 'Private' ? 'lock' : 'public' }}</span>
-            {{ project.visibility }}
-          </span>
+          <span class="info-label">Type</span>
+          <span class="info-value">{{ project.type | titlecase }}</span>
         </div>
 
         <div class="info-item">
           <span class="info-label">Last Updated</span>
-          <span class="info-value">{{ project.lastUpdated }}</span>
+          <span class="info-value">{{ project.updatedAt | date: 'mediumDate' }}</span>
         </div>
       </div>
     </div>
