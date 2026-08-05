@@ -1,0 +1,90 @@
+<div class="health-matrix-container">
+  <div class="matrix-header">
+    <h2>Project Health & Status Matrix</h2>
+    <p class="subtitle">Overview of all active projects with key performance indicators</p>
+  </div>
+
+  <div *ngIf="projectHealthMatrix && projectHealthMatrix.length > 0" class="matrix-table-wrapper">
+    <table class="health-matrix-table">
+      <thead>
+        <tr>
+          <th class="col-project">Project Name</th>
+          <th class="col-health">Health Status</th>
+          <th class="col-budget">Budget</th>
+          <th class="col-timeline">Timeline</th>
+          <th class="col-resources">Resources</th>
+          <th class="col-risks">Risks</th>
+          <th class="col-completion">Completion</th>
+          <th class="col-team">Team</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let project of projectHealthMatrix; trackBy: trackByProjectName" class="health-row">
+          <td class="col-project">
+            <span class="project-name">{{ project.projectName }}</span>
+          </td>
+          <td class="col-health">
+            <span class="health-badge" [ngClass]="'health-' + project.healthStatus">
+              {{ project.health }}
+            </span>
+          </td>
+          <td class="col-budget">
+            <div class="metric-bar">
+              <div class="bar-fill" [ngClass]="getMetricClass(project.budget)" [style.width.%]="project.budget"></div>
+            </div>
+            <span class="metric-value">{{ project.budget }}%</span>
+          </td>
+          <td class="col-timeline">
+            <div class="metric-bar">
+              <div class="bar-fill" [ngClass]="getMetricClass(project.timeline)" [style.width.%]="project.timeline"></div>
+            </div>
+            <span class="metric-value">{{ project.timeline }}%</span>
+          </td>
+          <td class="col-resources">
+            <div class="metric-bar">
+              <div class="bar-fill" [ngClass]="getMetricClass(project.resources)" [style.width.%]="project.resources"></div>
+            </div>
+            <span class="metric-value">{{ project.resources }}%</span>
+          </td>
+          <td class="col-risks">
+            <span class="risk-badge" [ngClass]="'risk-' + (project.risks > 0 ? (project.risks <= 3 ? 'low' : (project.risks <= 6 ? 'medium' : 'high')) : 'none')">
+              {{ project.risks }} {{ project.risks === 1 ? 'issue' : 'issues' }}
+            </span>
+          </td>
+          <td class="col-completion">
+            <div class="completion-circle" [style.--completion]="project.completionPercentage">
+              <span class="completion-text">{{ project.completionPercentage }}%</span>
+            </div>
+          </td>
+          <td class="col-team">
+            <div class="team-members">
+              <span *ngFor="let member of project.team.slice(0, 2)" class="member-avatar">
+                {{ member.split(' ')[0].charAt(0) }}{{ member.split(' ')[1].charAt(0) }}
+              </span>
+              <span *ngIf="project.team.length > 2" class="member-more">+{{ project.team.length - 2 }}</span>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div *ngIf="!projectHealthMatrix || projectHealthMatrix.length === 0" class="empty-state">
+    <p>No projects found</p>
+  </div>
+
+  <div class="matrix-legend">
+    <div class="legend-item">
+      <span class="legend-box success"></span>
+      <span>On Track (80%+)</span>
+    </div>
+    <div class="legend-item">
+      <span class="legend-box warning"></span>
+      <span>At Risk (60-79%)</span>
+    </div>
+    <div class="legend-item">
+      <span class="legend-box danger"></span>
+      <span>Critical (&lt;60%)</span>
+    </div>
+  </div>
+</div>

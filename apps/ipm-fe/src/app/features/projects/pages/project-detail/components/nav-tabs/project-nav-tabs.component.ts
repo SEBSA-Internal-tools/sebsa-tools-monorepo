@@ -154,7 +154,7 @@ export class ProjectNavTabsComponent {
   tabs: Tab[] = [
     { id: 'overview', label: 'Overview', icon: 'dashboard' },
     { id: 'kanban', label: 'Kanban Board', icon: 'view_kanban' },
-    { id: 'tasklist', label: 'Task List', icon: 'list_check' },
+    { id: 'tasklist', label: 'Task List', icon: 'task' },
     { id: 'calendar', label: 'Calendar', icon: 'calendar_month' },
     { id: 'sprint', label: 'Sprint', icon: 'sprint' },
     { id: 'team', label: 'Team', icon: 'groups' },
