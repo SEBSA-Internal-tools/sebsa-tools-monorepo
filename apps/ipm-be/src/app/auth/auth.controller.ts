@@ -1,7 +1,8 @@
 import { Controller, Get, Post, Body, UseGuards } from '@nestjs/common';
-import { AuthUser, LoginResponse } from '@sebsa-pm-tool/shared-models';
+import { AuthUser, LoginResponse, RegisterResponse } from '@sebsa-pm-tool/shared-models';
 import { AuthService } from './auth.service';
 import { LoginDto } from './login.dto';
+import { RegisterDto } from './register.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { CurrentUser } from './current-user.decorator';
 
@@ -12,6 +13,11 @@ export class AuthController {
   @Post('login')
   login(@Body() dto: LoginDto): Promise<LoginResponse> {
     return this.authService.login(dto);
+  }
+
+  @Post('register')
+  register(@Body() dto: RegisterDto): Promise<RegisterResponse> {
+    return this.authService.register(dto);
   }
 
   @Get('me')

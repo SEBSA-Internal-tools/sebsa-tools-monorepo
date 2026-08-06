@@ -1,0 +1,86 @@
+<div class="login-container">
+  <div class="left-panel">
+    <div class="brand-content">
+      <img src="/SEBSA-logo.png" alt="SEBSA Logo" class="brand-logo" />
+      <div class="brand-dash"></div>
+      <h1>Internal Project Management</h1>
+      <p>Orchestrating complexity with precision and clarity.</p>
+    </div>
+  </div>
+
+  <div class="right-panel">
+    <div class="login-form-container" *ngIf="!isRegistered()">
+      <h2>Create an account</h2>
+      <p class="subtitle">Sign up with your corporate email address</p>
+
+      <div class="error-alert" *ngIf="hasError()">
+        <span class="material-symbols-outlined error-icon">error</span>
+        <div class="error-text">
+          <strong>Registration Failed</strong>
+          <span>{{ errorMessage() }}</span>
+        </div>
+      </div>
+
+      <form (submit)="register(); $event.preventDefault()">
+        <div class="form-group">
+          <label>Full Name</label>
+          <div class="input-wrapper">
+            <span class="material-symbols-outlined input-icon">person</span>
+            <input type="text" tabindex="1" name="name" [(ngModel)]="name" placeholder="Jane Doe" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Corporate Email Address</label>
+          <div class="input-wrapper">
+            <span class="material-symbols-outlined input-icon">mail</span>
+            <input type="email" tabindex="2" name="email" [(ngModel)]="email" placeholder="user@sebsaworld.com" [class.error-input]="hasError()" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Department</label>
+          <div class="input-wrapper">
+            <span class="material-symbols-outlined input-icon">apartment</span>
+            <select tabindex="3" name="departmentId" [(ngModel)]="departmentId">
+              <option value="" disabled selected>Select a department</option>
+              <option *ngFor="let department of departments()" [value]="department.id">
+                {{ department.name }}
+              </option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Password</label>
+          <div class="input-wrapper">
+            <span class="material-symbols-outlined input-icon">lock</span>
+            <input type="password" tabindex="4" name="password" [(ngModel)]="password" placeholder="••••••••" />
+          </div>
+        </div>
+
+        <button type="submit" tabindex="5" class="sign-in-button">Sign Up</button>
+      </form>
+
+      <div class="login-footer">
+        <p>Already have an account? <a routerLink="/login">Sign in</a></p>
+      </div>
+
+      <div class="copyright">
+        &copy; 2026 SEBSA (Pvt.) Ltd. All rights reserved.
+      </div>
+    </div>
+
+    <div class="login-form-container" *ngIf="isRegistered()">
+      <div class="success-alert">
+        <span class="material-symbols-outlined success-icon">check_circle</span>
+        <h2>Registration received</h2>
+        <p class="subtitle">{{ successMessage() }}</p>
+      </div>
+
+      <div class="login-footer">
+        <p><a routerLink="/login">Back to sign in</a></p>
+      </div>
+    </div>
+  </div>
+</div>

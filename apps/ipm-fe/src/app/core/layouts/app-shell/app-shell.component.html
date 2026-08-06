@@ -25,6 +25,30 @@
         </span>
         <span class="nav-label">{{ item.label }}</span>
       </a>
+
+      <a
+        *ngIf="['ADMIN', 'SUPER_ADMIN'].includes(authService.currentUser()?.systemRole ?? '')"
+        class="nav-item"
+        routerLink="/admin/users"
+        routerLinkActive="active"
+      >
+        <span class="nav-icon" aria-hidden="true">
+          <span class="material-symbols-outlined">admin_panel_settings</span>
+        </span>
+        <span class="nav-label">Admin</span>
+      </a>
+
+      <a
+        *ngIf="authService.currentUser()?.systemRole === 'SUPER_ADMIN'"
+        class="nav-item"
+        routerLink="/admin/privilege-groups"
+        routerLinkActive="active"
+      >
+        <span class="nav-icon" aria-hidden="true">
+          <span class="material-symbols-outlined">shield_person</span>
+        </span>
+        <span class="nav-label">Privilege Groups</span>
+      </a>
     </nav>
 
     <div class="sidebar-footer">

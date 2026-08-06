@@ -22,6 +22,8 @@ import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { AddMemberDto } from './dto/add-member.dto';
 import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
+import { CreateRoleDto } from './dto/create-role.dto';
+import { UpdateRoleDto } from './dto/update-role.dto';
 
 @Controller('projects')
 @UseGuards(JwtAuthGuard)
@@ -60,6 +62,25 @@ export class ProjectsController {
   @Get(':id/roles')
   getRoles(@Param('id') id: string, @CurrentUser() user: AuthUser): Promise<ProjectRole[]> {
     return this.projectsService.getRoles(id, user);
+  }
+
+  @Post(':id/roles')
+  createRole(
+    @Param('id') id: string,
+    @Body() dto: CreateRoleDto,
+    @CurrentUser() user: AuthUser,
+  ): Promise<ProjectRole> {
+    return this.projectsService.createRole(id, dto, user);
+  }
+
+  @Patch(':id/roles/:roleId')
+  updateRole(
+    @Param('id') id: string,
+    @Param('roleId') roleId: string,
+    @Body() dto: UpdateRoleDto,
+    @CurrentUser() user: AuthUser,
+  ): Promise<ProjectRole> {
+    return this.projectsService.updateRole(id, roleId, dto, user);
   }
 
   @Get(':id/members')

@@ -17,22 +17,26 @@ import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { AddMemberDto } from './dto/add-member.dto';
 import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
+import { CreateRoleDto } from './dto/create-role.dto';
+import { UpdateRoleDto } from './dto/update-role.dto';
 import {
   DEFAULT_PROJECT_ROLES,
   DEFAULT_WORKFLOW_STAGES,
   PROJECT_OWNER_ROLE_NAME,
 } from './constants';
 
+const ADMIN_SYSTEM_ROLES: AuthUser['systemRole'][] = ['ADMIN', 'SUPER_ADMIN'];
+
 const memberInclude = {
   user: { select: { id: true, name: true, email: true } },
-  role: { select: { id: true, name: true, isReadOnly: true } },
+  role: { select: { id: true, name: true, privilegeGroup: { select: { isReadOnly: true } } } },
 } satisfies Prisma.ProjectMemberInclude;
 
 type MemberWithRelations = Prisma.ProjectMemberGetPayload<{ include: typeof memberInclude }>;
 
 const membershipWithRoleInclude = {
   members: {
-    include: { role: true },
+    include: { role: { include: { privilegeGroup: true } } },
   },
 } satisfies Prisma.ProjectInclude;
 
@@ -56,6 +60,8 @@ export class ProjectsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(dto: CreateProjectDto, creator: AuthUser): Promise<Project> {
+    this.assertCanCreateProject(creator);
+
     const created = await this.prisma.$transaction(async (tx) => {
       const project = await tx.project.create({
         data: {
@@ -79,12 +85,26 @@ export class ProjectsService {
         })),
       });
 
+      const defaultGroups = await tx.privilegeGroup.findMany({
+        where: { name: { in: DEFAULT_PROJECT_ROLES.map((role) => role.privilegeGroupName) } },
+      });
+      const groupIdByName = new Map(defaultGroups.map((group) => [group.name, group.id]));
+
       const roles = await Promise.all(
-        DEFAULT_PROJECT_ROLES.map((role) =>
-          tx.role.create({
-            data: { projectId: project.id, isSystemDefault: true, ...role },
-          }),
-        ),
+        DEFAULT_PROJECT_ROLES.map((role) => {
+          const privilegeGroupId = groupIdByName.get(role.privilegeGroupName);
+          if (!privilegeGroupId) {
+            throw new Error(`Default privilege group "${role.privilegeGroupName}" not found.`);
+          }
+          return tx.role.create({
+            data: {
+              projectId: project.id,
+              name: role.name,
+              isSystemDefault: true,
+              privilegeGroupId,
+            },
+          });
+        }),
       );
 
       const ownerRole = roles.find((role) => role.name === PROJECT_OWNER_ROLE_NAME);
@@ -103,7 +123,7 @@ export class ProjectsService {
   }
 
   async findAll(user: AuthUser): Promise<ProjectSummary[]> {
-    const isPrivileged = user.systemRole === 'SYSTEM_ADMIN' || user.systemRole === 'EXECUTIVE';
+    const isPrivileged = ADMIN_SYSTEM_ROLES.includes(user.systemRole) || user.systemRole === 'EXECUTIVE';
 
     const projects = await this.prisma.project.findMany({
       where: {
@@ -169,10 +189,53 @@ export class ProjectsService {
     const membership = this.findMembership(project, user.id);
     this.assertVisible(!!membership, user);
 
-    return this.prisma.role.findMany({
+    const roles = await this.prisma.role.findMany({
       where: { projectId: id },
+      include: { privilegeGroup: true },
       orderBy: { createdAt: 'asc' },
     });
+    return roles.map((role) => this.toProjectRole(role));
+  }
+
+  async createRole(id: string, dto: CreateRoleDto, user: AuthUser): Promise<ProjectRole> {
+    const project = await this.loadProjectWithMembership(id);
+    this.assertCanManageMembers(project, user);
+    const candidateGroup = await this.getPrivilegeGroupOrThrow(dto.privilegeGroupId);
+    this.assertNoPrivilegeEscalation(project, user, candidateGroup);
+
+    const role = await this.prisma.role.create({
+      data: {
+        projectId: id,
+        name: dto.name,
+        isSystemDefault: false,
+        privilegeGroupId: dto.privilegeGroupId,
+      },
+      include: { privilegeGroup: true },
+    });
+    return this.toProjectRole(role);
+  }
+
+  async updateRole(
+    id: string,
+    roleId: string,
+    dto: UpdateRoleDto,
+    user: AuthUser,
+  ): Promise<ProjectRole> {
+    const project = await this.loadProjectWithMembership(id);
+    this.assertCanManageMembers(project, user);
+    await this.assertRoleBelongsToProject(id, roleId);
+
+    if (dto.privilegeGroupId) {
+      const candidateGroup = await this.getPrivilegeGroupOrThrow(dto.privilegeGroupId);
+      this.assertNoPrivilegeEscalation(project, user, candidateGroup);
+    }
+
+    const role = await this.prisma.role.update({
+      where: { id: roleId },
+      data: { name: dto.name, privilegeGroupId: dto.privilegeGroupId },
+      include: { privilegeGroup: true },
+    });
+    return this.toProjectRole(role);
   }
 
   async getMembers(id: string, user: AuthUser): Promise<ProjectMemberSummary[]> {
@@ -320,29 +383,107 @@ export class ProjectsService {
     }
   }
 
+  /** Project creation happens before any project membership exists, so
+   * there's no Role/PrivilegeGroup to check yet — this is a SystemRole-level
+   * gate, not a PrivilegeGroup one. Restricted to the same tiers that
+   * already bypass every other project-level check (ADMIN_SYSTEM_ROLES),
+   * rather than inventing a separate concept. EXECUTIVE is deliberately
+   * excluded — that tier is read-only visibility across projects, not a
+   * management capability. */
+  private assertCanCreateProject(user: AuthUser): void {
+    if (!ADMIN_SYSTEM_ROLES.includes(user.systemRole)) {
+      throw new ForbiddenException('You do not have permission to create projects.');
+    }
+  }
+
   private assertVisible(hasActiveMembership: boolean, user: AuthUser): void {
-    const isPrivileged = user.systemRole === 'SYSTEM_ADMIN' || user.systemRole === 'EXECUTIVE';
+    const isPrivileged = ADMIN_SYSTEM_ROLES.includes(user.systemRole) || user.systemRole === 'EXECUTIVE';
     if (!isPrivileged && !hasActiveMembership) {
       throw new ForbiddenException('You do not have access to this project.');
     }
   }
 
   private assertCanEdit(project: ProjectWithMembership, user: AuthUser): void {
-    if (user.systemRole === 'SYSTEM_ADMIN') return;
+    if (ADMIN_SYSTEM_ROLES.includes(user.systemRole)) return;
     const membership = this.findMembership(project, user.id);
-    if (!membership || membership.role.isReadOnly) {
+    if (!membership || membership.role.privilegeGroup.isReadOnly) {
       throw new ForbiddenException('You do not have permission to edit this project.');
     }
   }
 
   private assertCanManageMembers(project: ProjectWithMembership, user: AuthUser): void {
-    if (user.systemRole === 'SYSTEM_ADMIN') return;
+    if (ADMIN_SYSTEM_ROLES.includes(user.systemRole)) return;
     const membership = this.findMembership(project, user.id);
-    if (!membership || !membership.role.canManageMembers) {
+    if (!membership || !membership.role.privilegeGroup.canManageMembers) {
       throw new ForbiddenException(
         'You do not have permission to manage members for this project.',
       );
     }
+  }
+
+  /** Called only when a non-system-admin is trying to grant a role a
+   * privilege group. Prevents them handing out more power than their own
+   * current group on this project has — e.g. a Project Manager repointing
+   * their own role to a stronger group. System admins bypass entirely
+   * (same pattern as assertCanEdit/assertCanManageMembers). */
+  private assertNoPrivilegeEscalation(
+    project: ProjectWithMembership,
+    user: AuthUser,
+    candidateGroup: Prisma.PrivilegeGroupGetPayload<object>,
+  ): void {
+    if (ADMIN_SYSTEM_ROLES.includes(user.systemRole)) return;
+
+    const membership = this.findMembership(project, user.id);
+    const myGroup = membership?.role.privilegeGroup;
+    if (!myGroup) {
+      throw new ForbiddenException('You do not have permission to assign privilege groups.');
+    }
+
+    const grantsMoreThanIHave =
+      (candidateGroup.canCreateTask && !myGroup.canCreateTask) ||
+      (candidateGroup.canDeleteTask && !myGroup.canDeleteTask) ||
+      (candidateGroup.canManageMembers && !myGroup.canManageMembers) ||
+      (candidateGroup.canConfigureIntegrations && !myGroup.canConfigureIntegrations) ||
+      (candidateGroup.canManageWorkflow && !myGroup.canManageWorkflow) ||
+      (myGroup.isReadOnly && !candidateGroup.isReadOnly);
+
+    if (grantsMoreThanIHave) {
+      throw new ForbiddenException(
+        'You cannot assign a privilege group with more power than your own.',
+      );
+    }
+  }
+
+  private async getPrivilegeGroupOrThrow(id: string) {
+    const group = await this.prisma.privilegeGroup.findUnique({ where: { id } });
+    if (!group) {
+      throw new BadRequestException('Privilege group not found.');
+    }
+    return group;
+  }
+
+  private toProjectRole(
+    role: Prisma.RoleGetPayload<{ include: { privilegeGroup: true } }>,
+  ): ProjectRole {
+    return {
+      id: role.id,
+      projectId: role.projectId,
+      name: role.name,
+      isSystemDefault: role.isSystemDefault,
+      privilegeGroup: {
+        id: role.privilegeGroup.id,
+        name: role.privilegeGroup.name,
+        description: role.privilegeGroup.description,
+        canCreateTask: role.privilegeGroup.canCreateTask,
+        canDeleteTask: role.privilegeGroup.canDeleteTask,
+        canManageMembers: role.privilegeGroup.canManageMembers,
+        canConfigureIntegrations: role.privilegeGroup.canConfigureIntegrations,
+        canManageWorkflow: role.privilegeGroup.canManageWorkflow,
+        isReadOnly: role.privilegeGroup.isReadOnly,
+        createdAt: role.privilegeGroup.createdAt.toISOString(),
+        updatedAt: role.privilegeGroup.updatedAt.toISOString(),
+      },
+    };
   }
 
   private toProjectSummary(project: ProjectWithDetail): ProjectSummary {

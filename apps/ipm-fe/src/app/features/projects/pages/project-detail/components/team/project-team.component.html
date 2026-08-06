@@ -58,4 +58,64 @@
     (close)="onCloseModal()"
     (submit)="onAssignUsers($event)"
   ></assign-user-modal>
+
+  <!-- Manage Roles -->
+  <div class="roles-section">
+    <div class="team-header">
+      <div class="header-info">
+        <h3>Manage Roles</h3>
+        <p class="member-count">Assign a privilege group to each role, or create a custom one.</p>
+      </div>
+    </div>
+
+    @if (rolesErrorMessage()) {
+      <div class="team-error">{{ rolesErrorMessage() }}</div>
+    }
+
+    <table class="roles-table">
+      <thead>
+        <tr>
+          <th>Role</th>
+          <th>Privilege Group</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (role of roles(); track role.id) {
+          <tr>
+            <td>{{ role.name }}</td>
+            <td>
+              <select
+                class="role-group-select"
+                [ngModel]="role.privilegeGroup.id"
+                (ngModelChange)="reassignRole(role, $event)"
+              >
+                @for (group of privilegeGroups(); track group.id) {
+                  <option [value]="group.id">{{ group.name }}</option>
+                }
+              </select>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+
+    <div class="create-role-row">
+      <input
+        type="text"
+        class="role-name-input"
+        placeholder="New role name"
+        [(ngModel)]="newRoleName"
+      />
+      <select class="role-group-select" [(ngModel)]="newRoleGroupId">
+        <option value="" disabled>Select a privilege group&hellip;</option>
+        @for (group of privilegeGroups(); track group.id) {
+          <option [value]="group.id">{{ group.name }}</option>
+        }
+      </select>
+      <button type="button" class="btn-create-role" (click)="createRole()">
+        <span class="material-symbols-outlined">add</span>
+        Create Custom Role
+      </button>
+    </div>
+  </div>
 </div>

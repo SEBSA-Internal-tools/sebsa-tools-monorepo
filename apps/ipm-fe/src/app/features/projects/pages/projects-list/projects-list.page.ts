@@ -1,5 +1,6 @@
 import { Component, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
 import { ProjectsService, ProjectsHeroData } from '../../services/projects.service';
 import { ProjectsHeroComponent } from './components/hero/projects-hero.component';
 import { ProjectsListComponent } from './components/list/projects-list.component';
@@ -78,8 +79,10 @@ export class ProjectsPageComponent {
           this.loadProjects();
           this.assignInitialMembers(project.id, formData.memberIds);
         },
-        error: () => {
-          this.errorMessage.set('Failed to create project. Please try again.');
+        error: (error: HttpErrorResponse) => {
+          this.errorMessage.set(
+            error.error?.message ?? 'Failed to create project. Please try again.',
+          );
         },
       });
   }

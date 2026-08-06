@@ -16,4 +16,9 @@ export const envValidationSchema = Joi.object({
   JWT_SECRET: Joi.string().min(16).required(),
   JWT_EXPIRES_IN: Joi.string().default('8h'),
   CORS_ORIGIN: Joi.string().uri().default('http://localhost:4200'),
+
+  // Comma-separated corporate email domains allowed to self-register, e.g.
+  // "sebsaworld.com,sebsa.com". Required (no default) so a misconfiguration
+  // can't accidentally open signup to any domain.
+  SIGNUP_ALLOWED_EMAIL_DOMAINS: Joi.string().required(),
 });

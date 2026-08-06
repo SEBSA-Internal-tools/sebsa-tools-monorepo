@@ -1,12 +1,19 @@
 import { Route } from '@angular/router';
 import { AppShellComponent } from './core/layouts/app-shell/app-shell.component';
 import { authGuard } from './core/guards/auth.guard';
+import { adminGuard } from './core/guards/admin.guard';
+import { superAdminGuard } from './core/guards/super-admin.guard';
 
 export const appRoutes: Route[] = [
 	{
 		path: 'login',
 		loadComponent: () =>
 			import('./features/login/login.page').then((m) => m.LoginPageComponent),
+	},
+	{
+		path: 'register',
+		loadComponent: () =>
+			import('./features/signup/signup.page').then((m) => m.SignupPageComponent),
 	},
 	{
 		path: '',
@@ -49,6 +56,20 @@ export const appRoutes: Route[] = [
 				path: 'notifications',
 				loadComponent: () =>
 					import('./features/notifications/notifications.page').then((m) => m.NotificationsPageComponent),
+			},
+			{
+				path: 'admin/users',
+				canActivate: [adminGuard],
+				loadComponent: () =>
+					import('./features/admin/users/admin-users.page').then((m) => m.AdminUsersPageComponent),
+			},
+			{
+				path: 'admin/privilege-groups',
+				canActivate: [superAdminGuard],
+				loadComponent: () =>
+					import('./features/admin/privilege-groups/privilege-groups.page').then(
+						(m) => m.PrivilegeGroupsPageComponent
+					),
 			},
 		],
 	},
