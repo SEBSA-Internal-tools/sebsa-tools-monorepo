@@ -13,11 +13,16 @@ datasource db {
 // Enums
 // ---------------------------------------------------------------------------
 
-/// System-wide access tier. EXECUTIVE gets read-only visibility across every
-/// project without needing per-project membership rows; project-scoped
-/// roles (Owner/Manager/Member/Viewer) live in the Role/ProjectMember tables.
+/// System-wide access tier. SUPER_ADMIN and ADMIN both get every privileged
+/// bypass (project visibility, edit, member-management) — SUPER_ADMIN is
+/// strictly additive on top of ADMIN, adding the ability to edit the
+/// system-wide PrivilegeGroup library (see that model's comment). EXECUTIVE
+/// gets read-only visibility across every project without needing
+/// per-project membership rows; project-scoped roles (Owner/Manager/Member/
+/// Viewer) live in the Role/ProjectMember tables.
 enum SystemRole {
-  SYSTEM_ADMIN
+  SUPER_ADMIN
+  ADMIN
   EXECUTIVE
   REGULAR_USER
 }
@@ -166,7 +171,9 @@ model Department {
   @@map("departments")
 }
 
-/// A user account. Admin-provisioned only (no self-registration).
+/// A user account. Either admin-provisioned (auto-approved) or
+/// self-registered via a corporate-email-gated signup (pending until an
+/// admin approves it — see `approvedAt`).
 model User {
   id           String     @id @default(uuid())
   name         String
@@ -175,6 +182,10 @@ model User {
   systemRole   SystemRole @default(REGULAR_USER)
   departmentId String
   isActive     Boolean    @default(true)
+  /// Null = registered but not yet approved by an admin and cannot log in.
+  /// Distinct from `isActive`, which governs an already-approved account
+  /// being turned on/off later — the two states must not be conflated.
+  approvedAt   DateTime?
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
   deletedAt    DateTime?
@@ -200,15 +211,15 @@ model User {
   @@map("users")
 }
 
-/// A project-scoped role. Seeded with the five described roles
-/// (Project Owner, Project Manager, Member, Viewer/Stakeholder — Executive is
-/// modeled as a SystemRole instead, see enum comment) plus any custom roles
-/// Project Owners/Admins define, distinguished by isSystemDefault.
-model Role {
+/// A system-wide, reusable bundle of permission flags. Super Admin owns the
+/// definition of these; any project's Role can reference one, so editing a
+/// group's flags here changes what every Role pointing at it can do,
+/// without touching each Role individually. Deletion is blocked (onDelete:
+/// Restrict from Role) while any Role still references it.
+model PrivilegeGroup {
   id                       String   @id @default(uuid())
-  projectId                String
-  name                     String
-  isSystemDefault          Boolean  @default(false)
+  name                     String   @unique
+  description              String?
   canCreateTask            Boolean  @default(false)
   canDeleteTask            Boolean  @default(false)
   canManageMembers         Boolean  @default(false)
@@ -218,11 +229,36 @@ model Role {
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
 
-  project Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  members ProjectMember[]
+  roles Role[]
+
+  @@map("privilege_groups")
+}
+
+/// A project-scoped role. Seeded with the four described roles
+/// (Project Owner, Project Manager, Member, Viewer/Stakeholder — Executive is
+/// modeled as a SystemRole instead, see enum comment) plus any custom roles
+/// Project Owners/Managers define, distinguished by isSystemDefault. What a
+/// Role can actually do comes entirely from the PrivilegeGroup it points at
+/// — reassigning privilegeGroupId (or creating a new Role against a
+/// different group) is how a project's access model gets changed, gated at
+/// the application layer by canManageMembers plus a no-escalation check
+/// (see ProjectsService.assertNoPrivilegeEscalation).
+model Role {
+  id               String   @id @default(uuid())
+  projectId        String
+  name             String
+  isSystemDefault  Boolean  @default(false)
+  privilegeGroupId String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  project        Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  privilegeGroup PrivilegeGroup  @relation(fields: [privilegeGroupId], references: [id], onDelete: Restrict)
+  members        ProjectMember[]
 
   @@unique([projectId, name])
   @@index([projectId])
+  @@index([privilegeGroupId])
   @@map("roles")
 }
 

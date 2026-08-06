@@ -10,6 +10,8 @@ import {
   UpdateProjectRequest,
   AddProjectMemberRequest,
   UpdateProjectMemberRoleRequest,
+  CreateRoleRequest,
+  UpdateRoleRequest,
 } from '@sebsa-pm-tool/shared-models';
 
 export interface Task {
@@ -75,6 +77,14 @@ export class ProjectsService {
 
   getRoles(id: string): Observable<ProjectRole[]> {
     return this.http.get<ProjectRole[]>(`/api/projects/${id}/roles`);
+  }
+
+  createRole(id: string, dto: CreateRoleRequest): Observable<ProjectRole> {
+    return this.http.post<ProjectRole>(`/api/projects/${id}/roles`, dto);
+  }
+
+  updateRole(id: string, roleId: string, dto: UpdateRoleRequest): Observable<ProjectRole> {
+    return this.http.patch<ProjectRole>(`/api/projects/${id}/roles/${roleId}`, dto);
   }
 
   getMembers(id: string): Observable<ProjectMemberSummary[]> {

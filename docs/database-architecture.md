@@ -177,8 +177,9 @@ Grouped by functional area:
 **Identity & Access**
 
 - `Department` 1—N `User`
-- `User.systemRole` (`SYSTEM_ADMIN` / `EXECUTIVE` / `REGULAR_USER`) — system-wide tier
-- `Project` 1—N `Role` (project-scoped, custom permission flags)
+- `User.systemRole` (`SUPER_ADMIN` / `ADMIN` / `EXECUTIVE` / `REGULAR_USER`) — system-wide tier; `SUPER_ADMIN` is additive on top of `ADMIN` (see `docs/authentication.md`)
+- `PrivilegeGroup` 1—N `Role` — system-wide, reusable permission-flag bundles (`canCreateTask`, `canDeleteTask`, `canManageMembers`, `canConfigureIntegrations`, `canManageWorkflow`, `isReadOnly`); `Role` no longer owns these flags directly, it references a group
+- `Project` 1—N `Role` (project-scoped name + `isSystemDefault`, permissions come from its `PrivilegeGroup`)
 - `Project` 1—N `ProjectMember` N—1 `User`, each with one `Role`
 
 **Projects**
@@ -304,6 +305,45 @@ constraint doesn't fully match what the database enforces:
    ALTER TABLE "attachments" ADD CONSTRAINT "attachments_exactly_one_parent"
      CHECK ((("taskId" IS NOT NULL)::int + ("commentId" IS NOT NULL)::int) = 1);
    ```
+
+A fourth hand-authored statement was added later, in
+`prisma/migrations/<timestamp>_add_user_approved_at/migration.sql`, when
+`User.approvedAt` was introduced (see `docs/authentication.md`) — a data
+backfill rather than a constraint, but the same "Prisma's DSL can't express
+this" category:
+
+```sql
+UPDATE "users" SET "approvedAt" = "createdAt" WHERE "approvedAt" IS NULL;
+```
+
+Existing accounts predate the approval concept entirely; without this
+backfill they'd have been retroactively locked out of login by a schema
+change that was never meant to affect them.
+
+A fifth migration,
+`prisma/migrations/<timestamp>_super_admin_and_privilege_groups/migration.sql`,
+combines two hand-authored changes `prisma migrate dev` refused to generate
+non-interactively (see `docs/authentication.md` for the feature this
+supports):
+
+1. **A true enum value rename**, not drop-and-add — Prisma's diff would have
+   dropped `SYSTEM_ADMIN` and added `ADMIN` separately, which fails while
+   rows still use the old value:
+   ```sql
+   ALTER TYPE "SystemRole" RENAME VALUE 'SYSTEM_ADMIN' TO 'ADMIN';
+   ALTER TYPE "SystemRole" ADD VALUE 'SUPER_ADMIN';
+   ```
+2. **Extracting `Role`'s six permission booleans into a new, system-wide
+   `PrivilegeGroup` table**, with a backfill matching each existing `Role`
+   row's exact flag-tuple to one of four seeded groups (`Owner Access`,
+   `Manager Access`, `Member Access`, `Read-Only Access` — the same four
+   flag-sets `constants.ts`'s `DEFAULT_PROJECT_ROLES` used to embed
+   directly), before dropping the old columns. The live data was queried
+   beforehand to confirm exactly four distinct flag-tuples existed (one per
+   default role — no custom-role endpoint existed yet at the time), so the
+   backfill is deterministic; the migration also raises an explicit
+   exception if any row fails to match, rather than silently leaving it
+   unmapped.
 
 ## Common commands
 

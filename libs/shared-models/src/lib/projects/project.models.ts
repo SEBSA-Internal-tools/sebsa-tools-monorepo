@@ -1,17 +1,13 @@
 import { ProjectStatus, ProjectType } from './project-enums';
 import { UserSummary } from '../users/user-summary.model';
+import { PrivilegeGroup } from '../privilege-groups/privilege-group.models';
 
 export interface ProjectRole {
   id: string;
   projectId: string;
   name: string;
   isSystemDefault: boolean;
-  canCreateTask: boolean;
-  canDeleteTask: boolean;
-  canManageMembers: boolean;
-  canConfigureIntegrations: boolean;
-  canManageWorkflow: boolean;
-  isReadOnly: boolean;
+  privilegeGroup: PrivilegeGroup;
 }
 
 export interface ProjectMemberSummary {
@@ -21,7 +17,7 @@ export interface ProjectMemberSummary {
   roleId: string;
   joinedAt: string;
   user: Pick<UserSummary, 'id' | 'name' | 'email'>;
-  role: Pick<ProjectRole, 'id' | 'name' | 'isReadOnly'>;
+  role: Pick<ProjectRole, 'id' | 'name'> & { privilegeGroup: Pick<PrivilegeGroup, 'isReadOnly'> };
 }
 
 /** List-view shape — lighter than Project, no nested roles/stages. */
@@ -75,4 +71,14 @@ export interface AddProjectMemberRequest {
 
 export interface UpdateProjectMemberRoleRequest {
   roleId: string;
+}
+
+export interface CreateRoleRequest {
+  name: string;
+  privilegeGroupId: string;
+}
+
+export interface UpdateRoleRequest {
+  name?: string;
+  privilegeGroupId?: string;
 }

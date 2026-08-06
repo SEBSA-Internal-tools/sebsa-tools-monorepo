@@ -221,12 +221,25 @@
 .login-footer {
   margin-top: 48px;
   text-align: center;
-  
+
   p {
     color: #6b7280;
     font-size: 0.8rem;
     line-height: 1.5;
-    margin: 0;
+    margin: 0 0 12px;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+
+    a {
+      color: #d92561;
+      text-decoration: none;
+
+      &:hover {
+        text-decoration: underline;
+      }
+    }
   }
 }
 

@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
-import { AuthUser, LoginResponse } from '@sebsa-pm-tool/shared-models';
+import { AuthUser, LoginResponse, RegisterRequest, RegisterResponse } from '@sebsa-pm-tool/shared-models';
 import { Observable, catchError, of, tap } from 'rxjs';
 
 export const AUTH_TOKEN_STORAGE_KEY = 'ipm-fe.auth.token';
@@ -18,6 +18,10 @@ export class AuthService {
         this.currentUser.set(response.user);
       }),
     );
+  }
+
+  register(dto: RegisterRequest): Observable<RegisterResponse> {
+    return this.http.post<RegisterResponse>('/api/auth/register', dto);
   }
 
   logout(): void {

@@ -1,0 +1,141 @@
+<div class="admin-users-container">
+  <div class="page-header">
+    <div class="header-info">
+      <h1>User Management</h1>
+      <p>Approve pending signups and manage accounts.</p>
+    </div>
+    <button type="button" class="btn-primary" (click)="openCreateModal()">
+      <span class="material-symbols-outlined">person_add</span>
+      Create User
+    </button>
+  </div>
+
+  @if (errorMessage()) {
+    <div class="error-banner">{{ errorMessage() }}</div>
+  }
+
+  @if (pendingUsers().length > 0) {
+    <section class="section">
+      <h2>Pending Approval ({{ pendingUsers().length }})</h2>
+      <div class="pending-list">
+        @for (user of pendingUsers(); track user.id) {
+          <div class="pending-card">
+            <div class="pending-info">
+              <strong>{{ user.name }}</strong>
+              <span class="email">{{ user.email }}</span>
+              <span class="department">{{ departmentName(user.departmentId) }}</span>
+            </div>
+            <button type="button" class="btn-approve" (click)="approve(user.id)">
+              <span class="material-symbols-outlined">check</span>
+              Approve
+            </button>
+          </div>
+        }
+      </div>
+    </section>
+  }
+
+  <section class="section">
+    <h2>All Users ({{ users().length }})</h2>
+    <table class="users-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Department</th>
+          <th>Role</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (user of users(); track user.id) {
+          <tr>
+            <td>{{ user.name }}</td>
+            <td>{{ user.email }}</td>
+            <td>{{ departmentName(user.departmentId) }}</td>
+            <td>{{ user.systemRole }}</td>
+            <td>
+              @if (!user.approvedAt) {
+                <span class="badge badge-pending">Pending</span>
+              } @else if (user.isActive) {
+                <span class="badge badge-active">Active</span>
+              } @else {
+                <span class="badge badge-inactive">Deactivated</span>
+              }
+            </td>
+            <td class="actions">
+              @if (user.approvedAt && user.isActive) {
+                <button type="button" class="btn-text" (click)="deactivate(user.id)">Deactivate</button>
+              } @else if (user.approvedAt && !user.isActive) {
+                <button type="button" class="btn-text" (click)="activate(user.id)">Activate</button>
+              }
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </section>
+
+  @if (isCreateModalOpen()) {
+    <div class="modal-overlay" (click)="closeCreateModal()"></div>
+    <div class="modal-container">
+      <div class="modal-header">
+        <h2>Create User</h2>
+        <button type="button" class="close-btn" (click)="closeCreateModal()">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Full Name</label>
+          <input type="text" [(ngModel)]="name" class="form-input" placeholder="Jane Doe" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Corporate Email</label>
+          <input type="email" [(ngModel)]="email" class="form-input" placeholder="user@sebsaworld.com" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Department</label>
+          <select [(ngModel)]="departmentId" class="form-input">
+            <option value="" disabled>Select a department&hellip;</option>
+            @for (department of departments(); track department.id) {
+              <option [value]="department.id">{{ department.name }}</option>
+            }
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">System Role</label>
+          <select [(ngModel)]="systemRole" class="form-input">
+            @for (role of systemRoleOptions; track role) {
+              <option [value]="role">{{ role }}</option>
+            }
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-cancel" (click)="closeCreateModal()">Cancel</button>
+        <button type="button" class="btn-create" (click)="submitCreate()">Create User</button>
+      </div>
+    </div>
+  }
+
+  @if (createdUser(); as result) {
+    <div class="modal-overlay"></div>
+    <div class="modal-container">
+      <div class="modal-header">
+        <h2>User Created</h2>
+      </div>
+      <div class="modal-body">
+        <p>{{ result.user.name }} ({{ result.user.email }}) has been created and auto-approved.</p>
+        <p class="temp-password-warning">
+          Share this temporary password with them now — it will not be shown again.
+        </p>
+        <div class="temp-password">{{ result.temporaryPassword }}</div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-create" (click)="closeCreatedUserModal()">Done</button>
+      </div>
+    </div>
+  }
+</div>
