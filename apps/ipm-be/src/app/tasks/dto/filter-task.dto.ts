@@ -47,6 +47,14 @@ export class FilterTaskDto {
   createdById?: string;
 
   @IsOptional()
+  @IsUUID()
+  assigneeId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  labelId?: string;
+
+  @IsOptional()
   @IsEnum(TaskType)
   type?: TaskType;
 

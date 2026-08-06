@@ -1,4 +1,5 @@
 import { 
+  IsArray,
   IsDateString, 
   IsEnum, 
   IsInt,
@@ -82,4 +83,15 @@ export class CreateTaskDto {
   @IsInt()
   @Min(0)
   reminderLeadMinutes?: number;
+
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  assigneeIds?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  labelIds?: string[];
 }
+

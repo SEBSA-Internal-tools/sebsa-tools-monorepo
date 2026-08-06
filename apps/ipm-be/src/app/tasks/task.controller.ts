@@ -6,6 +6,8 @@ import { AuthUser } from '@sebsa-pm-tool/shared-models';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'; 
 import { CurrentUser } from '../auth/current-user.decorator';
 import { FilterTaskDto } from './dto/filter-task.dto';
+import { AssigneesDto } from './dto/assign-task.dto';
+import { TaskLabelsDto } from './dto/task-label.dto';
 
 @UseGuards(JwtAuthGuard)
 @Controller('tasks')
@@ -51,5 +53,66 @@ export class TaskController {
     @CurrentUser() user: AuthUser,
   ) {
     return this.taskService.delete(id, user);
+  }
+
+  // --- Task Assignment Endpoints ---
+
+  @Post(':id/assignees')
+  async assignUsers(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AssigneesDto,
+  ) {
+    return this.taskService.assignUsers(id, dto.assigneeIds);
+  }
+
+  @Delete(':id/assignees/:userId')
+  async unassignUser(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('userId', ParseUUIDPipe) userId: string,
+  ) {
+    return this.taskService.unassignUser(id, userId);
+  }
+
+  @Get(':id/assignees')
+  async getAssignees(
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.taskService.getAssignees(id);
+  }
+
+  // --- Task Label Endpoints ---
+
+  @Post(':id/labels')
+  async attachLabels(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: TaskLabelsDto,
+  ) {
+    return this.taskService.attachLabels(id, dto.labelIds);
+  }
+
+  @Delete(':id/labels/:labelId')
+  async detachLabel(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('labelId', ParseUUIDPipe) labelId: string,
+  ) {
+    return this.taskService.detachLabel(id, labelId);
+  }
+
+  // --- Subtask Endpoints ---
+
+  @Get(':id/subtasks')
+  async getSubtasks(
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.taskService.getSubtasks(id);
+  }
+
+  @Post(':id/subtasks')
+  async createSubtask(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CreateTaskDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.taskService.createSubtask(id, dto, user);
   }
 }

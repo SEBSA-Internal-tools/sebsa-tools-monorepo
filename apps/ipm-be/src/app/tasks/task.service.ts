@@ -40,6 +40,16 @@ export class TaskService {
       dto.projectId,
     );
 
+    await this.validation.validateAssignees(
+      dto.assigneeIds,
+      dto.projectId,
+    );
+
+    await this.validation.validateLabels(
+      dto.labelIds,
+      dto.projectId,
+    );
+
     this.validation.validateDates(
       dto.startDate,
       dto.dueDate,
@@ -100,6 +110,22 @@ export class TaskService {
         milestone: {
           connect: {
             id: dto.milestoneId,
+          },
+        },
+      }),
+
+      ...(dto.assigneeIds && dto.assigneeIds.length > 0 && {
+        assignees: {
+          createMany: {
+            data: dto.assigneeIds.map((userId) => ({ userId })),
+          },
+        },
+      }),
+
+      ...(dto.labelIds && dto.labelIds.length > 0 && {
+        labels: {
+          createMany: {
+            data: dto.labelIds.map((labelId) => ({ labelId })),
           },
         },
       }),
@@ -165,6 +191,20 @@ export class TaskService {
       );
     }
 
+    if (dto.assigneeIds) {
+      await this.validation.validateAssignees(
+        dto.assigneeIds,
+        task.projectId,
+      );
+    }
+
+    if (dto.labelIds) {
+      await this.validation.validateLabels(
+        dto.labelIds,
+        task.projectId,
+      );
+    }
+
     if (dto.startDate || dto.dueDate) {
       this.validation.validateDates(
         dto.startDate ?? task.startDate?.toISOString(),
@@ -172,8 +212,10 @@ export class TaskService {
       );
     }
 
+    const { assigneeIds, labelIds, ...restDto } = dto;
+
     const data: Prisma.TaskUpdateInput = {
-      ...dto,
+      ...restDto,
 
       ...(dto.startDate && {
         startDate: new Date(dto.startDate),
@@ -182,9 +224,74 @@ export class TaskService {
       ...(dto.dueDate && {
         dueDate: new Date(dto.dueDate),
       }),
+
+      ...(assigneeIds && {
+        assignees: {
+          deleteMany: {},
+          createMany: {
+            data: assigneeIds.map((userId) => ({ userId })),
+          },
+        },
+      }),
+
+      ...(labelIds && {
+        labels: {
+          deleteMany: {},
+          createMany: {
+            data: labelIds.map((labelId) => ({ labelId })),
+          },
+        },
+      }),
     };
 
     return this.repository.update(id, data);
+  }
+
+  async assignUsers(taskId: string, assigneeIds: string[]) {
+    const task = await this.findOne(taskId);
+    await this.validation.validateAssignees(assigneeIds, task.projectId);
+    return this.repository.addAssignees(taskId, assigneeIds);
+  }
+
+  async unassignUser(taskId: string, userId: string) {
+    await this.findOne(taskId);
+    return this.repository.removeAssignee(taskId, userId);
+  }
+
+  async getAssignees(taskId: string) {
+    await this.findOne(taskId);
+    return this.repository.getAssignees(taskId);
+  }
+
+  async attachLabels(taskId: string, labelIds: string[]) {
+    const task = await this.findOne(taskId);
+    await this.validation.validateLabels(labelIds, task.projectId);
+    return this.repository.attachLabels(taskId, labelIds);
+  }
+
+  async detachLabel(taskId: string, labelId: string) {
+    await this.findOne(taskId);
+    return this.repository.detachLabel(taskId, labelId);
+  }
+
+  async getSubtasks(parentTaskId: string) {
+    await this.findOne(parentTaskId);
+    return this.repository.findSubtasks(parentTaskId);
+  }
+
+  async createSubtask(
+    parentTaskId: string,
+    dto: Omit<CreateTaskDto, 'projectId' | 'parentTaskId'>,
+    user: AuthUser,
+  ) {
+    const parentTask = await this.findOne(parentTaskId);
+    const fullDto: CreateTaskDto = {
+      ...dto,
+      projectId: parentTask.projectId,
+      parentTaskId: parentTask.id,
+      type: dto.type ?? ('SUBTASK' as any),
+    };
+    return this.create(fullDto, user);
   }
 
   async delete(

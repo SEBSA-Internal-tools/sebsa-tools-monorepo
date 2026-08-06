@@ -12,6 +12,24 @@ export class TaskRepository {
   async create(data: Prisma.TaskCreateInput): Promise<Task> {
     return this.prisma.task.create({
       data,
+      include: {
+        project: true,
+        workflowStage: true,
+        sprint: true,
+        milestone: true,
+        createdBy: true,
+        assignees: {
+          include: {
+            user: true,
+          },
+        },
+        labels: {
+          include: {
+            label: true,
+          },
+        },
+        subtasks: true,
+      },
     });
   }
 
@@ -22,16 +40,65 @@ export class TaskRepository {
     return this.prisma.task.update({
       where: { id },
       data,
+      include: {
+        project: true,
+        workflowStage: true,
+        sprint: true,
+        milestone: true,
+        createdBy: true,
+        assignees: {
+          include: {
+            user: true,
+          },
+        },
+        labels: {
+          include: {
+            label: true,
+          },
+        },
+        subtasks: true,
+      },
     });
   }
 
   async findById(
     id: string,
-  ): Promise<Task | null> {
+  ): Promise<Task> {
     return this.prisma.task.findFirst({
       where: {
         id,
         deletedAt: null,
+      },
+      include: {
+        project: true,
+        workflowStage: true,
+        sprint: true,
+        milestone: true,
+        createdBy: true,
+        parentTask: true,
+        assignees: {
+          include: {
+            user: true,
+          },
+        },
+        labels: {
+          include: {
+            label: true,
+          },
+        },
+        subtasks: {
+          where: {
+            deletedAt: null,
+          },
+          include: {
+            workflowStage: true,
+            assignees: {
+              include: {
+                user: true,
+              },
+            },
+          },
+        },
       },
     });
   }
@@ -88,7 +155,6 @@ export class TaskRepository {
 
     return this.prisma.task.findMany({
       where,
-
       include: {
         project: true,
         workflowStage: true,
@@ -100,12 +166,106 @@ export class TaskRepository {
             user: true,
           },
         },
+        labels: {
+          include: {
+            label: true,
+          },
+        },
+        _count: {
+          select: {
+            subtasks: true,
+          },
+        },
       },
       orderBy: {
         [filter.sortBy]: filter.sortOrder,
       },
       skip: (filter.page - 1) * filter.limit,
       take: filter.limit,
+    });
+  }
+
+  async addAssignees(taskId: string, userIds: string[]) {
+    const createData = userIds.map((userId) => ({
+      taskId,
+      userId,
+    }));
+
+    await this.prisma.taskAssignee.createMany({
+      data: createData,
+      skipDuplicates: true,
+    });
+
+    return this.findById(taskId);
+  }
+
+  async removeAssignee(taskId: string, userId: string) {
+    await this.prisma.taskAssignee.deleteMany({
+      where: {
+        taskId,
+        userId,
+      },
+    });
+
+    return this.findById(taskId);
+  }
+
+  async getAssignees(taskId: string) {
+    return this.prisma.taskAssignee.findMany({
+      where: { taskId },
+      include: {
+        user: true,
+      },
+    });
+  }
+
+  async attachLabels(taskId: string, labelIds: string[]) {
+    const createData = labelIds.map((labelId) => ({
+      taskId,
+      labelId,
+    }));
+
+    await this.prisma.taskLabel.createMany({
+      data: createData,
+      skipDuplicates: true,
+    });
+
+    return this.findById(taskId);
+  }
+
+  async detachLabel(taskId: string, labelId: string) {
+    await this.prisma.taskLabel.deleteMany({
+      where: {
+        taskId,
+        labelId,
+      },
+    });
+
+    return this.findById(taskId);
+  }
+
+  async findSubtasks(parentTaskId: string) {
+    return this.prisma.task.findMany({
+      where: {
+        parentTaskId,
+        deletedAt: null,
+      },
+      include: {
+        workflowStage: true,
+        assignees: {
+          include: {
+            user: true,
+          },
+        },
+        labels: {
+          include: {
+            label: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
     });
   }
 
@@ -141,6 +301,22 @@ export class TaskRepository {
 
     if (filter.createdById) {
       where.createdById = filter.createdById;
+    }
+
+    if (filter.assigneeId) {
+      where.assignees = {
+        some: {
+          userId: filter.assigneeId,
+        },
+      };
+    }
+
+    if (filter.labelId) {
+      where.labels = {
+        some: {
+          labelId: filter.labelId,
+        },
+      };
     }
 
     if (filter.priority) {
