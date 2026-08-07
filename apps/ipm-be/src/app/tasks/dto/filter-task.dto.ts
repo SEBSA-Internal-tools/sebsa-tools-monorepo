@@ -10,7 +10,7 @@ import {
   Min,
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
-import { Priority, TaskType } from './create-task.dto';
+import { Priority, TaskType } from '@prisma/client';
 
 export type TaskSortField =
     | 'title'

@@ -1,32 +1,17 @@
-import { 
+import { TaskType, Priority } from '@prisma/client';
+import {
   IsArray,
-  IsDateString, 
-  IsEnum, 
+  IsDateString,
+  IsEnum,
   IsInt,
-  IsOptional, 
-  IsString, 
-  IsUUID, 
-  Max, 
-  MaxLength, 
-  Min, 
-  MinLength } from "class-validator";
-
-export enum TaskType {
-  EPIC = 'EPIC',
-  STORY = 'STORY',
-  TASK = 'TASK',
-  BUG = 'BUG',
-  IMPROVEMENT = 'IMPROVEMENT',
-  TEST = 'TEST',
-  SUBTASK = 'SUBTASK',
-}
-
-export enum Priority {
-  CRITICAL = 'CRITICAL',
-  HIGH = 'HIGH',
-  MEDIUM = 'MEDIUM',
-  LOW = 'LOW',
-}
+  IsOptional,
+  IsString,
+  IsUUID,
+  Max,
+  MaxLength,
+  Min,
+  MinLength,
+} from 'class-validator';
 
 export class CreateTaskDto {
  @IsUUID()

@@ -1,41 +1,47 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, ParseUUIDPipe, Query, UseGuards } from '@nestjs/common';
-import { TaskService } from './task.service'; 
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  ParseUUIDPipe,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { TaskService } from './task.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { AuthUser } from '@sebsa-pm-tool/shared-models';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard'; 
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { FilterTaskDto } from './dto/filter-task.dto';
 import { AssigneesDto } from './dto/assign-task.dto';
 import { TaskLabelsDto } from './dto/task-label.dto';
+import { CreateTaskDependencyDto } from './dto/create-task-dependency.dto';
 
+@ApiTags('tasks')
+@ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('tasks')
 export class TaskController {
-  constructor(
-    private readonly taskService: TaskService,
-  ) {}
+  constructor(private readonly taskService: TaskService) {}
 
   @Post()
-  async create(
-    @CurrentUser() user: AuthUser,
-    @Body() dto: CreateTaskDto,
-  ) {
+  async create(@CurrentUser() user: AuthUser, @Body() dto: CreateTaskDto) {
     return this.taskService.create(dto, user);
   }
 
   @Get()
-  async findAll(
-    @Query() filter: FilterTaskDto,
-  ) {
-    return this.taskService.findAll(filter);
+  async findAll(@Query() filter: FilterTaskDto, @CurrentUser() user: AuthUser) {
+    return this.taskService.findAll(filter, user);
   }
 
   @Get(':id')
-  async findOne(
-    @Param('id', ParseUUIDPipe) id: string,
-  ) {
-    return this.taskService.findOne(id);
+  async findOne(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+    return this.taskService.findOne(id, user);
   }
 
   @Patch(':id')
@@ -48,10 +54,7 @@ export class TaskController {
   }
 
   @Delete(':id')
-  async delete(
-    @Param('id', ParseUUIDPipe) id: string,
-    @CurrentUser() user: AuthUser,
-  ) {
+  async delete(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
     return this.taskService.delete(id, user);
   }
 
@@ -61,23 +64,23 @@ export class TaskController {
   async assignUsers(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: AssigneesDto,
+    @CurrentUser() user: AuthUser,
   ) {
-    return this.taskService.assignUsers(id, dto.assigneeIds);
+    return this.taskService.assignUsers(id, dto.assigneeIds, user);
   }
 
   @Delete(':id/assignees/:userId')
   async unassignUser(
     @Param('id', ParseUUIDPipe) id: string,
     @Param('userId', ParseUUIDPipe) userId: string,
+    @CurrentUser() user: AuthUser,
   ) {
-    return this.taskService.unassignUser(id, userId);
+    return this.taskService.unassignUser(id, userId, user);
   }
 
   @Get(':id/assignees')
-  async getAssignees(
-    @Param('id', ParseUUIDPipe) id: string,
-  ) {
-    return this.taskService.getAssignees(id);
+  async getAssignees(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+    return this.taskService.getAssignees(id, user);
   }
 
   // --- Task Label Endpoints ---
@@ -86,25 +89,25 @@ export class TaskController {
   async attachLabels(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: TaskLabelsDto,
+    @CurrentUser() user: AuthUser,
   ) {
-    return this.taskService.attachLabels(id, dto.labelIds);
+    return this.taskService.attachLabels(id, dto.labelIds, user);
   }
 
   @Delete(':id/labels/:labelId')
   async detachLabel(
     @Param('id', ParseUUIDPipe) id: string,
     @Param('labelId', ParseUUIDPipe) labelId: string,
+    @CurrentUser() user: AuthUser,
   ) {
-    return this.taskService.detachLabel(id, labelId);
+    return this.taskService.detachLabel(id, labelId, user);
   }
 
   // --- Subtask Endpoints ---
 
   @Get(':id/subtasks')
-  async getSubtasks(
-    @Param('id', ParseUUIDPipe) id: string,
-  ) {
-    return this.taskService.getSubtasks(id);
+  async getSubtasks(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+    return this.taskService.getSubtasks(id, user);
   }
 
   @Post(':id/subtasks')
@@ -114,5 +117,30 @@ export class TaskController {
     @CurrentUser() user: AuthUser,
   ) {
     return this.taskService.createSubtask(id, dto, user);
+  }
+
+  // --- Dependency Endpoints (FSD §5.5) ---
+
+  @Get(':id/dependencies')
+  async getDependencies(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+    return this.taskService.getDependencies(id, user);
+  }
+
+  @Post(':id/dependencies')
+  async createDependency(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CreateTaskDependencyDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.taskService.createDependency(id, dto, user);
+  }
+
+  @Delete(':id/dependencies/:dependencyId')
+  async removeDependency(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('dependencyId', ParseUUIDPipe) dependencyId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.taskService.removeDependency(id, dependencyId, user);
   }
 }
