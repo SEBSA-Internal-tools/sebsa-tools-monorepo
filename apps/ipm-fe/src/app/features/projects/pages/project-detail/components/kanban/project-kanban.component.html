@@ -1,67 +1,178 @@
-<div class="kanban-container">
-  @for (column of columns; track column.id) {
-    <div class="kanban-column">
-      <!-- Column Header -->
-      <div class="column-header">
-        <div class="column-title">
-          <div class="status-dot" [style.background-color]="column.color"></div>
-          <span class="title-text">{{ column.label }}</span>
-          <span class="task-count">{{ tasks[column.id].length }}</span>
+@if (isLoading()) {
+  <div class="kanban-loading">
+    <span class="material-symbols-outlined">hourglass_empty</span>
+    <p>Loading board...</p>
+  </div>
+} @else if (workflowStages().length === 0) {
+
+  @if (isAddingColumn()) {
+    <div class="kanban-empty-state">
+      <div class="inline-input-form">
+        <h3>Create Your First Column</h3>
+        <div class="input-group">
+          <input
+            type="text"
+            class="column-name-input"
+            placeholder="e.g. 'To Do', 'In Progress', 'Done'"
+            [(ngModel)]="newColumnName"
+            [disabled]="isCreatingColumn()"
+            (keyup.enter)="saveNewColumn()"
+            (keyup.escape)="cancelAddColumn()"
+            autofocus
+          />
+          @if (errorMessage()) {
+            <p class="input-error">{{ errorMessage() }}</p>
+          }
+          <div class="btn-row">
+            <button
+              type="button"
+              class="btn-save"
+              (click)="saveNewColumn()"
+              [disabled]="isCreatingColumn()"
+            >
+              <span class="material-symbols-outlined">{{ isCreatingColumn() ? 'hourglass_empty' : 'check' }}</span>
+              {{ isCreatingColumn() ? 'Creating...' : 'Save' }}
+            </button>
+            <button
+              type="button"
+              class="btn-cancel"
+              (click)="cancelAddColumn()"
+              [disabled]="isCreatingColumn()"
+            >
+              <span class="material-symbols-outlined">close</span>
+              Cancel
+            </button>
+          </div>
         </div>
       </div>
-
-      <!-- Drop Zone -->
-      <div
-        class="drop-zone"
-        [id]="column.id"
-        (dragover)="onDragOver($event)"
-        (drop)="onDrop($event, column.id)"
-      >
-        @if (tasks[column.id].length > 0) {
-          @for (task of tasks[column.id]; track task.id) {
-            <div
-              class="task-card"
-              draggable="true"
-              (dragstart)="onDragStart(task)"
-              (dragend)="onDragEnd()"
-              [class.dragging]="draggedTask?.id === task.id"
-            >
-              <!-- Task ID & Priority -->
-              <div class="task-header">
-                <span class="task-id">{{ task.id }}</span>
-                <span
-                  class="priority-badge"
-                  [class]="getPriorityClass(task.priority)"
-                >
-                  {{ task.priority }}
-                </span>
-              </div>
-
-              <!-- Task Title -->
-              <h3 class="task-title">{{ task.title }}</h3>
-
-              <!-- Task Category -->
-              <p class="task-category">{{ task.category }}</p>
-
-              <!-- Task Footer -->
-              <div class="task-footer">
-                <span class="duration">
-                  <span class="material-symbols-outlined">schedule</span>
-                  {{ task.duration }}
-                </span>
-                <div class="task-assignee" *ngIf="task.assignee" [title]="task.assignee">
-                  {{ getTaskInitials(task.assignee) }}
-                </div>
-              </div>
-            </div>
-          }
-        } @else {
-          <div class="empty-column">
-            <span class="material-symbols-outlined">inbox</span>
-            <p>No tasks</p>
-          </div>
-        }
+    </div>
+  } @else {
+    <div class="kanban-empty-state">
+      <div class="empty-icon">
+        <span class="material-symbols-outlined">view_agenda</span>
       </div>
+      <h3>No Columns Created Yet</h3>
+      <p>Create your first column to start organizing tasks on the Kanban board</p>
+      <button type="button" class="btn-create-first" (click)="onCreateFirstColumn()">
+        <span class="material-symbols-outlined">add</span>
+        Create First Column
+      </button>
     </div>
   }
-</div>
+} @else {
+
+  <div class="kanban-container">
+    @for (stage of workflowStages(); track stage.id) {
+      <div class="kanban-column">
+    
+        <div class="column-header">
+          <div class="column-title">
+            <span class="title-text">{{ stage.name }}</span>
+            <span class="task-count">{{ tasks[stage.id]?.length || 0 }}</span>
+          </div>
+        </div>
+
+    
+        <div
+          class="drop-zone"
+          [id]="stage.id"
+          (dragover)="onDragOver($event)"
+          (drop)="onDrop($event, stage.id)"
+        >
+          @if ((tasks[stage.id]?.length || 0) > 0) {
+            @for (task of tasks[stage.id]; track task.id) {
+              <div
+                class="task-card"
+                draggable="true"
+                (dragstart)="onDragStart(task)"
+                (dragend)="onDragEnd()"
+                [class.dragging]="draggedTask?.id === task.id"
+              >
+      
+                <div class="task-header">
+                  <span class="task-id">{{ task.id }}</span>
+                  <span
+                    class="priority-badge"
+                    [class]="getPriorityClass(task.priority)"
+                  >
+                    {{ task.priority }}
+                  </span>
+                </div>
+
+               
+                <h3 class="task-title">{{ task.title }}</h3>
+
+             
+                <p class="task-category">{{ task.category }}</p>
+
+            
+                <div class="task-footer">
+                  <span class="duration">
+                    <span class="material-symbols-outlined">schedule</span>
+                    {{ task.duration }}
+                  </span>
+                  @if (task.assignee) {
+                    <div class="task-assignee" [title]="task.assignee">
+                      {{ getTaskInitials(task.assignee) }}
+                    </div>
+                  }
+                </div>
+              </div>
+            }
+          } @else {
+            <div class="empty-column">
+              <span class="material-symbols-outlined">inbox</span>
+              <p>No tasks</p>
+            </div>
+          }
+        </div>
+      </div>
+    }
+
+   
+    @if (isAddingColumn()) {
+      <div class="add-column-card">
+        <div class="inline-input-form">
+          <input
+            type="text"
+            class="column-name-input"
+            placeholder="Column name…"
+            [(ngModel)]="newColumnName"
+            [disabled]="isCreatingColumn()"
+            (keyup.enter)="saveNewColumn()"
+            (keyup.escape)="cancelAddColumn()"
+            autofocus
+          />
+          @if (errorMessage()) {
+            <p class="input-error">{{ errorMessage() }}</p>
+          }
+          <div class="btn-row">
+            <button
+              type="button"
+              class="btn-save"
+              (click)="saveNewColumn()"
+              [disabled]="isCreatingColumn()"
+            >
+              <span class="material-symbols-outlined">{{ isCreatingColumn() ? 'hourglass_empty' : 'check' }}</span>
+            </button>
+            <button
+              type="button"
+              class="btn-cancel"
+              (click)="cancelAddColumn()"
+              [disabled]="isCreatingColumn()"
+            >
+              <span class="material-symbols-outlined">close</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    } @else {
+      <div class="add-column-button-wrapper">
+        <button type="button" class="btn-add-column" (click)="onAddColumn()">
+          <span class="material-symbols-outlined">add</span>
+          <span>Add Column</span>
+        </button>
+      </div>
+    }
+  </div>
+}

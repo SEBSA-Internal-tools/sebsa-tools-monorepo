@@ -1,11 +1,18 @@
-import { Component, Input, ChangeDetectionStrategy, inject, OnInit } from '@angular/core';
+import { Component, Input, ChangeDetectionStrategy, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { ProjectsService, type Task } from '../../../../services/projects.service';
+
+export interface WorkflowStage {
+  id: string;
+  name: string;
+  order: number;
+}
 
 @Component({
   standalone: true,
   selector: 'project-kanban',
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   templateUrl: './project-kanban.component.html',
   styleUrl: './project-kanban.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -15,34 +22,56 @@ export class ProjectKanbanComponent implements OnInit {
 
   private projectsService = inject(ProjectsService);
 
+  readonly workflowStages = signal<WorkflowStage[]>([]);
+  readonly isLoading = signal(true);
+  readonly errorMessage = signal('');
+  readonly isAddingColumn = signal(false);
+  readonly isCreatingColumn = signal(false);
+
+  newColumnName = '';
+
   draggedTask: Task | null = null;
 
-  columns = [
-    { id: 'new', label: 'NEW', color: '#94a3b8' },
-    { id: 'todo', label: 'TO DO', color: '#f59e0b' },
-    { id: 'inprogress', label: 'IN PROGRESS', color: '#3b82f6' },
-    { id: 'done', label: 'DONE', color: '#10b981' },
-  ];
-
-  tasks: { [key: string]: Task[] } = {
-    new: [],
-    todo: [],
-    inprogress: [],
-    done: [],
-  };
+  tasks: { [key: string]: Task[] } = {};
 
   ngOnInit(): void {
-    this.loadTasks();
+    this.loadWorkflowStages();
+  }
+
+  private loadWorkflowStages(): void {
+    this.isLoading.set(true);
+    this.errorMessage.set('');
+    
+    this.projectsService.getWorkflowStages(this.projectId).subscribe({
+      next: (stages) => {
+        this.workflowStages.set(stages);
+        this.initializeTasksByStage(stages);
+        this.loadTasks();
+        this.isLoading.set(false);
+      },
+      error: (err) => {
+        console.error('Failed to load workflow stages:', err);
+        this.errorMessage.set('Failed to load workflow stages.');
+        this.isLoading.set(false);
+      },
+    });
+  }
+
+  private initializeTasksByStage(stages: WorkflowStage[]): void {
+    this.tasks = {};
+    stages.forEach((stage) => {
+      this.tasks[stage.id] = [];
+    });
   }
 
   loadTasks(): void {
     const allTasks = this.projectsService.getTasks(this.projectId);
-    this.tasks = {
-      new: allTasks.filter((t: Task) => t.status === 'new'),
-      todo: allTasks.filter((t: Task) => t.status === 'todo'),
-      inprogress: allTasks.filter((t: Task) => t.status === 'inprogress'),
-      done: allTasks.filter((t: Task) => t.status === 'done'),
-    };
+    const stages = this.workflowStages();
+    
+    // Clear and repopulate
+    stages.forEach((stage) => {
+      this.tasks[stage.id] = allTasks.filter((t: Task) => t.status === stage.id);
+    });
   }
 
   onDragStart(task: Task): void {
@@ -93,5 +122,55 @@ export class ProjectKanbanComponent implements OnInit {
 
   getPriorityClass(priority: string): string {
     return priority.toLowerCase();
+  }
+
+  onCreateFirstColumn(): void {
+    this.newColumnName = '';
+    this.isAddingColumn.set(true);
+  }
+
+  onAddColumn(): void {
+    this.newColumnName = '';
+    this.isAddingColumn.set(true);
+  }
+
+  saveNewColumn(): void {
+    const name = this.newColumnName.trim();
+
+    if (!name) {
+      this.errorMessage.set('Column name cannot be empty.');
+      return;
+    }
+
+    this.isCreatingColumn.set(true);
+    this.errorMessage.set('');
+
+    const nextOrder = this.workflowStages().length;
+
+    this.projectsService.createWorkflowStage(this.projectId, name, nextOrder).subscribe({
+      next: (newStage) => {
+     
+        const updated = [...this.workflowStages(), newStage];
+        this.workflowStages.set(updated);
+
+        this.tasks[newStage.id] = [];
+
+        this.isAddingColumn.set(false);
+        this.newColumnName = '';
+        this.isCreatingColumn.set(false);
+      },
+      error: (err) => {
+        console.error('Failed to create workflow stage:', err);
+        const errorMsg = err?.error?.message || 'Failed to create column.';
+        this.errorMessage.set(errorMsg);
+        this.isCreatingColumn.set(false);
+      },
+    });
+  }
+
+  cancelAddColumn(): void {
+    this.isAddingColumn.set(false);
+    this.newColumnName = '';
+    this.errorMessage.set('');
   }
 }
