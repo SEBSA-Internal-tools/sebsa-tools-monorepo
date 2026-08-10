@@ -1,7 +1,7 @@
 import { Component, Input, ChangeDetectionStrategy, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ProjectsService, type Task } from '../../../../services/projects.service';
+import { TasksService, type TaskView } from '../../../../../../core/services/tasks.service';
 
 @Component({
   standalone: true,
@@ -14,17 +14,18 @@ import { ProjectsService, type Task } from '../../../../services/projects.servic
 export class ProjectTaskListComponent implements OnInit {
   @Input() projectId!: string;
 
-  private projectsService = inject(ProjectsService);
+  private tasksService = inject(TasksService);
 
-  tasks: Task[] = [];
+  tasks: TaskView[] = [];
   sortBy: 'status' | 'priority' | 'date' = 'status';
 
   ngOnInit(): void {
+    this.tasksService.tasks$.subscribe(() => this.loadTasks());
     this.loadTasks();
   }
 
   loadTasks(): void {
-    this.tasks = this.projectsService.getTasks(this.projectId);
+    this.tasks = this.tasksService.getTasksByProject(this.projectId);
     this.sortTasks();
   }
 

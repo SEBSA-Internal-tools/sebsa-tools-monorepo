@@ -1,7 +1,8 @@
 import { Component, Input, ChangeDetectionStrategy, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ProjectsService, type Task } from '../../../../services/projects.service';
+import { TasksService, type TaskView } from '../../../../../../core/services/tasks.service';
+import { ProjectsService } from '../../../../services/projects.service';
 
 export interface WorkflowStage {
   id: string;
@@ -20,6 +21,7 @@ export interface WorkflowStage {
 export class ProjectKanbanComponent implements OnInit {
   @Input() projectId!: string;
 
+  private tasksService = inject(TasksService);
   private projectsService = inject(ProjectsService);
 
   readonly workflowStages = signal<WorkflowStage[]>([]);
@@ -29,19 +31,18 @@ export class ProjectKanbanComponent implements OnInit {
   readonly isCreatingColumn = signal(false);
 
   newColumnName = '';
-
-  draggedTask: Task | null = null;
-
-  tasks: { [key: string]: Task[] } = {};
+  draggedTask: TaskView | null = null;
+  tasks: { [key: string]: TaskView[] } = {};
 
   ngOnInit(): void {
+    this.tasksService.tasks$.subscribe(() => this.loadTasks());
     this.loadWorkflowStages();
   }
 
   private loadWorkflowStages(): void {
     this.isLoading.set(true);
     this.errorMessage.set('');
-    
+
     this.projectsService.getWorkflowStages(this.projectId).subscribe({
       next: (stages) => {
         this.workflowStages.set(stages);
@@ -65,16 +66,15 @@ export class ProjectKanbanComponent implements OnInit {
   }
 
   loadTasks(): void {
-    const allTasks = this.projectsService.getTasks(this.projectId);
+    const allTasks = this.tasksService.getTasksByProject(this.projectId);
     const stages = this.workflowStages();
-    
-    // Clear and repopulate
+
     stages.forEach((stage) => {
-      this.tasks[stage.id] = allTasks.filter((t: Task) => t.status === stage.id);
+      this.tasks[stage.id] = allTasks.filter((t: TaskView) => t.status === stage.id);
     });
   }
 
-  onDragStart(task: Task): void {
+  onDragStart(task: TaskView): void {
     this.draggedTask = task;
   }
 
@@ -98,10 +98,16 @@ export class ProjectKanbanComponent implements OnInit {
         (t) => t.id !== task.id
       );
 
-      task.status = newStatus as Task['status'];
-      this.projectsService.updateTaskStatus(task.id, newStatus);
-
-      this.tasks[newStatus] = [...this.tasks[newStatus], task];
+      this.tasksService
+        .updateTaskStatus(task.id, newStatus, this.workflowStages())
+        .subscribe({
+          next: (updatedTask) => {
+            this.tasks[newStatus] = [...this.tasks[newStatus], updatedTask];
+          },
+          error: () => {
+            this.tasks[previousStatus] = [...this.tasks[previousStatus], task];
+          },
+        });
     }
 
     this.draggedTask = null;
@@ -149,12 +155,9 @@ export class ProjectKanbanComponent implements OnInit {
 
     this.projectsService.createWorkflowStage(this.projectId, name, nextOrder).subscribe({
       next: (newStage) => {
-     
         const updated = [...this.workflowStages(), newStage];
         this.workflowStages.set(updated);
-
         this.tasks[newStage.id] = [];
-
         this.isAddingColumn.set(false);
         this.newColumnName = '';
         this.isCreatingColumn.set(false);

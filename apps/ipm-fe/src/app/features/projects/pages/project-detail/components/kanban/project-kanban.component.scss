@@ -1,13 +1,9 @@
-.kanban-loading,
-.kanban-error {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 60px 20px;
-  text-align: center;
-  min-height: 400px;
+.kanban-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+  padding: 0;
+  align-items: start;
 
   .material-symbols-outlined {
     font-size: 48px;
@@ -117,13 +113,14 @@
   flex-direction: column;
   gap: 12px;
   background: var(--app-surface-soft);
-  border: 1px solid var(--app-border);
-  border-radius: 10px;
-  padding: 16px;
-  min-height: 500px;
-  min-width: 300px;
-  width: 300px;
-  flex-shrink: 0;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 18px;
+  padding: 18px;
+  min-height: 520px;
+
+  @media (max-width: 768px) {
+    min-height: auto;
+  }
 }
 
 .column-header {

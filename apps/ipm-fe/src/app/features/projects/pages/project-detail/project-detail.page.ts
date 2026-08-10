@@ -2,6 +2,7 @@ import { Component, inject, OnInit, signal, ChangeDetectionStrategy } from '@ang
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ProjectsService } from '../../services/projects.service';
+import { TasksService } from '../../../../core/services/tasks.service'; 
 import { ProjectDetailHeaderComponent } from './components/header/project-detail-header.component';
 import { ProjectNavTabsComponent } from './components/nav-tabs/project-nav-tabs.component';
 import { ProjectKanbanComponent } from './components/kanban/project-kanban.component';
@@ -14,7 +15,7 @@ import {
   CreateProjectModalComponent,
   type ProjectFormData,
 } from '../../components/modals/create-project/create-project-modal.component';
-import type { Project } from '@sebsa-pm-tool/shared-models';
+import type { CreateTaskRequest, Project } from '@sebsa-pm-tool/shared-models';
 
 @Component({
   standalone: true,
@@ -39,6 +40,7 @@ export class ProjectDetailPageComponent implements OnInit {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private projectsService = inject(ProjectsService);
+  private tasksService = inject(TasksService);
 
   readonly project = signal<Project | null>(null);
   readonly isLoading = signal(false);
@@ -63,6 +65,7 @@ export class ProjectDetailPageComponent implements OnInit {
     this.projectsService.getProject(projectId).subscribe({
       next: (project) => {
         this.project.set(project);
+        this.tasksService.loadTasks(project.id, project.workflowStages);
         this.isLoading.set(false);
       },
       error: () => {
@@ -85,8 +88,51 @@ export class ProjectDetailPageComponent implements OnInit {
   }
 
   onCreateTask(formData: TaskFormData): void {
-    this.projectsService.createTask(formData);
-    this.closeTaskModal();
+    const current = this.project();
+    if (!current) {
+      return;
+    }
+
+    if (!current.workflowStages.length) {
+      this.errorMessage.set('This project does not have any workflow stages configured.');
+      return;
+    }
+
+    const dto: CreateTaskRequest = {
+      projectId: current.id,
+      title: formData.title,
+      description: formData.description || undefined,
+      type: 'TASK',
+      priority: this.mapPriority(formData.priority),
+      workflowStageId: current.workflowStages[0].id,
+      dueDate: formData.dueDate || undefined,
+      sprintId: formData.sprintId || undefined,
+    };
+
+    this.isLoading.set(true);
+    this.tasksService.createTask(dto, current.workflowStages).subscribe({
+      next: () => {
+        this.isLoading.set(false);
+        this.closeTaskModal();
+      },
+      error: () => {
+        this.isLoading.set(false);
+        this.errorMessage.set('Failed to create task. Please try again.');
+      },
+    });
+  }
+
+  private mapPriority(priority: TaskFormData['priority']): CreateTaskRequest['priority'] {
+    switch (priority) {
+      case 'High':
+        return 'HIGH';
+      case 'Medium':
+        return 'MEDIUM';
+      case 'Low':
+        return 'LOW';
+      default:
+        return 'MEDIUM';
+    }
   }
 
   onEditClick(): void {

@@ -7,7 +7,8 @@ import {
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ProjectsService, Task, Sprint } from '../../../../services/projects.service';
+import { ProjectsService, type Sprint } from '../../../../services/projects.service';
+import { TasksService, type TaskView } from '../../../../../../core/services/tasks.service';
 import type { Project, ProjectStatus } from '@sebsa-pm-tool/shared-models';
 
 const STATUS_LABELS: Record<ProjectStatus, string> = {
@@ -43,6 +44,7 @@ interface SprintStats {
 export class ProjectOverviewComponent implements OnInit {
   @Input() project!: Project;
 
+  private tasksService = inject(TasksService);
   private projectsService = inject(ProjectsService);
 
   taskStats = signal<TaskStats>({
@@ -59,26 +61,27 @@ export class ProjectOverviewComponent implements OnInit {
     completed: 0,
   });
 
-  recentTasks = signal<Task[]>([]);
+  recentTasks = signal<TaskView[]>([]);
   allSprints = signal<Sprint[]>([]);
   activeSprint = signal<Sprint | null>(null);
 
   ngOnInit(): void {
+    this.tasksService.tasks$.subscribe(() => this.loadProjectData());
     this.loadProjectData();
   }
 
   private loadProjectData(): void {
     if (!this.project.id) return;
 
-    const tasks = this.projectsService.getTasks(this.project.id);
+    const tasks = this.tasksService.getTasksByProject(this.project.id);
     const sprints = this.projectsService.getSprints(this.project.id);
 
     // Calculate task stats
     this.taskStats.set({
       total: tasks.length,
-      completed: tasks.filter((t: Task) => t.status === 'done').length,
-      inProgress: tasks.filter((t: Task) => t.status === 'inprogress').length,
-      todo: tasks.filter((t: Task) => t.status === 'todo').length,
+      completed: tasks.filter((t: TaskView) => t.status === 'done').length,
+      inProgress: tasks.filter((t: TaskView) => t.status === 'inprogress').length,
+      todo: tasks.filter((t: TaskView) => t.status === 'todo').length,
       overdue: this.getOverdueTaskCount(tasks),
     });
 
@@ -95,17 +98,17 @@ export class ProjectOverviewComponent implements OnInit {
 
     // Get recent tasks (last 10)
     const recent = tasks
-      .sort((a: Task, b: Task) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime())
+      .sort((a: TaskView, b: TaskView) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime())
       .slice(0, 10);
     this.recentTasks.set(recent);
 
     this.allSprints.set(sprints);
   }
 
-  private getOverdueTaskCount(tasks: Task[]): number {
+  private getOverdueTaskCount(tasks: TaskView[]): number {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    return tasks.filter((t: Task) => {
+    return tasks.filter((t: TaskView) => {
       if (!t.dueDate || t.status === 'done') return false;
       const dueDate = new Date(t.dueDate);
       return dueDate < today;
@@ -118,7 +121,7 @@ export class ProjectOverviewComponent implements OnInit {
     return Math.round((stats.completed / stats.total) * 100);
   }
 
-  getTaskStatusColor(status: Task['status']): string {
+  getTaskStatusColor(status: TaskView['status']): string {
     switch (status) {
       case 'done':
         return '#10b981';
@@ -133,7 +136,7 @@ export class ProjectOverviewComponent implements OnInit {
     }
   }
 
-  getTaskStatusIcon(status: Task['status']): string {
+  getTaskStatusIcon(status: TaskView['status']): string {
     switch (status) {
       case 'done':
         return 'check_circle';
@@ -148,7 +151,7 @@ export class ProjectOverviewComponent implements OnInit {
     }
   }
 
-  getTaskStatusLabel(status: Task['status']): string {
+  getTaskStatusLabel(status: TaskView['status']): string {
     switch (status) {
       case 'done':
         return 'Done';
@@ -163,7 +166,7 @@ export class ProjectOverviewComponent implements OnInit {
     }
   }
 
-  getPriorityColor(priority: Task['priority']): string {
+  getPriorityColor(priority: TaskView['priority']): string {
     switch (priority) {
       case 'High':
         return '#ef4444';
