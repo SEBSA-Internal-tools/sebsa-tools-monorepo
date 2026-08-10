@@ -23,7 +23,10 @@
       <!-- Kanban Board View -->
       @switch (activeTab) {
         @case ('kanban') {
-          <project-kanban [projectId]="project.id"></project-kanban>
+          <project-kanban
+            [projectId]="project.id"
+            [workflowStages]="project.workflowStages"
+          ></project-kanban>
         }
         @case ('tasklist') {
           <project-task-list [projectId]="project.id"></project-task-list>

@@ -1,6 +1,13 @@
 import { Component, Input, ChangeDetectionStrategy, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ProjectsService, type Task } from '../../../../services/projects.service';
+import { TasksService, type WorkflowStage, type TaskView } from '../../../../../../core/services/tasks.service';
+
+type KanbanStatus = 'new' | 'todo' | 'inprogress' | 'done';
+interface KanbanColumn {
+  id: KanbanStatus;
+  label: string;
+  color: string;
+}
 
 @Component({
   standalone: true,
@@ -10,21 +17,23 @@ import { ProjectsService, type Task } from '../../../../services/projects.servic
   styleUrl: './project-kanban.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
+
 export class ProjectKanbanComponent implements OnInit {
   @Input() projectId!: string;
+  @Input() workflowStages: WorkflowStage[] = [];
 
-  private projectsService = inject(ProjectsService);
+  private tasksService = inject(TasksService);
 
-  draggedTask: Task | null = null;
+  draggedTask: TaskView | null = null;
 
-  columns = [
+  columns: KanbanColumn[] = [
     { id: 'new', label: 'NEW', color: '#94a3b8' },
     { id: 'todo', label: 'TO DO', color: '#f59e0b' },
     { id: 'inprogress', label: 'IN PROGRESS', color: '#3b82f6' },
     { id: 'done', label: 'DONE', color: '#10b981' },
   ];
 
-  tasks: { [key: string]: Task[] } = {
+  tasks: { [key: string]: TaskView[] } = {
     new: [],
     todo: [],
     inprogress: [],
@@ -32,20 +41,21 @@ export class ProjectKanbanComponent implements OnInit {
   };
 
   ngOnInit(): void {
+    this.tasksService.tasks$.subscribe(() => this.loadTasks());
     this.loadTasks();
   }
 
   loadTasks(): void {
-    const allTasks = this.projectsService.getTasks(this.projectId);
+    const allTasks = this.tasksService.getTasksByProject(this.projectId);
     this.tasks = {
-      new: allTasks.filter((t: Task) => t.status === 'new'),
-      todo: allTasks.filter((t: Task) => t.status === 'todo'),
-      inprogress: allTasks.filter((t: Task) => t.status === 'inprogress'),
-      done: allTasks.filter((t: Task) => t.status === 'done'),
+      new: allTasks.filter((t) => t.status === 'new'),
+      todo: allTasks.filter((t) => t.status === 'todo'),
+      inprogress: allTasks.filter((t) => t.status === 'inprogress'),
+      done: allTasks.filter((t) => t.status === 'done'),
     };
   }
 
-  onDragStart(task: Task): void {
+  onDragStart(task: TaskView): void {
     this.draggedTask = task;
   }
 
@@ -69,10 +79,16 @@ export class ProjectKanbanComponent implements OnInit {
         (t) => t.id !== task.id
       );
 
-      task.status = newStatus as Task['status'];
-      this.projectsService.updateTaskStatus(task.id, newStatus);
-
-      this.tasks[newStatus] = [...this.tasks[newStatus], task];
+      this.tasksService
+        .updateTaskStatus(task.id, newStatus, this.workflowStages)
+        .subscribe({
+          next: (updatedTask) => {
+            this.tasks[newStatus] = [...this.tasks[newStatus], updatedTask];
+          },
+          error: () => {
+            this.tasks[previousStatus] = [...this.tasks[previousStatus], task];
+          },
+        });
     }
 
     this.draggedTask = null;
