@@ -1,4 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { PrivilegeGroup } from '@sebsa-pm-tool/shared-models';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -7,6 +8,8 @@ import { CreatePrivilegeGroupDto } from './dto/create-privilege-group.dto';
 import { UpdatePrivilegeGroupDto } from './dto/update-privilege-group.dto';
 import { PrivilegeGroupsService } from './privilege-groups.service';
 
+@ApiTags('privilege-groups')
+@ApiBearerAuth()
 @Controller('privilege-groups')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class PrivilegeGroupsController {

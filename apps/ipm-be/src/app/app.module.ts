@@ -12,6 +12,7 @@ import appConfig from '../config/app.config';
 import authConfig from '../config/auth.config';
 import databaseConfig from '../config/database.config';
 import { envValidationSchema } from '../config/env.validation';
+import { TaskModule } from './tasks/task.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { envValidationSchema } from '../config/env.validation';
     PrismaModule,
     AuthModule,
     ProjectsModule,
+    TaskModule,
     UsersModule,
     DepartmentsModule,
     PrivilegeGroupsModule,
