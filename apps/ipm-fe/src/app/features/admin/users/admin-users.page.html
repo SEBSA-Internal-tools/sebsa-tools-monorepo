@@ -10,6 +10,19 @@
     </button>
   </div>
 
+  @if (notification()) {
+    <div class="notification-banner" [class.success]="notification()?.type === 'success'" [class.error]="notification()?.type === 'error'">
+      <span class="material-symbols-outlined">
+        @if (notification()?.type === 'success') {
+          check_circle
+        } @else {
+          error
+        }
+      </span>
+      <span>{{ notification()?.message }}</span>
+    </div>
+  }
+
   @if (errorMessage()) {
     <div class="error-banner">{{ errorMessage() }}</div>
   }
