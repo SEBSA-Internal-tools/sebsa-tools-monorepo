@@ -97,31 +97,32 @@ interface Tab {
 
       &:hover {
         color: var(--app-text);
-        background: var(--app-hover);
+        background: rgba(59, 130, 246, 0.08);
       }
 
       &.active {
-        color: #3b82f6;
-        border-bottom-color: #3b82f6;
+        color: #1d4ed8;
+        background: rgba(59, 130, 246, 0.12);
+        border-color: rgba(59, 130, 246, 0.24);
       }
     }
 
     .btn-add-task {
       display: flex;
       align-items: center;
-      gap: 6px;
-      padding: 8px 14px;
+      gap: 8px;
+      padding: 10px 18px;
       background: #3b82f6;
       color: white;
       border: none;
-      border-radius: 6px;
-      font-weight: 600;
-      font-size: 0.85rem;
+      border-radius: 999px;
+      font-weight: 700;
+      font-size: 0.9rem;
       cursor: pointer;
       transition: all 0.2s ease;
       white-space: nowrap;
       flex-shrink: 0;
-      box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
+      box-shadow: 0 12px 24px rgba(59, 130, 246, 0.18);
 
       .material-symbols-outlined {
         font-size: 18px;

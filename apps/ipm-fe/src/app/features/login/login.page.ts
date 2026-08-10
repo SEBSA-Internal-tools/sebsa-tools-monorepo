@@ -15,6 +15,7 @@ import { AuthService } from '../../core/services/auth.service';
 export class LoginPageComponent {
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
+  public readonly currentYear = new Date().getFullYear();
 
   email = '';
   password = '';

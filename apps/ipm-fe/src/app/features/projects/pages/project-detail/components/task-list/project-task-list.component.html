@@ -47,23 +47,23 @@
             <span class="category-badge">{{ task.category }}</span>
           </div>
 
-          <div class="col-status">
+          <div class="col-status" data-label="Status">
             <span class="status-badge" [class]="task.status">
               {{ getStatusLabel(task.status) }}
             </span>
           </div>
 
-          <div class="col-priority">
+          <div class="col-priority" data-label="Priority">
             <span class="priority-badge" [class]="getPriorityClass(task.priority)">
               {{ task.priority }}
             </span>
           </div>
 
-          <div class="col-duration">
+          <div class="col-duration" data-label="Duration">
             <span class="duration-text">{{ task.duration }}</span>
           </div>
 
-          <div class="col-assignee">
+          <div class="col-assignee" data-label="Assignee">
             @if (task.assignee) {
               <div class="assignee-avatar" [title]="task.assignee">
                 {{ getTaskInitials(task.assignee) }}

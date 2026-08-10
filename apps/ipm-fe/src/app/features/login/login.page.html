@@ -1,7 +1,7 @@
 <div class="login-container">
   <div class="left-panel">
     <div class="brand-content">
-      <img src="/SEBSA-logo.png" alt="SEBSA Logo" class="brand-logo" />
+      <img src="/sebsa-logo.svg" alt="SEBSA Logo" class="brand-logo" />
       <div class="brand-dash"></div>
       <h1>Internal Project Management</h1>
       <p>Orchestrating complexity with precision and clarity.</p>
@@ -26,7 +26,7 @@
           <label>Corporate Email Address</label>
           <div class="input-wrapper">
             <span class="material-symbols-outlined input-icon">mail</span>
-            <input type="email" tabindex="1" name="email" [(ngModel)]="email" placeholder="user@sebsa.com" [class.error-input]="hasError()" />
+            <input type="email" tabindex="1" name="email" [(ngModel)]="email" placeholder="user@sebsaworld.com" [class.error-input]="hasError()" />
           </div>
         </div>
 
@@ -50,7 +50,7 @@
       </div>
       
       <div class="copyright">
-        &copy; 2026 SEBSA (Pvt.) Ltd. All rights reserved.
+        &copy; {{currentYear}} SEBSA (Pvt) Ltd. All rights reserved.
       </div>
     </div>
   </div>
