@@ -33,7 +33,7 @@ export class ProjectKanbanComponent implements OnInit {
     { id: 'done', label: 'DONE', color: '#10b981' },
   ];
 
-  tasks: { [key: string]: TaskView[] } = {
+  tasks: Record<KanbanStatus, TaskView[]> = {
     new: [],
     todo: [],
     inprogress: [],
@@ -64,32 +64,58 @@ export class ProjectKanbanComponent implements OnInit {
     event.dataTransfer!.dropEffect = 'move';
   }
 
-  onDrop(event: DragEvent, newStatus: string): void {
+  onDrop(event: DragEvent, newStatus: KanbanStatus): void {
     event.preventDefault();
 
-    if (!this.draggedTask) return;
+    if (!this.draggedTask) {
+      return;
+    }
 
     const task = this.draggedTask;
-    const previousStatus = Object.keys(this.tasks).find(
-      (key) => this.tasks[key].some((t) => t.id === task.id)
-    );
 
-    if (previousStatus && previousStatus !== newStatus) {
-      this.tasks[previousStatus] = this.tasks[previousStatus].filter(
-        (t) => t.id !== task.id
-      );
+    const previousStatus = Object.entries(this.tasks).find(([, tasks]) =>
+      tasks.some((t) => t.id === task.id),
+    )?.[0] as KanbanStatus | undefined;
 
-      this.tasksService
-        .updateTaskStatus(task.id, newStatus, this.workflowStages)
-        .subscribe({
-          next: (updatedTask) => {
-            this.tasks[newStatus] = [...this.tasks[newStatus], updatedTask];
-          },
-          error: () => {
-            this.tasks[previousStatus] = [...this.tasks[previousStatus], task];
-          },
-        });
+    if (!previousStatus || previousStatus === newStatus) {
+      this.draggedTask = null;
+      return;
     }
+
+    // Remove the task from the previous column immediately
+    this.tasks = {
+      ...this.tasks,
+      [previousStatus]: this.tasks[previousStatus].filter(
+        (t) => t.id !== task.id,
+      ),
+    };
+    this.tasksService
+      .updateTaskStatus(task.id, newStatus, this.workflowStages)
+      .subscribe({
+        next: (updatedTask) => {
+          this.tasks = {
+            ...this.tasks,
+            [newStatus]: [
+              ...this.tasks[newStatus],
+              {
+                ...updatedTask,
+                status: newStatus,
+              },
+            ],
+          };
+        },
+
+        error: (error) => {
+          console.error('Failed to update task status:', error);
+          this.tasks = {
+            ...this.tasks,
+            [previousStatus]: [
+              ...this.tasks[previousStatus],
+              task,
+            ],
+          };
+        },
+      });
 
     this.draggedTask = null;
   }
