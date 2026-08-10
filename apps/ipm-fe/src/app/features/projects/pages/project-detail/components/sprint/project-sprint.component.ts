@@ -7,7 +7,8 @@ import {
   OnInit,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ProjectsService, Sprint, Task } from '../../../../services/projects.service';
+import { ProjectsService, Sprint } from '../../../../services/projects.service';
+import { TasksService, type TaskView } from '../../../../../../core/services/tasks.service';
 import { AddSprintModalComponent } from '../../../../components/modals/add-sprint/add-sprint-modal.component';
 
 interface ExpandedState {
@@ -28,6 +29,7 @@ export class ProjectSprintComponent implements OnInit {
   @Input() projectId!: string;
 
   private projectsService = inject(ProjectsService);
+  private tasksService = inject(TasksService);
 
   sprints = signal<Sprint[]>([]);
   expandedSprints = signal<ExpandedState>({});
@@ -57,8 +59,8 @@ export class ProjectSprintComponent implements OnInit {
     }));
   }
 
-  getSprintTasks(sprintId: string): Task[] {
-    return this.projectsService.getSprintTasks(sprintId);
+  getSprintTasks(sprintId: string): TaskView[] {
+    return this.tasksService.getSprintTasks(sprintId);
   }
 
   getSprintStats(sprintId: string): {
@@ -100,7 +102,7 @@ export class ProjectSprintComponent implements OnInit {
     }
   }
 
-  getPriorityClass(priority: Task['priority']): string {
+  getPriorityClass(priority: TaskView['priority']): string {
     switch (priority) {
       case 'High':
         return 'priority-high';
@@ -113,7 +115,7 @@ export class ProjectSprintComponent implements OnInit {
     }
   }
 
-  getStatusClass(status: Task['status']): string {
+  getStatusClass(status: TaskView['status']): string {
     switch (status) {
       case 'new':
         return 'status-new';
@@ -128,7 +130,7 @@ export class ProjectSprintComponent implements OnInit {
     }
   }
 
-  getStatusLabel_(status: Task['status']): string {
+  getStatusLabel_(status: TaskView['status']): string {
     switch (status) {
       case 'new':
         return 'New';
