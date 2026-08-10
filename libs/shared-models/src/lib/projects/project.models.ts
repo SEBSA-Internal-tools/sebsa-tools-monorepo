@@ -23,6 +23,9 @@ export interface ProjectMemberSummary {
 /** List-view shape — lighter than Project, no nested roles/stages. */
 export interface ProjectSummary {
   id: string;
+  /** Human-readable sequential reference (e.g. "PROJ-7"), display only —
+   * never used as a lookup key, the UUID `id` remains the real identifier. */
+  projectNumber: number;
   name: string;
   description: string | null;
   type: ProjectType;

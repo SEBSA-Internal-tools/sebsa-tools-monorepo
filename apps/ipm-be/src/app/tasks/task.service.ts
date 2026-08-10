@@ -658,6 +658,7 @@ export class TaskService {
     return {
       id: task.id,
       projectId: task.projectId,
+      taskNumber: task.taskNumber,
       parentTaskId: task.parentTaskId,
       title: task.title,
       type: task.type,

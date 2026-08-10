@@ -13,6 +13,9 @@ export interface TaskLabelSummary {
 export interface TaskSummary {
   id: string;
   projectId: string;
+  /** Human-readable sequential reference (e.g. "TASK-42"), display only —
+   * never used as a lookup key, the UUID `id` remains the real identifier. */
+  taskNumber: number;
   parentTaskId: string | null;
   title: string;
   type: TaskType;

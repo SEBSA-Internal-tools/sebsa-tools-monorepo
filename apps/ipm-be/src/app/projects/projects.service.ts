@@ -489,6 +489,7 @@ export class ProjectsService {
   private toProjectSummary(project: ProjectWithDetail): ProjectSummary {
     return {
       id: project.id,
+      projectNumber: project.projectNumber,
       name: project.name,
       description: project.description,
       type: project.type,
