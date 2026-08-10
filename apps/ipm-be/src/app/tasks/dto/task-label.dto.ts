@@ -1,6 +1,8 @@
-import { IsArray, IsUUID } from "class-validator";
+import { ApiProperty } from '@nestjs/swagger';
+import { IsArray, IsUUID } from 'class-validator';
 
 export class TaskLabelsDto {
+  @ApiProperty({ type: [String], format: 'uuid' })
   @IsArray()
   @IsUUID('4', { each: true })
   labelIds!: string[];
