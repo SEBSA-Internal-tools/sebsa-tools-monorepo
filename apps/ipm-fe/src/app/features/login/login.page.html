@@ -1,0 +1,57 @@
+<div class="login-container">
+  <div class="left-panel">
+    <div class="brand-content">
+      <img src="/SEBSA-logo.png" alt="SEBSA Logo" class="brand-logo" />
+      <div class="brand-dash"></div>
+      <h1>Internal Project Management</h1>
+      <p>Orchestrating complexity with precision and clarity.</p>
+    </div>
+  </div>
+  
+  <div class="right-panel">
+    <div class="login-form-container">
+      <h2>Welcome back</h2>
+      <p class="subtitle">Sign in to your SEBSA account</p>
+
+      <div class="error-alert" *ngIf="hasError()">
+        <span class="material-symbols-outlined error-icon">error</span>
+        <div class="error-text">
+          <strong>Authentication Failed</strong>
+          <span>{{ errorMessage() }}</span>
+        </div>
+      </div>
+
+      <form (submit)="login(); $event.preventDefault()">
+        <div class="form-group">
+          <label>Corporate Email Address</label>
+          <div class="input-wrapper">
+            <span class="material-symbols-outlined input-icon">mail</span>
+            <input type="email" tabindex="1" name="email" [(ngModel)]="email" placeholder="user@sebsa.com" [class.error-input]="hasError()" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <div class="label-row">
+            <label>Password</label>
+            <a href="#" tabindex="3" class="forgot-password">Forgot your password?</a>
+          </div>
+          <div class="input-wrapper">
+            <span class="material-symbols-outlined input-icon">lock</span>
+            <input type="password" tabindex="2" name="password" [(ngModel)]="password" placeholder="••••••••" />
+          </div>
+        </div>
+
+        <button type="submit" tabindex="4" class="sign-in-button">Sign In</button>
+      </form>
+
+      <div class="login-footer">
+        <p>Don't have an account? <a routerLink="/register">Sign up</a></p>
+        <p>Access is restricted to SEBSA employees.<br>Contact your System Administrator for account creation.</p>
+      </div>
+      
+      <div class="copyright">
+        &copy; 2026 SEBSA (Pvt.) Ltd. All rights reserved.
+      </div>
+    </div>
+  </div>
+</div>

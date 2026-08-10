@@ -1,0 +1,128 @@
+<article class="workspace-card section">
+  <!-- Header with Title and New Project Button -->
+  <div class="section-header">
+    <div class="section-title">
+      <p class="eyebrow">Portfolio</p>
+      <h2>Projects</h2>
+    </div>
+    <button type="button" class="btn-new-project" (click)="onNewProject()">
+      <span class="material-symbols-outlined">add</span>
+      New project
+    </button>
+  </div>
+
+  <!-- Search and Filter Section -->
+  <div class="search-filter-section">
+    <div class="search-box">
+      <span class="material-symbols-outlined search-icon">search</span>
+      <input
+        type="text"
+        [(ngModel)]="searchQuery"
+        (ngModelChange)="onSearchChange()"
+        placeholder="Search projects..."
+        class="search-input"
+      />
+      <button
+        type="button"
+        *ngIf="searchQuery"
+        (click)="searchQuery = ''; onSearchChange()"
+        class="clear-btn"
+      >
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+
+    <!-- Filter Tabs -->
+    <div class="filter-tabs">
+      <button
+        type="button"
+        class="filter-btn"
+        [class.active]="selectedStatus === 'all'"
+        (click)="onStatusChange('all')"
+      >
+        All
+      </button>
+      @for (status of statusOptions; track status) {
+        <button
+          type="button"
+          class="filter-btn"
+          [class.active]="selectedStatus === status"
+          (click)="onStatusChange(status)"
+        >
+          {{ statusLabels[status] }} <span class="count">{{ getStatusCount(status) }}</span>
+        </button>
+      }
+    </div>
+  </div>
+
+  <!-- Projects List View -->
+  <div class="projects-list-container">
+    @if (filteredProjects().length > 0) {
+      <div class="projects-list">
+        <!-- Table Header -->
+        <div class="list-header">
+          <div class="col-project">Project</div>
+          <div class="col-owner">Created By</div>
+          <div class="col-status">Status</div>
+          <div class="col-members">Members</div>
+          <div class="col-updated">Last Updated</div>
+          <div class="col-actions">Actions</div>
+        </div>
+
+        <!-- Project Items -->
+        @for (project of filteredProjects(); track project.id) {
+          <div
+            class="list-item"
+            [class]="statusClass(project.status)"
+            role="button"
+            tabindex="0"
+            (click)="onProjectClick(project.id, $event)"
+            (keydown.enter)="onProjectClick(project.id, $event)"
+            (keydown.space)="onProjectClick(project.id, $event)"
+          >
+            <div class="col-project">
+              <div class="project-cell">
+                <span class="material-symbols-outlined project-icon">{{
+                  projectTypeIcon(project.type)
+                }}</span>
+                <span class="project-name">{{ project.name }}</span>
+              </div>
+            </div>
+
+            <div class="col-owner">{{ project.createdBy.name }}</div>
+
+            <div class="col-status">
+              <span class="badge" [class]="statusClass(project.status)">
+                {{ statusLabel(project.status) }}
+              </span>
+            </div>
+
+            <div class="col-members">
+              <span class="material-symbols-outlined">group</span>
+              {{ project.memberCount }}
+            </div>
+
+            <div class="col-updated">{{ project.updatedAt | date: 'mediumDate' }}</div>
+
+            <div class="col-actions">
+              <button
+                type="button"
+                class="btn-delete"
+                (click)="onDeleteProject(project.id)"
+                title="Delete project"
+              >
+                <span class="material-symbols-outlined">delete</span>
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+    } @else {
+      <div class="empty-state">
+        <span class="material-symbols-outlined empty-icon">folder_open</span>
+        <h3>No projects found</h3>
+        <p>Try adjusting your search or filters to find projects.</p>
+      </div>
+    }
+  </div>
+</article>

@@ -1,0 +1,28 @@
+<section class="workspace-page">
+  <div class="projects-container">
+    <!-- Hero Section -->
+    <projects-hero [data]="heroData"></projects-hero>
+
+    @if (errorMessage()) {
+      <div class="page-error">{{ errorMessage() }}</div>
+    }
+
+    @if (isLoading()) {
+      <div class="page-loading">Loading projects&hellip;</div>
+    } @else {
+      <!-- Projects List Section -->
+      <projects-list
+        [projects]="projects()"
+        (newProjectClick)="onNewProject()"
+        (deleteProject)="onDeleteProject($event)"
+      ></projects-list>
+    }
+  </div>
+
+  <!-- Create Project Modal -->
+  <create-project-modal
+    [isOpen]="isModalOpen"
+    (close)="closeCreateModal()"
+    (submit)="onCreateProject($event)"
+  ></create-project-modal>
+</section>

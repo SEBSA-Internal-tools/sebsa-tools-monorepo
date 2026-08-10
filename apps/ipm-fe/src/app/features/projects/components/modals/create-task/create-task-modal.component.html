@@ -1,0 +1,143 @@
+@if (isOpen) {
+  <div class="modal-overlay" (click)="onBackdropClick()"></div>
+
+  <div class="modal-container">
+    <!-- Modal Header -->
+    <div class="modal-header">
+      <div class="header-content">
+        <p class="header-label">CREATE NEW TASK</p>
+        <h2>What needs to be done?</h2>
+      </div>
+      <button type="button" class="close-btn" (click)="onCancel()" title="Close">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+
+    <!-- Modal Body -->
+    <div class="modal-body">
+      <div class="form-grid">
+        <!-- Project Field -->
+        <div class="form-group full-width">
+          <label class="form-label">Project</label>
+          @if (projectId) {
+            <div class="project-display">
+              <span class="project-name">{{ projectName }}</span>
+            </div>
+          } @else {
+            <select [(ngModel)]="selectedProjectId" (change)="onProjectSelect(selectedProjectId)" class="form-select">
+              <option value="">Select a project...</option>
+              @for (project of availableProjects(); track project.id) {
+                <option [value]="project.id">{{ project.name }}</option>
+              }
+            </select>
+          }
+        </div>
+
+        <!-- Sprint Selection -->
+        <div class="form-group full-width">
+          <label for="sprint" class="form-label">Sprint</label>
+          <select id="sprint" [(ngModel)]="selectedSprintId" class="form-select">
+            <option value="">No sprint (Backlog)</option>
+            @for (sprint of availableSprints; track sprint.id) {
+              <option [value]="sprint.id">
+                {{ sprint.name }} ({{ sprint.status }})
+              </option>
+            }
+          </select>
+        </div>
+
+        <!-- Task Title -->
+        <div class="form-group full-width">
+          <label for="taskTitle" class="form-label">
+            Task Title <span class="required">*</span>
+          </label>
+          <input
+            id="taskTitle"
+            type="text"
+            [(ngModel)]="taskTitle"
+            placeholder="Describe the task..."
+            class="form-input"
+          />
+        </div>
+
+        <!-- Priority -->
+        <div class="form-group">
+          <label class="form-label">Priority</label>
+          <div class="priority-group">
+            <button
+              type="button"
+              class="priority-btn"
+              [class.active]="priority === 'High'"
+              (click)="priority = 'High'"
+            >
+              <span class="priority-dot critical"></span>
+              <span>High</span>
+            </button>
+            <button
+              type="button"
+              class="priority-btn"
+              [class.active]="priority === 'Medium'"
+              (click)="priority = 'Medium'"
+            >
+              <span class="priority-dot medium"></span>
+              <span>Med</span>
+            </button>
+            <button
+              type="button"
+              class="priority-btn"
+              [class.active]="priority === 'Low'"
+              (click)="priority = 'Low'"
+            >
+              <span class="priority-dot low"></span>
+              <span>Low</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Assignee -->
+        <div class="form-group">
+          <label for="assignee" class="form-label">Assignee</label>
+          <select id="assignee" [(ngModel)]="assignee" class="form-select">
+            <option value="">Select assignee...</option>
+            @for (person of availableAssignees; track person) {
+              <option [value]="person">{{ person }}</option>
+            }
+          </select>
+        </div>
+
+        <!-- Due Date -->
+        <div class="form-group">
+          <label for="dueDate" class="form-label">Due Date</label>
+          <input
+            id="dueDate"
+            type="date"
+            [(ngModel)]="dueDate"
+            class="form-input"
+          />
+        </div>
+      </div>
+
+      <!-- Description -->
+      <div class="form-group full-width">
+        <label for="description" class="form-label">Description</label>
+        <textarea
+          id="description"
+          [(ngModel)]="description"
+          placeholder="Add details, acceptance criteria, or technical notes..."
+          class="form-textarea"
+          rows="6"
+        ></textarea>
+      </div>
+    </div>
+
+    <!-- Modal Footer -->
+    <div class="modal-footer">
+      <button type="button" class="btn-cancel" (click)="onCancel()">
+        Cancel
+      </button>
+      <button type="button" class="btn-create" (click)="onSubmit()">
+        Create task
+      </button>
+    </div>
+  </div>
+}

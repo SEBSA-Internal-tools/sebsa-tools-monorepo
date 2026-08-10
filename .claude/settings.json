@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cygpath -w /tmp/fsd_extract/fsd_unzipped/word/document.xml)",
+      "Bash(npm install *)",
+      "Bash(npx prisma *)",
+      "Bash(npm ls *)",
+      "Bash(node -e \"console.log\\(require\\('prisma/package.json'\\).version\\)\")",
+      "Bash(npm view *)",
+      "Bash(npm run *)",
+      "Bash(npx nx *)",
+      "Bash(curl -s http://localhost:4201)",
+      "Bash(curl -s http://localhost:4201/dashboard)",
+      "Bash(cat)",
+      "Read(//tmp/**)",
+      "Bash(git push *)",
+      "Bash(git branch *)",
+      "Bash(git ls-remote *)",
+      "Bash(git remote *)",
+      "Bash(docker exec *)"
+    ]
+  }
+}

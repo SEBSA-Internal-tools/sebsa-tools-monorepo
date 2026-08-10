@@ -1,0 +1,139 @@
+<main class="app-shell">
+  <aside class="sidebar" aria-label="Primary navigation">
+    <section class="brand-block">
+      <div class="brand-copy">
+        <h1>SEBSA PMT</h1>
+        <p>Enterprise PM Tool</p>
+      </div>
+    </section>
+
+    <button type="button" class="new-task-button" aria-haspopup="dialog" [attr.aria-expanded]="isTaskModalOpen" (click)="openTaskModal()">
+      <span class="material-symbols-outlined button-icon" aria-hidden="true">add</span>
+      <span>New Task</span>
+    </button>
+
+    <nav class="nav-list">
+      <a
+        *ngFor="let item of navigationItems"
+        class="nav-item"
+        [routerLink]="item.path"
+        routerLinkActive="active"
+        [routerLinkActiveOptions]="{ exact: true }"
+      >
+        <span class="nav-icon" aria-hidden="true">
+          <span class="material-symbols-outlined">{{ item.icon }}</span>
+        </span>
+        <span class="nav-label">{{ item.label }}</span>
+      </a>
+
+      <a
+        *ngIf="['ADMIN', 'SUPER_ADMIN'].includes(authService.currentUser()?.systemRole ?? '')"
+        class="nav-item"
+        routerLink="/admin/users"
+        routerLinkActive="active"
+      >
+        <span class="nav-icon" aria-hidden="true">
+          <span class="material-symbols-outlined">admin_panel_settings</span>
+        </span>
+        <span class="nav-label">Admin</span>
+      </a>
+
+      <a
+        *ngIf="authService.currentUser()?.systemRole === 'SUPER_ADMIN'"
+        class="nav-item"
+        routerLink="/admin/privilege-groups"
+        routerLinkActive="active"
+      >
+        <span class="nav-icon" aria-hidden="true">
+          <span class="material-symbols-outlined">shield_person</span>
+        </span>
+        <span class="nav-label">Privilege Groups</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <button type="button" class="nav-item settings-item">
+        <span class="nav-icon" aria-hidden="true">
+          <span class="material-symbols-outlined">settings</span>
+        </span>
+        <span class="nav-label">Settings</span>
+      </button>
+    </div>
+  </aside>
+
+  <div class="content-wrapper">
+    <header class="top-navbar">
+      <div class="search-container">
+        <span class="material-symbols-outlined search-icon" aria-hidden="true">search</span>
+        <input
+          type="search"
+          placeholder="Search tasks, projects, or documents..."
+          class="search-input"
+          aria-label="Global search"
+        />
+      </div>
+
+      <div class="navbar-actions">
+        <div class="accent-picker" [attr.aria-label]="themeService.accentLabel">
+          <button
+            *ngFor="let accent of themeService.accentOptions"
+            type="button"
+            class="accent-swatch"
+            [class.active]="themeService.currentAccent.mode === accent.mode"
+            [attr.aria-label]="'Use ' + accent.label + ' accent'"
+            [style.--swatch-color]="accent.color"
+            (click)="setAccent(accent.mode)"
+          ></button>
+        </div>
+
+        <button
+          type="button"
+          class="action-btn"
+          [attr.aria-label]="themeService.buttonLabel"
+          (click)="toggleTheme()"
+        >
+          <span class="material-symbols-outlined" aria-hidden="true">{{ themeService.iconName }}</span>
+        </button>
+
+        <button type="button" class="action-btn" aria-label="Help and Support">
+          <span class="material-symbols-outlined" aria-hidden="true">help</span>
+        </button>
+
+        <div class="profile-menu-wrapper">
+          <button
+            type="button"
+            class="user-profile-btn"
+            [attr.aria-expanded]="isProfileMenuOpen"
+            aria-label="User account menu"
+            (click)="toggleProfileMenu()"
+          >
+            <span class="material-symbols-outlined avatar-icon" aria-hidden="true">account_circle</span>
+            <span class="user-name">{{ authService.currentUser()?.name ?? 'Account' }}</span>
+            <span class="material-symbols-outlined dropdown-icon" aria-hidden="true">arrow_drop_down</span>
+          </button>
+
+          <div class="profile-menu" *ngIf="isProfileMenuOpen">
+            <div class="profile-menu-header">
+              <span class="profile-menu-name">{{ authService.currentUser()?.name }}</span>
+              <span class="profile-menu-email">{{ authService.currentUser()?.email }}</span>
+            </div>
+            <button type="button" class="profile-menu-item" (click)="logout()">
+              <span class="material-symbols-outlined" aria-hidden="true">logout</span>
+              <span>Logout</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <section class="page-content">
+      <router-outlet></router-outlet>
+    </section>
+  </div>
+
+  <create-task-modal
+    [isOpen]="isTaskModalOpen"
+    (close)="closeTaskModal()"
+    (submit)="handleTaskSaved($event)"
+  ></create-task-modal>
+</main>

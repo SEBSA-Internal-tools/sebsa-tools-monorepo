@@ -1,0 +1,22 @@
+<article class="workspace-card section">
+  <div class="section-header">
+    <div class="section-title">
+      <p class="eyebrow">Recent Activity</p>
+      <h2>What changed</h2>
+    </div>
+  </div>
+
+  <div class="activity-list">
+    @for (item of activity; track item.actor + item.time) {
+      <div class="activity-item">
+        <div class="activity-badge">{{ item.actor.charAt(0) }}</div>
+        <div class="activity-content">
+          <p class="activity-text">
+            <strong>{{ item.actor }}</strong> {{ item.action }} <mark>{{ item.target }}</mark>
+          </p>
+          <time class="activity-time">{{ item.time }}</time>
+        </div>
+      </div>
+    }
+  </div>
+</article>

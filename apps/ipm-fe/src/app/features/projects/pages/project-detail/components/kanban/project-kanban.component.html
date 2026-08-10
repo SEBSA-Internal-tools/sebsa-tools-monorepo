@@ -1,0 +1,67 @@
+<div class="kanban-container">
+  @for (column of columns; track column.id) {
+    <div class="kanban-column">
+      <!-- Column Header -->
+      <div class="column-header">
+        <div class="column-title">
+          <div class="status-dot" [style.background-color]="column.color"></div>
+          <span class="title-text">{{ column.label }}</span>
+          <span class="task-count">{{ tasks[column.id].length }}</span>
+        </div>
+      </div>
+
+      <!-- Drop Zone -->
+      <div
+        class="drop-zone"
+        [id]="column.id"
+        (dragover)="onDragOver($event)"
+        (drop)="onDrop($event, column.id)"
+      >
+        @if (tasks[column.id].length > 0) {
+          @for (task of tasks[column.id]; track task.id) {
+            <div
+              class="task-card"
+              draggable="true"
+              (dragstart)="onDragStart(task)"
+              (dragend)="onDragEnd()"
+              [class.dragging]="draggedTask?.id === task.id"
+            >
+              <!-- Task ID & Priority -->
+              <div class="task-header">
+                <span class="task-id">{{ task.id }}</span>
+                <span
+                  class="priority-badge"
+                  [class]="getPriorityClass(task.priority)"
+                >
+                  {{ task.priority }}
+                </span>
+              </div>
+
+              <!-- Task Title -->
+              <h3 class="task-title">{{ task.title }}</h3>
+
+              <!-- Task Category -->
+              <p class="task-category">{{ task.category }}</p>
+
+              <!-- Task Footer -->
+              <div class="task-footer">
+                <span class="duration">
+                  <span class="material-symbols-outlined">schedule</span>
+                  {{ task.duration }}
+                </span>
+                <div class="task-assignee" *ngIf="task.assignee" [title]="task.assignee">
+                  {{ getTaskInitials(task.assignee) }}
+                </div>
+              </div>
+            </div>
+          }
+        } @else {
+          <div class="empty-column">
+            <span class="material-symbols-outlined">inbox</span>
+            <p>No tasks</p>
+          </div>
+        }
+      </div>
+    </div>
+  }
+</div>

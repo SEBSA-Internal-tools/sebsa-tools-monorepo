@@ -1,0 +1,85 @@
+<div class="task-list-container">
+  <!-- Toolbar -->
+  <div class="task-toolbar">
+    <div class="sort-controls">
+      <label for="sort-select" class="sort-label">Sort by:</label>
+      <select
+        id="sort-select"
+        [(ngModel)]="sortBy"
+        (change)="onSortChange(sortBy)"
+        class="sort-select"
+      >
+        <option value="status">Status</option>
+        <option value="priority">Priority</option>
+        <option value="date">Due Date</option>
+      </select>
+    </div>
+
+    <div class="task-count">
+      Total: <strong>{{ tasks.length }}</strong> tasks
+    </div>
+  </div>
+
+  <!-- Tasks Table -->
+  @if (tasks.length > 0) {
+    <div class="tasks-table">
+      <div class="table-header">
+        <div class="col-id">ID</div>
+        <div class="col-title">Task Title</div>
+        <div class="col-category">Category</div>
+        <div class="col-status">Status</div>
+        <div class="col-priority">Priority</div>
+        <div class="col-duration">Duration</div>
+        <div class="col-assignee">Assignee</div>
+      </div>
+
+      @for (task of tasks; track task.id) {
+        <div class="table-row">
+          <div class="col-id">
+            <span class="task-id">{{ task.id }}</span>
+          </div>
+
+          <div class="col-title">
+            <span class="task-title">{{ task.title }}</span>
+          </div>
+
+          <div class="col-category">
+            <span class="category-badge">{{ task.category }}</span>
+          </div>
+
+          <div class="col-status">
+            <span class="status-badge" [class]="task.status">
+              {{ getStatusLabel(task.status) }}
+            </span>
+          </div>
+
+          <div class="col-priority">
+            <span class="priority-badge" [class]="getPriorityClass(task.priority)">
+              {{ task.priority }}
+            </span>
+          </div>
+
+          <div class="col-duration">
+            <span class="duration-text">{{ task.duration }}</span>
+          </div>
+
+          <div class="col-assignee">
+            @if (task.assignee) {
+              <div class="assignee-avatar" [title]="task.assignee">
+                {{ getTaskInitials(task.assignee) }}
+              </div>
+            } @else {
+              <span class="no-assignee">—</span>
+            }
+          </div>
+        </div>
+      }
+    </div>
+  } @else {
+    <div class="empty-state">
+      <span class="material-symbols-outlined">task_alt</span>
+      <h3>No tasks yet</h3>
+      <p>Create your first task to get started</p>
+    </div>
+  }
+</div>

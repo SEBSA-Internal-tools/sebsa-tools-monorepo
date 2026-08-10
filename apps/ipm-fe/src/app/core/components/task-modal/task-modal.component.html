@@ -1,0 +1,96 @@
+<div class="task-modal-shell" [class.open]="open" [attr.aria-hidden]="!open">
+  <div class="task-modal-backdrop" (click)="close()" aria-hidden="true"></div>
+
+  <section class="task-modal-panel" role="dialog" aria-modal="true" aria-labelledby="task-modal-title" (click)="$event.stopPropagation()">
+    <header class="task-modal-header">
+      <div>
+        <p class="task-modal-eyebrow">Create New Task</p>
+        <h2 id="task-modal-title">What needs to be done?</h2>
+      </div>
+
+      <button type="button" class="close-button" (click)="close()" aria-label="Close dialog">
+        <span class="material-symbols-outlined" aria-hidden="true">close</span>
+      </button>
+    </header>
+
+    <form class="task-modal-form" (ngSubmit)="save()">
+      <div class="task-form-grid">
+        <div class="field-group">
+          <label for="task-project">Project</label>
+          <div class="select-shell">
+            <select id="task-project" name="project" [(ngModel)]="task.project">
+              @for (project of projectOptions; track project) {
+                <option [value]="project">{{ project }}</option>
+              }
+            </select>
+            <span class="material-symbols-outlined chevron-icon" aria-hidden="true">expand_more</span>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label for="task-assignee">Assignee</label>
+          <div class="input-shell with-icon">
+            <span class="material-symbols-outlined prefix-icon" aria-hidden="true">account_circle</span>
+            <input
+              id="task-assignee"
+              name="assignee"
+              type="text"
+              [(ngModel)]="task.assignee"
+              placeholder="Search or enter assignee"
+            />
+            <span class="material-symbols-outlined suffix-icon" aria-hidden="true">search</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="task-form-grid compact-grid">
+        <div class="field-group">
+          <label>Priority</label>
+          <div class="priority-list" role="radiogroup" aria-label="Task priority">
+            @for (priorityOption of priorityOptions; track priorityOption.value) {
+              <button
+                type="button"
+                class="priority-option"
+                [class.active]="task.priority === priorityOption.value"
+                (click)="setPriority(priorityOption.value)"
+              >
+                <span class="priority-dot" [class.critical]="priorityOption.value === 'critical'" [class.high]="priorityOption.value === 'high'" [class.medium]="priorityOption.value === 'medium'" [class.low]="priorityOption.value === 'low'"></span>
+                <span>{{ priorityOption.label }}</span>
+              </button>
+            }
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label for="task-due-date">Due Date</label>
+          <div class="input-shell with-icon end-icon">
+            <input id="task-due-date" name="dueDate" type="date" [(ngModel)]="task.dueDate" />
+            <span class="material-symbols-outlined suffix-icon" aria-hidden="true">calendar_month</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="field-group description-group">
+        <label for="task-description">Description</label>
+        <div class="description-toolbar" aria-hidden="true">
+          <button type="button">B</button>
+          <button type="button"><em>I</em></button>
+          <button type="button">≡</button>
+          <button type="button">&#128279;</button>
+        </div>
+        <textarea
+          id="task-description"
+          name="description"
+          [(ngModel)]="task.description"
+          placeholder="Add details, acceptance criteria, or technical notes..."
+          rows="6"
+        ></textarea>
+      </div>
+
+      <footer class="task-modal-footer">
+        <button type="button" class="secondary-button" (click)="close()">Cancel</button>
+        <button type="submit" class="primary-button">Create task</button>
+      </footer>
+    </form>
+  </section>
+</div>
