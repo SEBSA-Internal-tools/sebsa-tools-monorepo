@@ -14,6 +14,8 @@ export interface WorkflowStage {
   order: number;
 }
 
+type KanbanStatus = 'new' | 'todo' | 'inprogress' | 'done';
+
 export interface TaskView {
   id: string;
   title: string;
@@ -82,13 +84,49 @@ export class TasksService {
     );
   }
 
-  updateTaskStatus(taskId: string, newStatus: TaskView['status'], workflowStages: WorkflowStage[]) {
-    const workflowStageId = this.getStageIdForStatus(newStatus, workflowStages);
+    updateTaskStatus(
+    taskId: string,
+    status: KanbanStatus,
+    workflowStages: WorkflowStage[],
+    ) {
+    const workflowStageId = this.getStageIdForStatus(
+        status,
+        workflowStages,
+    );
+
     if (!workflowStageId) {
-      throw new Error('Cannot map task status to workflow stage.');
+        throw new Error(`No workflow stage found for status: ${status}`);
     }
-    return this.updateTask(taskId, { workflowStageId }, workflowStages);
-  }
+
+    const sortedStages = [...workflowStages].sort(
+        (a, b) => a.order - b.order,
+    );
+
+    return this.http
+        .patch<BackendTask>(
+        `/api/tasks/${taskId}`,
+        {
+            workflowStageId,
+        },
+        )
+        .pipe(
+        map((task) => this.toTaskView(task, sortedStages)),
+        tap((updatedTask) => {
+            if (updatedTask.projectId === this.currentProjectId) {
+            this.tasksSubject.next(
+                this.tasksSubject.value.map((task) =>
+                task.id === taskId
+                    ? {
+                        ...updatedTask,
+                        status,
+                    }
+                    : task,
+                ),
+            );
+            }
+        }),
+        );
+    }
 
   getSprintTasks(sprintId: string): TaskView[] {
     return this.tasksSubject.value.filter((task) => task.sprintId === sprintId);
@@ -109,7 +147,7 @@ export class TasksService {
       category: task.type ?? 'Task',
       status: stageStatus,
       priority,
-      duration: task.dueDate ? `Due ${task.dueDate}` : 'No due date',
+      duration: task.dueDate ? `${task.dueDate.slice(0, 10)}` : 'No due date',
       assignee,
       dueDate: task.dueDate ?? '',
       projectId: task.projectId,
@@ -153,12 +191,12 @@ export class TasksService {
   }
 
 private getStageIdForStatus(
-  status: TaskView['status'], workflowStages: WorkflowStage[] ): string | undefined {
-  const sorted = [...workflowStages].sort((a, b) => a.order - b.order);
-
-  if (!sorted.length) {
-    return undefined;
-  }
+  status: TaskView['status'],
+  workflowStages: WorkflowStage[],
+): string | undefined {
+  const sorted = [...workflowStages].sort(
+    (a, b) => a.order - b.order,
+  );
 
   switch (status) {
     case 'new':
@@ -176,5 +214,5 @@ private getStageIdForStatus(
     default:
       return undefined;
   }
- }
+}
 }
