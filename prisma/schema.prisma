@@ -297,11 +297,6 @@ model ProjectMember {
 /// The top-level engagement/initiative entity.
 model Project {
   id            String        @id @default(uuid())
-  /// Human-readable sequential reference (e.g. "PROJ-7" in the UI) — the
-  /// UUID above stays the real primary key/foreign-key target; this is
-  /// purely for display, separate from and never used for referential
-  /// integrity. Backed by its own Postgres sequence, independent of taskNumber.
-  projectNumber Int           @unique @default(autoincrement())
   name          String
   description   String?
   type          ProjectType
@@ -425,9 +420,6 @@ model Label {
 /// parentTaskId (self-relation) rather than a separate table.
 model Task {
   id                  String    @id @default(uuid())
-  /// Human-readable sequential reference (e.g. "TASK-42" in the UI), same
-  /// rationale as Project.projectNumber — display only, not a FK target.
-  taskNumber          Int       @unique @default(autoincrement())
   projectId           String
   parentTaskId        String?
   title               String
