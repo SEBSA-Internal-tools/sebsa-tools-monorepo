@@ -79,9 +79,9 @@ export class ProjectOverviewComponent implements OnInit {
     // Calculate task stats
     this.taskStats.set({
       total: tasks.length,
-      completed: tasks.filter((t: TaskView) => t.status === 'done').length,
-      inProgress: tasks.filter((t: TaskView) => t.status === 'inprogress').length,
-      todo: tasks.filter((t: TaskView) => t.status === 'todo').length,
+      completed: tasks.filter((t: TaskView) => t.statusLabel === 'done').length,
+      inProgress: tasks.filter((t: TaskView) => t.statusLabel === 'inprogress').length,
+      todo: tasks.filter((t: TaskView) => t.statusLabel === 'todo').length,
       overdue: this.getOverdueTaskCount(tasks),
     });
 
@@ -109,7 +109,7 @@ export class ProjectOverviewComponent implements OnInit {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     return tasks.filter((t: TaskView) => {
-      if (!t.dueDate || t.status === 'done') return false;
+      if (!t.dueDate || t.statusLabel === 'done') return false;
       const dueDate = new Date(t.dueDate);
       return dueDate < today;
     }).length;
@@ -121,8 +121,8 @@ export class ProjectOverviewComponent implements OnInit {
     return Math.round((stats.completed / stats.total) * 100);
   }
 
-  getTaskStatusColor(status: TaskView['status']): string {
-    switch (status) {
+  getTaskStatusColor(statusLabel: TaskView['statusLabel']): string {
+    switch (statusLabel) {
       case 'done':
         return '#10b981';
       case 'inprogress':
@@ -136,8 +136,8 @@ export class ProjectOverviewComponent implements OnInit {
     }
   }
 
-  getTaskStatusIcon(status: TaskView['status']): string {
-    switch (status) {
+  getTaskStatusIcon(statusLabel: TaskView['statusLabel']): string {
+    switch (statusLabel) {
       case 'done':
         return 'check_circle';
       case 'inprogress':
@@ -151,8 +151,8 @@ export class ProjectOverviewComponent implements OnInit {
     }
   }
 
-  getTaskStatusLabel(status: TaskView['status']): string {
-    switch (status) {
+  getTaskStatusLabel(statusLabel: TaskView['statusLabel']): string {
+    switch (statusLabel) {
       case 'done':
         return 'Done';
       case 'inprogress':
@@ -162,7 +162,7 @@ export class ProjectOverviewComponent implements OnInit {
       case 'new':
         return 'New';
       default:
-        return status;
+        return statusLabel;
     }
   }
 

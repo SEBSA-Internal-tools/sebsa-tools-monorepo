@@ -76,9 +76,18 @@ export class ProjectsService {
         },
       });
 
-      // REMOVED: Auto-seeding of DEFAULT_WORKFLOW_STAGES
-      // A new project starts with ZERO workflow stages (empty board state).
-      // Project Manager can create custom columns via the Dynamic Kanban Board UI.
+      // Every project is guaranteed to have at least one workflow stage so the
+      // Kanban board is never in an empty state. The "Backlog" stage (order: 0,
+      // isDefault: true) serves as the automatic landing column for all new tasks
+      // that are created without an explicit workflowStageId.
+      await tx.workflowStage.create({
+        data: {
+          projectId: project.id,
+          name: 'Backlog',
+          order: 0,
+          isDefault: true,
+        },
+      });
 
       const defaultGroups = await tx.privilegeGroup.findMany({
         where: { name: { in: DEFAULT_PROJECT_ROLES.map((role) => role.privilegeGroupName) } },

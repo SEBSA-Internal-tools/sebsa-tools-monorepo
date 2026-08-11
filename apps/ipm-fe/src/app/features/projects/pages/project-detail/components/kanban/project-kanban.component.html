@@ -3,84 +3,32 @@
     <span class="material-symbols-outlined">hourglass_empty</span>
     <p>Loading board...</p>
   </div>
-} @else if (workflowStages().length === 0) {
-
-  @if (isAddingColumn()) {
-    <div class="kanban-empty-state">
-      <div class="inline-input-form">
-        <h3>Create Your First Column</h3>
-        <div class="input-group">
-          <input
-            type="text"
-            class="column-name-input"
-            placeholder="e.g. 'To Do', 'In Progress', 'Done'"
-            [(ngModel)]="newColumnName"
-            [disabled]="isCreatingColumn()"
-            (keyup.enter)="saveNewColumn()"
-            (keyup.escape)="cancelAddColumn()"
-            autofocus
-          />
-          @if (errorMessage()) {
-            <p class="input-error">{{ errorMessage() }}</p>
-          }
-          <div class="btn-row">
-            <button
-              type="button"
-              class="btn-save"
-              (click)="saveNewColumn()"
-              [disabled]="isCreatingColumn()"
-            >
-              <span class="material-symbols-outlined">{{ isCreatingColumn() ? 'hourglass_empty' : 'check' }}</span>
-              {{ isCreatingColumn() ? 'Creating...' : 'Save' }}
-            </button>
-            <button
-              type="button"
-              class="btn-cancel"
-              (click)="cancelAddColumn()"
-              [disabled]="isCreatingColumn()"
-            >
-              <span class="material-symbols-outlined">close</span>
-              Cancel
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  } @else {
-    <div class="kanban-empty-state">
-      <div class="empty-icon">
-        <span class="material-symbols-outlined">view_agenda</span>
-      </div>
-      <h3>No Columns Created Yet</h3>
-      <p>Create your first column to start organizing tasks on the Kanban board</p>
-      <button type="button" class="btn-create-first" (click)="onCreateFirstColumn()">
-        <span class="material-symbols-outlined">add</span>
-        Create First Column
-      </button>
-    </div>
-  }
+} @else if (errorMessage() && workflowStages().length === 0) {
+  <div class="kanban-error-state">
+    <span class="material-symbols-outlined">error_outline</span>
+    <p>{{ errorMessage() }}</p>
+  </div>
 } @else {
 
   <div class="kanban-container">
     @for (stage of workflowStages(); track stage.id) {
       <div class="kanban-column">
-    
+
         <div class="column-header">
           <div class="column-title">
             <span class="title-text">{{ stage.name }}</span>
-            <span class="task-count">{{ tasks[stage.id]?.length || 0 }}</span>
+            <span class="task-count">{{ tasks()[stage.id]?.length || 0 }}</span>
           </div>
         </div>
 
-    
         <div
           class="drop-zone"
           [id]="stage.id"
           (dragover)="onDragOver($event)"
           (drop)="onDrop($event, stage.id)"
         >
-          @if ((tasks[stage.id]?.length || 0) > 0) {
-            @for (task of tasks[stage.id]; track task.id) {
+          @if ((tasks()[stage.id]?.length || 0) > 0) {
+            @for (task of tasks()[stage.id]; track task.id) {
               <div
                 class="task-card"
                 draggable="true"
@@ -88,7 +36,7 @@
                 (dragend)="onDragEnd()"
                 [class.dragging]="draggedTask?.id === task.id"
               >
-      
+
                 <div class="task-header">
                   <span class="task-id">{{ task.id }}</span>
                   <span
@@ -99,13 +47,10 @@
                   </span>
                 </div>
 
-               
                 <h3 class="task-title">{{ task.title }}</h3>
 
-             
                 <p class="task-category">{{ task.category }}</p>
 
-            
                 <div class="task-footer">
                   <span class="duration">
                     <span class="material-symbols-outlined">schedule</span>
@@ -129,7 +74,7 @@
       </div>
     }
 
-   
+    <!-- Permanent "+ Add Column" panel at the far right of the scroll area -->
     @if (isAddingColumn()) {
       <div class="add-column-card">
         <div class="inline-input-form">

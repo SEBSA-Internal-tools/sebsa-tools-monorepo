@@ -1,6 +1,6 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Injectable, inject } from '@angular/core';
-import { BehaviorSubject, map, tap } from 'rxjs';
+import { Injectable, inject, signal, computed } from '@angular/core';
+import { BehaviorSubject, Observable, tap, map } from 'rxjs';
 import {
   CreateTaskRequest,
   Task as BackendTask,
@@ -18,7 +18,11 @@ export interface TaskView {
   id: string;
   title: string;
   category: string;
+  /** Raw workflowStageId UUID — used for Kanban column mapping and PATCH requests. */
   status: string;
+  /** Human-readable positional label derived from stage order: 'new' | 'todo' | 'inprogress' | 'done'.
+   *  Used by Overview, TaskList, and Sprint views for badge display and stats. */
+  statusLabel: 'new' | 'todo' | 'inprogress' | 'done';
   priority: 'High' | 'Medium' | 'Low';
   duration: string;
   assignee?: string;
@@ -31,15 +35,49 @@ export interface TaskView {
 @Injectable({ providedIn: 'root' })
 export class TasksService {
   private readonly http = inject(HttpClient);
-  private readonly tasksSubject = new BehaviorSubject<TaskView[]>([]);
-  readonly tasks$ = this.tasksSubject.asObservable();
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Core reactive state: a Signal<TaskView[]> so all consumers (including
+  // OnPush components) react automatically without markForCheck().
+  // The BehaviorSubject is kept for RxJS-based consumers (tasks$).
+  // ─────────────────────────────────────────────────────────────────────────
+  private readonly _tasks = signal<TaskView[]>([]);
+
+  /** Signal — preferred for OnPush components and computed() derivations. */
+  readonly tasks = this._tasks.asReadonly();
+
+  /** Observable — kept for legacy RxJS consumers (other views, subscriptions). */
+  readonly tasks$: Observable<TaskView[]>;
+
+  private readonly _tasksSubject = new BehaviorSubject<TaskView[]>([]);
 
   private currentProjectId?: string;
   private currentWorkflowStages: WorkflowStage[] = [];
 
-  get currentTasks(): TaskView[] {
-    return this.tasksSubject.value;
+  constructor() {
+    // Keep the BehaviorSubject in sync with the signal so RxJS consumers work.
+    // Using a simple effect-like pattern: whenever _tasks changes, push to subject.
+    // We do this by always calling _tasksSubject.next() alongside _tasks.set().
+    this.tasks$ = this._tasksSubject.asObservable();
   }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Helpers
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /** Push a new task list atomically to both the signal and the RxJS subject. */
+  private setState(tasks: TaskView[]): void {
+    this._tasks.set(tasks);
+    this._tasksSubject.next(tasks);
+  }
+
+  get currentTasks(): TaskView[] {
+    return this._tasks();
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Public API
+  // ─────────────────────────────────────────────────────────────────────────
 
   loadTasks(projectId: string, workflowStages: WorkflowStage[]): void {
     this.currentProjectId = projectId;
@@ -51,63 +89,106 @@ export class TasksService {
       .pipe(
         map((tasks) => tasks.map((task) => this.toTaskView(task, this.currentWorkflowStages))),
       )
-      .subscribe({ next: (tasks) => this.tasksSubject.next(tasks) });
+      .subscribe({ next: (tasks) => this.setState(tasks) });
   }
 
-  createTask(dto: CreateTaskRequest, workflowStages: WorkflowStage[]) {
+  /**
+   * POST a new task to the API. On success, appends the mapped TaskView to
+   * the reactive state so every subscriber (Kanban, TaskList, Overview) sees
+   * it immediately — no page reload required.
+   */
+  createTask(dto: CreateTaskRequest, workflowStages: WorkflowStage[]): Observable<TaskView> {
     const sortedStages = [...workflowStages].sort((a, b) => a.order - b.order);
     return this.http.post<BackendTask>('/api/tasks', dto).pipe(
       map((task) => this.toTaskView(task, sortedStages)),
-      tap((task) => {
+      tap((newTask) => {
         if (dto.projectId === this.currentProjectId) {
-          this.tasksSubject.next([...this.tasksSubject.value, task]);
+          // Immutable append — new array reference triggers signal consumers.
+          this.setState([...this._tasks(), newTask]);
         }
       }),
     );
   }
 
-  updateTask(taskId: string, dto: UpdateTaskRequest, workflowStages: WorkflowStage[]) {
+  /**
+   * PATCH an existing task. On success, replaces the task in reactive state
+   * with an immutable map — new array reference triggers change detection.
+   */
+  updateTask(taskId: string, dto: UpdateTaskRequest, workflowStages: WorkflowStage[]): Observable<TaskView> {
     const sortedStages = [...workflowStages].sort((a, b) => a.order - b.order);
     return this.http.patch<BackendTask>(`/api/tasks/${taskId}`, dto).pipe(
       map((task) => this.toTaskView(task, sortedStages)),
-      tap((task) => {
-        if (task.projectId === this.currentProjectId) {
-          this.tasksSubject.next(
-            this.tasksSubject.value.map((existingTask) =>
-              existingTask.id === task.id ? task : existingTask,
-            ),
+      tap((updatedTask) => {
+        if (updatedTask.projectId === this.currentProjectId) {
+          // Immutable replace — new array reference triggers signal consumers.
+          this.setState(
+            this._tasks().map((t) => (t.id === updatedTask.id ? updatedTask : t)),
           );
         }
       }),
     );
   }
 
-  updateTaskStatus(taskId: string, newStatus: TaskView['status'], workflowStages: WorkflowStage[]) {
-    const workflowStageId = this.getStageIdForStatus(newStatus, workflowStages);
-    if (!workflowStageId) {
-      throw new Error('Cannot map task status to workflow stage.');
-    }
-    return this.updateTask(taskId, { workflowStageId }, workflowStages);
+  /**
+   * Moves a task to a new workflow stage. The `newWorkflowStageId` is the raw
+   * UUID emitted by the Kanban drop handler (stage.id) — no label translation.
+   */
+  updateTaskStatus(
+    taskId: string,
+    newWorkflowStageId: string,
+    workflowStages: WorkflowStage[],
+  ): Observable<TaskView> {
+    return this.updateTask(taskId, { workflowStageId: newWorkflowStageId }, workflowStages);
+  }
+
+  /**
+   * Performs a LOCAL-ONLY optimistic stage move on the signal state without
+   * hitting the network. Called by the Kanban component before firing the
+   * PATCH request so the UI responds instantly. On network error the Kanban
+   * calls this again with the original stageId to roll back.
+   */
+  patchTaskStageLocally(taskId: string, newStageId: string, workflowStages: WorkflowStage[]): void {
+    const sortedStages = [...workflowStages].sort((a, b) => a.order - b.order);
+    this.setState(
+      this._tasks().map((t) => {
+        if (t.id !== taskId) return t;
+        // Produce a new task object with the updated stage fields.
+        return {
+          ...t,
+          workflowStageId: newStageId,
+          status: newStageId,
+          statusLabel: this.getStatusForStageId(newStageId, sortedStages),
+        };
+      }),
+    );
   }
 
   getSprintTasks(sprintId: string): TaskView[] {
-    return this.tasksSubject.value.filter((task) => task.sprintId === sprintId);
+    return this._tasks().filter((task) => task.sprintId === sprintId);
   }
 
   getTasksByProject(projectId: string): TaskView[] {
-    return this.tasksSubject.value.filter((task) => task.projectId === projectId);
+    return this._tasks().filter((task) => task.projectId === projectId);
   }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Mappers
+  // ─────────────────────────────────────────────────────────────────────────
 
   private toTaskView(task: BackendTask | BackendTaskSummary, workflowStages: WorkflowStage[]): TaskView {
     const assignee = task.assignees?.map((a) => a.name).join(', ') || undefined;
-    const stageStatus = this.getStatusForStageId(task.workflowStageId, workflowStages);
     const priority = this.mapPriority(task.priority);
+    // statusLabel is the positional label for badge/stats display in Overview,
+    // TaskList, and Sprint views. status (UUID) is what Kanban uses for routing.
+    const statusLabel = this.getStatusForStageId(task.workflowStageId, workflowStages);
 
     return {
       id: task.id,
       title: task.title,
       category: task.type ?? 'Task',
-      status: stageStatus,
+      // UUID — Kanban column routing matches on this directly.
+      status: task.workflowStageId,
+      statusLabel,
       priority,
       duration: task.dueDate ? `Due ${task.dueDate}` : 'No due date',
       assignee,
@@ -121,7 +202,6 @@ export class TasksService {
   private mapPriority(priority: BackendTask['priority']): TaskView['priority'] {
     switch (priority) {
       case 'CRITICAL':
-        return 'High';
       case 'HIGH':
         return 'High';
       case 'MEDIUM':
@@ -133,48 +213,14 @@ export class TasksService {
     }
   }
 
-  private getStatusForStageId(stageId: string, workflowStages: WorkflowStage[]): TaskView['status'] {
+  private getStatusForStageId(stageId: string, workflowStages: WorkflowStage[]): TaskView['statusLabel'] {
     const sorted = [...workflowStages].sort((a, b) => a.order - b.order);
-    if (!sorted.length) {
-      return 'todo';
-    }
+    if (!sorted.length) return 'todo';
 
     const index = sorted.findIndex((stage) => stage.id === stageId);
-    if (index === 0) {
-      return 'new';
-    }
-    if (index === sorted.length - 1) {
-      return 'done';
-    }
-    if (index === 1) {
-      return 'todo';
-    }
+    if (index === 0) return 'new';
+    if (index === sorted.length - 1) return 'done';
+    if (index === 1) return 'todo';
     return 'inprogress';
   }
-
-private getStageIdForStatus(
-  status: TaskView['status'], workflowStages: WorkflowStage[] ): string | undefined {
-  const sorted = [...workflowStages].sort((a, b) => a.order - b.order);
-
-  if (!sorted.length) {
-    return undefined;
-  }
-
-  switch (status) {
-    case 'new':
-      return sorted[0]?.id;
-
-    case 'todo':
-      return sorted[1]?.id;
-
-    case 'inprogress':
-      return sorted[2]?.id;
-
-    case 'done':
-      return sorted[3]?.id;
-
-    default:
-      return undefined;
-  }
- }
 }
