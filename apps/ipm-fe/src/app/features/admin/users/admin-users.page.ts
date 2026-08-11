@@ -33,9 +33,12 @@ export class AdminUsersPageComponent implements OnInit {
   protected readonly pendingUsers = computed(() => this.users().filter((user) => !user.approvedAt));
   protected readonly departments = signal<Department[]>([]);
   protected readonly errorMessage = signal('');
+  protected readonly notification = signal<{ type: 'success' | 'error'; message: string } | null>(null);
 
   protected readonly isCreateModalOpen = signal(false);
   protected readonly createdUser = signal<CreateUserResponse | null>(null);
+
+  private notificationTimeout: ReturnType<typeof setTimeout> | null = null;
 
   protected name = '';
   protected email = '';
@@ -62,25 +65,37 @@ export class AdminUsersPageComponent implements OnInit {
 
   approve(id: string): void {
     this.errorMessage.set('');
+    this.clearNotification();
     this.userAdminService.approve(id).subscribe({
-      next: () => this.loadUsers(),
-      error: () => this.errorMessage.set('Failed to approve user.'),
+      next: () => {
+        this.loadUsers();
+        this.setNotification('success', 'User approved successfully.');
+      },
+      error: () => this.setNotification('error', 'Failed to approve user.'),
     });
   }
 
   activate(id: string): void {
     this.errorMessage.set('');
+    this.clearNotification();
     this.userAdminService.activate(id).subscribe({
-      next: () => this.loadUsers(),
-      error: () => this.errorMessage.set('Failed to activate user.'),
+      next: () => {
+        this.loadUsers();
+        this.setNotification('success', 'User activated successfully.');
+      },
+      error: () => this.setNotification('error', 'Failed to activate user.'),
     });
   }
 
   deactivate(id: string): void {
     this.errorMessage.set('');
+    this.clearNotification();
     this.userAdminService.deactivate(id).subscribe({
-      next: () => this.loadUsers(),
-      error: () => this.errorMessage.set('Failed to deactivate user.'),
+      next: () => {
+        this.loadUsers();
+        this.setNotification('success', 'User deactivated successfully.');
+      },
+      error: () => this.setNotification('error', 'Failed to deactivate user.'),
     });
   }
 
@@ -98,6 +113,7 @@ export class AdminUsersPageComponent implements OnInit {
 
   submitCreate(): void {
     this.errorMessage.set('');
+    this.clearNotification();
     this.userAdminService
       .create({
         name: this.name,
@@ -111,11 +127,34 @@ export class AdminUsersPageComponent implements OnInit {
           this.createdUser.set(response);
           this.loadUsers();
         },
-        error: () => this.errorMessage.set('Failed to create user.'),
+        error: (err) => {
+          this.closeCreateModal();
+          this.setNotification('error', err.error?.message ?? 'Failed to create user. Please try again.');
+        },
       });
   }
 
   closeCreatedUserModal(): void {
+    this.setNotification('success', `User ${this.createdUser()?.user.name} created successfully.`);
     this.createdUser.set(null);
+  }
+
+  private setNotification(type: 'success' | 'error', message: string): void {
+    this.notification.set({ type, message });
+    if (this.notificationTimeout) {
+      clearTimeout(this.notificationTimeout);
+    }
+    this.notificationTimeout = window.setTimeout(() => {
+      this.notification.set(null);
+      this.notificationTimeout = null;
+    }, 4500);
+  }
+
+  private clearNotification(): void {
+    this.notification.set(null);
+    if (this.notificationTimeout) {
+      clearTimeout(this.notificationTimeout);
+      this.notificationTimeout = null;
+    }
   }
 }

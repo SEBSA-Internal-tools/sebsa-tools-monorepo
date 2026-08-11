@@ -142,13 +142,13 @@
                   {{ task.priority }}
                 </span>
                 <span
-                  [class]="'status-badge status-' + task.status"
-                  [style.borderLeftColor]="getTaskStatusColor(task.status)"
+                  [class]="'status-badge status-' + task.statusLabel"
+                  [style.borderLeftColor]="getTaskStatusColor(task.statusLabel)"
                 >
                   <span class="material-symbols-outlined">
-                    {{ getTaskStatusIcon(task.status) }}
+                    {{ getTaskStatusIcon(task.statusLabel) }}
                   </span>
-                  {{ getTaskStatusLabel(task.status) }}
+                  {{ getTaskStatusLabel(task.statusLabel) }}
                 </span>
               </div>
             </div>

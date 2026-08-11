@@ -46,9 +46,15 @@ export class CreateTaskDto {
   @IsEnum(Priority)
   priority?: Priority;
 
-  @ApiProperty({ format: 'uuid', description: 'Must belong to the same project.' })
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description:
+      'Must belong to the same project. When omitted the task is automatically ' +
+      'placed in the project\'s default Backlog stage (order: 0, isDefault: true).',
+  })
+  @IsOptional()
   @IsUUID()
-  workflowStageId!: string;
+  workflowStageId?: string;
 
   @ApiPropertyOptional({ format: 'uuid' })
   @IsOptional()

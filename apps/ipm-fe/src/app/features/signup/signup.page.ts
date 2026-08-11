@@ -17,6 +17,7 @@ import { DepartmentsService } from '../../core/services/departments.service';
 export class SignupPageComponent implements OnInit {
   private readonly authService = inject(AuthService);
   private readonly departmentsService = inject(DepartmentsService);
+  public readonly currentYear = new Date().getFullYear();
 
   name = '';
   email = '';

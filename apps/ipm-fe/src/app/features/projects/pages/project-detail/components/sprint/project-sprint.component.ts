@@ -8,9 +8,10 @@ import {
   effect,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ProjectsService, Sprint, Task } from '../../../../services/projects.service';
+import { ProjectsService, Sprint } from '../../../../services/projects.service';
 import { SprintService } from '../../../../services/sprint.service';
 import { AuthService } from '../../../../../../core/services/auth.service';
+import { TasksService, type TaskView } from '../../../../../../core/services/tasks.service';
 import { AddSprintModalComponent } from '../../../../components/modals/add-sprint/add-sprint-modal.component';
 
 interface ExpandedState {
@@ -33,6 +34,7 @@ export class ProjectSprintComponent implements OnInit {
   private projectsService = inject(ProjectsService);
   private sprintService = inject(SprintService);
   private authService = inject(AuthService);
+  private tasksService = inject(TasksService);
 
   sprints = signal<Sprint[]>([]);
   expandedSprints = signal<ExpandedState>({});
@@ -112,8 +114,8 @@ export class ProjectSprintComponent implements OnInit {
     }));
   }
 
-  getSprintTasks(sprintId: string): Task[] {
-    return this.projectsService.getSprintTasks(sprintId);
+  getSprintTasks(sprintId: string): TaskView[] {
+    return this.tasksService.getSprintTasks(sprintId);
   }
 
   getSprintStats(sprintId: string): {
@@ -124,8 +126,8 @@ export class ProjectSprintComponent implements OnInit {
     const tasks = this.getSprintTasks(sprintId);
     return {
       total: tasks.length,
-      completed: tasks.filter((t) => t.status === 'done').length,
-      inProgress: tasks.filter((t) => t.status === 'inprogress').length,
+      completed: tasks.filter((t) => t.statusLabel === 'done').length,
+      inProgress: tasks.filter((t) => t.statusLabel === 'inprogress').length,
     };
   }
 
@@ -155,7 +157,7 @@ export class ProjectSprintComponent implements OnInit {
     }
   }
 
-  getPriorityClass(priority: Task['priority']): string {
+  getPriorityClass(priority: TaskView['priority']): string {
     switch (priority) {
       case 'High':
         return 'priority-high';
@@ -168,8 +170,8 @@ export class ProjectSprintComponent implements OnInit {
     }
   }
 
-  getStatusClass(status: Task['status']): string {
-    switch (status) {
+  getStatusClass(statusLabel: TaskView['statusLabel']): string {
+    switch (statusLabel) {
       case 'new':
         return 'status-new';
       case 'todo':
@@ -183,8 +185,8 @@ export class ProjectSprintComponent implements OnInit {
     }
   }
 
-  getStatusLabel_(status: Task['status']): string {
-    switch (status) {
+  getStatusLabel_(statusLabel: TaskView['statusLabel']): string {
+    switch (statusLabel) {
       case 'new':
         return 'New';
       case 'todo':
@@ -194,7 +196,7 @@ export class ProjectSprintComponent implements OnInit {
       case 'done':
         return 'Done';
       default:
-        return status;
+        return statusLabel;
     }
   }
 

@@ -1,7 +1,7 @@
 import { Component, Input, ChangeDetectionStrategy, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ProjectsService, type Task } from '../../../../services/projects.service';
+import { TasksService, type TaskView } from '../../../../../../core/services/tasks.service';
 
 @Component({
   standalone: true,
@@ -14,17 +14,18 @@ import { ProjectsService, type Task } from '../../../../services/projects.servic
 export class ProjectTaskListComponent implements OnInit {
   @Input() projectId!: string;
 
-  private projectsService = inject(ProjectsService);
+  private tasksService = inject(TasksService);
 
-  tasks: Task[] = [];
+  tasks: TaskView[] = [];
   sortBy: 'status' | 'priority' | 'date' = 'status';
 
   ngOnInit(): void {
+    this.tasksService.tasks$.subscribe(() => this.loadTasks());
     this.loadTasks();
   }
 
   loadTasks(): void {
-    this.tasks = this.projectsService.getTasks(this.projectId);
+    this.tasks = this.tasksService.getTasksByProject(this.projectId);
     this.sortTasks();
   }
 
@@ -44,8 +45,8 @@ export class ProjectTaskListComponent implements OnInit {
       default:
         this.tasks.sort((a, b) => {
           const statusOrder = { new: 0, todo: 1, inprogress: 2, done: 3 };
-          return (statusOrder[a.status as keyof typeof statusOrder] || 999) -
-                 (statusOrder[b.status as keyof typeof statusOrder] || 999);
+          return (statusOrder[a.statusLabel as keyof typeof statusOrder] || 999) -
+                 (statusOrder[b.statusLabel as keyof typeof statusOrder] || 999);
         });
     }
   }
@@ -55,14 +56,14 @@ export class ProjectTaskListComponent implements OnInit {
     this.sortTasks();
   }
 
-  getStatusLabel(status: string): string {
+  getStatusLabel(statusLabel: TaskView['statusLabel']): string {
     const labels: { [key: string]: string } = {
       new: 'New',
       todo: 'To Do',
       inprogress: 'In Progress',
       done: 'Done',
     };
-    return labels[status] || status;
+    return labels[statusLabel] || statusLabel;
   }
 
   getPriorityClass(priority: string): string {

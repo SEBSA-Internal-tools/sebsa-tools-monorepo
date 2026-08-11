@@ -133,8 +133,8 @@
                           <span class="task-category">{{ task.category }}</span>
                         </td>
                         <td class="col-status">
-                          <span [class]="'task-status ' + getStatusClass(task.status)">
-                            {{ getStatusLabel_(task.status) }}
+                          <span [class]="'task-status ' + getStatusClass(task.statusLabel)">
+                            {{ getStatusLabel_(task.statusLabel) }}
                           </span>
                         </td>
                         <td class="col-priority">

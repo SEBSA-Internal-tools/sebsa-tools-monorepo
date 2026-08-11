@@ -51,9 +51,6 @@ export interface ProjectsHeroData {
 export class ProjectsService {
   private readonly http = inject(HttpClient);
 
-  // ---------------------------------------------------------------------------
-  // Projects — real backend, see apps/ipm-be/src/app/projects/
-  // ---------------------------------------------------------------------------
 
   getProjects(): Observable<ProjectSummary[]> {
     return this.http.get<ProjectSummary[]>('/api/projects');
@@ -77,6 +74,21 @@ export class ProjectsService {
 
   getRoles(id: string): Observable<ProjectRole[]> {
     return this.http.get<ProjectRole[]>(`/api/projects/${id}/roles`);
+  }
+
+  getWorkflowStages(projectId: string): Observable<{ id: string; name: string; order: number }[]> {
+    return this.http.get<{ id: string; name: string; order: number }[]>(`/api/projects/${projectId}/workflow-stages`);
+  }
+
+  createWorkflowStage(
+    projectId: string,
+    name: string,
+    order?: number,
+  ): Observable<{ id: string; name: string; order: number }> {
+    return this.http.post<{ id: string; name: string; order: number }>(
+      `/api/projects/${projectId}/workflow-stages`,
+      { name, ...(order !== undefined && { order }) },
+    );
   }
 
   createRole(id: string, dto: CreateRoleRequest): Observable<ProjectRole> {
@@ -119,10 +131,6 @@ export class ProjectsService {
     };
   }
 
-  // ---------------------------------------------------------------------------
-  // Tasks & Sprints — still mock. No backend module for these yet (deferred);
-  // do not break the Kanban/task-list/sprint tabs while Projects goes real.
-  // ---------------------------------------------------------------------------
 
   private sprints$ = new BehaviorSubject<Sprint[]>([
     {
