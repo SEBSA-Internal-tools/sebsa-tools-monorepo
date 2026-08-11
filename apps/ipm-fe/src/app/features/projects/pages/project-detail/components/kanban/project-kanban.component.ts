@@ -33,19 +33,16 @@ export class ProjectKanbanComponent implements OnInit, OnDestroy {
   private readonly tasksService = inject(TasksService);
   private readonly projectsService = inject(ProjectsService);
 
-
   readonly workflowStages = signal<WorkflowStage[]>([]);
   readonly isLoading = signal(true);
   readonly errorMessage = signal('');
   readonly isAddingColumn = signal(false);
   readonly isCreatingColumn = signal(false);
 
-
   readonly tasks = computed<Record<string, TaskView[]>>(() => {
     const stages = this.workflowStages();
     const allTasks = this.tasksService.tasks();
 
-   
     const map: Record<string, TaskView[]> = {};
     for (const stage of stages) {
       map[stage.id] = allTasks.filter(
@@ -55,21 +52,16 @@ export class ProjectKanbanComponent implements OnInit, OnDestroy {
     return map;
   });
 
-  
+  // ─── Drag state ───────────────────────────────────────────────────────────
   draggedTask: TaskView | null = null;
-
-   
   private dragTargetStageId: string | null = null;
 
-
-
+  // ─── Lifecycle ────────────────────────────────────────────────────────────
   ngOnInit(): void {
     this.loadWorkflowStages();
   }
 
-  ngOnDestroy(): void {
-
-  }
+  ngOnDestroy(): void {}
 
   private loadWorkflowStages(): void {
     this.isLoading.set(true);
@@ -78,7 +70,6 @@ export class ProjectKanbanComponent implements OnInit, OnDestroy {
     this.projectsService.getWorkflowStages(this.projectId).subscribe({
       next: (stages) => {
         this.workflowStages.set(stages);
- 
         this.tasksService.loadTasks(this.projectId, stages);
         this.isLoading.set(false);
       },
@@ -90,7 +81,7 @@ export class ProjectKanbanComponent implements OnInit, OnDestroy {
     });
   }
 
-
+  // ─── Drag & Drop ──────────────────────────────────────────────────────────
   onDragStart(task: TaskView): void {
     this.draggedTask = task;
   }
@@ -99,7 +90,6 @@ export class ProjectKanbanComponent implements OnInit, OnDestroy {
     event.preventDefault();
     event.dataTransfer!.dropEffect = 'move';
   }
-
 
   onDrop(event: DragEvent, targetStageId: string): void {
     event.preventDefault();
@@ -112,10 +102,10 @@ export class ProjectKanbanComponent implements OnInit, OnDestroy {
     const originalStageId = task.workflowStageId;
     this.dragTargetStageId = targetStageId;
 
-   
+    // Optimistic update
     this.applyOptimisticMove(task.id, targetStageId);
 
-  
+    // Network call
     this.tasksService
       .updateTaskStatus(task.id, targetStageId, this.workflowStages())
       .subscribe({
@@ -135,9 +125,8 @@ export class ProjectKanbanComponent implements OnInit, OnDestroy {
     this.draggedTask = null;
   }
 
-
+  // ─── Helpers ──────────────────────────────────────────────────────────────
   private applyOptimisticMove(taskId: string, newStageId: string): void {
-
     this.tasksService.patchTaskStageLocally(taskId, newStageId, this.workflowStages());
   }
 
@@ -154,7 +143,7 @@ export class ProjectKanbanComponent implements OnInit, OnDestroy {
     return priority.toLowerCase();
   }
 
-
+  // ─── Column management ────────────────────────────────────────────────────
   onAddColumn(): void {
     this.newColumnName = '';
     this.isAddingColumn.set(true);
@@ -177,7 +166,6 @@ export class ProjectKanbanComponent implements OnInit, OnDestroy {
 
     this.projectsService.createWorkflowStage(this.projectId, name, nextOrder).subscribe({
       next: (newStage) => {
-    
         this.workflowStages.set([...this.workflowStages(), newStage]);
         this.isAddingColumn.set(false);
         this.newColumnName = '';

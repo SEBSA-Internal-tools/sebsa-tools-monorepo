@@ -1,4 +1,20 @@
 <div class="sprint-container">
+  <!-- Error Message -->
+  @if (errorMessage()) {
+    <div style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: #fee2e2; border-radius: 6px; color: #991b1b;">
+      <span class="material-symbols-outlined" style="font-size: 18px;">error</span>
+      {{ errorMessage() }}
+    </div>
+  }
+
+  <!-- Loading State -->
+  @if (isLoading()) {
+    <div style="display: flex; align-items: center; justify-content: center; gap: 8px; padding: 16px; color: var(--app-text-muted);">
+      <span class="material-symbols-outlined" style="font-size: 20px;">refresh</span>
+      Loading sprints...
+    </div>
+  }
+
   <!-- Header Section -->
   <div class="sprint-header">
     <div class="header-content">

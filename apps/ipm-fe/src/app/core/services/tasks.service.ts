@@ -1,5 +1,5 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Injectable, inject, signal, computed } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import { BehaviorSubject, Observable, tap, map } from 'rxjs';
 import {
   CreateTaskRequest,
@@ -55,9 +55,6 @@ export class TasksService {
   private currentWorkflowStages: WorkflowStage[] = [];
 
   constructor() {
-    // Keep the BehaviorSubject in sync with the signal so RxJS consumers work.
-    // Using a simple effect-like pattern: whenever _tasks changes, push to subject.
-    // We do this by always calling _tasksSubject.next() alongside _tasks.set().
     this.tasks$ = this._tasksSubject.asObservable();
   }
 
@@ -103,7 +100,7 @@ export class TasksService {
       map((task) => this.toTaskView(task, sortedStages)),
       tap((newTask) => {
         if (dto.projectId === this.currentProjectId) {
-          // Immutable append — new array reference triggers signal consumers.
+          // Immutable append — new array reference triggers signal consumers & BehaviorSubject.
           this.setState([...this._tasks(), newTask]);
         }
       }),
@@ -120,7 +117,7 @@ export class TasksService {
       map((task) => this.toTaskView(task, sortedStages)),
       tap((updatedTask) => {
         if (updatedTask.projectId === this.currentProjectId) {
-          // Immutable replace — new array reference triggers signal consumers.
+          // Immutable replace — new array reference triggers signal consumers & BehaviorSubject.
           this.setState(
             this._tasks().map((t) => (t.id === updatedTask.id ? updatedTask : t)),
           );
@@ -190,7 +187,7 @@ export class TasksService {
       status: task.workflowStageId,
       statusLabel,
       priority,
-      duration: task.dueDate ? `Due ${task.dueDate}` : 'No due date',
+      duration: task.dueDate ? `${task.dueDate.slice(0, 10)}` : 'No due date',
       assignee,
       dueDate: task.dueDate ?? '',
       projectId: task.projectId,
