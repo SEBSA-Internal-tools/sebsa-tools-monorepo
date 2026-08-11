@@ -1,7 +1,8 @@
-import { Component, Input, ChangeDetectionStrategy, inject, OnInit } from '@angular/core';
+import { Component, Input, ChangeDetectionStrategy, inject, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { TasksService, type TaskView } from '../../../../../../core/services/tasks.service';
+import { TasksService, WorkflowStage, type TaskView } from '../../../../../../core/services/tasks.service';
+import { ProjectsService } from '../../../../services/projects.service';
 
 @Component({
   standalone: true,
@@ -15,18 +16,62 @@ export class ProjectTaskListComponent implements OnInit {
   @Input() projectId!: string;
 
   private tasksService = inject(TasksService);
+  private projectsService = inject(ProjectsService);
+  private cdr = inject(ChangeDetectorRef);
 
   tasks: TaskView[] = [];
+  workflowStages: WorkflowStage[] = [];
   sortBy: 'status' | 'priority' | 'date' = 'status';
 
   ngOnInit(): void {
-    this.tasksService.tasks$.subscribe(() => this.loadTasks());
+    this.loadWorkflowStages();
+    this.tasksService.tasks$.subscribe(() => {
+      this.loadTasks();
+      this.cdr.markForCheck();
+    });
     this.loadTasks();
+  }
+
+  private loadWorkflowStages(): void {
+    if (!this.projectId) return;
+    this.projectsService.getWorkflowStages(this.projectId).subscribe({
+      next: (stages) => {
+        this.workflowStages = stages;
+        this.sortTasks();
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        console.error('Failed to load workflow stages:', err);
+      },
+    });
   }
 
   loadTasks(): void {
     this.tasks = this.tasksService.getTasksByProject(this.projectId);
     this.sortTasks();
+  }
+
+  getStageName(task: TaskView): string {
+    if (!task || !task.workflowStageId) {
+      return 'NEW';
+    }
+    const stage = this.workflowStages.find((s) => s.id === task.workflowStageId);
+    if (!stage) {
+      return 'UNKNOWN';
+    }
+    if (stage.order === 0 || stage.name.toLowerCase() === 'backlog') {
+      return 'NEW';
+    }
+    return stage.name.toUpperCase();
+  }
+
+  getStatusBadgeClass(task: TaskView): string {
+    const stageName = this.getStageName(task).toLowerCase();
+    if (stageName === 'new') return 'new';
+    if (stageName.includes('todo') || stageName.includes('to do')) return 'todo';
+    if (stageName.includes('progress') || stageName.includes('in progress')) return 'inprogress';
+    if (stageName.includes('done') || stageName.includes('complete')) return 'done';
+    return 'inprogress';
   }
 
   sortTasks(): void {
@@ -44,9 +89,9 @@ export class ProjectTaskListComponent implements OnInit {
       case 'status':
       default:
         this.tasks.sort((a, b) => {
-          const statusOrder = { new: 0, todo: 1, inprogress: 2, done: 3 };
-          return (statusOrder[a.statusLabel as keyof typeof statusOrder] || 999) -
-                 (statusOrder[b.statusLabel as keyof typeof statusOrder] || 999);
+          const orderA = this.workflowStages.find((s) => s.id === a.workflowStageId)?.order ?? 999;
+          const orderB = this.workflowStages.find((s) => s.id === b.workflowStageId)?.order ?? 999;
+          return orderA - orderB;
         });
     }
   }
@@ -54,16 +99,6 @@ export class ProjectTaskListComponent implements OnInit {
   onSortChange(sort: typeof this.sortBy): void {
     this.sortBy = sort;
     this.sortTasks();
-  }
-
-  getStatusLabel(statusLabel: TaskView['statusLabel']): string {
-    const labels: { [key: string]: string } = {
-      new: 'New',
-      todo: 'To Do',
-      inprogress: 'In Progress',
-      done: 'Done',
-    };
-    return labels[statusLabel] || statusLabel;
   }
 
   getPriorityClass(priority: string): string {

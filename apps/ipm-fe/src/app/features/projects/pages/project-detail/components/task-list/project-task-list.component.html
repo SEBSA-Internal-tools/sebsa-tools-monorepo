@@ -48,8 +48,8 @@
           </div>
 
           <div class="col-status" data-label="Status">
-            <span class="status-badge" [class]="task.statusLabel">
-              {{ getStatusLabel(task.statusLabel) }}
+            <span class="status-badge" [class]="getStatusBadgeClass(task)">
+              {{ getStageName(task) }}
             </span>
           </div>
 

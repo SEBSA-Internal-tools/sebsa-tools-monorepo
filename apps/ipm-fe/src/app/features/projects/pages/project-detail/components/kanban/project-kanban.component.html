@@ -31,13 +31,16 @@
             @for (task of tasks()[stage.id]; track task.id) {
               <div
                 class="task-card"
+                [class]="'task-card priority-' + task.priority.toLowerCase()"
                 draggable="true"
                 (dragstart)="onDragStart(task)"
                 (dragend)="onDragEnd()"
                 [class.dragging]="draggedTask?.id === task.id"
               >
 
-                <div class="task-header">
+                <h3 class="task-title">{{ task.title }}</h3>
+
+                <div class="task-meta">
                   <span class="task-id">{{ task.id }}</span>
                   <span
                     class="priority-badge"
@@ -45,11 +48,8 @@
                   >
                     {{ task.priority }}
                   </span>
+                  <span class="task-category">{{ task.category }}</span>
                 </div>
-
-                <h3 class="task-title">{{ task.title }}</h3>
-
-                <p class="task-category">{{ task.category }}</p>
 
                 <div class="task-footer">
                   <span class="duration">
