@@ -51,8 +51,8 @@ export class ProjectTaskListComponent implements OnInit {
       default:
         this.tasks.sort((a, b) => {
           const statusOrder = { new: 0, todo: 1, inprogress: 2, done: 3 };
-          return (statusOrder[a.status as keyof typeof statusOrder] || 999) -
-                 (statusOrder[b.status as keyof typeof statusOrder] || 999);
+          return (statusOrder[a.statusLabel as keyof typeof statusOrder] || 999) -
+                 (statusOrder[b.statusLabel as keyof typeof statusOrder] || 999);
         });
     }
   }
@@ -62,14 +62,14 @@ export class ProjectTaskListComponent implements OnInit {
     this.sortTasks();
   }
 
-  getStatusLabel(status: string): string {
+  getStatusLabel(statusLabel: TaskView['statusLabel']): string {
     const labels: { [key: string]: string } = {
       new: 'New',
       todo: 'To Do',
       inprogress: 'In Progress',
       done: 'Done',
     };
-    return labels[status] || status;
+    return labels[statusLabel] || statusLabel;
   }
 
   getPriorityClass(priority: string): string {

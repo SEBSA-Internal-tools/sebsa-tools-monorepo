@@ -19,9 +19,9 @@ import { AddMemberDto } from './dto/add-member.dto';
 import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
+import { CreateWorkflowStageDto } from './dto/create-workflow-stage.dto';
 import {
   DEFAULT_PROJECT_ROLES,
-  DEFAULT_WORKFLOW_STAGES,
   PROJECT_OWNER_ROLE_NAME,
 } from './constants';
 
@@ -76,13 +76,17 @@ export class ProjectsService {
         },
       });
 
-      await tx.workflowStage.createMany({
-        data: DEFAULT_WORKFLOW_STAGES.map((name, index) => ({
+      // Every project is guaranteed to have at least one workflow stage so the
+      // Kanban board is never in an empty state. The "Backlog" stage (order: 0,
+      // isDefault: true) serves as the automatic landing column for all new tasks
+      // that are created without an explicit workflowStageId.
+      await tx.workflowStage.create({
+        data: {
           projectId: project.id,
-          name,
-          order: index,
+          name: 'Backlog',
+          order: 0,
           isDefault: true,
-        })),
+        },
       });
 
       const defaultGroups = await tx.privilegeGroup.findMany({
@@ -329,6 +333,63 @@ export class ProjectsService {
       where: { id: memberId },
       data: { deletedAt: new Date() },
     });
+  }
+
+  async getWorkflowStages(
+    projectId: string,
+    user: AuthUser,
+  ): Promise<{ id: string; name: string; order: number }[]> {
+    const project = await this.loadProjectWithMembership(projectId);
+    const membership = this.findMembership(project, user.id);
+    this.assertVisible(!!membership, user);
+
+    const stages = await this.prisma.workflowStage.findMany({
+      where: { projectId },
+      select: { id: true, name: true, order: true },
+      orderBy: { order: 'asc' },
+    });
+    return stages;
+  }
+
+  async createWorkflowStage(
+    projectId: string,
+    dto: CreateWorkflowStageDto,
+    user: AuthUser,
+  ): Promise<{ id: string; name: string; order: number }> {
+    const project = await this.loadProjectWithMembership(projectId);
+    this.assertCanManageMembers(project, user);
+
+    // Auto-calculate order if not provided
+    let order = dto.order;
+    if (order === undefined || order === null) {
+      const maxOrder = await this.prisma.workflowStage.aggregate({
+        where: { projectId },
+        _max: { order: true },
+      });
+      order = (maxOrder._max.order ?? -1) + 1;
+    }
+
+    // Validate unique stage name per project
+    const existing = await this.prisma.workflowStage.findFirst({
+      where: { projectId, name: dto.name },
+    });
+    if (existing) {
+      throw new BadRequestException(
+        `A workflow stage with the name "${dto.name}" already exists in this project.`,
+      );
+    }
+
+    const stage = await this.prisma.workflowStage.create({
+      data: {
+        projectId,
+        name: dto.name,
+        order,
+        isDefault: false,
+      },
+      select: { id: true, name: true, order: true },
+    });
+
+    return stage;
   }
 
   // ---------------------------------------------------------------------------

@@ -39,7 +39,13 @@ export class TaskService {
 
   async create(dto: CreateTaskDto, user: AuthUser): Promise<Task> {
     await this.assertCanCreate(dto.projectId, user);
-    await this.assertWorkflowStageBelongsToProject(dto.workflowStageId, dto.projectId);
+
+    // Resolve the workflow stage: if the caller omits it, fall back to the
+    // project's default Backlog stage (isDefault: true / order: 0).
+    const workflowStageId =
+      dto.workflowStageId ?? (await this.resolveBacklogStageId(dto.projectId));
+
+    await this.assertWorkflowStageBelongsToProject(workflowStageId, dto.projectId);
     await this.assertSprintBelongsToProject(dto.sprintId, dto.projectId);
     await this.assertMilestoneBelongsToProject(dto.milestoneId, dto.projectId);
     await this.assertParentTaskBelongsToProject(dto.parentTaskId, dto.projectId);
@@ -59,7 +65,7 @@ export class TaskService {
           storyPoints: dto.storyPoints,
           reminderLeadMinutes: dto.reminderLeadMinutes,
           project: { connect: { id: dto.projectId } },
-          workflowStage: { connect: { id: dto.workflowStageId } },
+          workflowStage: { connect: { id: workflowStageId } },
           createdBy: { connect: { id: user.id } },
           ...(dto.parentTaskId && { parentTask: { connect: { id: dto.parentTaskId } } }),
           ...(dto.sprintId && { sprint: { connect: { id: dto.sprintId } } }),
@@ -563,9 +569,10 @@ export class TaskService {
   // ---------------------------------------------------------------------------
 
   private async assertWorkflowStageBelongsToProject(
-    workflowStageId: string,
+    workflowStageId: string | undefined,
     projectId: string,
   ): Promise<void> {
+    if (!workflowStageId) return; // already resolved upstream — nothing to validate
     const stage = await this.prisma.workflowStage.findFirst({
       where: { id: workflowStageId, projectId },
       select: { id: true },
@@ -573,6 +580,26 @@ export class TaskService {
     if (!stage) {
       throw new BadRequestException('Workflow stage does not belong to the selected project.');
     }
+  }
+
+  /**
+   * Finds the project's default Backlog stage — the one seeded automatically on
+   * project creation (isDefault: true, order: 0).  Throws a clear 400 if the
+   * project somehow has no default stage (data integrity issue).
+   */
+  private async resolveBacklogStageId(projectId: string): Promise<string> {
+    const stage = await this.prisma.workflowStage.findFirst({
+      where: { projectId, OR: [{ isDefault: true }, { order: 0 }] },
+      orderBy: { order: 'asc' },
+      select: { id: true },
+    });
+    if (!stage) {
+      throw new BadRequestException(
+        'This project has no default workflow stage. ' +
+          'Please add a workflow stage before creating tasks.',
+      );
+    }
+    return stage.id;
   }
 
   private async assertSprintBelongsToProject(
