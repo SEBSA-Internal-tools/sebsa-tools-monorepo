@@ -26,14 +26,18 @@ export class EditTaskModalComponent implements OnChanges {
 
   taskTitle = '';
   priority: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' = 'MEDIUM';
+  startDate = '';
   dueDate = '';
+  storyPoints: number | null = null;
   description = '';
 
   ngOnChanges(): void {
     if (this.isOpen && this.task) {
       this.taskTitle = this.task.title || '';
       this.priority = this.task.priority || 'MEDIUM';
+      this.startDate = this.task.startDate ? this.task.startDate.split('T')[0] : '';
       this.dueDate = this.task.dueDate ? this.task.dueDate.split('T')[0] : '';
+      this.storyPoints = this.task.storyPoints ?? null;
       this.description = this.task.description || '';
     }
   }
@@ -51,7 +55,9 @@ export class EditTaskModalComponent implements OnChanges {
     const formData: UpdateTaskRequest = {
       title: this.taskTitle,
       priority: this.priority,
+      startDate: this.startDate || undefined,
       dueDate: this.dueDate || undefined,
+      storyPoints: this.storyPoints !== null ? this.storyPoints : undefined,
       description: this.description || undefined,
     };
 

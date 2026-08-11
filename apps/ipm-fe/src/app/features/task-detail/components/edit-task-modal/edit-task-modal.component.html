@@ -71,6 +71,17 @@
           </div>
         </div>
 
+        <!-- Start Date -->
+        <div class="form-group">
+          <label for="startDate" class="form-label">Start Date</label>
+          <input
+            id="startDate"
+            type="date"
+            [(ngModel)]="startDate"
+            class="form-input"
+          />
+        </div>
+
         <!-- Due Date -->
         <div class="form-group">
           <label for="dueDate" class="form-label">Due Date</label>
@@ -78,6 +89,19 @@
             id="dueDate"
             type="date"
             [(ngModel)]="dueDate"
+            class="form-input"
+          />
+        </div>
+
+        <!-- Story Points -->
+        <div class="form-group">
+          <label for="storyPoints" class="form-label">Story Points</label>
+          <input
+            id="storyPoints"
+            type="number"
+            min="0"
+            [(ngModel)]="storyPoints"
+            placeholder="e.g. 5"
             class="form-input"
           />
         </div>
