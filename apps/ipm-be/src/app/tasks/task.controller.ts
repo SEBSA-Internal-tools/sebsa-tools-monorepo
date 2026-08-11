@@ -39,6 +39,11 @@ export class TaskController {
     return this.taskService.findAll(filter, user);
   }
 
+  @Get('my-assigned')
+  async getMyAssignedTasks(@CurrentUser() user: AuthUser) {
+    return this.taskService.getMyAssignedTasks(user);
+  }
+
   @Get(':id')
   async findOne(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
     return this.taskService.findOne(id, user);

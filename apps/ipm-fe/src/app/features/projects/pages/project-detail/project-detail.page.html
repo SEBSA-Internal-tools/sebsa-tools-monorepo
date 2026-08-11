@@ -63,7 +63,7 @@
     [isOpen]="isEditModalOpen"
     [editingProject]="project"
     (close)="closeEditModal()"
-    (submit)="onEditProject($event)"
+    (submitted)="onEditProject($event)"
   ></create-project-modal>
 } @else if (isLoading()) {
   <div class="loading">
