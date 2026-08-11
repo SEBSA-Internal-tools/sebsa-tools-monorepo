@@ -3,10 +3,11 @@ import { Component, inject } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { ThemeService } from '../../services/theme.service';
 import { AuthService } from '../../services/auth.service';
+import { ToastComponent } from '../../components/toast/toast.component';
 import { CreateTaskModalComponent, type TaskFormData } from '../../../features/projects/components/modals/create-task/create-task-modal.component';
 
 @Component({
-  imports: [CommonModule, RouterLink, RouterLinkActive, RouterOutlet, CreateTaskModalComponent],
+  imports: [CommonModule, RouterLink, RouterLinkActive, RouterOutlet, ToastComponent, CreateTaskModalComponent],
   selector: 'app-shell',
   templateUrl: './app-shell.component.html',
   styleUrl: './app-shell.component.scss',

@@ -36,14 +36,25 @@
         <!-- Sprint Selection -->
         <div class="form-group full-width">
           <label for="sprint" class="form-label">Sprint</label>
-          <select id="sprint" [(ngModel)]="selectedSprintId" class="form-select">
-            <option value="">No sprint (Backlog)</option>
-            @for (sprint of availableSprints; track sprint.id) {
-              <option [value]="sprint.id">
-                {{ sprint.name }} ({{ sprint.status }})
-              </option>
-            }
-          </select>
+
+          @if (isLoadingSprints()) {
+            <div class="field-loading">
+              <span class="material-symbols-outlined spin">progress_activity</span>
+              Loading sprints...
+            </div>
+          } @else if (sprintError()) {
+            <div class="field-error">
+              <span class="material-symbols-outlined">error</span>
+              {{ sprintError() }}
+            </div>
+          } @else {
+            <select id="sprint" [(ngModel)]="selectedSprintId" class="form-select">
+              <option value="">No sprint (Backlog)</option>
+              @for (sprint of availableSprints(); track sprint.id) {
+                <option [value]="sprint.id">{{ getSprintLabel(sprint) }}</option>
+              }
+            </select>
+          }
         </div>
 
         <!-- Task Title -->
@@ -67,8 +78,17 @@
             <button
               type="button"
               class="priority-btn"
-              [class.active]="priority === 'High'"
-              (click)="priority = 'High'"
+              [class.active]="priority === 'CRITICAL'"
+              (click)="priority = 'CRITICAL'"
+            >
+              <span class="priority-dot critical"></span>
+              <span>Critical</span>
+            </button>
+            <button
+              type="button"
+              class="priority-btn"
+              [class.active]="priority === 'HIGH'"
+              (click)="priority = 'HIGH'"
             >
               <span class="priority-dot critical"></span>
               <span>High</span>
@@ -76,8 +96,8 @@
             <button
               type="button"
               class="priority-btn"
-              [class.active]="priority === 'Medium'"
-              (click)="priority = 'Medium'"
+              [class.active]="priority === 'MEDIUM'"
+              (click)="priority = 'MEDIUM'"
             >
               <span class="priority-dot medium"></span>
               <span>Med</span>
@@ -85,8 +105,8 @@
             <button
               type="button"
               class="priority-btn"
-              [class.active]="priority === 'Low'"
-              (click)="priority = 'Low'"
+              [class.active]="priority === 'LOW'"
+              (click)="priority = 'LOW'"
             >
               <span class="priority-dot low"></span>
               <span>Low</span>
@@ -94,15 +114,40 @@
           </div>
         </div>
 
-        <!-- Assignee -->
+        <!-- Task Type -->
+        <div class="form-group">
+          <label for="taskType" class="form-label">Type</label>
+          <select id="taskType" [(ngModel)]="selectedType" class="form-select">
+            <option value="TASK">Task</option>
+            <option value="EPIC">Epic</option>
+            <option value="STORY">Story</option>
+            <option value="BUG">Bug</option>
+            <option value="IMPROVEMENT">Improvement</option>
+          </select>
+        </div>
+
+        <!-- Assignee — loaded from GET /api/users/all -->
         <div class="form-group">
           <label for="assignee" class="form-label">Assignee</label>
-          <select id="assignee" [(ngModel)]="assignee" class="form-select">
-            <option value="">Select assignee...</option>
-            @for (person of availableAssignees; track person) {
-              <option [value]="person">{{ person }}</option>
-            }
-          </select>
+
+          @if (isLoadingUsers()) {
+            <div class="field-loading">
+              <span class="material-symbols-outlined spin">progress_activity</span>
+              Loading users...
+            </div>
+          } @else if (userError()) {
+            <div class="field-error">
+              <span class="material-symbols-outlined">error</span>
+              {{ userError() }}
+            </div>
+          } @else {
+            <select id="assignee" [(ngModel)]="selectedAssigneeId" class="form-select">
+              <option value="">Select assignee...</option>
+              @for (user of availableAssignees(); track user.id) {
+                <option [value]="user.id">{{ user.name }}</option>
+              }
+            </select>
+          }
         </div>
 
         <!-- Due Date -->
