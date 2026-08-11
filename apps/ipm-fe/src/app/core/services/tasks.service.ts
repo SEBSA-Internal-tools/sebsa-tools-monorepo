@@ -1,11 +1,12 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { BehaviorSubject, map, tap } from 'rxjs';
+import { Observable, BehaviorSubject, map, tap } from 'rxjs';
 import {
   CreateTaskRequest,
   Task as BackendTask,
   TaskSummary as BackendTaskSummary,
   UpdateTaskRequest,
+  UpdateTaskResponse,
 } from '@sebsa-pm-tool/shared-models';
 
 export interface WorkflowStage {
@@ -130,6 +131,24 @@ export class TasksService {
 
   getSprintTasks(sprintId: string): TaskView[] {
     return this.tasksSubject.value.filter((task) => task.sprintId === sprintId);
+  }
+
+  getMyAssignedTasks() {
+    return this.http
+      .get<BackendTaskSummary[]>('/api/tasks/my-assigned')
+      .pipe(
+        map((tasks) =>
+          tasks.map((task) => this.toTaskView(task, [])),
+        ),
+      );
+  }
+
+  getTaskById(taskId: string): Observable<BackendTask> {
+    return this.http.get<BackendTask>(`/api/tasks/${taskId}`);
+  }
+
+  updateTaskDetails(taskId: string, dto: UpdateTaskRequest): Observable<UpdateTaskResponse> {
+    return this.http.patch<UpdateTaskResponse>(`/api/tasks/${taskId}`, dto);
   }
 
   getTasksByProject(projectId: string): TaskView[] {

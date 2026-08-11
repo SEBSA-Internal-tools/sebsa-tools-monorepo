@@ -105,6 +105,26 @@ export class TaskService {
     return tasks.map((task) => this.toTaskSummary(task));
   }
 
+  async getMyAssignedTasks(user: AuthUser): Promise<TaskSummary[]> {
+    const tasks = await this.prisma.task.findMany({
+      where: {
+        deletedAt: null,
+        assignees: {
+          some: {
+            userId: user.id,
+          },
+        },
+      },
+      include: taskDetailInclude,
+      orderBy: [
+        { dueDate: 'asc' },
+        { createdAt: 'desc' },
+      ],
+    });
+
+    return tasks.map((task) => this.toTaskSummary(task));
+  }
+
   async findOne(id: string, user: AuthUser): Promise<Task> {
     const task = await this.getTaskDetailOrThrow(id);
     await this.assertVisible(task.projectId, user);

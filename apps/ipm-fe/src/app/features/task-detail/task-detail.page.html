@@ -1,0 +1,251 @@
+<section class="task-detail-page">
+  <div class="header-actions">
+<button
+  type="button"
+  class="back-btn"
+  (click)="goBack()"
+>
+  <span class="material-symbols-outlined">arrow_back</span>
+  Back
+</button>
+@if (task()) {
+  <button
+    type="button"
+    class="edit-btn"
+    (click)="onEditTask()"
+  >
+    <span class="material-symbols-outlined">edit</span>
+    Edit
+  </button>
+}
+  </div>
+@if (isLoading()) { <div class="loading-state"> <span class="loader"></span> <p>Loading task details…</p> </div>
+}
+@if (errorMessage()) { <div class="error-state">
+  <span class="material-symbols-outlined error-icon">
+    error_outline
+  </span>
+  <p>{{ errorMessage() }}</p>
+  <button
+    type="button"
+    class="retry-btn"
+    (click)="goBack()"
+  >
+    Go Back
+  </button>
+</div>
+
+}
+@if (!isLoading() && task(); as task) {
+<div class="task-detail-card">
+  <!-- Task Header -->
+  <div class="task-header">
+    <div class="task-header-top">
+      <span class="type-badge">
+        <span class="material-symbols-outlined type-icon">
+          {{ getTypeIcon(task.type) }}
+        </span>
+        {{ getTypeLabel(task.type) }}
+      </span>
+      <span
+        class="priority-pill"
+        [ngClass]="getPriorityClass(task.priority)"
+      >
+        {{ getPriorityLabel(task.priority) }}
+      </span>
+    </div>
+    <h1 class="task-title">
+      {{ task.title }}
+    </h1>
+    <p class="task-created-info">
+      Created by
+      <strong>{{ task.createdBy.name }}</strong>
+      on
+      {{ formatDate(task.createdAt) }}
+    </p>
+  </div>
+  <!-- Content Grid -->
+  <div class="task-body">
+    <!-- Left: Main Content -->
+    <div class="task-main">
+      <!-- Description -->
+      <div class="section-block">
+        <h3 class="section-heading">
+          <span class="material-symbols-outlined">
+            description
+          </span>
+          Description
+        </h3>
+        @if (task.description) {
+          <div class="description-content">
+            <p>{{ task.description }}</p>
+          </div>
+        } @else {
+          <p class="empty-placeholder">
+            No description provided.
+          </p>
+        }
+      </div>
+      <!-- Subtasks -->
+      @if (task.subtasks && task.subtasks.length > 0) {
+        <div class="section-block">
+          <h3 class="section-heading">
+            <span class="material-symbols-outlined">
+              checklist
+            </span>
+            Subtasks
+            <span class="count-badge">
+              {{ task.subtasks.length }}
+            </span>
+          </h3>
+          <div class="subtask-list">
+            @for (subtask of task.subtasks; track subtask.id) {
+              <button
+                type="button"
+                class="subtask-item"
+                (click)="navigateToSubtask(subtask.id)"
+              >
+                <span class="material-symbols-outlined subtask-icon">
+                  subdirectory_arrow_right
+                </span>
+                <span class="subtask-title">
+                  {{ subtask.title }}
+                </span>
+                <span class="material-symbols-outlined chevron-icon">
+                  chevron_right
+                </span>
+              </button>
+            }
+          </div>
+        </div>
+      }
+    </div>
+    <!-- Right: Metadata Sidebar -->
+    <div class="task-sidebar">
+      <!-- Dates -->
+      <div class="meta-card">
+        <h4 class="meta-heading">
+          <span class="material-symbols-outlined">
+            calendar_today
+          </span>
+          Dates
+        </h4>
+        <div class="meta-row">
+          <span class="meta-label">
+            Start Date
+          </span>
+          <span class="meta-value">
+            {{ formatDate(task.startDate) }}
+          </span>
+        </div>
+        <div class="meta-row">
+          <span class="meta-label">
+            Due Date
+          </span>
+          <span class="meta-value">
+            {{ formatDate(task.dueDate) }}
+          </span>
+        </div>
+        <div class="meta-row">
+          <span class="meta-label">
+            Updated
+          </span>
+          <span class="meta-value">
+            {{ formatDate(task.updatedAt) }}
+          </span>
+        </div>
+      </div>
+      <!-- Story Points -->
+      @if (task.storyPoints !== null) {
+        <div class="meta-card">
+          <h4 class="meta-heading">
+            <span class="material-symbols-outlined">
+              speed
+            </span>
+            Effort
+          </h4>
+          <div class="meta-row">
+            <span class="meta-label">
+              Story Points
+            </span>
+            <span class="meta-value story-points">
+              {{ task.storyPoints }}
+            </span>
+          </div>
+        </div>
+      }
+      <!-- Assignees -->
+      <div class="meta-card">
+        <h4 class="meta-heading">
+          <span class="material-symbols-outlined">
+            group
+          </span>
+          Assignees
+        </h4>
+        @if (task.assignees && task.assignees.length > 0) {
+          @for (assignee of task.assignees; track assignee.id) {
+            <div class="assignee-chip">
+              <span class="avatar-circle">
+                {{ assignee.name.charAt(0) }}
+              </span>
+              <div class="assignee-info">
+                <span class="assignee-name">
+                  {{ assignee.name }}
+                </span>
+                <span class="assignee-email">
+                  {{ assignee.email }}
+                </span>
+              </div>
+            </div>
+          }
+        } @else {
+          <p class="empty-placeholder">
+            No assignees
+          </p>
+        }
+      </div>
+      <!-- Labels -->
+      @if (task.labels && task.labels.length > 0) {
+        <div class="meta-card">
+          <h4 class="meta-heading">
+            <span class="material-symbols-outlined">
+              label
+            </span>
+            Labels
+          </h4>
+          <div class="labels-wrap">
+            @for (label of task.labels; track label.id) {
+              <span
+                class="label-chip"
+                [style.background]="
+                  label.color
+                    ? label.color + '22'
+                    : 'var(--app-surface-soft)'
+                "
+                [style.color]="
+                  label.color || 'var(--app-text)'
+                "
+                [style.border-color]="
+                  label.color
+                    ? label.color + '44'
+                    : 'var(--app-border)'
+                "
+              >
+                {{ label.name }}
+              </span>
+            }
+          </div>
+        </div>
+      }
+    </div>
+  </div>
+</div>
+}
+<app-edit-task-modal
+[isOpen]="isEditModalOpen()"
+[task]="task()"
+(closed)="closeEditModal()"
+(submitted)="handleEditSubmit($event)"
+
+> </app-edit-task-modal>
+</section>

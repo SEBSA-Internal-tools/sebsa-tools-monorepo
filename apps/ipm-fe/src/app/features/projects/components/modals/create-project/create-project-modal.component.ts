@@ -45,8 +45,8 @@ export class CreateProjectModalComponent implements OnChanges {
 
   @Input() isOpen = false;
   @Input() editingProject: Project | null = null;
-  @Output() close = new EventEmitter<void>();
-  @Output() submit = new EventEmitter<ProjectFormData>();
+  @Output() closed = new EventEmitter<void>();
+  @Output() submitted = new EventEmitter<ProjectFormData>();
 
   protected readonly typeOptions = PROJECT_TYPE_OPTIONS;
 
@@ -114,7 +114,7 @@ export class CreateProjectModalComponent implements OnChanges {
 
   onCancel(): void {
     this.resetForm();
-    this.close.emit();
+    this.closed.emit();
   }
 
   onSubmit(): void {
@@ -139,8 +139,9 @@ export class CreateProjectModalComponent implements OnChanges {
       memberIds: this.selectedMembers.map((m) => m.id),
     };
 
-    this.submit.emit(formData);
+    this.submitted.emit(formData);
     this.resetForm();
+    this.closed.emit();
   }
 
   private resetForm(): void {

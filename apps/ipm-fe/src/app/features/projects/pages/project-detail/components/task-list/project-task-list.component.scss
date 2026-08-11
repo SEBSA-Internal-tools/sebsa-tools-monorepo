@@ -60,6 +60,20 @@
   }
 }
 
+.task-title-link {
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.task-title-link:hover {
+  text-decoration: underline;
+}
+
 .tasks-table {
   display: flex;
   flex-direction: column;

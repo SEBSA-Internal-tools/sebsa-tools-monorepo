@@ -40,7 +40,13 @@
           </div>
 
           <div class="col-title">
-            <span class="task-title">{{ task.title }}</span>
+            <button
+              type="button"
+              class="task-title task-title-link"
+              (click)="openTask(task.id)"
+            >
+              {{ task.title }}
+            </button>
           </div>
 
           <div class="col-category">
