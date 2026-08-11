@@ -31,7 +31,6 @@ export class TasksPageComponent implements OnInit {
       );
       return;
     }
-
     this.loadAssignedTasks();
   }
 

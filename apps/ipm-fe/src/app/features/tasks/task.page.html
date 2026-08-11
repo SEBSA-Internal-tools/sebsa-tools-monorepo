@@ -47,7 +47,7 @@
         <div>Task</div>
         <div>Status</div>
         <div>Priority</div>
-        <div>Assignees</div>
+        <!-- <div>Assignees</div> -->
         <div>Due Date</div>
       </div>
 
@@ -67,7 +67,7 @@
               class="status-pill"
               [ngClass]="getStatusClass(task.status)"
             >
-              {{ getStatusLabel(task.status) }}
+              {{ getStatusLabel(task.statusLabel) }}
             </span>
           </div>
 
@@ -80,9 +80,9 @@
             </span>
           </div>
 
-          <div>
+          <!-- <div>
             {{ task.assignee || 'Unassigned' }}
-          </div>
+          </div> -->
 
           <div>
             {{ task.dueDate ? task.dueDate.slice(0, 10) : 'No due date' }}
