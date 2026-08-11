@@ -71,8 +71,8 @@ export class ProjectSprintComponent implements OnInit {
     const tasks = this.getSprintTasks(sprintId);
     return {
       total: tasks.length,
-      completed: tasks.filter((t) => t.status === 'done').length,
-      inProgress: tasks.filter((t) => t.status === 'inprogress').length,
+      completed: tasks.filter((t) => t.statusLabel === 'done').length,
+      inProgress: tasks.filter((t) => t.statusLabel === 'inprogress').length,
     };
   }
 
@@ -115,8 +115,8 @@ export class ProjectSprintComponent implements OnInit {
     }
   }
 
-  getStatusClass(status: TaskView['status']): string {
-    switch (status) {
+  getStatusClass(statusLabel: TaskView['statusLabel']): string {
+    switch (statusLabel) {
       case 'new':
         return 'status-new';
       case 'todo':
@@ -130,8 +130,8 @@ export class ProjectSprintComponent implements OnInit {
     }
   }
 
-  getStatusLabel_(status: TaskView['status']): string {
-    switch (status) {
+  getStatusLabel_(statusLabel: TaskView['statusLabel']): string {
+    switch (statusLabel) {
       case 'new':
         return 'New';
       case 'todo':
@@ -141,7 +141,7 @@ export class ProjectSprintComponent implements OnInit {
       case 'done':
         return 'Done';
       default:
-        return status;
+        return statusLabel;
     }
   }
 

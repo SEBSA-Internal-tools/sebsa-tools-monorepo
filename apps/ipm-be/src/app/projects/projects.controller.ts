@@ -25,6 +25,7 @@ import { AddMemberDto } from './dto/add-member.dto';
 import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
+import { CreateWorkflowStageDto } from './dto/create-workflow-stage.dto';
 
 @ApiTags('projects')
 @ApiBearerAuth()
@@ -120,5 +121,22 @@ export class ProjectsController {
     @CurrentUser() user: AuthUser,
   ): Promise<void> {
     return this.projectsService.removeMember(id, memberId, user);
+  }
+
+  @Get(':id/workflow-stages')
+  getWorkflowStages(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthUser,
+  ): Promise<{ id: string; name: string; order: number }[]> {
+    return this.projectsService.getWorkflowStages(id, user);
+  }
+
+  @Post(':id/workflow-stages')
+  createWorkflowStage(
+    @Param('id') projectId: string,
+    @Body() dto: CreateWorkflowStageDto,
+    @CurrentUser() user: AuthUser,
+  ): Promise<{ id: string; name: string; order: number }> {
+    return this.projectsService.createWorkflowStage(projectId, dto, user);
   }
 }
