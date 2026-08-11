@@ -1,5 +1,5 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Injectable, inject, signal, computed } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import { BehaviorSubject, Observable, tap, map } from 'rxjs';
 import {
   CreateTaskRequest,
@@ -13,8 +13,6 @@ export interface WorkflowStage {
   name: string;
   order: number;
 }
-
-type KanbanStatus = 'new' | 'todo' | 'inprogress' | 'done';
 
 export interface TaskView {
   id: string;
@@ -57,9 +55,6 @@ export class TasksService {
   private currentWorkflowStages: WorkflowStage[] = [];
 
   constructor() {
-    // Keep the BehaviorSubject in sync with the signal so RxJS consumers work.
-    // Using a simple effect-like pattern: whenever _tasks changes, push to subject.
-    // We do this by always calling _tasksSubject.next() alongside _tasks.set().
     this.tasks$ = this._tasksSubject.asObservable();
   }
 
@@ -105,7 +100,7 @@ export class TasksService {
       map((task) => this.toTaskView(task, sortedStages)),
       tap((newTask) => {
         if (dto.projectId === this.currentProjectId) {
-          // Immutable append — new array reference triggers signal consumers.
+          // Immutable append — new array reference triggers signal consumers & BehaviorSubject.
           this.setState([...this._tasks(), newTask]);
         }
       }),
@@ -122,7 +117,7 @@ export class TasksService {
       map((task) => this.toTaskView(task, sortedStages)),
       tap((updatedTask) => {
         if (updatedTask.projectId === this.currentProjectId) {
-          // Immutable replace — new array reference triggers signal consumers.
+          // Immutable replace — new array reference triggers signal consumers & BehaviorSubject.
           this.setState(
             this._tasks().map((t) => (t.id === updatedTask.id ? updatedTask : t)),
           );
@@ -131,51 +126,6 @@ export class TasksService {
     );
   }
 
-<<<<<<< HEAD
-    updateTaskStatus(
-    taskId: string,
-    status: KanbanStatus,
-    workflowStages: WorkflowStage[],
-    ) {
-    const workflowStageId = this.getStageIdForStatus(
-        status,
-        workflowStages,
-    );
-
-    if (!workflowStageId) {
-        throw new Error(`No workflow stage found for status: ${status}`);
-    }
-
-    const sortedStages = [...workflowStages].sort(
-        (a, b) => a.order - b.order,
-    );
-
-    return this.http
-        .patch<BackendTask>(
-        `/api/tasks/${taskId}`,
-        {
-            workflowStageId,
-        },
-        )
-        .pipe(
-        map((task) => this.toTaskView(task, sortedStages)),
-        tap((updatedTask) => {
-            if (updatedTask.projectId === this.currentProjectId) {
-            this.tasksSubject.next(
-                this.tasksSubject.value.map((task) =>
-                task.id === taskId
-                    ? {
-                        ...updatedTask,
-                        status,
-                    }
-                    : task,
-                ),
-            );
-            }
-        }),
-        );
-    }
-=======
   /**
    * Moves a task to a new workflow stage. The `newWorkflowStageId` is the raw
    * UUID emitted by the Kanban drop handler (stage.id) — no label translation.
@@ -209,7 +159,6 @@ export class TasksService {
       }),
     );
   }
->>>>>>> feature/workflow
 
   getSprintTasks(sprintId: string): TaskView[] {
     return this._tasks().filter((task) => task.sprintId === sprintId);
@@ -271,33 +220,4 @@ export class TasksService {
     if (index === 1) return 'todo';
     return 'inprogress';
   }
-<<<<<<< HEAD
-
-private getStageIdForStatus(
-  status: TaskView['status'],
-  workflowStages: WorkflowStage[],
-): string | undefined {
-  const sorted = [...workflowStages].sort(
-    (a, b) => a.order - b.order,
-  );
-
-  switch (status) {
-    case 'new':
-      return sorted[0]?.id;
-
-    case 'todo':
-      return sorted[1]?.id;
-
-    case 'inprogress':
-      return sorted[2]?.id;
-
-    case 'done':
-      return sorted[3]?.id;
-
-    default:
-      return undefined;
-  }
-=======
->>>>>>> feature/workflow
-}
 }
