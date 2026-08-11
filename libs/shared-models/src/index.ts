@@ -10,3 +10,5 @@ export * from './lib/departments/department.model';
 export * from './lib/privilege-groups/privilege-group.models';
 export * from './lib/tasks/task.models';
 export * from './lib/tasks/label.models';
+export * from './lib/sprints/sprint-enums';
+export * from './lib/sprints/sprint.models';
