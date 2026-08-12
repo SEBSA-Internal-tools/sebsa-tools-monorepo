@@ -1,8 +1,9 @@
-import { Component, Input, ChangeDetectionStrategy, inject, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, Input, ChangeDetectionStrategy, inject, OnInit, ChangeDetectorRef, DestroyRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { TasksService, WorkflowStage, type TaskView } from '../../../../../../core/services/tasks.service';
-import { ProjectsService } from '../../../../services/projects.service';
+import { TasksService, type TaskListView } from '../../../../../../core/services/tasks.service';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 @Component({
   standalone: true,
@@ -16,19 +17,17 @@ export class ProjectTaskListComponent implements OnInit {
   @Input() projectId!: string;
 
   private tasksService = inject(TasksService);
-  private projectsService = inject(ProjectsService);
+  private router = inject(Router);
   private cdr = inject(ChangeDetectorRef);
+  private destroyRef = inject(DestroyRef);
 
-  tasks: TaskView[] = [];
-  workflowStages: WorkflowStage[] = [];
+  tasks: TaskListView[] = [];
   sortBy: 'status' | 'priority' | 'date' = 'status';
 
   ngOnInit(): void {
-    this.loadWorkflowStages();
-    this.tasksService.tasks$.subscribe(() => {
-      this.loadTasks();
-      this.cdr.markForCheck();
-    });
+    this.tasksService.tasks$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.loadTasks());
     this.loadTasks();
   }
 
@@ -47,8 +46,15 @@ export class ProjectTaskListComponent implements OnInit {
   }
 
   loadTasks(): void {
-    this.tasks = this.tasksService.getTasksByProject(this.projectId);
-    this.sortTasks();
+    this.tasksService.getTaskList(this.projectId).subscribe((tasks) => {
+      this.tasks = tasks;
+      this.sortTasks();
+      this.cdr.markForCheck();
+    });
+  }
+
+  openTask(taskId: string): void {
+    this.router.navigate(['/tasks', taskId]);
   }
 
   getStageName(task: TaskView): string {
@@ -99,6 +105,16 @@ export class ProjectTaskListComponent implements OnInit {
   onSortChange(sort: typeof this.sortBy): void {
     this.sortBy = sort;
     this.sortTasks();
+  }
+
+  getStatusLabel(statusLabel: TaskListView['statusLabel']): string {
+    const labels: { [key: string]: string } = {
+      new: 'New',
+      todo: 'To Do',
+      inprogress: 'In Progress',
+      done: 'Done',
+    };
+    return labels[statusLabel] || statusLabel;
   }
 
   getPriorityClass(priority: string): string {

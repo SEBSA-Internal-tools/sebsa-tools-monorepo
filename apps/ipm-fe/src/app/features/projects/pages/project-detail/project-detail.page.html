@@ -55,7 +55,7 @@
     [projectId]="project.id"
     [projectName]="project.name"
     (close)="closeTaskModal()"
-    (submit)="onCreateTask($event)"
+    (submitted)="onCreateTask($event)"
   ></create-task-modal>
 
   <!-- Edit Project Modal -->
@@ -63,7 +63,7 @@
     [isOpen]="isEditModalOpen"
     [editingProject]="project"
     (close)="closeEditModal()"
-    (submit)="onEditProject($event)"
+    (submitted)="onEditProject($event)"
   ></create-project-modal>
 } @else if (isLoading()) {
   <div class="loading">

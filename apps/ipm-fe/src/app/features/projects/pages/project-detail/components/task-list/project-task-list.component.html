@@ -24,8 +24,8 @@
   @if (tasks.length > 0) {
     <div class="tasks-table">
       <div class="table-header">
-        <div class="col-id">ID</div>
         <div class="col-title">Task Title</div>
+        <div class="col-description">Task Description</div>
         <div class="col-category">Category</div>
         <div class="col-status">Status</div>
         <div class="col-priority">Priority</div>
@@ -35,12 +35,18 @@
 
       @for (task of tasks; track task.id) {
         <div class="table-row">
-          <div class="col-id">
-            <span class="task-id">{{ task.id }}</span>
+          <div class="col-title">
+            <button
+              type="button"
+              class="task-title task-title-link"
+              (click)="openTask(task.id)"
+            >
+              {{ task.title }}
+            </button>
           </div>
 
-          <div class="col-title">
-            <span class="task-title">{{ task.title }}</span>
+          <div class="col-description">
+            <span class="description-text">{{ task.description || 'No description' }}</span>
           </div>
 
           <div class="col-category">

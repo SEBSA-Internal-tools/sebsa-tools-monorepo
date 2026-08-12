@@ -11,6 +11,7 @@ import {
   TaskDependenciesView,
   TaskDependencyTaskRef,
   TaskSummary,
+  TaskListSummary,
   UpdateTaskResponse,
 } from '@sebsa-pm-tool/shared-models';
 import { Prisma, TaskType } from '@prisma/client';
@@ -106,6 +107,58 @@ export class TaskService {
       orderBy: { [filter.sortBy]: filter.sortOrder },
       skip: (filter.page - 1) * filter.limit,
       take: filter.limit,
+    });
+
+    return tasks.map((task) => this.toTaskSummary(task));
+  }
+
+  async getTaskList(filter: FilterTaskDto, user: AuthUser): Promise<TaskListSummary[]> {
+    const where = await this.buildScopedWhere(filter, user);
+
+    const tasks = await this.prisma.task.findMany({
+      where,
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        type: true,
+        workflowStageId: true,
+        priority: true,
+        dueDate: true,
+        assignees: { include: { user: { select: { id: true, name: true, email: true } } } },
+      },
+      orderBy: { [filter.sortBy]: filter.sortOrder },
+      skip: (filter.page - 1) * filter.limit,
+      take: filter.limit,
+    });
+
+    return tasks.map((task) => ({
+      id: task.id,
+      title: task.title,
+      description: task.description,
+      type: task.type,
+      workflowStageId: task.workflowStageId,
+      priority: task.priority,
+      dueDate: task.dueDate ? task.dueDate.toISOString() : null,
+      assignee: task.assignees[0]?.user || null,
+    }));
+  }
+
+  async getMyAssignedTasks(user: AuthUser): Promise<TaskSummary[]> {
+    const tasks = await this.prisma.task.findMany({
+      where: {
+        deletedAt: null,
+        assignees: {
+          some: {
+            userId: user.id,
+          },
+        },
+      },
+      include: taskDetailInclude,
+      orderBy: [
+        { dueDate: 'asc' },
+        { createdAt: 'desc' },
+      ],
     });
 
     return tasks.map((task) => this.toTaskSummary(task));
@@ -701,13 +754,13 @@ export class TaskService {
       subtaskCount: task.subtasks.length,
       createdAt: task.createdAt.toISOString(),
       updatedAt: task.updatedAt.toISOString(),
+      description: task.description,
     };
   }
 
   private toTask(task: TaskWithDetail): Task {
     return {
       ...this.toTaskSummary(task),
-      description: task.description,
       subtasks: task.subtasks,
     };
   }

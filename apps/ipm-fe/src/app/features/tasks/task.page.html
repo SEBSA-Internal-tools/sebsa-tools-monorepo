@@ -1,0 +1,96 @@
+<section class="workspace-page">
+  <div class="workspace-card">
+    <div class="page-header">
+      <div>
+        <p class="workspace-eyebrow">Work Queue</p>
+        <h2>Assigned Tasks</h2>
+        <p class="workspace-copy">
+          Review the tasks that are assigned to you. The list updates automatically for the current user and adapts seamlessly across desktop and mobile.
+        </p>
+      </div>
+  <div class="summary-panel">
+    <div class="summary-pill">
+      <span class="summary-label">Assigned</span>
+      <strong>{{ tasks().length }}</strong>
+    </div>
+  </div>
+</div>
+
+@if (errorMessage()) {
+  <div class="status-row">
+    <span class="status-icon material-symbols-outlined">
+      error_outline
+    </span>
+    <p>{{ errorMessage() }}</p>
+  </div>
+}
+
+<div class="task-content">
+  @if (isLoading()) {
+    <div class="loading-state">
+      <span class="loader"></span>
+      <p>Loading your assigned tasks…</p>
+    </div>
+  }
+
+  @if (!isLoading() && tasks().length === 0) {
+    <div class="empty-state">
+      <span class="material-symbols-outlined">inbox</span>
+      <p>No tasks are currently assigned to you.</p>
+      <p>Check back later or confirm your assignments in the project board.</p>
+    </div>
+  }
+
+  @if (!isLoading() && tasks().length > 0) {
+    <div class="tasks-table">
+      <div class="table-header">
+        <div>Task</div>
+        <div>Status</div>
+        <div>Priority</div>
+        <!-- <div>Assignees</div> -->
+        <div>Due Date</div>
+      </div>
+
+      @for (task of tasks(); track task.id) {
+        <div class="table-row">
+          <div class="task-title">
+            <a
+              class="task-name-link"
+              [routerLink]="['/tasks', task.id]"
+            >
+              {{ task.title }}
+            </a>
+          </div>
+
+          <div>
+            <span
+              class="status-pill"
+              [ngClass]="getStatusClass(task.status)"
+            >
+              {{ getStatusLabel(task.statusLabel) }}
+            </span>
+          </div>
+
+          <div>
+            <span
+              class="priority-pill"
+              [ngClass]="getPriorityClass(task.priority)"
+            >
+              {{ task.priority }}
+            </span>
+          </div>
+
+          <!-- <div>
+            {{ task.assignee || 'Unassigned' }}
+          </div> -->
+
+          <div>
+            {{ task.dueDate ? task.dueDate.slice(0, 10) : 'No due date' }}
+          </div>
+        </div>
+      }
+    </div>
+  }
+</div>
+  </div>
+</section>
