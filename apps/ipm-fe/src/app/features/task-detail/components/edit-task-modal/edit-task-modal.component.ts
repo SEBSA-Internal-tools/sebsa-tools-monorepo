@@ -62,6 +62,7 @@ export class EditTaskModalComponent implements OnChanges {
     };
 
     this.submitted.emit(formData);
+    this.closed.emit();
   }
 
   onBackdropClick(): void {
