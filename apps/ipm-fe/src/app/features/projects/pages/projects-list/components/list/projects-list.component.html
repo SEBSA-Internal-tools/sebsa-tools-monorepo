@@ -1,58 +1,53 @@
 <article class="workspace-card section">
-  <!-- Header with Title and New Project Button -->
-  <div class="section-header">
-    <div class="section-title">
-      <p class="eyebrow">Portfolio</p>
-      <h2>Projects</h2>
-    </div>
-    <button type="button" class="btn-new-project" (click)="onNewProject()">
-      <span class="material-symbols-outlined">add</span>
-      New project
-    </button>
-  </div>
+  <!-- Top Bar with Search, Filters, and New Project CTA -->
+  <div class="list-controls-bar">
+    <div class="search-filter-section">
+      <div class="search-box">
+        <span class="material-symbols-outlined search-icon">search</span>
+        <input
+          type="text"
+          [(ngModel)]="searchQuery"
+          (ngModelChange)="onSearchChange()"
+          placeholder="Search projects..."
+          class="search-input"
+        />
+        <button
+          type="button"
+          *ngIf="searchQuery"
+          (click)="searchQuery = ''; onSearchChange()"
+          class="clear-btn"
+        >
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
 
-  <!-- Search and Filter Section -->
-  <div class="search-filter-section">
-    <div class="search-box">
-      <span class="material-symbols-outlined search-icon">search</span>
-      <input
-        type="text"
-        [(ngModel)]="searchQuery"
-        (ngModelChange)="onSearchChange()"
-        placeholder="Search projects..."
-        class="search-input"
-      />
-      <button
-        type="button"
-        *ngIf="searchQuery"
-        (click)="searchQuery = ''; onSearchChange()"
-        class="clear-btn"
-      >
-        <span class="material-symbols-outlined">close</span>
-      </button>
-    </div>
-
-    <!-- Filter Tabs -->
-    <div class="filter-tabs">
-      <button
-        type="button"
-        class="filter-btn"
-        [class.active]="selectedStatus === 'all'"
-        (click)="onStatusChange('all')"
-      >
-        All
-      </button>
-      @for (status of statusOptions; track status) {
+      <!-- Filter Tabs -->
+      <div class="filter-tabs">
         <button
           type="button"
           class="filter-btn"
-          [class.active]="selectedStatus === status"
-          (click)="onStatusChange(status)"
+          [class.active]="selectedStatus === 'all'"
+          (click)="onStatusChange('all')"
         >
-          {{ statusLabels[status] }} <span class="count">{{ getStatusCount(status) }}</span>
+          All
         </button>
-      }
+        @for (status of statusOptions; track status) {
+          <button
+            type="button"
+            class="filter-btn"
+            [class.active]="selectedStatus === status"
+            (click)="onStatusChange(status)"
+          >
+            {{ statusLabels[status] }} <span class="count">{{ getStatusCount(status) }}</span>
+          </button>
+        }
+      </div>
     </div>
+
+    <button type="button" class="btn-primary" (click)="onNewProject()">
+      <span class="material-symbols-outlined">add</span>
+      New project
+    </button>
   </div>
 
   <!-- Projects List View -->
