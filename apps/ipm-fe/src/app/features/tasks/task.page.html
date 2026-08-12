@@ -1,96 +1,124 @@
 <section class="workspace-page">
-  <div class="workspace-card">
-    <div class="page-header">
-      <div>
-        <p class="workspace-eyebrow">Work Queue</p>
-        <h2>Assigned Tasks</h2>
-        <p class="workspace-copy">
-          Review the tasks that are assigned to you. The list updates automatically for the current user and adapts seamlessly across desktop and mobile.
-        </p>
-      </div>
-  <div class="summary-panel">
-    <div class="summary-pill">
-      <span class="summary-label">Assigned</span>
-      <strong>{{ tasks().length }}</strong>
+  <!-- Top Hero Banner (Luminous Depth Design System) -->
+  <header class="hero-section workspace-card">
+    <!-- Glowing Orbs (Soft Ambient Mesh Light Watermark) -->
+    <div class="ambient-decor" aria-hidden="true">
+      <div class="orb orb-1"></div>
+      <div class="orb orb-2"></div>
     </div>
-  </div>
-</div>
 
-@if (errorMessage()) {
-  <div class="status-row">
-    <span class="status-icon material-symbols-outlined">
-      error_outline
-    </span>
-    <p>{{ errorMessage() }}</p>
-  </div>
-}
-
-<div class="task-content">
-  @if (isLoading()) {
-    <div class="loading-state">
-      <span class="loader"></span>
-      <p>Loading your assigned tasks…</p>
+    <div class="hero-content">
+      <span class="eyebrow">WORK QUEUE</span>
+      <h1>Assigned Tasks</h1>
+      <p class="description">
+        Review the tasks that are assigned to you. The list updates automatically for the current user and adapts seamlessly across desktop and mobile.
+      </p>
     </div>
-  }
+  </header>
 
-  @if (!isLoading() && tasks().length === 0) {
-    <div class="empty-state">
-      <span class="material-symbols-outlined">inbox</span>
-      <p>No tasks are currently assigned to you.</p>
-      <p>Check back later or confirm your assignments in the project board.</p>
-    </div>
-  }
-
-  @if (!isLoading() && tasks().length > 0) {
-    <div class="tasks-table">
-      <div class="table-header">
-        <div>Task</div>
-        <div>Status</div>
-        <div>Priority</div>
-        <!-- <div>Assignees</div> -->
-        <div>Due Date</div>
+  <!-- Bottom Task List Card -->
+  <article class="workspace-card list-card">
+    <!-- Search Bar & Task Count Control Row -->
+    <div class="controls-row">
+      <div class="search-box">
+        <span class="material-symbols-outlined search-icon">search</span>
+        <input
+          type="text"
+          [ngModel]="searchQuery()"
+          (ngModelChange)="searchQuery.set($event)"
+          placeholder="Search tasks..."
+          class="search-input"
+        />
+        @if (searchQuery()) {
+          <button
+            type="button"
+            (click)="searchQuery.set('')"
+            class="clear-btn"
+          >
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        }
       </div>
 
-      @for (task of tasks(); track task.id) {
-        <div class="table-row">
-          <div class="task-title">
-            <a
-              class="task-name-link"
-              [routerLink]="['/tasks', task.id]"
-            >
-              {{ task.title }}
-            </a>
-          </div>
+      <div class="task-count">
+        Assigned Tasks: <span class="badge">{{ filteredTasks().length }}</span>
+      </div>
+    </div>
 
-          <div>
-            <span
-              class="status-pill"
-              [ngClass]="getStatusClass(task.status)"
-            >
-              {{ getStatusLabel(task.statusLabel) }}
-            </span>
-          </div>
+    @if (errorMessage()) {
+      <div class="status-row">
+        <span class="status-icon material-symbols-outlined">
+          error_outline
+        </span>
+        <p>{{ errorMessage() }}</p>
+      </div>
+    }
 
-          <div>
-            <span
-              class="priority-pill"
-              [ngClass]="getPriorityClass(task.priority)"
-            >
-              {{ task.priority }}
-            </span>
-          </div>
+    <div class="task-content">
+      @if (isLoading()) {
+        <div class="loading-state">
+          <span class="loader"></span>
+          <p>Loading your assigned tasks…</p>
+        </div>
+      }
 
-          <!-- <div>
-            {{ task.assignee || 'Unassigned' }}
-          </div> -->
+      @if (!isLoading() && filteredTasks().length === 0) {
+        <div class="empty-state">
+          <span class="material-symbols-outlined empty-icon">inbox</span>
+          <h3>No tasks found</h3>
+          <p>No tasks match your search query or assignments.</p>
+        </div>
+      }
 
-          <div>
-            {{ task.dueDate ? task.dueDate.slice(0, 10) : 'No due date' }}
+      @if (!isLoading() && filteredTasks().length > 0) {
+        <div class="tasks-table-container">
+          <div class="tasks-table">
+            <div class="table-header">
+              <div class="col-title">Task</div>
+              <div class="col-status">Status</div>
+              <div class="col-priority">Priority</div>
+              <div class="col-due">Due Date</div>
+            </div>
+
+            @for (task of filteredTasks(); track task.id) {
+              <div class="table-row">
+                <div class="col-title">
+                  <a
+                    class="task-name-link"
+                    [routerLink]="['/tasks', task.id]"
+                  >
+                    {{ task.title }}
+                  </a>
+                </div>
+
+                <div class="col-status">
+                  <span
+                    class="status-pill"
+                    [ngClass]="getStatusClass(task.status)"
+                  >
+                    {{ getStatusLabel(task.statusLabel) }}
+                  </span>
+                </div>
+
+                <div class="col-priority">
+                  <span
+                    class="priority-pill"
+                    [ngClass]="getPriorityClass(task.priority)"
+                  >
+                    {{ task.priority }}
+                  </span>
+                </div>
+
+                <div class="col-due">
+                  <span class="due-date-text">
+                    {{ task.dueDate ? task.dueDate.slice(0, 10) : 'No due date' }}
+                  </span>
+                </div>
+              </div>
+            }
           </div>
         </div>
       }
     </div>
-  }
-</div>
-  </div>
+  </article>
 </section>

@@ -2,7 +2,8 @@ import { Component, Input, ChangeDetectionStrategy, inject, OnInit, ChangeDetect
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { TasksService, type TaskListView } from '../../../../../../core/services/tasks.service';
+import { TasksService, type TaskView, type WorkflowStage } from '../../../../../../core/services/tasks.service';
+import { ProjectsService } from '../../../../services/projects.service';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 @Component({
@@ -17,18 +18,20 @@ export class ProjectTaskListComponent implements OnInit {
   @Input() projectId!: string;
 
   private tasksService = inject(TasksService);
+  private projectsService = inject(ProjectsService);
   private router = inject(Router);
   private cdr = inject(ChangeDetectorRef);
   private destroyRef = inject(DestroyRef);
 
-  tasks: TaskListView[] = [];
+  tasks: TaskView[] = [];
+  workflowStages: WorkflowStage[] = [];
   sortBy: 'status' | 'priority' | 'date' = 'status';
 
   ngOnInit(): void {
+    this.loadWorkflowStages();
     this.tasksService.tasks$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.loadTasks());
-    this.loadTasks();
   }
 
   private loadWorkflowStages(): void {
@@ -36,8 +39,7 @@ export class ProjectTaskListComponent implements OnInit {
     this.projectsService.getWorkflowStages(this.projectId).subscribe({
       next: (stages) => {
         this.workflowStages = stages;
-        this.sortTasks();
-        this.cdr.markForCheck();
+        this.loadTasks();
       },
       error: (err) => {
         console.error('Failed to load workflow stages:', err);
@@ -46,11 +48,10 @@ export class ProjectTaskListComponent implements OnInit {
   }
 
   loadTasks(): void {
-    this.tasksService.getTaskList(this.projectId).subscribe((tasks) => {
-      this.tasks = tasks;
-      this.sortTasks();
-      this.cdr.markForCheck();
-    });
+    if (!this.projectId) return;
+    this.tasks = this.tasksService.getTasksByProject(this.projectId);
+    this.sortTasks();
+    this.cdr.markForCheck();
   }
 
   openTask(taskId: string): void {
@@ -85,8 +86,8 @@ export class ProjectTaskListComponent implements OnInit {
       case 'priority':
         this.tasks.sort((a, b) => {
           const priorityOrder = { High: 0, Medium: 1, Low: 2 };
-          return (priorityOrder[a.priority as keyof typeof priorityOrder] || 999) -
-                 (priorityOrder[b.priority as keyof typeof priorityOrder] || 999);
+          return (priorityOrder[a.priority as keyof typeof priorityOrder] ?? 999) -
+                 (priorityOrder[b.priority as keyof typeof priorityOrder] ?? 999);
         });
         break;
       case 'date':
@@ -107,7 +108,7 @@ export class ProjectTaskListComponent implements OnInit {
     this.sortTasks();
   }
 
-  getStatusLabel(statusLabel: TaskListView['statusLabel']): string {
+  getStatusLabel(statusLabel: string): string {
     const labels: { [key: string]: string } = {
       new: 'New',
       todo: 'To Do',

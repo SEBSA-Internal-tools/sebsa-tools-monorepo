@@ -1,7 +1,8 @@
 <article class="workspace-card section">
-  <!-- Top Bar with Search, Filters, and New Project CTA -->
-  <div class="list-controls-bar">
-    <div class="search-filter-section">
+  <!-- Table Controls Bar (Single-Row Flex Layout) -->
+  <div class="table-controls">
+    <!-- Left: Search Box -->
+    <div class="controls-left">
       <div class="search-box">
         <span class="material-symbols-outlined search-icon">search</span>
         <input
@@ -20,7 +21,10 @@
           <span class="material-symbols-outlined">close</span>
         </button>
       </div>
+    </div>
 
+    <!-- Right: Filter Tabs and New Project CTA -->
+    <div class="controls-right">
       <!-- Filter Tabs -->
       <div class="filter-tabs">
         <button
@@ -42,12 +46,12 @@
           </button>
         }
       </div>
-    </div>
 
-    <button type="button" class="btn-primary" (click)="onNewProject()">
-      <span class="material-symbols-outlined">add</span>
-      New project
-    </button>
+      <button type="button" class="btn-primary" (click)="onNewProject()">
+        <span class="material-symbols-outlined">add</span>
+        New project
+      </button>
+    </div>
   </div>
 
   <!-- Projects List View -->

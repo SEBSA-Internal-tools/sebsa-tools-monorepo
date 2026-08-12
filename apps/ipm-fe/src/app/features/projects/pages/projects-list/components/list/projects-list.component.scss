@@ -28,25 +28,116 @@
 }
 
 // =============================================================================
-// Task 2: Top Controls Bar (Search, Filters, and New Project CTA Flexbox)
+// Header Section & Deep Purple/Violet Gradient Eyebrow Super-Header
 // =============================================================================
 
-.list-controls-bar {
+.section-header,
+.table-controls,
+.projects-list-container {
+  position: relative;
+  z-index: 1;
+}
+
+.section-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
-  width: 100%;
+
+  @media (min-width: 768px) {
+    gap: 20px;
+  }
 }
 
-.search-filter-section {
+.section-title {
+  flex: 1;
+  min-width: 0;
+
+  h2 {
+    margin: 0;
+    font-family: 'Sora', sans-serif;
+    color: var(--text-primary);
+    font-size: 1.3rem;
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+
+    @media (min-width: 768px) {
+      font-size: 1.5rem;
+    }
+
+    @media (min-width: 1024px) {
+      font-size: 1.75rem;
+    }
+  }
+}
+
+.eyebrow {
+  display: block;
+  font-family: 'Sora', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: linear-gradient(135deg, #a855f7 0%, #7000ff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow: 0 4px 15px rgba(112, 0, 255, 0.25);
+  margin-bottom: 6px;
+}
+
+// =============================================================================
+// Table Controls Bar (Strict Single-Row Flex Layout)
+// =============================================================================
+
+.table-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: nowrap;
+  width: 100%;
+  margin-bottom: 24px;
+
+  @media (max-width: 960px) {
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+}
+
+.controls-left {
+  flex: 1;
+  max-width: 400px;
+  min-width: 0;
+
+  @media (max-width: 960px) {
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .search-box {
+    width: 100%;
+  }
+}
+
+.controls-right {
   display: flex;
   align-items: center;
   gap: 16px;
-  flex-wrap: wrap;
-  flex: 1;
-  min-width: 0;
+  flex-shrink: 0;
+
+  @media (max-width: 960px) {
+    width: 100%;
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+
+  .btn-primary {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
 }
 
 .search-box {
@@ -59,7 +150,6 @@
   -webkit-backdrop-filter: blur(8px);
   border: var(--border-glass);
   border-radius: 8px;
-  min-width: 240px;
   transition: all 0.2s ease;
 
   &:focus-within {
@@ -123,11 +213,10 @@
 .filter-tabs {
   display: flex;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 
-  @media (min-width: 768px) {
-    gap: 10px;
-    white-space: nowrap;
+  @media (max-width: 960px) {
+    flex-wrap: wrap;
   }
 }
 
@@ -191,7 +280,7 @@
 }
 
 // =============================================================================
-// Projects Table List Container & Task 3 Table Headers
+// Projects Table List Container
 // =============================================================================
 
 .projects-list-container {
@@ -207,7 +296,6 @@
   min-width: 100%;
 }
 
-/* Task 3: Premium Table Headers */
 .list-header {
   display: grid;
   grid-template-columns: 2fr 1.2fr 0.8fr 1fr 1.2fr 0.7fr;

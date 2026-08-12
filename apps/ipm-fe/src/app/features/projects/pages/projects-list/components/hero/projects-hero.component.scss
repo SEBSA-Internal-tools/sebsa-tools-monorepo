@@ -24,7 +24,7 @@
 }
 
 // =============================================================================
-// Task 1: Extended Hero Content & Description Text
+// Extended Hero Content & Description Text
 // =============================================================================
 
 .hero-content {
@@ -53,19 +53,27 @@
   }
 }
 
+// =============================================================================
+// Deep Purple/Violet Gradient Eyebrow Text
+// =============================================================================
+
 .eyebrow {
   display: block;
   font-family: 'Sora', sans-serif;
   font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
+  font-weight: 700;
   letter-spacing: 0.1em;
-  color: var(--text-secondary);
+  text-transform: uppercase;
+  background: linear-gradient(135deg, #a855f7 0%, #7000ff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow: 0 4px 15px rgba(112, 0, 255, 0.25);
   margin-bottom: 8px;
 }
 
 // =============================================================================
-// Task 2: Glowing Orbs (Soft Blurred Ambient Mesh Gradient)
+// Glowing Orbs (Soft Blurred Ambient Mesh Gradient)
 // =============================================================================
 
 .ambient-decor {

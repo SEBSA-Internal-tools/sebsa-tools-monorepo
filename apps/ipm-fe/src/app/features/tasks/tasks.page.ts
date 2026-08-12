@@ -1,4 +1,4 @@
-import { Component, ChangeDetectionStrategy, OnInit, inject, signal  } from '@angular/core';
+import { Component, ChangeDetectionStrategy, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
@@ -19,8 +19,21 @@ export class TasksPageComponent implements OnInit {
   private router = inject(Router);
 
   tasks = signal<TaskView[]>([]);
+  searchQuery = signal<string>('');
   isLoading = signal(false);
   errorMessage = signal('');
+
+  filteredTasks = computed<TaskView[]>(() => {
+    const query = this.searchQuery().toLowerCase().trim();
+    const allTasks = this.tasks();
+    if (!query) return allTasks;
+    return allTasks.filter(
+      (t) =>
+        t.title.toLowerCase().includes(query) ||
+        t.category?.toLowerCase().includes(query) ||
+        t.priority.toLowerCase().includes(query),
+    );
+  });
 
   ngOnInit(): void {
     const user = this.authService.currentUser();
