@@ -29,11 +29,22 @@ export interface TaskSummary {
   subtaskCount: number;
   createdAt: string;
   updatedAt: string;
+  description: string | null;
 }
 
-/** Detail-view shape — includes description and the subtask list. */
-export interface Task extends TaskSummary {
+export interface TaskListSummary {
+  id: string;
+  title: string;
   description: string | null;
+  type: TaskType;
+  workflowStageId: string;
+  priority: TaskPriority;
+  dueDate: string | null;
+  assignee: Pick<UserSummary, 'id' | 'name' | 'email'> | null;
+}
+
+/** Detail-view shape — includes the subtask list. */
+export interface Task extends TaskSummary {
   subtasks: Pick<TaskSummary, 'id' | 'title' | 'workflowStageId'>[];
 }
 

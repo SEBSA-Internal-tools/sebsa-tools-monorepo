@@ -5,6 +5,7 @@ import {
   CreateTaskRequest,
   Task as BackendTask,
   TaskSummary as BackendTaskSummary,
+  TaskListSummary as BackendTaskListSummary,
   UpdateTaskRequest,
   UpdateTaskResponse,
 } from '@sebsa-pm-tool/shared-models';
@@ -21,6 +22,7 @@ export interface TaskView {
   category: string;
   /** Raw workflowStageId UUID — used for Kanban column mapping and PATCH requests. */
   status: string;
+  description?: string;
   /** Human-readable positional label derived from stage order: 'new' | 'todo' | 'inprogress' | 'done'.
    *  Used by Overview, TaskList, and Sprint views for badge display and stats. */
   statusLabel: 'new' | 'todo' | 'inprogress' | 'done';
@@ -31,6 +33,18 @@ export interface TaskView {
   projectId: string;
   sprintId?: string;
   workflowStageId: string;
+}
+
+export interface TaskListView {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  statusLabel: 'new' | 'todo' | 'inprogress' | 'done';
+  priority: 'High' | 'Medium' | 'Low';
+  duration: string;
+  assignee?: string;
+  dueDate: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -187,6 +201,27 @@ export class TasksService {
     return this._tasks().filter((task) => task.projectId === projectId);
   }
 
+  getTaskList(projectId: string): Observable<TaskListView[]> {
+    const params = new HttpParams().set('projectId', projectId);
+    return this.http
+      .get<BackendTaskListSummary[]>('/api/tasks/list', { params })
+      .pipe(
+        map((tasks) =>
+          tasks.map((task) => ({
+            id: task.id,
+            title: task.title,
+            description: task.description ?? '',
+            category: task.type ?? 'Task',
+            statusLabel: this.getStatusForStageId(task.workflowStageId, this.currentWorkflowStages),
+            priority: this.mapPriority(task.priority),
+            duration: task.dueDate ? `${task.dueDate.slice(0, 10)}` : 'No due date',
+            assignee: task.assignee?.name || undefined,
+            dueDate: task.dueDate ?? '',
+          }))
+        )
+      );
+  }
+
   // ─────────────────────────────────────────────────────────────────────────
   // Mappers
   // ─────────────────────────────────────────────────────────────────────────
@@ -212,6 +247,7 @@ export class TasksService {
       projectId: task.projectId,
       sprintId: task.sprintId ?? undefined,
       workflowStageId: task.workflowStageId,
+      description: task.description ?? '',
     };
   }
 
