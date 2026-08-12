@@ -1,8 +1,9 @@
-import { Component, Input, ChangeDetectionStrategy, inject, OnInit } from '@angular/core';
+import { Component, Input, ChangeDetectionStrategy, inject, OnInit, ChangeDetectorRef, DestroyRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { TasksService, type TaskView } from '../../../../../../core/services/tasks.service';
+import { TasksService, type TaskListView } from '../../../../../../core/services/tasks.service';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 @Component({
   standalone: true,
@@ -17,18 +18,25 @@ export class ProjectTaskListComponent implements OnInit {
 
   private tasksService = inject(TasksService);
   private router = inject(Router);
+  private cdr = inject(ChangeDetectorRef);
+  private destroyRef = inject(DestroyRef);
 
-  tasks: TaskView[] = [];
+  tasks: TaskListView[] = [];
   sortBy: 'status' | 'priority' | 'date' = 'status';
 
   ngOnInit(): void {
-    this.tasksService.tasks$.subscribe(() => this.loadTasks());
+    this.tasksService.tasks$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.loadTasks());
     this.loadTasks();
   }
 
   loadTasks(): void {
-    this.tasks = this.tasksService.getTasksByProject(this.projectId);
-    this.sortTasks();
+    this.tasksService.getTaskList(this.projectId).subscribe((tasks) => {
+      this.tasks = tasks;
+      this.sortTasks();
+      this.cdr.markForCheck();
+    });
   }
 
   openTask(taskId: string): void {
@@ -62,7 +70,7 @@ export class ProjectTaskListComponent implements OnInit {
     this.sortTasks();
   }
 
-  getStatusLabel(statusLabel: TaskView['statusLabel']): string {
+  getStatusLabel(statusLabel: TaskListView['statusLabel']): string {
     const labels: { [key: string]: string } = {
       new: 'New',
       todo: 'To Do',
