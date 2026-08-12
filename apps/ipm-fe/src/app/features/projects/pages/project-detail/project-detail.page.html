@@ -54,7 +54,7 @@
     [isOpen]="isTaskModalOpen"
     [projectId]="project.id"
     [projectName]="project.name"
-    (close)="closeTaskModal()"
+    (closed)="closeTaskModal()"
     (submitted)="onCreateTask($event)"
   ></create-task-modal>
 

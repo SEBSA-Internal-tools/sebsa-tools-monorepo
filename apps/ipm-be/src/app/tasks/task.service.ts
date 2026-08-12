@@ -104,9 +104,7 @@ export class TaskService {
     const tasks = await this.prisma.task.findMany({
       where,
       include: taskDetailInclude,
-      orderBy: { [filter.sortBy]: filter.sortOrder },
-      skip: (filter.page - 1) * filter.limit,
-      take: filter.limit,
+      orderBy: { createdAt: 'desc' },
     });
 
     return tasks.map((task) => this.toTaskSummary(task));
@@ -127,9 +125,7 @@ export class TaskService {
         dueDate: true,
         assignees: { include: { user: { select: { id: true, name: true, email: true } } } },
       },
-      orderBy: { [filter.sortBy]: filter.sortOrder },
-      skip: (filter.page - 1) * filter.limit,
-      take: filter.limit,
+      orderBy: { createdAt: 'desc' },
     });
 
     return tasks.map((task) => ({
@@ -549,49 +545,10 @@ export class TaskService {
   private buildFilterWhere(filter: FilterTaskDto): Prisma.TaskWhereInput {
     const where: Prisma.TaskWhereInput = {};
 
-    if (!filter.includeDeleted) {
-      where.deletedAt = null;
-    }
+    where.deletedAt = null;
+
     if (filter.projectId) {
       where.projectId = filter.projectId;
-    }
-    if (filter.workflowStageId) {
-      where.workflowStageId = filter.workflowStageId;
-    }
-    if (filter.parentTaskId) {
-      where.parentTaskId = filter.parentTaskId;
-    }
-    if (filter.sprintId) {
-      where.sprintId = filter.sprintId;
-    }
-    if (filter.milestoneId) {
-      where.milestoneId = filter.milestoneId;
-    }
-    if (filter.createdById) {
-      where.createdById = filter.createdById;
-    }
-    if (filter.assigneeId) {
-      where.assignees = { some: { userId: filter.assigneeId } };
-    }
-    if (filter.labelId) {
-      where.labels = { some: { labelId: filter.labelId } };
-    }
-    if (filter.priority) {
-      where.priority = filter.priority;
-    }
-    if (filter.type) {
-      where.type = filter.type;
-    }
-    if (filter.search) {
-      where.OR = [
-        { title: { contains: filter.search, mode: 'insensitive' } },
-        { description: { contains: filter.search, mode: 'insensitive' } },
-      ];
-    }
-    if (filter.dueBefore || filter.dueAfter) {
-      where.dueDate = {};
-      if (filter.dueBefore) where.dueDate.lte = new Date(filter.dueBefore);
-      if (filter.dueAfter) where.dueDate.gte = new Date(filter.dueAfter);
     }
 
     return where;

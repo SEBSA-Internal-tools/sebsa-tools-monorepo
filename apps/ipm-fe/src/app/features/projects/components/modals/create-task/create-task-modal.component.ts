@@ -181,6 +181,7 @@ export class CreateTaskModalComponent implements OnChanges {
 
     this.submitted.emit(formData);
     this.resetForm();
+    this.closed.emit();
   }
 
   private resetForm(): void {
