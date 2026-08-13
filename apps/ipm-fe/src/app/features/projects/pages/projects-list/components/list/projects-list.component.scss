@@ -1,9 +1,20 @@
+// =============================================================================
+// Projects List Component — Luminous Depth Design System
+// =============================================================================
+
 .section {
+  position: relative;
+  overflow: hidden;
   display: grid;
   gap: 20px;
   padding: 24px;
-  border-radius: 12px;
+  border-radius: 16px;
   width: 100%;
+  background: var(--color-surface-dim);
+  backdrop-filter: var(--backdrop-blur-heavy);
+  -webkit-backdrop-filter: var(--backdrop-blur-heavy);
+  border: var(--border-glass);
+  box-shadow: var(--shadow-subtle);
 
   @media (min-width: 768px) {
     gap: 24px;
@@ -14,6 +25,17 @@
     gap: 28px;
     padding: 32px;
   }
+}
+
+// =============================================================================
+// Header Section & Deep Purple/Violet Gradient Eyebrow Super-Header
+// =============================================================================
+
+.section-header,
+.table-controls,
+.projects-list-container {
+  position: relative;
+  z-index: 1;
 }
 
 .section-header {
@@ -34,84 +56,87 @@
 
   h2 {
     margin: 0;
-    color: var(--app-text);
+    font-family: 'Sora', sans-serif;
+    color: var(--text-primary);
     font-size: 1.3rem;
-    font-weight: 700;
-    line-height: 1.3;
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
 
     @media (min-width: 768px) {
       font-size: 1.5rem;
     }
 
     @media (min-width: 1024px) {
-      font-size: 1.8rem;
+      font-size: 1.75rem;
     }
   }
 }
 
 .eyebrow {
-  margin: 0 0 8px;
-  font-size: 0.7rem;
-  color: var(--app-text-muted);
-  text-transform: uppercase;
+  display: block;
+  font-family: 'Sora', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 700;
   letter-spacing: 0.1em;
-  font-weight: 600;
-
-  @media (min-width: 768px) {
-    margin: 0 0 10px;
-    font-size: 0.75rem;
-  }
+  text-transform: uppercase;
+  background: linear-gradient(135deg, #a855f7 0%, #7000ff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow: 0 4px 15px rgba(112, 0, 255, 0.25);
+  margin-bottom: 6px;
 }
 
-.btn-new-project {
+// =============================================================================
+// Table Controls Bar (Strict Single-Row Flex Layout)
+// =============================================================================
+
+.table-controls {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
-  background: var(--app-accent);
-  color: var(--app-accent-on);
-  border: none;
-  border-radius: 8px;
-  font-weight: 600;
-  font-size: 0.9rem;
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: all 0.2s ease;
-  box-shadow: 0 4px 12px rgba(217, 37, 97, 0.25);
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: nowrap;
+  width: 100%;
+  margin-bottom: 24px;
 
-  @media (max-width: 640px) {
-    padding: 8px 12px;
-    font-size: 0.8rem;
-    gap: 4px;
-
-    span:not(.material-symbols-outlined) {
-      display: none;
-    }
-  }
-
-  .material-symbols-outlined {
-    font-size: 20px;
-  }
-
-  &:hover {
-    background: var(--app-accent-strong);
-    box-shadow: 0 6px 16px rgba(217, 37, 97, 0.35);
-    transform: translateY(-1px);
-  }
-
-  &:active {
-    transform: translateY(0);
+  @media (max-width: 960px) {
+    flex-wrap: wrap;
+    gap: 16px;
   }
 }
 
-.search-filter-section {
-  display: grid;
-  gap: 16px;
+.controls-left {
+  flex: 1;
+  max-width: 400px;
+  min-width: 0;
 
-  @media (min-width: 768px) {
-    grid-template-columns: 1fr auto;
-    align-items: center;
-    gap: 20px;
+  @media (max-width: 960px) {
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .search-box {
+    width: 100%;
+  }
+}
+
+.controls-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+
+  @media (max-width: 960px) {
+    width: 100%;
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+
+  .btn-primary {
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 }
 
@@ -120,18 +145,21 @@
   align-items: center;
   gap: 12px;
   padding: 0 16px;
-  background: var(--app-surface-soft);
-  border: 1px solid var(--app-border);
+  background: var(--color-surface-glass);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: var(--border-glass);
   border-radius: 8px;
   transition: all 0.2s ease;
 
   &:focus-within {
-    border-color: var(--app-accent);
-    box-shadow: 0 0 0 3px var(--app-accent-soft);
+    border-color: var(--border-glass-active);
+    background: var(--color-surface-bright);
+    box-shadow: var(--shadow-glow-focus);
   }
 
   .search-icon {
-    color: var(--app-text-muted);
+    color: var(--text-muted);
     font-size: 20px;
     flex-shrink: 0;
   }
@@ -142,12 +170,13 @@
     padding: 10px 0;
     background: transparent;
     border: none;
-    color: var(--app-text);
-    font-size: 0.95rem;
+    font-family: 'Sora', sans-serif;
+    color: var(--text-primary);
+    font-size: 0.875rem;
     outline: none;
 
     &::placeholder {
-      color: var(--app-text-subtle);
+      color: var(--text-muted);
     }
   }
 
@@ -161,7 +190,7 @@
     background: transparent;
     border: none;
     border-radius: 6px;
-    color: var(--app-text-muted);
+    color: var(--text-muted);
     cursor: pointer;
     transition: all 0.2s ease;
     flex-shrink: 0;
@@ -171,20 +200,23 @@
     }
 
     &:hover {
-      background: var(--app-hover);
-      color: var(--app-text);
+      background: var(--color-surface-glass-hover);
+      color: var(--text-primary);
     }
   }
 }
 
+// =============================================================================
+// Filter Buttons / Tabs (Gradient Outline Active State)
+// =============================================================================
+
 .filter-tabs {
   display: flex;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 
-  @media (min-width: 768px) {
-    gap: 12px;
-    white-space: nowrap;
+  @media (max-width: 960px) {
+    flex-wrap: wrap;
   }
 }
 
@@ -192,15 +224,17 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 12px;
-  background: transparent;
-  border: 1px solid var(--app-border);
-  border-radius: 6px;
-  color: var(--app-text-muted);
+  padding: 8px 14px;
+  background: var(--color-surface-glass);
+  border: var(--border-glass);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-family: 'Sora', sans-serif;
   font-weight: 500;
-  font-size: 0.85rem;
+  font-size: 0.84rem;
+  letter-spacing: -0.01em;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   white-space: nowrap;
 
   .material-symbols-outlined {
@@ -214,37 +248,46 @@
     min-width: 20px;
     height: 20px;
     margin-left: 4px;
-    padding: 0 4px;
-    background: var(--app-accent-soft);
-    color: var(--app-accent);
+    padding: 0 6px;
+    background: rgba(112, 0, 255, 0.12);
+    color: var(--color-brand-primary);
     border-radius: 999px;
     font-size: 0.75rem;
-    font-weight: 700;
+    font-weight: 600;
+    transition: all 0.2s ease;
   }
 
-  &:hover {
-    border-color: var(--app-accent);
-    color: var(--app-accent);
-    background: var(--app-accent-soft);
+  &:hover:not(.active) {
+    border: var(--border-glass-hover);
+    color: var(--text-primary);
+    background: var(--color-surface-glass-hover);
   }
 
   &.active {
-    background: var(--app-accent);
-    border-color: var(--app-accent);
-    color: var(--app-accent-on);
+    border: 1px solid transparent;
+    background:
+      linear-gradient(var(--color-bg-main), var(--color-bg-main)) padding-box,
+      var(--color-accent-gradient) border-box;
+    box-shadow: inset 0 0 0 100px rgba(112, 0, 255, 0.08), 0 0 12px rgba(112, 0, 255, 0.15);
+    color: var(--text-primary);
+    font-weight: 600;
 
     .count {
-      background: rgba(255, 255, 255, 0.2);
-      color: var(--app-accent-on);
+      background: rgba(112, 0, 255, 0.22);
+      color: var(--text-primary);
     }
   }
 }
 
+// =============================================================================
+// Projects Table List Container
+// =============================================================================
+
 .projects-list-container {
   overflow-x: auto;
-  border-radius: 8px;
-  border: 1px solid var(--app-border);
-  background: var(--app-surface-soft);
+  border-radius: 12px;
+  border: var(--border-glass);
+  background: var(--color-surface-glass);
 }
 
 .projects-list {
@@ -258,11 +301,12 @@
   grid-template-columns: 2fr 1.2fr 0.8fr 1fr 1.2fr 0.7fr;
   gap: 16px;
   padding: 16px 20px;
-  background: var(--app-surface);
-  border-bottom: 2px solid var(--app-border);
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: var(--border-glass);
+  font-family: 'Sora', sans-serif;
   font-weight: 600;
-  font-size: 0.8rem;
-  color: var(--app-text-muted);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   position: sticky;
@@ -273,7 +317,6 @@
     grid-template-columns: 2fr 1fr 0.7fr 1fr 0.9fr 0.6fr;
     gap: 12px;
     padding: 14px 16px;
-    font-size: 0.75rem;
   }
 }
 
@@ -283,8 +326,8 @@
   gap: 16px;
   padding: 16px 20px;
   align-items: center;
-  border-bottom: 1px solid var(--app-border);
-  background: var(--app-surface-soft);
+  border-bottom: var(--border-glass);
+  background: transparent;
   transition: all 0.2s ease;
   cursor: pointer;
   outline: none;
@@ -296,22 +339,16 @@
   }
 
   &:hover {
-    background: var(--app-surface);
-    border-color: var(--app-accent);
+    background: var(--color-surface-glass-hover);
   }
 
   &:focus {
-    background: var(--app-accent-soft);
-    box-shadow: inset 0 0 0 2px var(--app-accent);
-  }
-
-  &:focus:not(:focus-visible) {
-    box-shadow: none;
-    background: var(--app-surface-soft);
+    background: rgba(112, 0, 255, 0.1);
+    box-shadow: inset 0 0 0 1px var(--color-brand-primary);
   }
 
   &.archived {
-    opacity: 0.7;
+    opacity: 0.65;
   }
 
   &:last-child {
@@ -322,11 +359,12 @@
     display: flex;
     align-items: center;
     min-width: 0;
-    font-size: 0.9rem;
-    color: var(--app-text);
+    font-family: 'Sora', sans-serif;
+    font-size: 0.875rem;
+    color: var(--text-primary);
 
     @media (max-width: 1024px) {
-      font-size: 0.85rem;
+      font-size: 0.84rem;
     }
   }
 }
@@ -344,7 +382,7 @@
 
 .project-icon {
   font-size: 20px;
-  color: var(--app-accent);
+  color: var(--color-brand-primary);
   flex-shrink: 0;
 }
 
@@ -371,7 +409,7 @@
 }
 
 .col-owner {
-  color: var(--app-text-muted);
+  color: var(--text-secondary);
 }
 
 .col-status,
@@ -385,7 +423,7 @@
 
   .material-symbols-outlined {
     font-size: 16px;
-    color: var(--app-text-subtle);
+    color: var(--text-muted);
   }
 }
 
@@ -393,41 +431,44 @@
   justify-content: center;
 }
 
+/* Minimalist Status Badges */
 .badge {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   padding: 4px 10px;
-  border-radius: 6px;
-  font-size: 0.65rem;
-  font-weight: 700;
+  border-radius: 12px;
+  font-size: 0.72rem;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
   white-space: nowrap;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
 
   &.planning {
-    background: rgba(100, 116, 139, 0.15);
-    color: #475569;
+    color: var(--text-secondary);
   }
 
   &.active {
-    background: rgba(16, 185, 129, 0.15);
-    color: #047857;
+    color: var(--status-success);
+    border-color: rgba(0, 230, 153, 0.3);
   }
 
   &.on-hold {
-    background: rgba(245, 158, 11, 0.15);
-    color: #b45309;
+    color: var(--status-warning);
+    border-color: rgba(255, 179, 0, 0.3);
   }
 
   &.completed {
-    background: rgba(37, 99, 235, 0.15);
-    color: #1d4ed8;
+    color: var(--status-info);
+    border-color: rgba(0, 191, 255, 0.3);
   }
 
   &.archived {
-    background: rgba(239, 68, 68, 0.15);
-    color: #991b1b;
+    color: var(--status-error);
+    border-color: rgba(255, 51, 102, 0.3);
   }
 }
 
@@ -439,9 +480,9 @@
   height: 32px;
   padding: 0;
   background: transparent;
-  border: 1px solid transparent;
+  border: var(--border-glass);
   border-radius: 6px;
-  color: var(--app-text-muted);
+  color: var(--text-muted);
   cursor: pointer;
   transition: all 0.2s ease;
   flex-shrink: 0;
@@ -451,9 +492,9 @@
   }
 
   &:hover {
-    background: rgba(239, 68, 68, 0.1);
-    color: #ef4444;
-    border-color: rgba(239, 68, 68, 0.2);
+    background: rgba(255, 51, 102, 0.15);
+    color: var(--status-error);
+    border-color: rgba(255, 51, 102, 0.3);
   }
 
   &:active {
@@ -472,20 +513,21 @@
 
   .empty-icon {
     font-size: 56px;
-    color: var(--app-text-subtle);
-    opacity: 0.3;
+    color: var(--text-muted);
+    opacity: 0.4;
   }
 
   h3 {
     margin: 0;
-    color: var(--app-text-muted);
+    font-family: 'Sora', sans-serif;
+    color: var(--text-primary);
     font-size: 1.1rem;
     font-weight: 600;
   }
 
   p {
     margin: 0;
-    color: var(--app-text-subtle);
+    color: var(--text-muted);
     font-size: 0.9rem;
   }
 }

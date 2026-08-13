@@ -1,92 +1,416 @@
+// =============================================================================
+// SEBSA PM Tool — Global Styles
+// Design System: "Luminous Depth" (Dual-Theme: Light & Dark)
+// =============================================================================
+
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700&display=swap');
+
+// =============================================================================
+// 1. Light Mode Defaults (:root)
+// =============================================================================
+
 :root {
-	color-scheme: light;
-	--app-background: radial-gradient(circle at top left, rgba(241, 245, 249, 0.95), transparent 38%), linear-gradient(180deg, #ffffff 0%, #f7f7f9 100%);
-	--app-surface: #ffffff;
-	--app-surface-soft: #fbfbfc;
-	--app-border: rgba(15, 23, 42, 0.08);
-	--app-text: #111827;
-	--app-text-muted: #475467;
-	--app-text-subtle: #8f97a7;
-	--app-hover: #f1f5f9;
-	--app-accent: #d92561;
-	--app-accent-strong: #de2e6a;
-	--app-accent-soft: rgba(217, 37, 97, 0.1);
-	--app-accent-shadow: rgba(217, 37, 97, 0.22);
-	--app-accent-on: #ffffff;
-	--app-surface-elevated: rgba(255, 255, 255, 0.8);
+  color-scheme: light;
+
+  // --- Brand Identity: Core Palette ---
+  --color-bg-main:          #f8f9fa;               // Soft off-white canvas
+  --color-brand-primary:    #7000ff;               // Electric Violet
+  --color-accent-magenta:   #c026d3;               // Premium Magenta
+  --color-accent-violet:    #7000ff;               // Electric Violet
+
+  // --- Brand Gradients ---
+  --color-accent-gradient:        linear-gradient(135deg, #c026d3 0%, #7000ff 100%);
+  --color-accent-gradient-hover:  linear-gradient(135deg, #d946ef 0%, #851aff 100%);
+  --color-accent-gradient-active: linear-gradient(135deg, #a21caf 0%, #6300e6 100%);
+
+  // --- Surface & Panel Tokens ---
+  --color-surface-bright:       #ffffff;                     // Pure white card surface
+  --color-surface-dim:          rgba(255, 255, 255, 0.85);   // Semi-transparent surface fill
+  --color-surface-glass:        rgba(255, 255, 255, 0.75);   // Light glass panel fill
+  --color-surface-glass-hover:  rgba(255, 255, 255, 0.95);
+  --color-surface-glass-active: #ffffff;
+
+  // --- Borders ---
+  --border-glass:        1px solid rgba(0, 0, 0, 0.08);
+  --border-glass-hover:  1px solid rgba(112, 0, 255, 0.25);
+  --border-glass-active: 1px solid rgba(112, 0, 255, 0.5);
+
+  // --- Backdrop Filters ---
+  --backdrop-blur:       blur(16px);
+  --backdrop-blur-heavy: blur(24px);
+
+  // --- Shadows & Ambient Lighting ---
+  --shadow-subtle:      0 4px 20px rgba(0, 0, 0, 0.06);
+  --shadow-glow-purple: 0 4px 14px 0 rgba(112, 0, 255, 0.25);
+  --shadow-glow-focus:  0 0 0 3px rgba(112, 0, 255, 0.2);
+
+  // --- Typography & Content Colors ---
+  --text-primary:   #1e1e2d;               // Dark slate/gray for high legibility
+  --text-secondary: rgba(30, 30, 45, 0.68);
+  --text-muted:     rgba(30, 30, 45, 0.45);
+  --text-brand:     #7000ff;
+
+  // --- Status Tokens ---
+  --status-success: #00b87c;
+  --status-warning: #e69d00;
+  --status-error:   #e62e5c;
+  --status-info:    #0099e6;
+
+  // --- Legacy Compatibility Mapping (Light) ---
+  --app-background:       var(--color-bg-main);
+  --app-surface:          var(--color-surface-bright);
+  --app-surface-soft:     #f1f3f5;
+  --app-border:           rgba(0, 0, 0, 0.08);
+  --app-text:             var(--text-primary);
+  --app-text-muted:       var(--text-secondary);
+  --app-text-subtle:      var(--text-muted);
+  --app-hover:            rgba(0, 0, 0, 0.04);
+  --app-accent:           #7000ff;
+  --app-accent-strong:    #8b1aff;
+  --app-accent-soft:      rgba(112, 0, 255, 0.1);
+  --app-accent-shadow:    rgba(112, 0, 255, 0.2);
+  --app-accent-on:        #ffffff;
+  --app-surface-elevated: #ffffff;
 }
 
-:root[data-theme='dark'] {
-	color-scheme: dark;
-	--app-background: radial-gradient(circle at top left, rgba(15, 23, 42, 0.9), transparent 38%), linear-gradient(180deg, #0b1120 0%, #111827 100%);
-	--app-surface: #0f172a;
-	--app-surface-soft: #111827;
-	--app-border: rgba(148, 163, 184, 0.16);
-	--app-text: #e5e7eb;
-	--app-text-muted: #cbd5e1;
-	--app-text-subtle: #94a3b8;
-	--app-hover: rgba(148, 163, 184, 0.12);
-	--app-accent: #f03b82;
-	--app-accent-strong: #ff4d94;
-	--app-accent-soft: rgba(240, 59, 130, 0.14);
-	--app-accent-shadow: rgba(240, 59, 130, 0.22);
-	--app-accent-on: #ffffff;
-	--app-surface-elevated: rgba(15, 23, 42, 0.84);
+// =============================================================================
+// 2. Dark Mode Overrides ([data-theme="dark"])
+// =============================================================================
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  // --- Core Dark Palette ---
+  --color-bg-main:          #12121d;               // Deep Purple canvas
+  --color-brand-primary:    #7000ff;
+  --color-accent-magenta:   #c026d3;
+  --color-accent-violet:    #7000ff;
+
+  // --- Dark Surface & Glass Tokens ---
+  --color-surface-bright:       #383845;
+  --color-surface-dim:          rgba(18, 18, 29, 0.6);
+  --color-surface-glass:        rgba(56, 56, 69, 0.4);
+  --color-surface-glass-hover:  rgba(56, 56, 69, 0.55);
+  --color-surface-glass-active: rgba(56, 56, 69, 0.70);
+
+  // --- Dark Glass Borders ---
+  --border-glass:        1px solid rgba(255, 255, 255, 0.08);
+  --border-glass-hover:  1px solid rgba(255, 255, 255, 0.18);
+  --border-glass-active: 1px solid rgba(112, 0, 255, 0.4);
+
+  // --- Dark Shadows & Glows ---
+  --shadow-subtle:      0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  --shadow-glow-purple: 0 4px 14px 0 rgba(112, 0, 255, 0.4);
+  --shadow-glow-focus:  0 0 0 3px rgba(112, 0, 255, 0.35);
+
+  // --- Dark Typography ---
+  --text-primary:   #f4f4f7;               // Crisp off-white
+  --text-secondary: rgba(244, 244, 247, 0.68);
+  --text-muted:     rgba(244, 244, 247, 0.42);
+  --text-brand:     #a855ff;
+
+  // --- Dark Status Tokens ---
+  --status-success: #00e699;
+  --status-warning: #ffb300;
+  --status-error:   #ff3366;
+  --status-info:    #00bfff;
+
+  // --- Legacy Compatibility Mapping (Dark) ---
+  --app-background:       var(--color-bg-main);
+  --app-surface:          rgba(56, 56, 69, 0.35);
+  --app-surface-soft:     rgba(56, 56, 69, 0.2);
+  --app-border:           rgba(255, 255, 255, 0.08);
+  --app-text:             var(--text-primary);
+  --app-text-muted:       var(--text-secondary);
+  --app-text-subtle:      var(--text-muted);
+  --app-hover:            rgba(56, 56, 69, 0.5);
+  --app-accent:           #7000ff;
+  --app-accent-strong:    #8b1aff;
+  --app-accent-soft:      rgba(112, 0, 255, 0.15);
+  --app-accent-shadow:    rgba(112, 0, 255, 0.35);
+  --app-accent-on:        #ffffff;
+  --app-surface-elevated: rgba(56, 56, 69, 0.5);
+}
+
+// =============================================================================
+// Base Reset & Global Defaults
+// =============================================================================
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
 html,
 body {
-	height: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
 }
 
 body {
-	margin: 0;
-	font-family: 'Segoe UI', 'Inter', sans-serif;
-	background: var(--app-background);
-	color: var(--app-text);
+  font-family: 'Sora', sans-serif;
+  font-weight: 400;
+  font-size: 16px;
+  letter-spacing: -0.01em;
+  line-height: 1.5;
+  background-color: var(--color-bg-main);
+  color: var(--text-primary);
+  transition: background-color 0.3s ease, color 0.3s ease;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-* {
-	box-sizing: border-box;
+// =============================================================================
+// Task 1: Redesigned Primary CTA Button (Apple-like Sophisticated Gradient)
+// =============================================================================
+
+.btn-primary,
+.btn-secondary,
+.btn-danger {
+  font-family: 'Sora', sans-serif;
+  font-weight: 600;
+  font-size: 0.875rem;
+  letter-spacing: -0.015em;
+  padding: 10px 24px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  outline: none;
+  text-decoration: none;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  box-sizing: border-box;
+  white-space: nowrap;
 }
+
+/* Primary CTA Button: Magenta to Electric Violet Gradient + Top Inner Glass Reflection */
+.btn-primary {
+  color: #ffffff;
+  background: linear-gradient(135deg, #c026d3 0%, #7000ff 100%);
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 14px 0 rgba(112, 0, 255, 0.25);
+
+  &:hover {
+    background: linear-gradient(135deg, #d946ef 0%, #851aff 100%);
+    box-shadow: 0 6px 20px 0 rgba(112, 0, 255, 0.45);
+    transform: translateY(-1px);
+  }
+
+  &:active {
+    background: linear-gradient(135deg, #a21caf 0%, #6300e6 100%);
+    transform: translateY(1px);
+    box-shadow: 0 2px 8px 0 rgba(112, 0, 255, 0.3);
+  }
+
+  &:focus-visible {
+    box-shadow: 0 4px 14px 0 rgba(112, 0, 255, 0.35), var(--shadow-glow-focus);
+  }
+}
+
+/* Secondary Button: Glass border + soft highlight */
+.btn-secondary {
+  color: var(--text-primary);
+  background: var(--color-surface-glass);
+  backdrop-filter: var(--backdrop-blur);
+  -webkit-backdrop-filter: var(--backdrop-blur);
+  border: var(--border-glass);
+
+  &:hover {
+    background: var(--color-surface-glass-hover);
+    border-color: var(--border-glass-hover);
+    color: var(--text-primary);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-subtle);
+  }
+
+  &:active {
+    transform: translateY(1px);
+  }
+
+  &:focus-visible {
+    box-shadow: var(--shadow-glow-focus);
+  }
+}
+
+/* Danger Button: Soft dark red glass tint */
+.btn-danger {
+  color: var(--status-error);
+  background: rgba(255, 51, 102, 0.12);
+  backdrop-filter: var(--backdrop-blur);
+  -webkit-backdrop-filter: var(--backdrop-blur);
+  border: 1px solid rgba(255, 51, 102, 0.25);
+
+  &:hover {
+    background: rgba(255, 51, 102, 0.22);
+    border-color: rgba(255, 51, 102, 0.45);
+    color: #ffffff;
+    box-shadow: 0 4px 15px rgba(255, 51, 102, 0.35);
+    transform: translateY(-1px);
+  }
+
+  &:active {
+    transform: translateY(1px);
+    background: rgba(255, 51, 102, 0.3);
+  }
+
+  &:focus-visible {
+    box-shadow: 0 0 0 3px rgba(255, 51, 102, 0.35);
+  }
+}
+
+// =============================================================================
+// Standardized Premium Icon Wrapper (.icon-premium-wrapper)
+// =============================================================================
+
+.icon-premium-wrapper {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  flex: 0 0 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-surface-glass);
+  backdrop-filter: var(--backdrop-blur);
+  -webkit-backdrop-filter: var(--backdrop-blur);
+  border: var(--border-glass);
+  border-radius: 10px;
+  color: var(--color-brand-primary);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  box-sizing: border-box;
+
+  .material-symbols-outlined {
+    font-size: 1.25rem;
+    line-height: 1;
+  }
+
+  &:hover {
+    background: var(--color-surface-glass-hover);
+    border-color: var(--border-glass-hover);
+    box-shadow: 0 4px 12px rgba(112, 0, 255, 0.15);
+    transform: translateY(-1px);
+  }
+}
+
+// =============================================================================
+// Global Glass Card Utility
+// =============================================================================
+
+.glass-card {
+  background: var(--color-surface-glass);
+  backdrop-filter: var(--backdrop-blur);
+  -webkit-backdrop-filter: var(--backdrop-blur);
+  border: var(--border-glass);
+  box-shadow: var(--shadow-subtle);
+  border-radius: 12px;
+  padding: 1.5rem;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+
+  &:hover {
+    background: var(--color-surface-glass-hover);
+    border: var(--border-glass-hover);
+    box-shadow: var(--shadow-subtle), 0 0 15px rgba(112, 0, 255, 0.15);
+    transform: translateY(-2px);
+  }
+}
+
+// =============================================================================
+// Global Input Utility
+// =============================================================================
+
+.glass-input {
+  font-family: 'Sora', sans-serif;
+  font-weight: 400;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  background: var(--color-surface-glass);
+  border: var(--border-glass);
+  border-radius: 8px;
+  padding: 0.65rem 1rem;
+  outline: none;
+  width: 100%;
+  transition: all 0.25s ease;
+
+  &::placeholder {
+    color: var(--text-muted);
+  }
+
+  &:hover {
+    border: var(--border-glass-hover);
+  }
+
+  &:focus {
+    border: var(--border-glass-active);
+    background: var(--color-surface-bright);
+    box-shadow: var(--shadow-glow-focus);
+  }
+}
+
+// =============================================================================
+// Workspace Pages
+// =============================================================================
 
 .workspace-page {
-	display: flex;
-	min-height: 100%;
-	padding: 40px;
+  display: flex;
+  min-height: 100%;
+  padding: 40px;
 }
 
 .workspace-card {
-	width: min(100%, 720px);
-	padding: 28px 30px;
-	border: 1px solid var(--app-border);
-	border-radius: 18px;
-	background: var(--app-surface-elevated);
-	box-shadow: 0 18px 50px rgba(15, 23, 42, 0.08);
-	backdrop-filter: blur(8px);
+  width: min(100%, 720px);
+  padding: 28px 30px;
+  border: var(--border-glass);
+  border-radius: 18px;
+  background: var(--color-surface-glass);
+  backdrop-filter: var(--backdrop-blur);
+  -webkit-backdrop-filter: var(--backdrop-blur);
+  box-shadow: var(--shadow-subtle);
 }
 
 .workspace-eyebrow {
-	margin: 0 0 10px;
-	color: var(--app-accent);
-	font-size: 0.74rem;
-	font-weight: 700;
-	letter-spacing: 0.18em;
-	text-transform: uppercase;
+  margin: 0 0 10px;
+  color: var(--text-brand);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
 }
 
 .workspace-card h2 {
-	margin: 0;
-	color: var(--app-text);
-	font-size: clamp(2rem, 4vw, 3rem);
-	line-height: 1;
-	letter-spacing: -0.05em;
+  margin: 0;
+  color: var(--text-primary);
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 300;
+  line-height: 1;
+  letter-spacing: -0.05em;
 }
 
 .workspace-card p {
-	max-width: 44ch;
-	margin: 14px 0 0;
-	font-size: 0.98rem;
-	line-height: 1.65;
-	color: var(--app-text-muted);
+  max-width: 44ch;
+  margin: 14px 0 0;
+  font-size: 0.98rem;
+  line-height: 1.65;
+  color: var(--text-secondary);
+}
+
+// =============================================================================
+// Accessibility: Reduced Motion
+// =============================================================================
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

@@ -11,6 +11,7 @@ import {
   TaskDependenciesView,
   TaskDependencyTaskRef,
   TaskSummary,
+  TaskListSummary,
   UpdateTaskResponse,
 } from '@sebsa-pm-tool/shared-models';
 import { Prisma, TaskType } from '@prisma/client';
@@ -20,6 +21,24 @@ import { FilterTaskDto } from './dto/filter-task.dto';
 import { CreateTaskDependencyDto } from './dto/create-task-dependency.dto';
 
 const ADMIN_SYSTEM_ROLES: AuthUser['systemRole'][] = ['ADMIN', 'SUPER_ADMIN'];
+
+const taskSummarySelect = {
+  id: true,
+  projectId: true,
+  title: true,
+  description: true,
+  type: true,
+  priority: true,
+  workflowStageId: true,
+  sprintId: true,
+  dueDate: true,
+  isCsoLabeled: true,
+  project: { select: { id: true, name: true } },
+  workflowStage: { select: { id: true, name: true } },
+  assignees: { include: { user: { select: { id: true, name: true, email: true } } } },
+} satisfies Prisma.TaskSelect;
+
+type TaskWithSummary = Prisma.TaskGetPayload<{ select: typeof taskSummarySelect }>;
 
 const taskDetailInclude = {
   createdBy: { select: { id: true, name: true } },
@@ -105,13 +124,41 @@ export class TaskService {
 
     const tasks = await this.prisma.task.findMany({
       where,
-      include: taskDetailInclude,
-      orderBy: { [filter.sortBy]: filter.sortOrder },
-      skip: (filter.page - 1) * filter.limit,
-      take: filter.limit,
+      select: taskSummarySelect,
+      orderBy: { createdAt: 'desc' },
     });
 
     return tasks.map((task) => this.toTaskSummary(task));
+  }
+
+  async getTaskList(filter: FilterTaskDto, user: AuthUser): Promise<TaskListSummary[]> {
+    const where = await this.buildScopedWhere(filter, user);
+
+    const tasks = await this.prisma.task.findMany({
+      where,
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        type: true,
+        workflowStageId: true,
+        priority: true,
+        dueDate: true,
+        assignees: { include: { user: { select: { id: true, name: true, email: true } } } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return tasks.map((task) => ({
+      id: task.id,
+      title: task.title,
+      description: task.description,
+      type: task.type,
+      workflowStageId: task.workflowStageId,
+      priority: task.priority,
+      dueDate: task.dueDate ? task.dueDate.toISOString() : null,
+      assignee: task.assignees[0]?.user || null,
+    }));
   }
 
   async getMyAssignedTasks(user: AuthUser): Promise<TaskSummary[]> {
@@ -124,7 +171,7 @@ export class TaskService {
           },
         },
       },
-      include: taskDetailInclude,
+      select: taskSummarySelect,
       orderBy: [
         { dueDate: 'asc' },
         { createdAt: 'desc' },
@@ -288,7 +335,7 @@ export class TaskService {
 
     const subtasks = await this.prisma.task.findMany({
       where: { parentTaskId, deletedAt: null },
-      include: taskDetailInclude,
+      select: taskSummarySelect,
       orderBy: { createdAt: 'asc' },
     });
     return subtasks.map((task) => this.toTaskSummary(task));
@@ -519,9 +566,8 @@ export class TaskService {
   private buildFilterWhere(filter: FilterTaskDto): Prisma.TaskWhereInput {
     const where: Prisma.TaskWhereInput = {};
 
-    if (!filter.includeDeleted) {
-      where.deletedAt = null;
-    }
+    where.deletedAt = null;
+
     if (filter.projectId) {
       where.projectId = filter.projectId;
     }
@@ -710,7 +756,25 @@ export class TaskService {
     return task;
   }
 
-  private toTaskSummary(task: TaskWithDetail): TaskSummary {
+  private toTaskSummary(task: TaskWithSummary): TaskSummary {
+    return {
+      id: task.id,
+      projectId: task.projectId,
+      title: task.title,
+      description: task.description,
+      type: task.type,
+      priority: task.priority,
+      workflowStageId: task.workflowStageId,
+      sprintId: task.sprintId,
+      dueDate: task.dueDate ? task.dueDate.toISOString() : null,
+      isCsoLabeled: task.isCsoLabeled,
+      project: task.project,
+      workflowStage: task.workflowStage,
+      assignees: task.assignees.map((a) => a.user),
+    };
+  }
+
+  private toTaskDetailSummary(task: TaskWithDetail): Omit<Task, 'subtasks'> {
     return {
       id: task.id,
       projectId: task.projectId,
@@ -733,13 +797,13 @@ export class TaskService {
       workflowStage: task.workflowStage,
       createdAt: task.createdAt.toISOString(),
       updatedAt: task.updatedAt.toISOString(),
+      description: task.description,
     };
   }
 
   private toTask(task: TaskWithDetail): Task {
     return {
-      ...this.toTaskSummary(task),
-      description: task.description,
+      ...this.toTaskDetailSummary(task),
       subtasks: task.subtasks,
     };
   }

@@ -33,7 +33,6 @@ export class ProjectKanbanComponent implements OnInit, OnDestroy {
   private readonly tasksService = inject(TasksService);
   private readonly projectsService = inject(ProjectsService);
 
-  // ─── Signals ──────────────────────────────────────────────────────────────
   readonly workflowStages = signal<WorkflowStage[]>([]);
   readonly isLoading = signal(true);
   readonly errorMessage = signal('');

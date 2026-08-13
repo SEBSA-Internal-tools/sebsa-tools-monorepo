@@ -101,7 +101,7 @@
 
   <create-task-modal
     [isOpen]="isTaskModalOpen"
-    (close)="closeTaskModal()"
-    (submit)="onCreateTask($event)"
+    (closed)="closeTaskModal()"
+    (submitted)="onCreateTask($event)"
   ></create-task-modal>
 </div>

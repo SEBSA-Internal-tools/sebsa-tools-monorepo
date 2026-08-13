@@ -165,7 +165,7 @@ export class TaskDetailPageComponent implements OnInit {
     }
   }
 
-  formatDate(dateStr: string | null): string {
+  formatDate(dateStr: string | null | undefined): string {
     if (!dateStr) return '—';
     const d = new Date(dateStr);
     return d.toLocaleDateString('en-US', {

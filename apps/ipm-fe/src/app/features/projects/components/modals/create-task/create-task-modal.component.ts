@@ -43,8 +43,8 @@ export class CreateTaskModalComponent implements OnChanges {
   @Input() isOpen = false;
   @Input() projectId = '';
   @Input() projectName = '';
-  @Output() close = new EventEmitter<void>();
-  @Output() submit = new EventEmitter<TaskFormData>();
+  @Output() closed = new EventEmitter<void>();
+  @Output() submitted = new EventEmitter<TaskFormData>();
 
   private readonly sprintService = inject(SprintService);
   private readonly userAdminService = inject(UserAdminService);
@@ -154,7 +154,7 @@ export class CreateTaskModalComponent implements OnChanges {
 
   onCancel(): void {
     this.resetForm();
-    this.close.emit();
+    this.closed.emit();
   }
 
   onSubmit(): void {
@@ -182,8 +182,9 @@ export class CreateTaskModalComponent implements OnChanges {
       isCsoLabeled: this.isCsoLabeled,
     };
 
-    this.submit.emit(formData);
+    this.submitted.emit(formData);
     this.resetForm();
+    this.closed.emit();
   }
 
   private resetForm(): void {
