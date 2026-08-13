@@ -55,7 +55,7 @@ export class CreateProjectModalComponent implements OnChanges {
    *  starts checked — used when this modal is opened from the CSO
    *  Dashboard's "New CSO Project" entry point. */
   @Input() defaultCsoProject = false;
-  @Output() close = new EventEmitter<void>();
+  @Output() closed = new EventEmitter<void>();
   @Output() submitted = new EventEmitter<ProjectFormData>();
 
   protected readonly typeOptions = PROJECT_TYPE_OPTIONS;
@@ -129,7 +129,7 @@ export class CreateProjectModalComponent implements OnChanges {
 
   onCancel(): void {
     this.resetForm();
-    this.close.emit();
+    this.closed.emit();
   }
 
   onSubmit(): void {
@@ -162,7 +162,7 @@ export class CreateProjectModalComponent implements OnChanges {
 
     this.submitted.emit(formData);
     this.resetForm();
-    this.close.emit();
+    this.closed.emit();
   }
 
   private resetForm(): void {

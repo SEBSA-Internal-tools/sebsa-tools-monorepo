@@ -84,7 +84,7 @@
   <create-project-modal
     [isOpen]="isModalOpen"
     [defaultCsoProject]="true"
-    (close)="closeCreateModal()"
+    (closed)="closeCreateModal()"
     (submitted)="onCreateProject($event)"
   ></create-project-modal>
 </div>
