@@ -58,6 +58,7 @@ export class ProjectsListComponent {
 
   searchQuery = '';
   selectedStatus: 'all' | ProjectStatus = 'all';
+  showCsoOnly = false;
 
   filteredProjects(): ProjectSummary[] {
     if (!this.projects) return [];
@@ -69,9 +70,14 @@ export class ProjectsListComponent {
         !this.searchQuery ||
         project.name.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
         project.createdBy.name.toLowerCase().includes(this.searchQuery.toLowerCase());
+      const matchesCso = !this.showCsoOnly || project.isCsoProject;
 
-      return matchesStatus && matchesSearch;
+      return matchesStatus && matchesSearch && matchesCso;
     });
+  }
+
+  toggleCsoOnly(): void {
+    this.showCsoOnly = !this.showCsoOnly;
   }
 
   getStatusCount(status: ProjectStatus): number {

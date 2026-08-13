@@ -39,12 +39,17 @@
 
                 <div class="task-header">
                   <span class="task-id">{{ task.id }}</span>
-                  <span
-                    class="priority-badge"
-                    [class]="getPriorityClass(task.priority)"
-                  >
-                    {{ task.priority }}
-                  </span>
+                  <div class="task-header-badges">
+                    @if (task.isCsoLabeled) {
+                      <span class="cso-badge">CSO</span>
+                    }
+                    <span
+                      class="priority-badge"
+                      [class]="getPriorityClass(task.priority)"
+                    >
+                      {{ task.priority }}
+                    </span>
+                  </div>
                 </div>
 
                 <h3 class="task-title">{{ task.title }}</h3>

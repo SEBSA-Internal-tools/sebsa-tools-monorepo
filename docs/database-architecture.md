@@ -274,6 +274,27 @@ architect if they don't match intent:
     authentication/business logic isn't implemented yet, because
     the underlying features Must-Have and the tables are structural
     only (no auth logic wired up in this task).
+11. **CSO groundwork (`Project.isCsoProject`/`customerName`,
+    `Task.isCsoLabeled`) is modeled now, but Jira-specific fields
+    (`jiraProjectKey`, `jiraSiteUrl`, `jiraIssueKey`, `jiraSyncStatus`, etc.)
+    are deliberately NOT added yet**, even though an internal planning doc
+    lists them as part of the same pass. The Jira sandbox site, OAuth app,
+    and public webhook URL this project needs are not set up yet, so nothing
+    would read or write those columns — the same speculative-schema mistake
+    already made once with `Project.projectNumber`/`Task.taskNumber` (added,
+    then fully reverted in
+    `prisma/migrations/20260810120557_revert_project_and_task_display_numbers`).
+    They'll be designed for real once the Jira sync work actually starts.
+12. **`customerName` is a plain text field on `Project`, not a `Customer`
+    entity.** An earlier pass modeled Customer as its own table (FSD
+    describes it as one), but the team decided a free-text field is
+    sufficient for now — added and then removed in
+    `prisma/migrations/20260812065952_add_cso_groundwork` and
+    `prisma/migrations/20260812104437_remove_customer_entity_use_project_field`.
+    Trade-off accepted: no referential integrity across projects for the
+    same customer (e.g. "Acme Corp" vs "ACME Corp." won't be caught), so
+    cross-project customer filtering on the CSO Overview page matches by
+    case-insensitive substring rather than an exact ID join.
 
 ## Constraints added by hand
 

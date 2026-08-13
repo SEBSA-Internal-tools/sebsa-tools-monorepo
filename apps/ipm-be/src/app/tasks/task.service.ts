@@ -29,6 +29,8 @@ const taskDetailInclude = {
     where: { deletedAt: null },
     select: { id: true, title: true, workflowStageId: true },
   },
+  project: { select: { id: true, name: true } },
+  workflowStage: { select: { id: true, name: true } },
 } satisfies Prisma.TaskInclude;
 
 type TaskWithDetail = Prisma.TaskGetPayload<{ include: typeof taskDetailInclude }>;
@@ -64,6 +66,7 @@ export class TaskService {
           dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
           storyPoints: dto.storyPoints,
           reminderLeadMinutes: dto.reminderLeadMinutes,
+          isCsoLabeled: dto.isCsoLabeled ?? false,
           project: { connect: { id: dto.projectId } },
           workflowStage: { connect: { id: workflowStageId } },
           createdBy: { connect: { id: user.id } },
@@ -543,6 +546,12 @@ export class TaskService {
     if (filter.labelId) {
       where.labels = { some: { labelId: filter.labelId } };
     }
+    if (filter.customerName) {
+      where.project = { customerName: { contains: filter.customerName, mode: 'insensitive' } };
+    }
+    if (filter.isCsoLabeled !== undefined) {
+      where.isCsoLabeled = filter.isCsoLabeled;
+    }
     if (filter.priority) {
       where.priority = filter.priority;
     }
@@ -719,6 +728,9 @@ export class TaskService {
       assignees: task.assignees.map((a) => a.user),
       labels: task.labels.map((l) => l.label),
       subtaskCount: task.subtasks.length,
+      isCsoLabeled: task.isCsoLabeled,
+      project: task.project,
+      workflowStage: task.workflowStage,
       createdAt: task.createdAt.toISOString(),
       updatedAt: task.updatedAt.toISOString(),
     };

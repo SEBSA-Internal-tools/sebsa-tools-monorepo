@@ -1,6 +1,7 @@
 import { ProjectStatus, ProjectType } from '@prisma/client';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsOptional,
@@ -51,4 +52,19 @@ export class UpdateProjectDto {
   @IsOptional()
   @IsString()
   color?: string;
+
+  @ApiPropertyOptional({ description: 'Flags this project as a CSO Project.' })
+  @IsOptional()
+  @IsBoolean()
+  isCsoProject?: boolean;
+
+  @ApiPropertyOptional({
+    minLength: 1,
+    nullable: true,
+    description: 'Pass null to clear. Cannot be cleared while isCsoProject is true.',
+  })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  customerName?: string | null;
 }

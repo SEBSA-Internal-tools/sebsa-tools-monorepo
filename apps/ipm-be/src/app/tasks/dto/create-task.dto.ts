@@ -2,6 +2,7 @@ import { TaskType, Priority } from '@prisma/client';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsArray,
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsInt,
@@ -100,4 +101,12 @@ export class CreateTaskDto {
   @IsArray()
   @IsUUID('4', { each: true })
   labelIds?: string[];
+
+  @ApiPropertyOptional({
+    default: false,
+    description: 'Surfaces this task on the CSO Overview page.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  isCsoLabeled?: boolean;
 }

@@ -52,6 +52,14 @@
           {{ statusLabels[status] }} <span class="count">{{ getStatusCount(status) }}</span>
         </button>
       }
+      <button
+        type="button"
+        class="filter-btn"
+        [class.active]="showCsoOnly"
+        (click)="toggleCsoOnly()"
+      >
+        CSO Only
+      </button>
     </div>
   </div>
 
@@ -86,6 +94,9 @@
                   projectTypeIcon(project.type)
                 }}</span>
                 <span class="project-name">{{ project.name }}</span>
+                @if (project.isCsoProject) {
+                  <span class="cso-badge">CSO</span>
+                }
               </div>
             </div>
 

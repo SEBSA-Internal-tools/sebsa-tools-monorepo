@@ -1,0 +1,107 @@
+<div class="cso-overview-tab">
+  <div class="tab-toolbar">
+    <p class="tab-subtitle">Every CSO-flagged task across all projects, in one place.</p>
+    <button type="button" class="btn-primary" (click)="openTaskModal()">
+      <span class="material-symbols-outlined">add</span>
+      Create Task
+    </button>
+  </div>
+
+  @if (errorMessage) {
+    <div class="error-banner">{{ errorMessage }}</div>
+  }
+
+  <div class="filter-bar">
+    <select [(ngModel)]="selectedProjectId" (change)="applyFilters()" class="filter-select">
+      <option value="">All Projects</option>
+      @for (project of availableProjects(); track project.id) {
+        <option [value]="project.id">{{ project.name }}</option>
+      }
+    </select>
+
+    <select [(ngModel)]="selectedCustomerName" (change)="applyFilters()" class="filter-select">
+      <option value="">All Customers</option>
+      @for (name of availableCustomerNames(); track name) {
+        <option [value]="name">{{ name }}</option>
+      }
+    </select>
+
+    <select [(ngModel)]="selectedPriority" (change)="applyFilters()" class="filter-select">
+      <option value="">All Priorities</option>
+      <option value="CRITICAL">Critical</option>
+      <option value="HIGH">High</option>
+      <option value="MEDIUM">Medium</option>
+      <option value="LOW">Low</option>
+    </select>
+
+    <select [(ngModel)]="selectedStatus" class="filter-select">
+      <option value="">All Statuses</option>
+      <option value="new">New</option>
+      <option value="todo">To Do</option>
+      <option value="inprogress">In Progress</option>
+      <option value="done">Done</option>
+    </select>
+
+    <select [(ngModel)]="selectedAssigneeId" (change)="applyFilters()" class="filter-select">
+      <option value="">All Assignees</option>
+      @for (user of availableAssignees(); track user.id) {
+        <option [value]="user.id">{{ user.name }}</option>
+      }
+    </select>
+  </div>
+
+  <div class="results-card">
+    @if (isLoading()) {
+      <div class="loading-state">
+        <span class="material-symbols-outlined spin">progress_activity</span>
+        Loading CSO tasks...
+      </div>
+    } @else if (filteredTasks().length === 0) {
+      <div class="empty-state">
+        <span class="material-symbols-outlined">inbox</span>
+        <p>No CSO-flagged tasks match these filters.</p>
+      </div>
+    } @else {
+      <table class="results-table">
+        <thead>
+          <tr>
+            <th>Task</th>
+            <th>Project</th>
+            <th>Customer</th>
+            <th>Priority</th>
+            <th>Status</th>
+            <th>Assignee</th>
+            <th>Due Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (task of filteredTasks(); track task.id) {
+            <tr>
+              <td>{{ task.title }}</td>
+              <td>{{ task.projectName }}</td>
+              <td>{{ task.customerName || '—' }}</td>
+              <td>
+                <span class="priority-badge" [class]="priorityClass(task.priority)">
+                  {{ task.priority }}
+                </span>
+              </td>
+              <td>
+                <span class="status-badge" [class]="'status-' + task.statusLabel">
+                  {{ statusLabelText(task.statusLabel) }}
+                </span>
+              </td>
+              <td>{{ task.assignee || '—' }}</td>
+              <td>{{ task.dueDate ? (task.dueDate | date: 'mediumDate') : '—' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+  </div>
+
+  <create-task-modal
+    [isOpen]="isTaskModalOpen"
+    (close)="closeTaskModal()"
+    (submit)="onCreateTask($event)"
+  ></create-task-modal>
+</div>

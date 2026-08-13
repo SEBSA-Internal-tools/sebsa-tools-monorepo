@@ -31,6 +31,7 @@ export interface TaskView {
   projectId: string;
   sprintId?: string;
   workflowStageId: string;
+  isCsoLabeled: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -212,6 +213,7 @@ export class TasksService {
       projectId: task.projectId,
       sprintId: task.sprintId ?? undefined,
       workflowStageId: task.workflowStageId,
+      isCsoLabeled: task.isCsoLabeled,
     };
   }
 

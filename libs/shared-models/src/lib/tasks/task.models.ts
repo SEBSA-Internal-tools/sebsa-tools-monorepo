@@ -27,6 +27,9 @@ export interface TaskSummary {
   assignees: Pick<UserSummary, 'id' | 'name' | 'email'>[];
   labels: TaskLabelSummary[];
   subtaskCount: number;
+  isCsoLabeled: boolean;
+  project: { id: string; name: string };
+  workflowStage: { id: string; name: string };
   createdAt: string;
   updatedAt: string;
 }
@@ -44,7 +47,8 @@ export interface CreateTaskRequest {
   description?: string;
   type?: TaskType;
   priority?: TaskPriority;
-  workflowStageId: string;
+  /** Omit to fall back to the project's default Backlog stage. */
+  workflowStageId?: string;
   sprintId?: string;
   milestoneId?: string;
   startDate?: string;
@@ -53,6 +57,7 @@ export interface CreateTaskRequest {
   reminderLeadMinutes?: number;
   assigneeIds?: string[];
   labelIds?: string[];
+  isCsoLabeled?: boolean;
 }
 
 export type UpdateTaskRequest = Partial<Omit<CreateTaskRequest, 'projectId'>>;

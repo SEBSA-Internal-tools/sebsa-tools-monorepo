@@ -1,7 +1,12 @@
 <div class="overview-dashboard">
   <!-- Header Section -->
   <div class="dashboard-header">
-    <h2>Project Overview</h2>
+    <h2>
+      Project Overview
+      @if (project.isCsoProject) {
+        <span class="cso-badge">CSO</span>
+      }
+    </h2>
     <p class="header-subtitle">{{ project.name }}</p>
   </div>
 
@@ -192,6 +197,13 @@
           <span class="info-label">Last Updated</span>
           <span class="info-value">{{ project.updatedAt | date: 'mediumDate' }}</span>
         </div>
+
+        @if (project.isCsoProject && project.customerName) {
+          <div class="info-item">
+            <span class="info-label">Customer</span>
+            <span class="info-value">{{ project.customerName }}</span>
+          </div>
+        }
       </div>
     </div>
   </div>

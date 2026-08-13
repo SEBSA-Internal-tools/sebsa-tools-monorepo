@@ -227,6 +227,27 @@
   letter-spacing: 0.05em;
 }
 
+.task-header-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cso-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  background: rgba(139, 92, 246, 0.15);
+  color: #6d28d9;
+}
+
 .priority-badge {
   display: inline-flex;
   align-items: center;

@@ -1,0 +1,90 @@
+<div class="cso-dashboard-tab">
+  <div class="tab-toolbar">
+    <p class="tab-subtitle">Live counts across every CSO project and CSO-tagged task you can see.</p>
+    <button type="button" class="btn-primary" (click)="openCreateModal()">
+      <span class="material-symbols-outlined">add</span>
+      New CSO Project
+    </button>
+  </div>
+
+  @if (errorMessage) {
+    <div class="error-banner">{{ errorMessage }}</div>
+  }
+
+  <div class="stats-grid">
+    <div class="stat-card">
+      <span class="stat-label">CSO Projects</span>
+      <span class="stat-value">{{ csoProjects().length }}</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">CSO Tasks</span>
+      <span class="stat-value">{{ csoTasks().length }}</span>
+    </div>
+    <div class="stat-card critical">
+      <span class="stat-label">Overdue</span>
+      <span class="stat-value">{{ overdueCount() }}</span>
+    </div>
+  </div>
+
+  <div class="status-breakdown">
+    <div class="status-chip status-new">
+      <span class="chip-label">New</span>
+      <span class="chip-value">{{ statusCounts().new }}</span>
+    </div>
+    <div class="status-chip status-todo">
+      <span class="chip-label">To Do</span>
+      <span class="chip-value">{{ statusCounts().todo }}</span>
+    </div>
+    <div class="status-chip status-inprogress">
+      <span class="chip-label">In Progress</span>
+      <span class="chip-value">{{ statusCounts().inprogress }}</span>
+    </div>
+    <div class="status-chip status-done">
+      <span class="chip-label">Done</span>
+      <span class="chip-value">{{ statusCounts().done }}</span>
+    </div>
+  </div>
+
+  <div class="projects-card">
+    <div class="card-header">
+      <h3>CSO Projects</h3>
+    </div>
+
+    @if (csoProjects().length === 0) {
+      <div class="empty-state">
+        <span class="material-symbols-outlined">business</span>
+        <p>No CSO projects yet.</p>
+      </div>
+    } @else {
+      <table class="results-table">
+        <thead>
+          <tr>
+            <th>Project</th>
+            <th>Customer</th>
+            <th>Status</th>
+            <th>Tasks</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (project of csoProjects(); track project.id) {
+            <tr (click)="onProjectClick(project.id)" class="clickable-row">
+              <td>{{ project.name }}</td>
+              <td>{{ project.customerName || '—' }}</td>
+              <td>
+                <span class="badge">{{ project.status | titlecase }}</span>
+              </td>
+              <td>{{ project.taskCount }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+  </div>
+
+  <create-project-modal
+    [isOpen]="isModalOpen"
+    [defaultCsoProject]="true"
+    (close)="closeCreateModal()"
+    (submitted)="onCreateProject($event)"
+  ></create-project-modal>
+</div>

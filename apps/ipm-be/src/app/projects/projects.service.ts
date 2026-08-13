@@ -73,6 +73,8 @@ export class ProjectsService {
           targetEndDate: dto.targetEndDate ? new Date(dto.targetEndDate) : undefined,
           color: dto.color,
           createdById: creator.id,
+          isCsoProject: dto.isCsoProject ?? false,
+          customerName: dto.isCsoProject ? dto.customerName : undefined,
         },
       });
 
@@ -161,6 +163,13 @@ export class ProjectsService {
     const project = await this.loadProjectWithMembership(id);
     this.assertCanEdit(project, user);
 
+    const mergedIsCsoProject = dto.isCsoProject ?? project.isCsoProject;
+    const mergedCustomerName =
+      dto.customerName !== undefined ? dto.customerName : project.customerName;
+    if (mergedIsCsoProject && !mergedCustomerName) {
+      throw new BadRequestException('A CSO project must have a customer name.');
+    }
+
     await this.prisma.project.update({
       where: { id },
       data: {
@@ -172,6 +181,8 @@ export class ProjectsService {
         startDate: dto.startDate ? new Date(dto.startDate) : undefined,
         targetEndDate: dto.targetEndDate ? new Date(dto.targetEndDate) : undefined,
         color: dto.color,
+        isCsoProject: dto.isCsoProject,
+        customerName: dto.customerName,
       },
     });
 
@@ -561,6 +572,8 @@ export class ProjectsService {
       createdBy: project.createdBy,
       memberCount: project._count.members,
       taskCount: project._count.tasks,
+      isCsoProject: project.isCsoProject,
+      customerName: project.customerName,
       createdAt: project.createdAt.toISOString(),
       updatedAt: project.updatedAt.toISOString(),
     };

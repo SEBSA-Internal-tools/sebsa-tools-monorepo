@@ -28,6 +28,7 @@ export interface TaskFormData {
   dueDate: string;
   description: string;
   sprintId?: string;
+  isCsoLabeled: boolean;
 }
 
 @Component({
@@ -59,6 +60,7 @@ export class CreateTaskModalComponent implements OnChanges {
   selectedSprintId = '';
   selectedProjectId = '';
   selectedProjectName = '';
+  isCsoLabeled = false;
 
   readonly availableProjects = signal<Array<{ id: string; name: string }>>([]);
   readonly availableSprints = signal<SprintSummary[]>([]);
@@ -177,6 +179,7 @@ export class CreateTaskModalComponent implements OnChanges {
       dueDate: this.dueDate,
       description: this.description,
       sprintId: this.selectedSprintId || undefined,
+      isCsoLabeled: this.isCsoLabeled,
     };
 
     this.submit.emit(formData);
@@ -191,6 +194,7 @@ export class CreateTaskModalComponent implements OnChanges {
     this.dueDate = '';
     this.description = '';
     this.selectedSprintId = '';
+    this.isCsoLabeled = false;
     this.availableSprints.set([]);
     this.availableAssignees.set([]);
   }

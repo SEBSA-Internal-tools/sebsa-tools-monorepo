@@ -20,6 +20,7 @@ export class AppShellComponent {
     { label: 'Dashboard', icon: 'home', path: '/dashboard' },
     { label: 'My Tasks', icon: 'search', path: '/tasks' },
     { label: 'Projects', icon: 'favorite', path: '/projects' },
+    { label: 'CSO', icon: 'groups', path: '/cso' },
     { label: 'Calendar', icon: 'calendar_month', path: '/calendar' },
     { label: 'Notifications', icon: 'notifications', path: '/notifications' },
   ] as const;

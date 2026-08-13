@@ -30,6 +30,7 @@ export class EditTaskModalComponent implements OnChanges {
   dueDate = '';
   storyPoints: number | null = null;
   description = '';
+  isCsoLabeled = false;
 
   ngOnChanges(): void {
     if (this.isOpen && this.task) {
@@ -39,6 +40,7 @@ export class EditTaskModalComponent implements OnChanges {
       this.dueDate = this.task.dueDate ? this.task.dueDate.split('T')[0] : '';
       this.storyPoints = this.task.storyPoints ?? null;
       this.description = this.task.description || '';
+      this.isCsoLabeled = this.task.isCsoLabeled;
     }
   }
 
@@ -59,6 +61,7 @@ export class EditTaskModalComponent implements OnChanges {
       dueDate: this.dueDate || undefined,
       storyPoints: this.storyPoints !== null ? this.storyPoints : undefined,
       description: this.description || undefined,
+      isCsoLabeled: this.isCsoLabeled,
     };
 
     this.submitted.emit(formData);

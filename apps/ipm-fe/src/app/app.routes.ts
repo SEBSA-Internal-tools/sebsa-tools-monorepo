@@ -76,6 +76,13 @@ export const appRoutes: Route[] = [
 						(m) => m.PrivilegeGroupsPageComponent
 					),
 			},
+			{
+				path: 'cso',
+				loadComponent: () =>
+					import('./features/cso/cso.page').then(
+						(m) => m.CsoPageComponent
+					),
+			},
 		],
 	},
 ];

@@ -63,6 +63,18 @@ export class FilterTaskDto {
   @IsUUID()
   labelId?: string;
 
+  @ApiPropertyOptional({
+    description: 'Case-insensitive substring match against the project customerName.',
+  })
+  @IsOptional()
+  @IsString()
+  customerName?: string;
+
+  @ApiPropertyOptional({ description: 'Filters to CSO-labeled tasks when true.' })
+  @IsOptional()
+  @Transform(({ value }) => value === 'true')
+  isCsoLabeled?: boolean;
+
   @ApiPropertyOptional({ enum: TaskType })
   @IsOptional()
   @IsEnum(TaskType)
