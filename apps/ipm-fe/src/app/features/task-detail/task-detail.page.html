@@ -59,7 +59,7 @@
     </h1>
     <p class="task-created-info">
       Created by
-      <strong>{{ task.createdBy.name }}</strong>
+      <strong>{{ task.createdBy?.name }}</strong>
       on
       {{ formatDate(task.createdAt) }}
     </p>
