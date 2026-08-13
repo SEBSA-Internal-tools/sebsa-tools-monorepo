@@ -22,6 +22,21 @@ import { CreateTaskDependencyDto } from './dto/create-task-dependency.dto';
 
 const ADMIN_SYSTEM_ROLES: AuthUser['systemRole'][] = ['ADMIN', 'SUPER_ADMIN'];
 
+const taskSummarySelect = {
+  id: true,
+  projectId: true,
+  title: true,
+  description: true,
+  type: true,
+  priority: true,
+  workflowStageId: true,
+  sprintId: true,
+  dueDate: true,
+  assignees: { include: { user: { select: { id: true, name: true, email: true } } } },
+} satisfies Prisma.TaskSelect;
+
+type TaskWithSummary = Prisma.TaskGetPayload<{ select: typeof taskSummarySelect }>;
+
 const taskDetailInclude = {
   createdBy: { select: { id: true, name: true } },
   assignees: { include: { user: { select: { id: true, name: true, email: true } } } },
@@ -103,7 +118,7 @@ export class TaskService {
 
     const tasks = await this.prisma.task.findMany({
       where,
-      include: taskDetailInclude,
+      select: taskSummarySelect,
       orderBy: { createdAt: 'desc' },
     });
 
@@ -150,7 +165,7 @@ export class TaskService {
           },
         },
       },
-      include: taskDetailInclude,
+      select: taskSummarySelect,
       orderBy: [
         { dueDate: 'asc' },
         { createdAt: 'desc' },
@@ -314,7 +329,7 @@ export class TaskService {
 
     const subtasks = await this.prisma.task.findMany({
       where: { parentTaskId, deletedAt: null },
-      include: taskDetailInclude,
+      select: taskSummarySelect,
       orderBy: { createdAt: 'asc' },
     });
     return subtasks.map((task) => this.toTaskSummary(task));
@@ -691,7 +706,22 @@ export class TaskService {
     return task;
   }
 
-  private toTaskSummary(task: TaskWithDetail): TaskSummary {
+  private toTaskSummary(task: TaskWithSummary): TaskSummary {
+    return {
+      id: task.id,
+      projectId: task.projectId,
+      title: task.title,
+      description: task.description,
+      type: task.type,
+      priority: task.priority,
+      workflowStageId: task.workflowStageId,
+      sprintId: task.sprintId,
+      dueDate: task.dueDate ? task.dueDate.toISOString() : null,
+      assignees: task.assignees.map((a) => a.user),
+    };
+  }
+
+  private toTaskDetailSummary(task: TaskWithDetail): TaskSummary {
     return {
       id: task.id,
       projectId: task.projectId,
@@ -717,7 +747,7 @@ export class TaskService {
 
   private toTask(task: TaskWithDetail): Task {
     return {
-      ...this.toTaskSummary(task),
+      ...this.toTaskDetailSummary(task),
       subtasks: task.subtasks,
     };
   }

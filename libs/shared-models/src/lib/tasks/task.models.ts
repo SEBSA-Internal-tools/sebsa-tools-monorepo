@@ -13,23 +13,23 @@ export interface TaskLabelSummary {
 export interface TaskSummary {
   id: string;
   projectId: string;
-  parentTaskId: string | null;
+  parentTaskId?: string | null;
   title: string;
   type: TaskType;
   priority: TaskPriority;
   workflowStageId: string;
-  sprintId: string | null;
-  milestoneId: string | null;
-  startDate: string | null;
-  dueDate: string | null;
-  storyPoints: number | null;
-  createdBy: Pick<UserSummary, 'id' | 'name'>;
-  assignees: Pick<UserSummary, 'id' | 'name' | 'email'>[];
-  labels: TaskLabelSummary[];
-  subtaskCount: number;
-  createdAt: string;
-  updatedAt: string;
-  description: string | null;
+  sprintId?: string | null;
+  milestoneId?: string | null;
+  startDate?: string | null;
+  dueDate?: string | null;
+  storyPoints?: number | null;
+  createdBy?: Pick<UserSummary, 'id' | 'name'>;
+  assignees?: Pick<UserSummary, 'id' | 'name' | 'email'>[];
+  labels?: TaskLabelSummary[];
+  subtaskCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
+  description?: string | null;
 }
 
 export interface TaskListSummary {
