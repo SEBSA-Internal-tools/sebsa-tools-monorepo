@@ -310,6 +310,13 @@ model Project {
   updatedAt     DateTime      @updatedAt
   deletedAt     DateTime?
 
+  /// CSO groundwork (FSD §5.16) — a project can be flagged as a CSO Project.
+  /// customerName is a plain text field, not a Customer entity (deliberate
+  /// simplification per team decision — see docs/database-architecture.md).
+  /// Jira-connection fields are deliberately not modeled yet either.
+  isCsoProject Boolean @default(false)
+  customerName String?
+
   createdBy User @relation("ProjectCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
 
   roles          Role[]
@@ -433,6 +440,9 @@ model Task {
   dueDate             DateTime?
   storyPoints         Float?
   reminderLeadMinutes Int?
+  /// CSO groundwork (FSD §5.16) — any task, in any project, can be
+  /// individually tagged CSO to surface it on the CSO Overview page.
+  isCsoLabeled        Boolean   @default(false)
   createdById         String
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt

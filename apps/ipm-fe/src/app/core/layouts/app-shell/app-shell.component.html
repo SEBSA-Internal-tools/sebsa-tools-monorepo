@@ -1,13 +1,16 @@
 <main class="app-shell">
   <aside class="sidebar" aria-label="Primary navigation">
     <section class="brand-block">
+      <div class="icon-premium-wrapper brand-logo-icon">
+        <span class="material-symbols-outlined">space_dashboard</span>
+      </div>
       <div class="brand-copy">
         <h1>SEBSA PMT</h1>
         <p>Enterprise PM Tool</p>
       </div>
     </section>
 
-    <button type="button" class="new-task-button" aria-haspopup="dialog" [attr.aria-expanded]="isTaskModalOpen" (click)="openTaskModal()">
+    <button type="button" class="btn-primary new-task-button" aria-haspopup="dialog" [attr.aria-expanded]="isTaskModalOpen" (click)="openTaskModal()">
       <span class="material-symbols-outlined button-icon" aria-hidden="true">add</span>
       <span>New Task</span>
     </button>
@@ -74,21 +77,9 @@
       </div>
 
       <div class="navbar-actions">
-        <div class="accent-picker" [attr.aria-label]="themeService.accentLabel">
-          <button
-            *ngFor="let accent of themeService.accentOptions"
-            type="button"
-            class="accent-swatch"
-            [class.active]="themeService.currentAccent.mode === accent.mode"
-            [attr.aria-label]="'Use ' + accent.label + ' accent'"
-            [style.--swatch-color]="accent.color"
-            (click)="setAccent(accent.mode)"
-          ></button>
-        </div>
-
         <button
           type="button"
-          class="action-btn"
+          class="action-btn theme-toggle-btn"
           [attr.aria-label]="themeService.buttonLabel"
           (click)="toggleTheme()"
         >
@@ -133,7 +124,9 @@
 
   <create-task-modal
     [isOpen]="isTaskModalOpen"
-    (close)="closeTaskModal()"
-    (submit)="handleTaskSaved($event)"
+    (closed)="closeTaskModal()"
+    (submitted)="handleTaskSaved($event)"
   ></create-task-modal>
+
+  <app-toast></app-toast>
 </main>

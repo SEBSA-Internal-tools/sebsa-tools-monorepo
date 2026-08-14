@@ -13,6 +13,7 @@ import authConfig from '../config/auth.config';
 import databaseConfig from '../config/database.config';
 import { envValidationSchema } from '../config/env.validation';
 import { TaskModule } from './tasks/task.module';
+import { SprintsModule } from './sprints/sprints.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { TaskModule } from './tasks/task.module';
     AuthModule,
     ProjectsModule,
     TaskModule,
+    SprintsModule,
     UsersModule,
     DepartmentsModule,
     PrivilegeGroupsModule,

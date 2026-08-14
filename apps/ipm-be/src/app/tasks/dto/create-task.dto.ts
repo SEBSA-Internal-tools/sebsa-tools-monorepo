@@ -2,6 +2,7 @@ import { TaskType, Priority } from '@prisma/client';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsArray,
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsInt,
@@ -46,9 +47,15 @@ export class CreateTaskDto {
   @IsEnum(Priority)
   priority?: Priority;
 
-  @ApiProperty({ format: 'uuid', description: 'Must belong to the same project.' })
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description:
+      'Must belong to the same project. When omitted the task is automatically ' +
+      'placed in the project\'s default Backlog stage (order: 0, isDefault: true).',
+  })
+  @IsOptional()
   @IsUUID()
-  workflowStageId!: string;
+  workflowStageId?: string;
 
   @ApiPropertyOptional({ format: 'uuid' })
   @IsOptional()
@@ -94,4 +101,12 @@ export class CreateTaskDto {
   @IsArray()
   @IsUUID('4', { each: true })
   labelIds?: string[];
+
+  @ApiPropertyOptional({
+    default: false,
+    description: 'Surfaces this task on the CSO Overview page.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  isCsoLabeled?: boolean;
 }

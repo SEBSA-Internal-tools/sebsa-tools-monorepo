@@ -24,8 +24,8 @@
   @if (tasks.length > 0) {
     <div class="tasks-table">
       <div class="table-header">
-        <div class="col-id">ID</div>
         <div class="col-title">Task Title</div>
+        <div class="col-description">Task Description</div>
         <div class="col-category">Category</div>
         <div class="col-status">Status</div>
         <div class="col-priority">Priority</div>
@@ -35,35 +35,41 @@
 
       @for (task of tasks; track task.id) {
         <div class="table-row">
-          <div class="col-id">
-            <span class="task-id">{{ task.id }}</span>
+          <div class="col-title">
+            <button
+              type="button"
+              class="task-title task-title-link"
+              (click)="openTask(task.id)"
+            >
+              {{ task.title }}
+            </button>
           </div>
 
-          <div class="col-title">
-            <span class="task-title">{{ task.title }}</span>
+          <div class="col-description">
+            <span class="description-text">{{ task.description || 'No description' }}</span>
           </div>
 
           <div class="col-category">
             <span class="category-badge">{{ task.category }}</span>
           </div>
 
-          <div class="col-status">
-            <span class="status-badge" [class]="task.status">
-              {{ getStatusLabel(task.status) }}
+          <div class="col-status" data-label="Status">
+            <span class="status-badge" [class]="getStatusBadgeClass(task)">
+              {{ getStageName(task) }}
             </span>
           </div>
 
-          <div class="col-priority">
+          <div class="col-priority" data-label="Priority">
             <span class="priority-badge" [class]="getPriorityClass(task.priority)">
               {{ task.priority }}
             </span>
           </div>
 
-          <div class="col-duration">
+          <div class="col-duration" data-label="Duration">
             <span class="duration-text">{{ task.duration }}</span>
           </div>
 
-          <div class="col-assignee">
+          <div class="col-assignee" data-label="Assignee">
             @if (task.assignee) {
               <div class="assignee-avatar" [title]="task.assignee">
                 {{ getTaskInitials(task.assignee) }}

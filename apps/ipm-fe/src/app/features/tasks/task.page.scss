@@ -1,0 +1,477 @@
+// =============================================================================
+// Task Page — Luminous Depth Design System
+// =============================================================================
+
+:host {
+  display: block;
+  width: 100%;
+}
+
+// =============================================================================
+// Synchronized Fluid Layout Container Spacing
+// =============================================================================
+
+.workspace-page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 0;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+
+  @media (max-width: 768px) {
+    gap: 18px;
+  }
+}
+
+// =============================================================================
+// Top Hero Banner (Luminous Depth with Ambient Glowing Orbs)
+// =============================================================================
+
+.hero-section {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 36px 40px;
+  border-radius: 16px;
+  background: var(--color-surface-dim);
+  backdrop-filter: var(--backdrop-blur-heavy);
+  -webkit-backdrop-filter: var(--backdrop-blur-heavy);
+  border: var(--border-glass);
+  box-shadow: var(--shadow-subtle);
+  width: 100%;
+
+  @media (max-width: 768px) {
+    padding: 24px;
+  }
+}
+
+.hero-content {
+  position: relative;
+  z-index: 1;
+  max-width: 750px;
+  width: 100%;
+
+  h1 {
+    margin: 0 0 12px;
+    font-family: 'Sora', sans-serif;
+    color: var(--text-primary);
+    font-size: clamp(1.8rem, 4vw, 2.5rem);
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    font-weight: 600;
+  }
+
+  .description {
+    margin: 0;
+    max-width: 700px;
+    font-family: 'Sora', sans-serif;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    color: var(--text-secondary);
+  }
+}
+
+// =============================================================================
+// Deep Purple/Violet Gradient Eyebrow Text
+// =============================================================================
+
+.eyebrow {
+  display: block;
+  font-family: 'Sora', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: linear-gradient(135deg, #a855f7 0%, #7000ff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow: 0 4px 15px rgba(112, 0, 255, 0.25);
+  margin-bottom: 8px;
+}
+
+/* Ambient Glowing Orbs Watermark */
+.ambient-decor {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 50%;
+  height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+
+  .orb {
+    position: absolute;
+    width: 300px;
+    height: 300px;
+    border-radius: 50%;
+    filter: blur(60px);
+    -webkit-filter: blur(60px);
+    will-change: transform;
+
+    &.orb-1 {
+      top: -15%;
+      right: -5%;
+      width: 320px;
+      height: 320px;
+      background: rgba(255, 0, 255, 0.08);
+    }
+
+    &.orb-2 {
+      bottom: -20%;
+      right: 15%;
+      width: 280px;
+      height: 280px;
+      background: rgba(112, 0, 255, 0.08);
+    }
+  }
+}
+
+// =============================================================================
+// Bottom Task List Card & Search + Task Count Control Row
+// =============================================================================
+
+.list-card {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  gap: 20px;
+  padding: 24px;
+  border-radius: 16px;
+  width: 100%;
+  background: var(--color-surface-dim);
+  backdrop-filter: var(--backdrop-blur-heavy);
+  -webkit-backdrop-filter: var(--backdrop-blur-heavy);
+  border: var(--border-glass);
+  box-shadow: var(--shadow-subtle);
+
+  @media (min-width: 768px) {
+    gap: 24px;
+    padding: 28px 32px;
+  }
+
+  @media (min-width: 1024px) {
+    gap: 28px;
+    padding: 32px;
+  }
+}
+
+.controls-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  background: var(--color-surface-glass);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: var(--border-glass);
+  border-radius: 8px;
+  min-width: 260px;
+  transition: all 0.2s ease;
+
+  &:focus-within {
+    border-color: var(--border-glass-active);
+    background: var(--color-surface-bright);
+    box-shadow: var(--shadow-glow-focus);
+  }
+
+  .search-icon {
+    color: var(--text-muted);
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+
+  .search-input {
+    flex: 1;
+    min-width: 0;
+    padding: 10px 0;
+    background: transparent;
+    border: none;
+    font-family: 'Sora', sans-serif;
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    outline: none;
+
+    &::placeholder {
+      color: var(--text-muted);
+    }
+  }
+
+  .clear-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+
+    .material-symbols-outlined {
+      font-size: 16px;
+    }
+
+    &:hover {
+      background: var(--color-surface-glass-hover);
+      color: var(--text-primary);
+    }
+  }
+}
+
+.task-count {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Sora', sans-serif;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: rgba(112, 0, 255, 0.15);
+    border: 1px solid rgba(112, 0, 255, 0.3);
+    color: var(--text-primary);
+    font-weight: 600;
+    font-size: 0.8rem;
+  }
+}
+
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border-radius: 8px;
+  background: rgba(255, 51, 102, 0.1);
+  color: var(--status-error);
+  border: 1px solid rgba(255, 51, 102, 0.25);
+  font-family: 'Sora', sans-serif;
+  font-size: 0.875rem;
+
+  p {
+    margin: 0;
+  }
+}
+
+// =============================================================================
+// Table Headers & Table View
+// =============================================================================
+
+.tasks-table-container {
+  overflow-x: auto;
+  border-radius: 12px;
+  border: var(--border-glass);
+  background: var(--color-surface-glass);
+}
+
+.tasks-table {
+  display: flex;
+  flex-direction: column;
+  min-width: 100%;
+}
+
+.table-header {
+  display: grid;
+  grid-template-columns: 2.5fr 1.2fr 1fr 1.2fr;
+  gap: 16px;
+  padding: 16px 20px;
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: var(--border-glass);
+  font-family: 'Sora', sans-serif;
+  font-weight: 600;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+
+  @media (max-width: 768px) {
+    grid-template-columns: 2fr 1fr 1fr 1fr;
+    gap: 10px;
+    padding: 12px 14px;
+  }
+}
+
+.table-row {
+  display: grid;
+  grid-template-columns: 2.5fr 1.2fr 1fr 1.2fr;
+  gap: 16px;
+  padding: 16px 20px;
+  align-items: center;
+  border-bottom: var(--border-glass);
+  background: transparent;
+  transition: all 0.2s ease;
+
+  @media (max-width: 768px) {
+    grid-template-columns: 2fr 1fr 1fr 1fr;
+    gap: 10px;
+    padding: 12px 14px;
+  }
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &:hover {
+    background: var(--color-surface-glass-hover);
+  }
+}
+
+.task-name-link {
+  font-family: 'Sora', sans-serif;
+  font-weight: 500;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  text-decoration: none;
+  transition: color 0.2s ease;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--color-brand-primary);
+    text-decoration: underline;
+  }
+}
+
+.due-date-text {
+  font-family: 'Sora', sans-serif;
+  font-size: 0.84rem;
+  color: var(--text-secondary);
+}
+
+// =============================================================================
+// Status & Priority Badges (Glassmorphism Minimalist)
+// =============================================================================
+
+.status-pill,
+.priority-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-family: 'Sora', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+}
+
+.status-new {
+  color: var(--status-info);
+  border-color: rgba(0, 191, 255, 0.3);
+}
+
+.status-todo {
+  color: var(--text-secondary);
+}
+
+.status-inprogress {
+  color: var(--status-warning);
+  border-color: rgba(255, 179, 0, 0.3);
+}
+
+.status-done {
+  color: var(--status-success);
+  border-color: rgba(0, 230, 153, 0.3);
+}
+
+.priority-high {
+  color: var(--status-error);
+  border-color: rgba(255, 51, 102, 0.3);
+}
+
+.priority-medium {
+  color: var(--status-warning);
+  border-color: rgba(255, 179, 0, 0.3);
+}
+
+.priority-low {
+  color: var(--status-success);
+  border-color: rgba(0, 230, 153, 0.3);
+}
+
+// =============================================================================
+// Loading & Empty States
+// =============================================================================
+
+.loading-state,
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 220px;
+  padding: 48px 24px;
+  text-align: center;
+  background: var(--color-surface-glass);
+  border: var(--border-glass);
+  border-radius: 12px;
+  color: var(--text-muted);
+
+  .empty-icon {
+    font-size: 48px;
+    color: var(--text-muted);
+    opacity: 0.4;
+  }
+
+  h3 {
+    margin: 0;
+    font-family: 'Sora', sans-serif;
+    color: var(--text-primary);
+    font-size: 1.1rem;
+    font-weight: 600;
+  }
+
+  p {
+    margin: 0;
+    font-family: 'Sora', sans-serif;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+  }
+}
+
+.loader {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.1);
+  border-top-color: var(--color-brand-primary);
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

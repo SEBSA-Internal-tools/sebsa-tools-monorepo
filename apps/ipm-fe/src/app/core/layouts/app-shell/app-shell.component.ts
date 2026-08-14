@@ -1,24 +1,27 @@
 import { CommonModule } from '@angular/common';
-import { Component, inject } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { ThemeService } from '../../services/theme.service';
 import { AuthService } from '../../services/auth.service';
+import { ToastComponent } from '../../components/toast/toast.component';
 import { CreateTaskModalComponent, type TaskFormData } from '../../../features/projects/components/modals/create-task/create-task-modal.component';
 
 @Component({
-  imports: [CommonModule, RouterLink, RouterLinkActive, RouterOutlet, CreateTaskModalComponent],
+  imports: [CommonModule, RouterLink, RouterLinkActive, RouterOutlet, ToastComponent, CreateTaskModalComponent],
   selector: 'app-shell',
   templateUrl: './app-shell.component.html',
   styleUrl: './app-shell.component.scss',
 })
-export class AppShellComponent {
+export class AppShellComponent implements OnInit {
   private readonly router = inject(Router);
   protected readonly authService = inject(AuthService);
+  protected readonly themeService = inject(ThemeService);
 
   protected readonly navigationItems = [
     { label: 'Dashboard', icon: 'home', path: '/dashboard' },
     { label: 'My Tasks', icon: 'search', path: '/tasks' },
     { label: 'Projects', icon: 'favorite', path: '/projects' },
+    { label: 'CSO', icon: 'groups', path: '/cso' },
     { label: 'Calendar', icon: 'calendar_month', path: '/calendar' },
     { label: 'Notifications', icon: 'notifications', path: '/notifications' },
   ] as const;
@@ -27,7 +30,9 @@ export class AppShellComponent {
   protected lastCreatedTask: TaskFormData | null = null;
   protected isProfileMenuOpen = false;
 
-  constructor(protected readonly themeService: ThemeService) {}
+  ngOnInit(): void {
+    // Theme service auto-initializes data-theme on document.documentElement from localStorage or system preference
+  }
 
   protected toggleProfileMenu(): void {
     this.isProfileMenuOpen = !this.isProfileMenuOpen;
@@ -54,9 +59,5 @@ export class AppShellComponent {
   protected handleTaskSaved(task: TaskFormData): void {
     this.lastCreatedTask = task;
     this.closeTaskModal();
-  }
-
-  protected setAccent(mode: 'pink' | 'blue' | 'emerald' | 'amber' | 'violet'): void {
-    this.themeService.setAccent(mode);
   }
 }

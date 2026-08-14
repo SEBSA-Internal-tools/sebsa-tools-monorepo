@@ -1,7 +1,12 @@
 <div class="overview-dashboard">
   <!-- Header Section -->
   <div class="dashboard-header">
-    <h2>Project Overview</h2>
+    <h2>
+      Project Overview
+      @if (project.isCsoProject) {
+        <span class="cso-badge">CSO</span>
+      }
+    </h2>
     <p class="header-subtitle">{{ project.name }}</p>
   </div>
 
@@ -127,7 +132,6 @@
           @for (task of recentTasks(); track task.id) {
             <div class="task-item">
               <div class="task-left">
-                <div class="task-id-badge">{{ task.id }}</div>
                 <div class="task-info">
                   <p class="task-title">{{ task.title }}</p>
                   <span class="task-category">{{ task.category }}</span>
@@ -142,13 +146,13 @@
                   {{ task.priority }}
                 </span>
                 <span
-                  [class]="'status-badge status-' + task.status"
-                  [style.borderLeftColor]="getTaskStatusColor(task.status)"
+                  [class]="'status-badge status-' + task.statusLabel"
+                  [style.borderLeftColor]="getTaskStatusColor(task.statusLabel)"
                 >
                   <span class="material-symbols-outlined">
-                    {{ getTaskStatusIcon(task.status) }}
+                    {{ getTaskStatusIcon(task.statusLabel) }}
                   </span>
-                  {{ getTaskStatusLabel(task.status) }}
+                  {{ getTaskStatusLabel(task.statusLabel) }}
                 </span>
               </div>
             </div>
@@ -192,6 +196,13 @@
           <span class="info-label">Last Updated</span>
           <span class="info-value">{{ project.updatedAt | date: 'mediumDate' }}</span>
         </div>
+
+        @if (project.isCsoProject && project.customerName) {
+          <div class="info-item">
+            <span class="info-label">Customer</span>
+            <span class="info-value">{{ project.customerName }}</span>
+          </div>
+        }
       </div>
     </div>
   </div>

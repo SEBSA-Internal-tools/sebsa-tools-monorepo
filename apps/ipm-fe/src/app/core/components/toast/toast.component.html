@@ -1,0 +1,33 @@
+<div class="toast-container">
+  @for (notification of notifications(); track notification.id) {
+    <div class="toast" [class]="'toast-' + notification.type">
+      <div class="toast-content">
+        <span class="toast-icon material-symbols-outlined">
+          @switch (notification.type) {
+            @case ('success') {
+              check_circle
+            }
+            @case ('error') {
+              cancel
+            }
+            @case ('warning') {
+              warning
+            }
+            @default {
+              info
+            }
+          }
+        </span>
+        <span class="toast-message">{{ notification.message }}</span>
+      </div>
+      <button
+        type="button"
+        class="toast-close"
+        (click)="closeNotification(notification.id)"
+        aria-label="Close notification"
+      >
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+  }
+</div>

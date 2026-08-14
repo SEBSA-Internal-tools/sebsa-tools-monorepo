@@ -34,6 +34,8 @@ export interface ProjectSummary {
   createdBy: Pick<UserSummary, 'id' | 'name'>;
   memberCount: number;
   taskCount: number;
+  isCsoProject: boolean;
+  customerName: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -51,6 +53,8 @@ export interface CreateProjectRequest {
   startDate?: string;
   targetEndDate?: string;
   color?: string;
+  isCsoProject?: boolean;
+  customerName?: string;
 }
 
 export interface UpdateProjectRequest {
@@ -62,6 +66,8 @@ export interface UpdateProjectRequest {
   startDate?: string;
   targetEndDate?: string;
   color?: string;
+  isCsoProject?: boolean;
+  customerName?: string | null;
 }
 
 export interface AddProjectMemberRequest {

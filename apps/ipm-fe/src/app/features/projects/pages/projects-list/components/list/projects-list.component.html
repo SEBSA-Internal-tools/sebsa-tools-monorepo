@@ -1,57 +1,48 @@
 <article class="workspace-card section">
-  <!-- Header with Title and New Project Button -->
-  <div class="section-header">
-    <div class="section-title">
-      <p class="eyebrow">Portfolio</p>
-      <h2>Projects</h2>
-    </div>
-    <button type="button" class="btn-new-project" (click)="onNewProject()">
-      <span class="material-symbols-outlined">add</span>
-      New project
-    </button>
-  </div>
-
-  <!-- Search and Filter Section -->
-  <div class="search-filter-section">
-    <div class="search-box">
-      <span class="material-symbols-outlined search-icon">search</span>
-      <input
-        type="text"
-        [(ngModel)]="searchQuery"
-        (ngModelChange)="onSearchChange()"
-        placeholder="Search projects..."
-        class="search-input"
-      />
-      <button
-        type="button"
-        *ngIf="searchQuery"
-        (click)="searchQuery = ''; onSearchChange()"
-        class="clear-btn"
-      >
-        <span class="material-symbols-outlined">close</span>
-      </button>
-    </div>
-
-    <!-- Filter Tabs -->
-    <div class="filter-tabs">
-      <button
-        type="button"
-        class="filter-btn"
-        [class.active]="selectedStatus === 'all'"
-        (click)="onStatusChange('all')"
-      >
-        All
-      </button>
-      @for (status of statusOptions; track status) {
+  <!-- Table Controls Bar (Single-Row Flex Layout) -->
+  <div class="table-controls">
+    <!-- Left: Search Box -->
+    <div class="controls-left">
+      <div class="search-box">
+        <span class="material-symbols-outlined search-icon">search</span>
+        <input
+          type="text"
+          [(ngModel)]="searchQuery"
+          (ngModelChange)="onSearchChange()"
+          placeholder="Search projects..."
+          class="search-input"
+        />
         <button
           type="button"
-          class="filter-btn"
-          [class.active]="selectedStatus === status"
-          (click)="onStatusChange(status)"
+          *ngIf="searchQuery"
+          (click)="searchQuery = ''; onSearchChange()"
+          class="clear-btn"
         >
-          {{ statusLabels[status] }} <span class="count">{{ getStatusCount(status) }}</span>
+          <span class="material-symbols-outlined">close</span>
         </button>
-      }
+      </div>
+    </div>
+
+    <!-- Right: Filter Tabs and New Project CTA -->
+    <div class="controls-right">
+      <select [(ngModel)]="selectedStatus" class="status-filter">
+        <option value="all">All Statuses</option>
+        @for (status of statusOptions; track status) {
+          <option [value]="status">{{ statusLabels[status] }} ({{ getStatusCount(status) }})</option>
+        }
+      </select>
+
+      <select [(ngModel)]="selectedCustomerName" class="customer-filter">
+        <option value="">All Customers</option>
+        @for (name of availableCustomerNames(); track name) {
+          <option [value]="name">{{ name }}</option>
+        }
+      </select>
+
+      <button type="button" class="btn-primary" (click)="onNewProject()">
+        <span class="material-symbols-outlined">add</span>
+        New project
+      </button>
     </div>
   </div>
 
@@ -86,6 +77,9 @@
                   projectTypeIcon(project.type)
                 }}</span>
                 <span class="project-name">{{ project.name }}</span>
+                @if (project.isCsoProject) {
+                  <span class="cso-badge">CSO</span>
+                }
               </div>
             </div>
 

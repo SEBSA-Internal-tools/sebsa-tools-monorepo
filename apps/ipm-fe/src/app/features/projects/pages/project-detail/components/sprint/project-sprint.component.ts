@@ -5,9 +5,13 @@ import {
   signal,
   inject,
   OnInit,
+  effect,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ProjectsService, Sprint, Task } from '../../../../services/projects.service';
+import { ProjectsService, Sprint } from '../../../../services/projects.service';
+import { SprintService } from '../../../../services/sprint.service';
+import { AuthService } from '../../../../../../core/services/auth.service';
+import { TasksService, type TaskView } from '../../../../../../core/services/tasks.service';
 import { AddSprintModalComponent } from '../../../../components/modals/add-sprint/add-sprint-modal.component';
 
 interface ExpandedState {
@@ -28,26 +32,79 @@ export class ProjectSprintComponent implements OnInit {
   @Input() projectId!: string;
 
   private projectsService = inject(ProjectsService);
+  private sprintService = inject(SprintService);
+  private authService = inject(AuthService);
+  private tasksService = inject(TasksService);
 
   sprints = signal<Sprint[]>([]);
   expandedSprints = signal<ExpandedState>({});
   isModalOpen = signal(false);
-  userRole = signal<UserRole>('PM');
+  userRole = signal<UserRole>('VIEWER');
   selectedSprintForTask = signal<Sprint | null>(null);
+  isLoading = signal(false);
+  errorMessage = signal('');
+
+  constructor() {
+    effect(() => {
+      this.loadSprints();
+    });
+  }
 
   ngOnInit(): void {
-    this.loadSprints();
+    this.resolveUserRole();
+  }
+
+  private resolveUserRole(): void {
+    this.projectsService.getMembers(this.projectId).subscribe({
+      next: (members) => {
+        const currentUserId = this.authService.currentUser()?.id;
+        const membership = members.find((m) => m.userId === currentUserId);
+
+        if (!membership) {
+          this.userRole.set('VIEWER');
+          return;
+        }
+
+        const role = membership.role.name.toUpperCase();
+        if (role.includes('OWNER') || role.includes('MANAGER')) {
+          this.userRole.set('PM');
+        } else if (role.includes('MEMBER')) {
+          this.userRole.set('DEVELOPER');
+        } else {
+          this.userRole.set('VIEWER');
+        }
+      },
+      error: () => {
+        this.userRole.set('VIEWER');
+      },
+    });
   }
 
   loadSprints(): void {
-    const sprints = this.projectsService.getSprints(this.projectId);
-    this.sprints.set(sprints);
+    this.isLoading.set(true);
+    this.errorMessage.set('');
 
-    const expandedState: ExpandedState = {};
-    sprints.forEach((sprint) => {
-      expandedState[sprint.id] = sprint.status === 'active';
+    this.sprintService.getSprints(this.projectId).subscribe({
+      next: (sprints) => {
+        const normalizedSprints = sprints.map((sprint) => ({
+          ...sprint,
+          status: sprint.status.toLowerCase() as 'planned' | 'active' | 'completed',
+        }));
+        this.sprints.set(normalizedSprints as Sprint[]);
+
+        const expandedState: ExpandedState = {};
+        normalizedSprints.forEach((sprint) => {
+          expandedState[sprint.id] = sprint.status === 'active';
+        });
+        this.expandedSprints.set(expandedState);
+        this.isLoading.set(false);
+      },
+      error: (err) => {
+        console.error('Failed to load sprints:', err);
+        this.errorMessage.set('Failed to load sprints. Please try again.');
+        this.isLoading.set(false);
+      },
     });
-    this.expandedSprints.set(expandedState);
   }
 
   toggleSprint(sprintId: string): void {
@@ -57,8 +114,8 @@ export class ProjectSprintComponent implements OnInit {
     }));
   }
 
-  getSprintTasks(sprintId: string): Task[] {
-    return this.projectsService.getSprintTasks(sprintId);
+  getSprintTasks(sprintId: string): TaskView[] {
+    return this.tasksService.getSprintTasks(sprintId);
   }
 
   getSprintStats(sprintId: string): {
@@ -69,8 +126,8 @@ export class ProjectSprintComponent implements OnInit {
     const tasks = this.getSprintTasks(sprintId);
     return {
       total: tasks.length,
-      completed: tasks.filter((t) => t.status === 'done').length,
-      inProgress: tasks.filter((t) => t.status === 'inprogress').length,
+      completed: tasks.filter((t) => t.statusLabel === 'done').length,
+      inProgress: tasks.filter((t) => t.statusLabel === 'inprogress').length,
     };
   }
 
@@ -100,7 +157,7 @@ export class ProjectSprintComponent implements OnInit {
     }
   }
 
-  getPriorityClass(priority: Task['priority']): string {
+  getPriorityClass(priority: TaskView['priority']): string {
     switch (priority) {
       case 'High':
         return 'priority-high';
@@ -113,8 +170,8 @@ export class ProjectSprintComponent implements OnInit {
     }
   }
 
-  getStatusClass(status: Task['status']): string {
-    switch (status) {
+  getStatusClass(statusLabel: TaskView['statusLabel']): string {
+    switch (statusLabel) {
       case 'new':
         return 'status-new';
       case 'todo':
@@ -128,8 +185,8 @@ export class ProjectSprintComponent implements OnInit {
     }
   }
 
-  getStatusLabel_(status: Task['status']): string {
-    switch (status) {
+  getStatusLabel_(statusLabel: TaskView['statusLabel']): string {
+    switch (statusLabel) {
       case 'new':
         return 'New';
       case 'todo':
@@ -139,7 +196,7 @@ export class ProjectSprintComponent implements OnInit {
       case 'done':
         return 'Done';
       default:
-        return status;
+        return statusLabel;
     }
   }
 
@@ -160,24 +217,52 @@ export class ProjectSprintComponent implements OnInit {
   }
 
   onAddSprint(formData: { name: string; startDate: string; endDate: string; description?: string }): void {
-    const sprint = this.projectsService.createSprint({
-      ...formData,
-      projectId: this.projectId,
-    });
-    this.loadSprints();
-    this.isModalOpen.set(false);
+    this.sprintService
+      .createSprint(this.projectId, {
+        name: formData.name,
+        startDate: formData.startDate,
+        endDate: formData.endDate,
+        goal: formData.description,
+      })
+      .subscribe({
+        next: () => {
+          this.loadSprints();
+          this.isModalOpen.set(false);
+        },
+        error: (err) => {
+          console.error('Failed to create sprint:', err);
+          this.errorMessage.set('Failed to create sprint. Please try again.');
+        },
+      });
   }
 
   onDeleteSprint(sprintId: string): void {
     if (confirm('Are you sure you want to delete this sprint? All associated tasks will be unassigned.')) {
-      this.projectsService.deleteSprint(sprintId);
-      this.loadSprints();
+      this.sprintService.deleteSprint(this.projectId, sprintId).subscribe({
+        next: () => {
+          this.loadSprints();
+        },
+        error: (err) => {
+          console.error('Failed to delete sprint:', err);
+          this.errorMessage.set('Failed to delete sprint. Please try again.');
+        },
+      });
     }
   }
 
   onUpdateSprintStatus(sprintId: string, newStatus: Sprint['status']): void {
-    this.projectsService.updateSprintStatus(sprintId, newStatus);
-    this.loadSprints();
+    const backendStatus = newStatus.toUpperCase() as 'PLANNED' | 'ACTIVE' | 'COMPLETED';
+    this.sprintService
+      .updateSprint(this.projectId, sprintId, { status: backendStatus })
+      .subscribe({
+        next: () => {
+          this.loadSprints();
+        },
+        error: (err) => {
+          console.error('Failed to update sprint status:', err);
+          this.errorMessage.set('Failed to update sprint status. Please try again.');
+        },
+      });
   }
 
   getProgressPercentage(sprintId: string): number {

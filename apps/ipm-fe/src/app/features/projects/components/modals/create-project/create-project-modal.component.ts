@@ -12,7 +12,11 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { UsersService } from '../../../../../core/services/users.service';
-import type { Project, ProjectType, UserSummary } from '@sebsa-pm-tool/shared-models';
+import type {
+  Project,
+  ProjectType,
+  UserSummary,
+} from '@sebsa-pm-tool/shared-models';
 
 export interface ProjectFormData {
   name: string;
@@ -20,6 +24,8 @@ export interface ProjectFormData {
   type: ProjectType;
   customType?: string;
   memberIds: string[];
+  isCsoProject: boolean;
+  customerName?: string;
 }
 
 const PROJECT_TYPE_OPTIONS: { value: ProjectType; label: string }[] = [
@@ -45,8 +51,12 @@ export class CreateProjectModalComponent implements OnChanges {
 
   @Input() isOpen = false;
   @Input() editingProject: Project | null = null;
-  @Output() close = new EventEmitter<void>();
-  @Output() submit = new EventEmitter<ProjectFormData>();
+  /** When true and not editing an existing project, the CSO checkbox
+   *  starts checked — used when this modal is opened from the CSO
+   *  Dashboard's "New CSO Project" entry point. */
+  @Input() defaultCsoProject = false;
+  @Output() closed = new EventEmitter<void>();
+  @Output() submitted = new EventEmitter<ProjectFormData>();
 
   protected readonly typeOptions = PROJECT_TYPE_OPTIONS;
 
@@ -56,6 +66,8 @@ export class CreateProjectModalComponent implements OnChanges {
   customType = '';
   teamMemberSearch = '';
   selectedMembers: UserSummary[] = [];
+  isCsoProject = false;
+  customerName = '';
 
   protected readonly availableMembers = signal<UserSummary[]>([]);
   protected readonly isEditMode = signal(false);
@@ -74,8 +86,11 @@ export class CreateProjectModalComponent implements OnChanges {
       this.description = this.editingProject.description ?? '';
       this.type = this.editingProject.type;
       this.customType = this.editingProject.customType ?? '';
+      this.isCsoProject = this.editingProject.isCsoProject;
+      this.customerName = this.editingProject.customerName ?? '';
     } else {
       this.resetForm();
+      this.isCsoProject = this.defaultCsoProject;
     }
   }
 
@@ -114,7 +129,7 @@ export class CreateProjectModalComponent implements OnChanges {
 
   onCancel(): void {
     this.resetForm();
-    this.close.emit();
+    this.closed.emit();
   }
 
   onSubmit(): void {
@@ -130,6 +145,10 @@ export class CreateProjectModalComponent implements OnChanges {
       alert('Please enter a name for the custom project type');
       return;
     }
+    if (this.isCsoProject && !this.customerName.trim()) {
+      alert('Please enter a customer name for this CSO project');
+      return;
+    }
 
     const formData: ProjectFormData = {
       name: this.projectName,
@@ -137,10 +156,13 @@ export class CreateProjectModalComponent implements OnChanges {
       type: this.type,
       customType: this.type === 'CUSTOM' ? this.customType : undefined,
       memberIds: this.selectedMembers.map((m) => m.id),
+      isCsoProject: this.isCsoProject,
+      customerName: this.customerName.trim() || undefined,
     };
 
-    this.submit.emit(formData);
+    this.submitted.emit(formData);
     this.resetForm();
+    this.closed.emit();
   }
 
   private resetForm(): void {
@@ -150,6 +172,8 @@ export class CreateProjectModalComponent implements OnChanges {
     this.customType = '';
     this.teamMemberSearch = '';
     this.selectedMembers = [];
+    this.isCsoProject = false;
+    this.customerName = '';
   }
 
   onBackdropClick(): void {

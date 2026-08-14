@@ -25,6 +25,7 @@
           </td>
           <td class="col-health">
             <span class="health-badge" [ngClass]="'health-' + project.healthStatus">
+              <span class="badge-dot"></span>
               {{ project.health }}
             </span>
           </td>
@@ -48,6 +49,7 @@
           </td>
           <td class="col-risks">
             <span class="risk-badge" [ngClass]="'risk-' + (project.risks > 0 ? (project.risks <= 3 ? 'low' : (project.risks <= 6 ? 'medium' : 'high')) : 'none')">
+              <span class="badge-dot"></span>
               {{ project.risks }} {{ project.risks === 1 ? 'issue' : 'issues' }}
             </span>
           </td>

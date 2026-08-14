@@ -149,6 +149,22 @@
   }
 }
 
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--app-text);
+  cursor: pointer;
+
+  input[type='checkbox'] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+  }
+}
+
 .form-input,
 .form-select,
 .form-textarea {
@@ -316,3 +332,39 @@
     background: var(--app-text-subtle);
   }
 }
+
+/* Field-level loading & error feedback */
+.field-loading,
+.field-error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+
+  .material-symbols-outlined {
+    font-size: 18px;
+  }
+}
+
+.field-loading {
+  color: var(--app-text-muted);
+  background: var(--app-hover);
+}
+
+.field-error {
+  color: #dc2626;
+  background: rgba(220, 38, 38, 0.08);
+}
+
+/* Spinner rotation */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+

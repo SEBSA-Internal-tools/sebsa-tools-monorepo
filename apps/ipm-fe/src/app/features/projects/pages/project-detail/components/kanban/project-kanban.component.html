@@ -1,67 +1,127 @@
-<div class="kanban-container">
-  @for (column of columns; track column.id) {
-    <div class="kanban-column">
-      <!-- Column Header -->
-      <div class="column-header">
-        <div class="column-title">
-          <div class="status-dot" [style.background-color]="column.color"></div>
-          <span class="title-text">{{ column.label }}</span>
-          <span class="task-count">{{ tasks[column.id].length }}</span>
+@if (isLoading()) {
+  <div class="kanban-loading">
+    <span class="material-symbols-outlined">hourglass_empty</span>
+    <p>Loading board...</p>
+  </div>
+} @else if (errorMessage() && workflowStages().length === 0) {
+  <div class="kanban-error-state">
+    <span class="material-symbols-outlined">error_outline</span>
+    <p>{{ errorMessage() }}</p>
+  </div>
+} @else {
+
+  <div class="kanban-container">
+    @for (stage of workflowStages(); track stage.id) {
+      <div class="kanban-column">
+
+        <div class="column-header">
+          <div class="column-title">
+            <span class="title-text">{{ stage.name }}</span>
+            <span class="task-count">{{ tasks()[stage.id]?.length || 0 }}</span>
+          </div>
         </div>
-      </div>
 
-      <!-- Drop Zone -->
-      <div
-        class="drop-zone"
-        [id]="column.id"
-        (dragover)="onDragOver($event)"
-        (drop)="onDrop($event, column.id)"
-      >
-        @if (tasks[column.id].length > 0) {
-          @for (task of tasks[column.id]; track task.id) {
-            <div
-              class="task-card"
-              draggable="true"
-              (dragstart)="onDragStart(task)"
-              (dragend)="onDragEnd()"
-              [class.dragging]="draggedTask?.id === task.id"
-            >
-              <!-- Task ID & Priority -->
-              <div class="task-header">
-                <span class="task-id">{{ task.id }}</span>
-                <span
-                  class="priority-badge"
-                  [class]="getPriorityClass(task.priority)"
-                >
-                  {{ task.priority }}
-                </span>
-              </div>
+        <div
+          class="drop-zone"
+          [id]="stage.id"
+          (dragover)="onDragOver($event)"
+          (drop)="onDrop($event, stage.id)"
+        >
+          @if ((tasks()[stage.id]?.length || 0) > 0) {
+            @for (task of tasks()[stage.id]; track task.id) {
+              <div
+                class="task-card"
+                [class]="'task-card priority-' + task.priority.toLowerCase()"
+                draggable="true"
+                (dragstart)="onDragStart(task)"
+                (dragend)="onDragEnd()"
+                [class.dragging]="draggedTask?.id === task.id"
+              >
 
-              <!-- Task Title -->
-              <h3 class="task-title">{{ task.title }}</h3>
+                <h3 class="task-title">{{ task.title }}</h3>
 
-              <!-- Task Category -->
-              <p class="task-category">{{ task.category }}</p>
+                <div class="task-meta">
+                  <div class="task-header-badges">
+                    @if (task.isCsoLabeled) {
+                      <span class="cso-badge">CSO</span>
+                    }
+                    <span
+                      class="priority-badge"
+                      [class]="getPriorityClass(task.priority)"
+                    >
+                      {{ task.priority }}
+                    </span>
+                    <span class="task-category">{{ task.category }}</span>
+                  </div>
+                </div>
 
-              <!-- Task Footer -->
-              <div class="task-footer">
-                <span class="duration">
-                  <span class="material-symbols-outlined">schedule</span>
-                  {{ task.duration }}
-                </span>
-                <div class="task-assignee" *ngIf="task.assignee" [title]="task.assignee">
-                  {{ getTaskInitials(task.assignee) }}
+                <div class="task-footer">
+                  <span class="duration">
+                    <span class="material-symbols-outlined">schedule</span>
+                    {{ task.duration }}
+                  </span>
+                  @if (task.assignee) {
+                    <div class="task-assignee" [title]="task.assignee">
+                      {{ getTaskInitials(task.assignee) }}
+                    </div>
+                  }
                 </div>
               </div>
+            }
+          } @else {
+            <div class="empty-column">
+              <span class="material-symbols-outlined">inbox</span>
+              <p>No tasks</p>
             </div>
           }
-        } @else {
-          <div class="empty-column">
-            <span class="material-symbols-outlined">inbox</span>
-            <p>No tasks</p>
-          </div>
-        }
+        </div>
       </div>
-    </div>
-  }
-</div>
+    }
+
+    <!-- Permanent "+ Add Column" panel at the far right of the scroll area -->
+    @if (isAddingColumn()) {
+      <div class="add-column-card">
+        <div class="inline-input-form">
+          <input
+            type="text"
+            class="column-name-input"
+            placeholder="Column name…"
+            [(ngModel)]="newColumnName"
+            [disabled]="isCreatingColumn()"
+            (keyup.enter)="saveNewColumn()"
+            (keyup.escape)="cancelAddColumn()"
+            autofocus
+          />
+          @if (errorMessage()) {
+            <p class="input-error">{{ errorMessage() }}</p>
+          }
+          <div class="btn-row">
+            <button
+              type="button"
+              class="btn-save"
+              (click)="saveNewColumn()"
+              [disabled]="isCreatingColumn()"
+            >
+              <span class="material-symbols-outlined">{{ isCreatingColumn() ? 'hourglass_empty' : 'check' }}</span>
+            </button>
+            <button
+              type="button"
+              class="btn-cancel"
+              (click)="cancelAddColumn()"
+              [disabled]="isCreatingColumn()"
+            >
+              <span class="material-symbols-outlined">close</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    } @else {
+      <div class="add-column-button-wrapper">
+        <button type="button" class="btn-add-column" (click)="onAddColumn()">
+          <span class="material-symbols-outlined">add</span>
+          <span>Add Column</span>
+        </button>
+      </div>
+    }
+  </div>
+}

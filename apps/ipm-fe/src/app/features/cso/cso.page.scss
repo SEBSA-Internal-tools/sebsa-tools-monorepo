@@ -1,0 +1,43 @@
+.cso-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  width: 100%;
+  background: var(--app-background);
+}
+
+.page-header {
+  padding: 24px 24px 0;
+  max-width: 1300px;
+  margin: 0 auto;
+  width: 100%;
+
+  @media (min-width: 768px) {
+    padding: 32px 32px 0;
+  }
+
+  h1 {
+    margin: 0 0 4px;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--app-text);
+  }
+
+  p {
+    margin: 0 0 16px;
+    color: var(--app-text-muted);
+    font-size: 0.9rem;
+  }
+}
+
+.tab-content {
+  flex: 1;
+  padding: 24px;
+  max-width: 1300px;
+  margin: 0 auto;
+  width: 100%;
+
+  @media (min-width: 768px) {
+    padding: 32px;
+  }
+}

@@ -36,6 +36,11 @@ export const appRoutes: Route[] = [
 					import('./features/tasks/tasks.page').then((m) => m.TasksPageComponent),
 			},
 			{
+				path: 'tasks/:id',
+				loadComponent: () =>
+					import('./features/task-detail/task-detail.page').then((m) => m.TaskDetailPageComponent),
+			},
+			{
 				path: 'projects',
 				loadComponent: () =>
 					import('./features/projects/pages/projects-list/projects-list.page').then((m) => m.ProjectsPageComponent),
@@ -69,6 +74,13 @@ export const appRoutes: Route[] = [
 				loadComponent: () =>
 					import('./features/admin/privilege-groups/privilege-groups.page').then(
 						(m) => m.PrivilegeGroupsPageComponent
+					),
+			},
+			{
+				path: 'cso',
+				loadComponent: () =>
+					import('./features/cso/cso.page').then(
+						(m) => m.CsoPageComponent
 					),
 			},
 		],

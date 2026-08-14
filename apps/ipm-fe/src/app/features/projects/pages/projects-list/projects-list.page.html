@@ -22,7 +22,7 @@
   <!-- Create Project Modal -->
   <create-project-modal
     [isOpen]="isModalOpen"
-    (close)="closeCreateModal()"
-    (submit)="onCreateProject($event)"
+    (closed)="closeCreateModal()"
+    (submitted)="onCreateProject($event)"
   ></create-project-modal>
 </section>

@@ -10,30 +10,56 @@ export interface TaskLabelSummary {
   color: string | null;
 }
 
+/** List-view shape — returned by GET /tasks, /tasks/my-assigned, and
+ * subtask lists. Fields only the detail fetch (GET /tasks/:id) populates
+ * are optional here; `Task` below re-declares them as required. */
 export interface TaskSummary {
   id: string;
   projectId: string;
-  parentTaskId: string | null;
+  parentTaskId?: string | null;
   title: string;
   type: TaskType;
   priority: TaskPriority;
   workflowStageId: string;
   sprintId: string | null;
+  dueDate: string | null;
+  description: string | null;
+  isCsoLabeled: boolean;
+  project: { id: string; name: string };
+  workflowStage: { id: string; name: string };
+  assignees: Pick<UserSummary, 'id' | 'name' | 'email'>[];
+  milestoneId?: string | null;
+  startDate?: string | null;
+  storyPoints?: number | null;
+  createdBy?: Pick<UserSummary, 'id' | 'name'>;
+  labels?: TaskLabelSummary[];
+  subtaskCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface TaskListSummary {
+  id: string;
+  title: string;
+  description: string | null;
+  type: TaskType;
+  workflowStageId: string;
+  priority: TaskPriority;
+  dueDate: string | null;
+  assignee: Pick<UserSummary, 'id' | 'name' | 'email'> | null;
+}
+
+/** Detail-view shape — includes the subtask list. */
+export interface Task extends TaskSummary {
+  parentTaskId: string | null;
   milestoneId: string | null;
   startDate: string | null;
-  dueDate: string | null;
   storyPoints: number | null;
   createdBy: Pick<UserSummary, 'id' | 'name'>;
-  assignees: Pick<UserSummary, 'id' | 'name' | 'email'>[];
   labels: TaskLabelSummary[];
   subtaskCount: number;
   createdAt: string;
   updatedAt: string;
-}
-
-/** Detail-view shape — includes description and the subtask list. */
-export interface Task extends TaskSummary {
-  description: string | null;
   subtasks: Pick<TaskSummary, 'id' | 'title' | 'workflowStageId'>[];
 }
 
@@ -44,7 +70,8 @@ export interface CreateTaskRequest {
   description?: string;
   type?: TaskType;
   priority?: TaskPriority;
-  workflowStageId: string;
+  /** Omit to fall back to the project's default Backlog stage. */
+  workflowStageId?: string;
   sprintId?: string;
   milestoneId?: string;
   startDate?: string;
@@ -53,6 +80,7 @@ export interface CreateTaskRequest {
   reminderLeadMinutes?: number;
   assigneeIds?: string[];
   labelIds?: string[];
+  isCsoLabeled?: boolean;
 }
 
 export type UpdateTaskRequest = Partial<Omit<CreateTaskRequest, 'projectId'>>;
