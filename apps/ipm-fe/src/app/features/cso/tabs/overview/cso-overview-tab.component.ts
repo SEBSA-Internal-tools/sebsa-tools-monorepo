@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import type { CreateTaskRequest, ProjectSummary, UserAdminSummary } from '@sebsa-pm-tool/shared-models';
 import { CsoOverviewService, CsoTaskView } from '../../../../core/services/cso-overview.service';
 import { ProjectsService } from '../../../projects/services/projects.service';
@@ -23,6 +24,7 @@ export class CsoOverviewTabComponent implements OnInit {
   private readonly projectsService = inject(ProjectsService);
   private readonly userAdminService = inject(UserAdminService);
   private readonly tasksService = inject(TasksService);
+  private readonly router = inject(Router);
 
   protected readonly tasks = this.csoOverviewService.tasks;
   protected readonly isLoading = this.csoOverviewService.isLoading;
@@ -30,11 +32,19 @@ export class CsoOverviewTabComponent implements OnInit {
   protected readonly availableProjects = signal<ProjectSummary[]>([]);
   protected readonly availableAssignees = signal<UserAdminSummary[]>([]);
 
-  /** Distinct customer names across every project the caller can see —
-   *  there's no Customer entity to list, so the filter dropdown is derived
-   *  from whatever's actually been typed into Project.customerName so far. */
+  /** The Project/Customer filters only make sense scoped to CSO projects —
+   *  a CSO-labeled task can technically live in a non-CSO project too, but
+   *  these dropdowns are for narrowing by "which CSO engagement," not every
+   *  project that happens to have a customer name set. */
+  protected readonly csoProjects = computed(() =>
+    this.availableProjects().filter((p) => p.isCsoProject),
+  );
+
+  /** Distinct customer names across CSO projects only — there's no Customer
+   *  entity to list, so the filter dropdown is derived from whatever's
+   *  actually been typed into Project.customerName so far. */
   protected readonly availableCustomerNames = computed<string[]>(() => {
-    const names = this.availableProjects()
+    const names = this.csoProjects()
       .map((p) => p.customerName)
       .filter((name): name is string => !!name);
     return [...new Set(names)].sort();
@@ -78,6 +88,10 @@ export class CsoOverviewTabComponent implements OnInit {
 
   closeTaskModal(): void {
     this.isTaskModalOpen = false;
+  }
+
+  onTaskClick(taskId: string): void {
+    this.router.navigate(['/tasks', taskId]);
   }
 
   onCreateTask(formData: TaskFormData): void {

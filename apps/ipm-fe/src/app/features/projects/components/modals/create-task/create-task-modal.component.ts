@@ -43,6 +43,15 @@ export class CreateTaskModalComponent implements OnChanges {
   @Input() isOpen = false;
   @Input() projectId = '';
   @Input() projectName = '';
+  /** Whether the fixed `projectId` above is a CSO project — only meaningful
+   *  when `projectId` is set. Hides the CSO checkbox and forces the task
+   *  CSO-labeled, since all tasks in a CSO project sync automatically. */
+  @Input() isProjectCso = false;
+  /** Always treats the task as CSO-labeled and hides the checkbox,
+   *  regardless of which project ends up selected — used by the CSO
+   *  Overview's "Create Task" entry point, where the task is CSO by
+   *  definition no matter which project it's filed under. */
+  @Input() forceCsoLabeled = false;
   @Output() closed = new EventEmitter<void>();
   @Output() submitted = new EventEmitter<TaskFormData>();
 
@@ -62,7 +71,7 @@ export class CreateTaskModalComponent implements OnChanges {
   selectedProjectName = '';
   isCsoLabeled = false;
 
-  readonly availableProjects = signal<Array<{ id: string; name: string }>>([]);
+  readonly availableProjects = signal<Array<{ id: string; name: string; isCsoProject: boolean }>>([]);
   readonly availableSprints = signal<SprintSummary[]>([]);
   readonly availableAssignees = signal<UserAdminSummary[]>([]);
   readonly isLoadingSprints = signal(false);
@@ -123,7 +132,11 @@ export class CreateTaskModalComponent implements OnChanges {
   private loadAvailableProjects(): void {
     this.projectsService.getProjects().subscribe({
       next: (projects) => {
-        const mapped = projects.map((p) => ({ id: p.id, name: p.name }));
+        const mapped = projects.map((p) => ({
+          id: p.id,
+          name: p.name,
+          isCsoProject: p.isCsoProject,
+        }));
         this.availableProjects.set(mapped);
         if (mapped.length > 0 && !this.selectedProjectId) {
           this.onProjectSelect(mapped[0].id);
@@ -140,6 +153,16 @@ export class CreateTaskModalComponent implements OnChanges {
       this.selectedProjectName = project.name;
       this.loadSprints(projectId);
     }
+  }
+
+  /** Whether the task being created will land in a CSO project — either the
+   *  fixed `projectId` context, or whichever project is currently picked in
+   *  the project-picker. Drives whether the CSO checkbox is shown at all. */
+  isTargetProjectCso(): boolean {
+    if (this.forceCsoLabeled) return true;
+    if (this.projectId) return this.isProjectCso;
+    const selected = this.availableProjects().find((p) => p.id === this.selectedProjectId);
+    return selected?.isCsoProject ?? false;
   }
 
   /** Label shown in the sprint dropdown for each sprint */
@@ -179,7 +202,7 @@ export class CreateTaskModalComponent implements OnChanges {
       dueDate: this.dueDate,
       description: this.description,
       sprintId: this.selectedSprintId || undefined,
-      isCsoLabeled: this.isCsoLabeled,
+      isCsoLabeled: this.isTargetProjectCso() || this.isCsoLabeled,
     };
 
     this.submitted.emit(formData);

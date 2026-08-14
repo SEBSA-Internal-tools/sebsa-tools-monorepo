@@ -108,6 +108,14 @@ $desktop: 1024px;
   tr:last-child td {
     border-bottom: none;
   }
+
+  .clickable-row {
+    cursor: pointer;
+
+    &:hover {
+      background: var(--app-hover);
+    }
+  }
 }
 
 .loading-state,

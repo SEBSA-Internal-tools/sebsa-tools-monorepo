@@ -67,28 +67,18 @@
         ></textarea>
       </div>
 
-      <!-- CSO Project Flag -->
       <div class="form-group">
-        <label class="checkbox-label">
-          <input type="checkbox" [(ngModel)]="isCsoProject" />
-          This is a CSO Project
+        <label for="customerName" class="form-label">
+          Customer @if (isCsoProject) { <span class="required">*</span> }
         </label>
+        <input
+          id="customerName"
+          type="text"
+          [(ngModel)]="customerName"
+          placeholder="e.g. Acme Corp"
+          class="form-input"
+        />
       </div>
-
-      @if (isCsoProject) {
-        <div class="form-group">
-          <label for="customerName" class="form-label">
-            Customer <span class="required">*</span>
-          </label>
-          <input
-            id="customerName"
-            type="text"
-            [(ngModel)]="customerName"
-            placeholder="e.g. Acme Corp"
-            class="form-input"
-          />
-        </div>
-      }
 
       <!-- Assign Team Members Field (create only — existing projects manage members from the Team tab) -->
       @if (!isEditMode()) {

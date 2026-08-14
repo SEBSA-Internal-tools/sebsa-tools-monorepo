@@ -157,7 +157,7 @@ export class CreateProjectModalComponent implements OnChanges {
       customType: this.type === 'CUSTOM' ? this.customType : undefined,
       memberIds: this.selectedMembers.map((m) => m.id),
       isCsoProject: this.isCsoProject,
-      customerName: this.isCsoProject ? this.customerName.trim() : undefined,
+      customerName: this.customerName.trim() || undefined,
     };
 
     this.submitted.emit(formData);

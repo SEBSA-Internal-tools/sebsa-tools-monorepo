@@ -31,14 +31,6 @@ export class CsoDashboardTabComponent implements OnInit {
     this.allProjects().filter((project) => project.isCsoProject),
   );
 
-  protected readonly statusCounts = computed(() => {
-    const counts = { new: 0, todo: 0, inprogress: 0, done: 0 };
-    for (const task of this.csoTasks()) {
-      counts[task.statusLabel]++;
-    }
-    return counts;
-  });
-
   protected readonly overdueCount = computed(() => {
     const now = new Date();
     return this.csoTasks().filter(

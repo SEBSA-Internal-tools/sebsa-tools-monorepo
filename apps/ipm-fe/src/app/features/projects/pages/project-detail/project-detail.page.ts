@@ -149,7 +149,7 @@ export class ProjectDetailPageComponent implements OnInit {
         type: formData.type,
         customType: formData.customType,
         isCsoProject: formData.isCsoProject,
-        customerName: formData.isCsoProject ? formData.customerName : null,
+        customerName: formData.customerName || null,
       })
       .subscribe({
         next: (updated) => {

@@ -82,47 +82,6 @@
   color: var(--app-text);
 }
 
-.status-breakdown {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 24px;
-}
-
-.status-chip {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 14px;
-  border-radius: 8px;
-  font-size: 0.85rem;
-
-  .chip-label {
-    color: var(--app-text-muted);
-  }
-
-  .chip-value {
-    font-weight: 700;
-    color: var(--app-text);
-  }
-
-  &.status-new {
-    background: rgba(59, 130, 246, 0.1);
-  }
-
-  &.status-todo {
-    background: rgba(148, 163, 184, 0.15);
-  }
-
-  &.status-inprogress {
-    background: rgba(245, 158, 11, 0.1);
-  }
-
-  &.status-done {
-    background: rgba(16, 185, 129, 0.1);
-  }
-}
-
 .projects-card {
   background: var(--app-surface);
   border: 1px solid var(--app-border);

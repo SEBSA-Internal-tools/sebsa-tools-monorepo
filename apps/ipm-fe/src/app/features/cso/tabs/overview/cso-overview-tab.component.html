@@ -14,7 +14,7 @@
   <div class="filter-bar">
     <select [(ngModel)]="selectedProjectId" (change)="applyFilters()" class="filter-select">
       <option value="">All Projects</option>
-      @for (project of availableProjects(); track project.id) {
+      @for (project of csoProjects(); track project.id) {
         <option [value]="project.id">{{ project.name }}</option>
       }
     </select>
@@ -76,7 +76,7 @@
         </thead>
         <tbody>
           @for (task of filteredTasks(); track task.id) {
-            <tr>
+            <tr class="clickable-row" (click)="onTaskClick(task.id)">
               <td>{{ task.title }}</td>
               <td>{{ task.projectName }}</td>
               <td>{{ task.customerName || '—' }}</td>
@@ -101,6 +101,7 @@
 
   <create-task-modal
     [isOpen]="isTaskModalOpen"
+    [forceCsoLabeled]="true"
     (closed)="closeTaskModal()"
     (submitted)="onCreateTask($event)"
   ></create-task-modal>
