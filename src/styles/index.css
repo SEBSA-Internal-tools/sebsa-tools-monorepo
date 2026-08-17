@@ -1,0 +1,28 @@
+/*
+ * Stylesheet entry point — the only CSS file the application imports.
+ *
+ * Order matters. CSS requires every `@import` before any other rule, and
+ * Tailwind resolves these itself and processes the flattened result, so
+ * `@theme` and `@utility` work from the imported files.
+ *
+ *   Themes.css     design tokens (colours, gradients, type, shape)
+ *   base.css       element defaults
+ *   utilities.css  custom utilities Tailwind cannot express inline
+ *   Pages.css      screen-specific rules and keyframes
+ */
+
+@import "tailwindcss";
+
+/* Self-hosted so there is no external font request and no flash of fallback. */
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
+@import "@fontsource/poppins/500.css";
+@import "@fontsource/poppins/600.css";
+@import "@fontsource/poppins/700.css";
+
+@import "./Themes.css";
+@import "./base.css";
+@import "./utilities.css";
+@import "./Pages.css";

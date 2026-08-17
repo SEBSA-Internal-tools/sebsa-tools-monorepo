@@ -1,0 +1,54 @@
+/*
+ * Element defaults.
+ *
+ * Only rules that apply to bare HTML belong here. Anything that needs a class
+ * is a utility or a component.
+ */
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-page);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* The design system sets headings in Poppins; body copy stays Inter. */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-heading);
+    color: var(--color-heading);
+    letter-spacing: -0.02em;
+  }
+
+  /* One consistent focus treatment for every interactive element. */
+  :focus-visible {
+    outline: 2px solid var(--color-border-focus);
+    outline-offset: 2px;
+  }
+
+  /*
+   * Respect a reduced-motion preference globally. Individual components add
+   * their own `prefers-reduced-motion: no-preference` gate around transforms,
+   * because neutralising a duration is not the same as not moving something.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}

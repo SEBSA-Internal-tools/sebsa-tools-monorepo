@@ -1,0 +1,35 @@
+/*
+ * Screen-specific styles.
+ *
+ * With utility-first Tailwind very little belongs here. A rule qualifies only
+ * if it:
+ *
+ *   a) defines an `@keyframes`, or
+ *   b) needs a selector Tailwind cannot express inline, or
+ *   c) is a multi-stop gradient or pattern reused across one page.
+ *
+ * Class names are namespaced `.page-<name>__<element>`. Anything a utility can
+ * express stays a utility — otherwise this file becomes the place where styling
+ * goes to hide.
+ */
+
+/* -------------------------------------------------------------------------- */
+/* Motion primitives                                                          */
+/* -------------------------------------------------------------------------- */
+
+@keyframes enter-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+@keyframes float-slow {
+  50% {
+    transform: translate3d(0, -14px, 0) rotate(3deg);
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Code Review Portal — home                                                  */
+/* -------------------------------------------------------------------------- */
