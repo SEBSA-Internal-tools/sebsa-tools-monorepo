@@ -105,6 +105,17 @@
             class="form-input"
           />
         </div>
+
+        <!-- Assignee -->
+        <div class="form-group full-width">
+          <label for="assignee" class="form-label">Assignee</label>
+          <select id="assignee" [(ngModel)]="selectedAssigneeId" class="form-input">
+            <option value="">Unassigned</option>
+            @for (user of availableAssignees(); track user.id) {
+              <option [value]="user.id">{{ user.name }}</option>
+            }
+          </select>
+        </div>
       </div>
 
       <!-- Description -->
@@ -117,6 +128,14 @@
           class="form-textarea"
           rows="6"
         ></textarea>
+      </div>
+
+      <!-- CSO Label -->
+      <div class="form-group full-width">
+        <label class="checkbox-label">
+          <input type="checkbox" [(ngModel)]="isCsoLabeled" />
+          Tag as CSO — surfaces this task on the CSO Overview page
+        </label>
       </div>
     </div>
 

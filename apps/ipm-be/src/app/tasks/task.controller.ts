@@ -21,6 +21,7 @@ import { FilterTaskDto } from './dto/filter-task.dto';
 import { AssigneesDto } from './dto/assign-task.dto';
 import { TaskLabelsDto } from './dto/task-label.dto';
 import { CreateTaskDependencyDto } from './dto/create-task-dependency.dto';
+import { CreateSubtaskDto } from './dto/create-subtask.dto';
 
 @ApiTags('tasks')
 @ApiBearerAuth()
@@ -123,7 +124,7 @@ export class TaskController {
   @Post(':id/subtasks')
   async createSubtask(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: CreateTaskDto,
+    @Body() dto: CreateSubtaskDto,
     @CurrentUser() user: AuthUser,
   ) {
     return this.taskService.createSubtask(id, dto, user);
@@ -152,5 +153,12 @@ export class TaskController {
     @CurrentUser() user: AuthUser,
   ) {
     return this.taskService.removeDependency(id, dependencyId, user);
+  }
+
+  // --- Status History (feeds the Status/Flow Stepper) ---
+
+  @Get(':id/status-history')
+  async getStatusHistory(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+    return this.taskService.getStatusHistory(id, user);
   }
 }

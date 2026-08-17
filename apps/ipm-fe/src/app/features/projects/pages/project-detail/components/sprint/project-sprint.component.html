@@ -111,7 +111,6 @@
                 <table class="tasks-table">
                   <thead>
                     <tr>
-                      <th>ID</th>
                       <th>Title</th>
                       <th>Category</th>
                       <th>Status</th>
@@ -123,9 +122,6 @@
                   <tbody>
                     @for (task of getSprintTasks(sprint.id); track task.id) {
                       <tr class="task-row">
-                        <td class="col-id">
-                          <span class="task-id">{{ task.id }}</span>
-                        </td>
                         <td class="col-title">
                           <span class="task-title">{{ task.title }}</span>
                         </td>

@@ -110,6 +110,8 @@ export class ProjectDetailPageComponent implements OnInit {
       dueDate: formData.dueDate || undefined,
       sprintId: formData.sprintId || undefined,
       assigneeIds: formData.assigneeIds.length > 0 ? formData.assigneeIds : undefined,
+      isCsoLabeled: formData.isCsoLabeled,
+      parentTaskId: formData.parentTaskId,
     };
 
     this.isLoading.set(true);
@@ -147,6 +149,8 @@ export class ProjectDetailPageComponent implements OnInit {
         description: formData.description || undefined,
         type: formData.type,
         customType: formData.customType,
+        isCsoProject: formData.isCsoProject,
+        customerName: formData.customerName || null,
       })
       .subscribe({
         next: (updated) => {

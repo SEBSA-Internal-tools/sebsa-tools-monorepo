@@ -58,6 +58,7 @@ export class ProjectsListComponent {
 
   searchQuery = '';
   selectedStatus: 'all' | ProjectStatus = 'all';
+  selectedCustomerName = '';
 
   filteredProjects(): ProjectSummary[] {
     if (!this.projects) return [];
@@ -69,9 +70,19 @@ export class ProjectsListComponent {
         !this.searchQuery ||
         project.name.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
         project.createdBy.name.toLowerCase().includes(this.searchQuery.toLowerCase());
+      const matchesCustomer =
+        !this.selectedCustomerName || project.customerName === this.selectedCustomerName;
 
-      return matchesStatus && matchesSearch;
+      return matchesStatus && matchesSearch && matchesCustomer;
     });
+  }
+
+  /** Distinct customer names across every loaded project, for the customer filter dropdown. */
+  availableCustomerNames(): string[] {
+    const names = (this.projects ?? [])
+      .map((p) => p.customerName)
+      .filter((name): name is string => !!name);
+    return [...new Set(names)].sort();
   }
 
   getStatusCount(status: ProjectStatus): number {
@@ -84,10 +95,6 @@ export class ProjectsListComponent {
 
   onSearchChange(): void {
     this.searchChange.emit(this.searchQuery);
-  }
-
-  onStatusChange(status: 'all' | ProjectStatus): void {
-    this.selectedStatus = status;
   }
 
   onDeleteProject(projectId: string): void {

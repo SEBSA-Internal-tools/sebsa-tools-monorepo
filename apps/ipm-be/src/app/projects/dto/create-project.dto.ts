@@ -1,6 +1,7 @@
 import { ProjectType } from '@prisma/client';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsOptional,
@@ -44,4 +45,18 @@ export class CreateProjectDto {
   @IsOptional()
   @IsString()
   color?: string;
+
+  @ApiPropertyOptional({ default: false, description: 'Flags this project as a CSO Project.' })
+  @IsOptional()
+  @IsBoolean()
+  isCsoProject?: boolean;
+
+  @ApiPropertyOptional({
+    minLength: 1,
+    description: 'Required when isCsoProject is true.',
+  })
+  @ValidateIf((dto: CreateProjectDto) => dto.isCsoProject === true)
+  @IsString()
+  @MinLength(1)
+  customerName?: string;
 }

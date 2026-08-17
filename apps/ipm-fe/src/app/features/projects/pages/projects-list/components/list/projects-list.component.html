@@ -25,27 +25,19 @@
 
     <!-- Right: Filter Tabs and New Project CTA -->
     <div class="controls-right">
-      <!-- Filter Tabs -->
-      <div class="filter-tabs">
-        <button
-          type="button"
-          class="filter-btn"
-          [class.active]="selectedStatus === 'all'"
-          (click)="onStatusChange('all')"
-        >
-          All
-        </button>
+      <select [(ngModel)]="selectedStatus" class="status-filter">
+        <option value="all">All Statuses</option>
         @for (status of statusOptions; track status) {
-          <button
-            type="button"
-            class="filter-btn"
-            [class.active]="selectedStatus === status"
-            (click)="onStatusChange(status)"
-          >
-            {{ statusLabels[status] }} <span class="count">{{ getStatusCount(status) }}</span>
-          </button>
+          <option [value]="status">{{ statusLabels[status] }} ({{ getStatusCount(status) }})</option>
         }
-      </div>
+      </select>
+
+      <select [(ngModel)]="selectedCustomerName" class="customer-filter">
+        <option value="">All Customers</option>
+        @for (name of availableCustomerNames(); track name) {
+          <option [value]="name">{{ name }}</option>
+        }
+      </select>
 
       <button type="button" class="btn-primary" (click)="onNewProject()">
         <span class="material-symbols-outlined">add</span>
@@ -85,6 +77,9 @@
                   projectTypeIcon(project.type)
                 }}</span>
                 <span class="project-name">{{ project.name }}</span>
+                @if (project.isCsoProject) {
+                  <span class="cso-badge">CSO</span>
+                }
               </div>
             </div>
 

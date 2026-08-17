@@ -1,0 +1,19 @@
+<section class="cso-page">
+  <div class="page-header">
+    <h1>CSO</h1>
+    <p>Customer Success Organization — projects, tasks, and cross-project visibility.</p>
+  </div>
+
+  <cso-nav-tabs
+    [activeTab]="activeTab"
+    (tabChange)="onTabChange($event)"
+  ></cso-nav-tabs>
+
+  <div class="tab-content">
+    @if (activeTab === 'dashboard') {
+      <cso-dashboard-tab></cso-dashboard-tab>
+    } @else {
+      <cso-overview-tab></cso-overview-tab>
+    }
+  </div>
+</section>

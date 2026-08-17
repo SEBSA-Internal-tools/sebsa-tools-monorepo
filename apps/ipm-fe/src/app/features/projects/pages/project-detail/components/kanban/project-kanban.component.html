@@ -38,17 +38,31 @@
                 [class.dragging]="draggedTask?.id === task.id"
               >
 
-                <h3 class="task-title">{{ task.title }}</h3>
+                <h3 class="task-title" (click)="openTaskDetail(task.id)">{{ task.title }}</h3>
 
                 <div class="task-meta">
-                  <span class="task-id">{{ task.id }}</span>
-                  <span
-                    class="priority-badge"
-                    [class]="getPriorityClass(task.priority)"
-                  >
-                    {{ task.priority }}
-                  </span>
-                  <span class="task-category">{{ task.category }}</span>
+                  <div class="task-header-badges">
+                    @if (task.isCsoLabeled) {
+                      <span class="cso-badge">CSO</span>
+                    }
+                    @if (isSubtask(task)) {
+                      <span class="subtask-badge">
+                        <span class="material-symbols-outlined">subdirectory_arrow_right</span>
+                        Subtask
+                      </span>
+                    }
+                    @if (task.category !== 'SUBTASK') {
+                      <span class="type-badge" [class]="getTypeClass(task.category)">
+                        {{ getTypeLabel(task.category) }}
+                      </span>
+                    }
+                    <span
+                      class="priority-badge"
+                      [class]="getPriorityClass(task.priority)"
+                    >
+                      {{ task.priority }}
+                    </span>
+                  </div>
                 </div>
 
                 <div class="task-footer">

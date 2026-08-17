@@ -4,11 +4,14 @@ import {
   Output,
   EventEmitter,
   ChangeDetectionStrategy,
-  OnChanges
+  OnChanges,
+  inject,
+  signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import type { Task, UpdateTaskRequest } from '@sebsa-pm-tool/shared-models';
+import type { Task, UpdateTaskRequest, UserAdminSummary } from '@sebsa-pm-tool/shared-models';
+import { UserAdminService } from '../../../core/services/user-admin.service';
 
 @Component({
   standalone: true,
@@ -24,12 +27,18 @@ export class EditTaskModalComponent implements OnChanges {
   @Output() closed = new EventEmitter<void>();
   @Output() submitted = new EventEmitter<UpdateTaskRequest>();
 
+  private readonly userAdminService = inject(UserAdminService);
+
   taskTitle = '';
   priority: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' = 'MEDIUM';
   startDate = '';
   dueDate = '';
   storyPoints: number | null = null;
   description = '';
+  isCsoLabeled = false;
+  selectedAssigneeId = '';
+
+  readonly availableAssignees = signal<UserAdminSummary[]>([]);
 
   ngOnChanges(): void {
     if (this.isOpen && this.task) {
@@ -39,7 +48,17 @@ export class EditTaskModalComponent implements OnChanges {
       this.dueDate = this.task.dueDate ? this.task.dueDate.split('T')[0] : '';
       this.storyPoints = this.task.storyPoints ?? null;
       this.description = this.task.description || '';
+      this.isCsoLabeled = this.task.isCsoLabeled;
+      this.selectedAssigneeId = this.task.assignees[0]?.id ?? '';
+      this.loadAssignees();
     }
+  }
+
+  private loadAssignees(): void {
+    this.userAdminService.listAll().subscribe({
+      next: (users) => this.availableAssignees.set(users.filter((u) => u.isActive)),
+      error: () => this.availableAssignees.set([]),
+    });
   }
 
   onCancel(): void {
@@ -59,6 +78,8 @@ export class EditTaskModalComponent implements OnChanges {
       dueDate: this.dueDate || undefined,
       storyPoints: this.storyPoints !== null ? this.storyPoints : undefined,
       description: this.description || undefined,
+      isCsoLabeled: this.isCsoLabeled,
+      assigneeIds: this.selectedAssigneeId ? [this.selectedAssigneeId] : [],
     };
 
     this.submitted.emit(formData);

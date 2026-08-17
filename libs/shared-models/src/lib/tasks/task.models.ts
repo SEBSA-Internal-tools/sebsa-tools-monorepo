@@ -10,6 +10,9 @@ export interface TaskLabelSummary {
   color: string | null;
 }
 
+/** List-view shape — returned by GET /tasks, /tasks/my-assigned, and
+ * subtask lists. Fields only the detail fetch (GET /tasks/:id) populates
+ * are optional here; `Task` below re-declares them as required. */
 export interface TaskSummary {
   id: string;
   projectId: string;
@@ -18,18 +21,21 @@ export interface TaskSummary {
   type: TaskType;
   priority: TaskPriority;
   workflowStageId: string;
-  sprintId?: string | null;
+  sprintId: string | null;
+  dueDate: string | null;
+  description: string | null;
+  isCsoLabeled: boolean;
+  project: { id: string; name: string };
+  workflowStage: { id: string; name: string };
+  assignees: Pick<UserSummary, 'id' | 'name' | 'email'>[];
   milestoneId?: string | null;
   startDate?: string | null;
-  dueDate?: string | null;
   storyPoints?: number | null;
   createdBy?: Pick<UserSummary, 'id' | 'name'>;
-  assignees?: Pick<UserSummary, 'id' | 'name' | 'email'>[];
   labels?: TaskLabelSummary[];
   subtaskCount?: number;
   createdAt?: string;
   updatedAt?: string;
-  description?: string | null;
 }
 
 export interface TaskListSummary {
@@ -45,6 +51,21 @@ export interface TaskListSummary {
 
 /** Detail-view shape — includes the subtask list. */
 export interface Task extends TaskSummary {
+  parentTaskId: string | null;
+  parentTask: { id: string; title: string } | null;
+  /** Full ancestor chain from the top-level task down to (not including) this
+   *  task itself — e.g. [GrandparentTask, ParentTask] — for breadcrumb display. */
+  ancestors: { id: string; title: string }[];
+  milestoneId: string | null;
+  startDate: string | null;
+  storyPoints: number | null;
+  reminderLeadMinutes: number | null;
+  sprint: { id: string; name: string } | null;
+  createdBy: Pick<UserSummary, 'id' | 'name'>;
+  labels: TaskLabelSummary[];
+  subtaskCount: number;
+  createdAt: string;
+  updatedAt: string;
   subtasks: Pick<TaskSummary, 'id' | 'title' | 'workflowStageId'>[];
 }
 
@@ -55,7 +76,8 @@ export interface CreateTaskRequest {
   description?: string;
   type?: TaskType;
   priority?: TaskPriority;
-  workflowStageId: string;
+  /** Omit to fall back to the project's default Backlog stage. */
+  workflowStageId?: string;
   sprintId?: string;
   milestoneId?: string;
   startDate?: string;
@@ -64,6 +86,7 @@ export interface CreateTaskRequest {
   reminderLeadMinutes?: number;
   assigneeIds?: string[];
   labelIds?: string[];
+  isCsoLabeled?: boolean;
 }
 
 export type UpdateTaskRequest = Partial<Omit<CreateTaskRequest, 'projectId'>>;
@@ -93,6 +116,11 @@ export interface TaskDependencyTaskRef {
   id: string;
   title: string;
   workflowStageId: string;
+  /** The TaskDependency row's own id — needed to call DELETE
+   *  /tasks/:id/dependencies/:dependencyId. Only removable from the
+   *  dependency's source task, so `blockedBy` entries carry it too but the
+   *  UI shouldn't offer a remove action there (this task is the target). */
+  dependencyId: string;
 }
 
 /** BLOCKED_BY is derived (reverse of another task's BLOCKS row targeting
@@ -103,4 +131,12 @@ export interface TaskDependenciesView {
   relatesTo: TaskDependencyTaskRef[];
   duplicateOf: TaskDependencyTaskRef[];
   blockedBy: TaskDependencyTaskRef[];
+}
+
+export interface TaskStatusHistoryEntry {
+  id: string;
+  fromStage: { id: string; name: string } | null;
+  toStage: { id: string; name: string };
+  changedAt: string;
+  changedBy: { id: string; name: string };
 }
