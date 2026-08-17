@@ -13,6 +13,10 @@ Read these four, in this order. About forty minutes.
 3. [Folder structure](./03-folder-structure.md) — where things live and where new things go
 4. [Coding standards](./04-coding-standards.md) — the conventions the linter enforces
 
+When you build your first screen, work through
+[Adding a new UI](./23-adding-a-new-ui.md) — it walks the whole job end to end
+and applies the standards above as it goes.
+
 Then skim [Definition of done](./14-definition-of-done.md) before opening your
 first pull request.
 
@@ -41,5 +45,7 @@ first pull request.
 | [19 · Error handling and observability](./19-error-handling.md) | Boundaries, logging, what a user sees |
 | [20 · Responsive design](./20-responsive-design.md) | Breakpoints and layout conventions |
 | [21 · Storybook standards](./21-storybook-standards.md) | What every component must have a story for |
+| [22 · Route modules](./22-route-modules.md) | What a page file must export, and how to add a new page |
+| [23 · Adding a new UI](./23-adding-a-new-ui.md) | End-to-end: content, path, page, route, links, and the component tiers |
 | [ADRs](./adr/) | Architecture decisions, with the reasoning that produced them |
 | [Backlog](./backlog.md) | Decided but not yet built |
