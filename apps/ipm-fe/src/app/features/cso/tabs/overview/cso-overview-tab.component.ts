@@ -7,7 +7,7 @@ import { CsoOverviewService, CsoTaskView } from '../../../../core/services/cso-o
 import { ProjectsService } from '../../../projects/services/projects.service';
 import { UserAdminService } from '../../../../core/services/user-admin.service';
 import { TasksService } from '../../../../core/services/tasks.service';
-import { CreateTaskModalComponent, type TaskFormData } from '../../../projects/components/modals/create-task/create-task-modal.component';
+import { CreateTaskModalComponent, type TaskFormData } from '../../../tasks/create-task/create-task-modal.component';
 
 type StatusFilter = '' | 'new' | 'todo' | 'inprogress' | 'done';
 

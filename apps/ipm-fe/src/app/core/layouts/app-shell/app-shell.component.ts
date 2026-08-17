@@ -4,7 +4,11 @@ import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/rou
 import { ThemeService } from '../../services/theme.service';
 import { AuthService } from '../../services/auth.service';
 import { ToastComponent } from '../../components/toast/toast.component';
-import { CreateTaskModalComponent, type TaskFormData } from '../../../features/projects/components/modals/create-task/create-task-modal.component';
+import { CreateTaskModalComponent, type TaskFormData } from '../../../features/tasks/create-task/create-task-modal.component';
+import { TasksService } from '../../services/tasks.service';
+import { ProjectsService } from '../../../features/projects/services/projects.service';
+import { NotificationService } from '../../services/notification.service';
+import type { CreateTaskRequest } from '@sebsa-pm-tool/shared-models';
 
 @Component({
   imports: [CommonModule, RouterLink, RouterLinkActive, RouterOutlet, ToastComponent, CreateTaskModalComponent],
@@ -16,6 +20,9 @@ export class AppShellComponent implements OnInit {
   private readonly router = inject(Router);
   protected readonly authService = inject(AuthService);
   protected readonly themeService = inject(ThemeService);
+  private readonly tasksService = inject(TasksService);
+  private readonly projectsService = inject(ProjectsService);
+  private readonly notificationService = inject(NotificationService);
 
   protected readonly navigationItems = [
     { label: 'Dashboard', icon: 'home', path: '/dashboard' },
@@ -56,8 +63,41 @@ export class AppShellComponent implements OnInit {
     this.isTaskModalOpen = false;
   }
 
-  protected handleTaskSaved(task: TaskFormData): void {
-    this.lastCreatedTask = task;
-    this.closeTaskModal();
+  protected handleTaskSaved(formData: TaskFormData): void {
+    if (!formData.projectId) return;
+    
+    this.projectsService.getProject(formData.projectId).subscribe({
+      next: (project) => {
+        if (!project.workflowStages.length) {
+          this.notificationService.error('Project has no workflow stages.');
+          return;
+        }
+
+        const dto: CreateTaskRequest = {
+          projectId: project.id,
+          title: formData.title,
+          description: formData.description || undefined,
+          type: formData.type,
+          priority: formData.priority,
+          workflowStageId: project.workflowStages[0].id,
+          dueDate: formData.dueDate || undefined,
+          sprintId: formData.sprintId || undefined,
+          assigneeIds: formData.assigneeIds.length > 0 ? formData.assigneeIds : undefined,
+        };
+
+        this.tasksService.createTask(dto, project.workflowStages).subscribe({
+          next: () => {
+            this.notificationService.success(`Task "${formData.title}" created successfully!`);
+            this.closeTaskModal();
+          },
+          error: () => {
+            this.notificationService.error('Failed to create task. Please try again.');
+          }
+        });
+      },
+      error: () => {
+        this.notificationService.error('Failed to fetch project details.');
+      }
+    });
   }
 }

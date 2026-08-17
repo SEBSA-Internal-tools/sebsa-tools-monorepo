@@ -122,11 +122,11 @@
     </section>
   </div>
 
-  <create-task-modal
+  <app-create-task-modal
     [isOpen]="isTaskModalOpen"
     (closed)="closeTaskModal()"
     (submitted)="handleTaskSaved($event)"
-  ></create-task-modal>
+  ></app-create-task-modal>
 
   <app-toast></app-toast>
 </main>

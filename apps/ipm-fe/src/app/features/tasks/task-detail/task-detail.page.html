@@ -447,7 +447,7 @@
 > </app-edit-task-modal>
 
 @if (task(); as t) {
-  <create-task-modal
+  <app-create-task-modal
     [isOpen]="isAddSubtaskModalOpen()"
     [projectId]="t.projectId"
     [projectName]="t.project.name"
@@ -455,6 +455,6 @@
     [lockedParentTaskTitle]="t.title"
     (closed)="closeAddSubtaskModal()"
     (submitted)="onCreateSubtask($event)"
-  ></create-task-modal>
+  ></app-create-task-modal>
 }
 </section>

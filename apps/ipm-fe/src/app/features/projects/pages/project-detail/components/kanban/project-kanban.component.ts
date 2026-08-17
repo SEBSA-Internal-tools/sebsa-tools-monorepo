@@ -72,7 +72,6 @@ export class ProjectKanbanComponent implements OnInit, OnDestroy {
     this.projectsService.getWorkflowStages(this.projectId).subscribe({
       next: (stages) => {
         this.workflowStages.set(stages);
-        this.tasksService.loadTasks(this.projectId, stages);
         this.isLoading.set(false);
       },
       error: (err) => {

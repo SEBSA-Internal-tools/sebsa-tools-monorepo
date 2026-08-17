@@ -11,7 +11,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import type { Task, UpdateTaskRequest, UserAdminSummary } from '@sebsa-pm-tool/shared-models';
-import { UserAdminService } from '../../../../core/services/user-admin.service';
+import { UserAdminService } from '../../../core/services/user-admin.service';
 
 @Component({
   standalone: true,

@@ -2,8 +2,8 @@ import { Component, ChangeDetectionStrategy, OnInit, inject, signal } from '@ang
 import { CommonModule, Location } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { TasksService, WorkflowStage } from '../../core/services/tasks.service';
-import { ProjectsService } from '../projects/services/projects.service';
+import { TasksService, WorkflowStage } from '../../../core/services/tasks.service';
+import { ProjectsService } from '../../projects/services/projects.service';
 import type {
   CreateTaskRequest,
   Task,
@@ -12,11 +12,11 @@ import type {
   TaskStatusHistoryEntry,
   UpdateTaskRequest,
 } from '@sebsa-pm-tool/shared-models';
-import { EditTaskModalComponent } from './components/edit-task-modal/edit-task-modal.component';
+import { EditTaskModalComponent } from '../edit-task/edit-task-modal.component';
 import {
   CreateTaskModalComponent,
   type TaskFormData,
-} from '../projects/components/modals/create-task/create-task-modal.component';
+} from '../create-task/create-task-modal.component';
 
 @Component({
   standalone: true,

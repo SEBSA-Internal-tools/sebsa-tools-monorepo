@@ -99,10 +99,10 @@
     }
   </div>
 
-  <create-task-modal
+  <app-create-task-modal
     [isOpen]="isTaskModalOpen"
     [forceCsoLabeled]="true"
     (closed)="closeTaskModal()"
     (submitted)="onCreateTask($event)"
-  ></create-task-modal>
+  ></app-create-task-modal>
 </div>
