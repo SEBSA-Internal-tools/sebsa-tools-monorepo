@@ -10,11 +10,11 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { SprintService } from '../../../services/sprint.service';
-import { UserAdminService } from '../../../../../core/services/user-admin.service';
+import { SprintService } from '../../projects/services/sprint.service';
+import { UserAdminService } from '../../../core/services/user-admin.service';
 import type { SprintSummary } from '@sebsa-pm-tool/shared-models';
 import type { UserAdminSummary } from '@sebsa-pm-tool/shared-models';
-import { ProjectsService } from '../../../services/projects.service';
+import { ProjectsService } from '../../projects/services/projects.service';
 
 export interface TaskFormData {
   title: string;
@@ -32,7 +32,7 @@ export interface TaskFormData {
 
 @Component({
   standalone: true,
-  selector: 'create-task-modal',
+  selector: 'app-create-task-modal',
   imports: [CommonModule, FormsModule],
   templateUrl: './create-task-modal.component.html',
   styleUrl: './create-task-modal.component.scss',
