@@ -17,5 +17,8 @@ export type {
   IsoDateTime,
   HexColor,
   // enums
+  Role,
+  PortalId,
+  // user
   // user
 } from "@sdp/contracts";
