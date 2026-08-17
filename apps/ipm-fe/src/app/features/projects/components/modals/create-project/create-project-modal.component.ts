@@ -12,7 +12,9 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { UsersService } from '../../../../../core/services/users.service';
+import { CustomersService } from '../../../../../core/services/customers.service';
 import type {
+  Customer,
   Project,
   ProjectType,
   UserSummary,
@@ -25,7 +27,7 @@ export interface ProjectFormData {
   customType?: string;
   memberIds: string[];
   isCsoProject: boolean;
-  customerName?: string;
+  customerId: string;
 }
 
 const PROJECT_TYPE_OPTIONS: { value: ProjectType; label: string }[] = [
@@ -48,6 +50,7 @@ const PROJECT_TYPE_OPTIONS: { value: ProjectType; label: string }[] = [
 })
 export class CreateProjectModalComponent implements OnChanges {
   private readonly usersService = inject(UsersService);
+  private readonly customersService = inject(CustomersService);
 
   @Input() isOpen = false;
   @Input() editingProject: Project | null = null;
@@ -67,9 +70,10 @@ export class CreateProjectModalComponent implements OnChanges {
   teamMemberSearch = '';
   selectedMembers: UserSummary[] = [];
   isCsoProject = false;
-  customerName = '';
+  customerId = '';
 
   protected readonly availableMembers = signal<UserSummary[]>([]);
+  protected readonly availableCustomers = signal<Customer[]>([]);
   protected readonly isEditMode = signal(false);
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -77,6 +81,7 @@ export class CreateProjectModalComponent implements OnChanges {
       this.isEditMode.set(!!this.editingProject);
       this.prefillForm();
       this.loadAvailableMembers();
+      this.loadAvailableCustomers();
     }
   }
 
@@ -87,7 +92,7 @@ export class CreateProjectModalComponent implements OnChanges {
       this.type = this.editingProject.type;
       this.customType = this.editingProject.customType ?? '';
       this.isCsoProject = this.editingProject.isCsoProject;
-      this.customerName = this.editingProject.customerName ?? '';
+      this.customerId = this.editingProject.customerId;
     } else {
       this.resetForm();
       this.isCsoProject = this.defaultCsoProject;
@@ -98,6 +103,13 @@ export class CreateProjectModalComponent implements OnChanges {
     this.usersService.search('').subscribe({
       next: (users) => this.availableMembers.set(users),
       error: () => this.availableMembers.set([]),
+    });
+  }
+
+  private loadAvailableCustomers(): void {
+    this.customersService.list().subscribe({
+      next: (customers) => this.availableCustomers.set(customers),
+      error: () => this.availableCustomers.set([]),
     });
   }
 
@@ -145,8 +157,8 @@ export class CreateProjectModalComponent implements OnChanges {
       alert('Please enter a name for the custom project type');
       return;
     }
-    if (this.isCsoProject && !this.customerName.trim()) {
-      alert('Please enter a customer name for this CSO project');
+    if (!this.customerId) {
+      alert('Please select a customer');
       return;
     }
 
@@ -157,7 +169,7 @@ export class CreateProjectModalComponent implements OnChanges {
       customType: this.type === 'CUSTOM' ? this.customType : undefined,
       memberIds: this.selectedMembers.map((m) => m.id),
       isCsoProject: this.isCsoProject,
-      customerName: this.customerName.trim() || undefined,
+      customerId: this.customerId,
     };
 
     this.submitted.emit(formData);
@@ -173,7 +185,7 @@ export class CreateProjectModalComponent implements OnChanges {
     this.teamMemberSearch = '';
     this.selectedMembers = [];
     this.isCsoProject = false;
-    this.customerName = '';
+    this.customerId = '';
   }
 
   onBackdropClick(): void {

@@ -46,6 +46,7 @@ type ProjectWithMembership = Prisma.ProjectGetPayload<{
 
 const projectDetailInclude = {
   createdBy: { select: { id: true, name: true } },
+  customer: { select: { id: true, name: true } },
   workflowStages: {
     select: { id: true, name: true, order: true },
     orderBy: { order: 'asc' as const },
@@ -61,6 +62,7 @@ export class ProjectsService {
 
   async create(dto: CreateProjectDto, creator: AuthUser): Promise<Project> {
     this.assertCanCreateProject(creator);
+    await this.assertCustomerExists(dto.customerId);
 
     const created = await this.prisma.$transaction(async (tx) => {
       const project = await tx.project.create({
@@ -74,7 +76,7 @@ export class ProjectsService {
           color: dto.color,
           createdById: creator.id,
           isCsoProject: dto.isCsoProject ?? false,
-          customerName: dto.isCsoProject ? dto.customerName : undefined,
+          customerId: dto.customerId,
         },
       });
 
@@ -163,11 +165,8 @@ export class ProjectsService {
     const project = await this.loadProjectWithMembership(id);
     this.assertCanEdit(project, user);
 
-    const mergedIsCsoProject = dto.isCsoProject ?? project.isCsoProject;
-    const mergedCustomerName =
-      dto.customerName !== undefined ? dto.customerName : project.customerName;
-    if (mergedIsCsoProject && !mergedCustomerName) {
-      throw new BadRequestException('A CSO project must have a customer name.');
+    if (dto.customerId) {
+      await this.assertCustomerExists(dto.customerId);
     }
 
     await this.prisma.project.update({
@@ -182,7 +181,7 @@ export class ProjectsService {
         targetEndDate: dto.targetEndDate ? new Date(dto.targetEndDate) : undefined,
         color: dto.color,
         isCsoProject: dto.isCsoProject,
-        customerName: dto.customerName,
+        customerId: dto.customerId,
       },
     });
 
@@ -455,6 +454,15 @@ export class ProjectsService {
     }
   }
 
+  private async assertCustomerExists(customerId: string): Promise<void> {
+    const customer = await this.prisma.customer.findFirst({
+      where: { id: customerId, deletedAt: null },
+    });
+    if (!customer) {
+      throw new BadRequestException('Customer not found.');
+    }
+  }
+
   /** Project creation happens before any project membership exists, so
    * there's no Role/PrivilegeGroup to check yet — this is a SystemRole-level
    * gate, not a PrivilegeGroup one. Restricted to the same tiers that
@@ -573,7 +581,8 @@ export class ProjectsService {
       memberCount: project._count.members,
       taskCount: project._count.tasks,
       isCsoProject: project.isCsoProject,
-      customerName: project.customerName,
+      customerId: project.customerId,
+      customer: project.customer,
       createdAt: project.createdAt.toISOString(),
       updatedAt: project.updatedAt.toISOString(),
     };

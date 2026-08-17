@@ -12,3 +12,4 @@ export * from './lib/tasks/task.models';
 export * from './lib/tasks/label.models';
 export * from './lib/sprints/sprint-enums';
 export * from './lib/sprints/sprint.models';
+export * from './lib/customers/customer.models';

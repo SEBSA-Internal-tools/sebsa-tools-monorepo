@@ -5,7 +5,7 @@ import { ProjectSummary, TaskSummary as BackendTaskSummary } from '@sebsa-pm-too
 
 export interface CsoOverviewFilters {
   projectId?: string;
-  customerName?: string;
+  customerId?: string;
   priority?: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
   assigneeId?: string;
 }
@@ -47,7 +47,7 @@ export class CsoOverviewService {
 
     let params = new HttpParams().set('isCsoLabeled', 'true');
     if (filters.projectId) params = params.set('projectId', filters.projectId);
-    if (filters.customerName) params = params.set('customerName', filters.customerName);
+    if (filters.customerId) params = params.set('customerId', filters.customerId);
     if (filters.priority) params = params.set('priority', filters.priority);
     if (filters.assigneeId) params = params.set('assigneeId', filters.assigneeId);
 
@@ -89,7 +89,7 @@ export class CsoOverviewService {
     }).pipe(
       map(({ stagesByProject, projects }) => {
         const customerNameByProjectId = new Map(
-          projects.map((project) => [project.id, project.customerName ?? undefined]),
+          projects.map((project) => [project.id, project.customer.name]),
         );
         return tasks.map((task) =>
           this.toCsoTaskView(

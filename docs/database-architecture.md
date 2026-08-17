@@ -184,6 +184,7 @@ Grouped by functional area:
 
 **Projects**
 
+- `Customer` 1—N `Project` (every project belongs to exactly one customer — see design decision #12)
 - `Project` 1—N `WorkflowStage` (customizable per-project task statuses)
 - `Project` 1—N `Milestone`
 - `Project` 1—N `Sprint`
@@ -285,16 +286,24 @@ architect if they don't match intent:
     then fully reverted in
     `prisma/migrations/20260810120557_revert_project_and_task_display_numbers`).
     They'll be designed for real once the Jira sync work actually starts.
-12. **`customerName` is a plain text field on `Project`, not a `Customer`
-    entity.** An earlier pass modeled Customer as its own table (FSD
-    describes it as one), but the team decided a free-text field is
-    sufficient for now — added and then removed in
-    `prisma/migrations/20260812065952_add_cso_groundwork` and
-    `prisma/migrations/20260812104437_remove_customer_entity_use_project_field`.
-    Trade-off accepted: no referential integrity across projects for the
-    same customer (e.g. "Acme Corp" vs "ACME Corp." won't be caught), so
-    cross-project customer filtering on the CSO Overview page matches by
-    case-insensitive substring rather than an exact ID join.
+12. **`Customer` is a real entity again, not a plain text field on
+    `Project`.** The original pass modeled Customer as its own table (FSD
+    describes it as one), the team briefly reverted to a free-text
+    `Project.customerName` field, and it has now been reinstated as a proper
+    entity — full history:
+    `prisma/migrations/20260812065952_add_cso_groundwork` (added),
+    `prisma/migrations/20260812104437_remove_customer_entity_use_project_field`
+    (reverted to free text), and
+    `prisma/migrations/20260817090000_add_customer_entity` (reinstated, with
+    a data backfill: one `Customer` row created per distinct existing
+    `customerName` value, everything else pointed at a fallback "Unassigned"
+    customer). `Project.customerId` is now a required FK (`onDelete:
+    Restrict`) — every project belongs to exactly one customer, referential
+    integrity is enforced by the database, and the CSO Overview page filters
+    by an exact `customerId` join instead of a case-insensitive substring
+    match. `isCsoProject` remains a separate, independent flag: it controls
+    whether a project surfaces on the CSO Overview page, not which customer
+    it belongs to (every project has a customer now, CSO or not).
 
 ## Constraints added by hand
 
@@ -365,6 +374,19 @@ supports):
    backfill is deterministic; the migration also raises an explicit
    exception if any row fails to match, rather than silently leaving it
    unmapped.
+
+A sixth migration,
+`prisma/migrations/20260817090000_add_customer_entity/migration.sql`,
+reinstates the `Customer` entity (see design decision #12) and is
+hand-authored for the same reason as the `approvedAt` backfill: Prisma's
+diff engine cannot add a required column to a non-empty table on its own.
+It creates `customers`, seeds one row per distinct existing
+`Project.customerName` value plus a fallback "Unassigned" row, backfills
+every `Project.customerId` by matching (trimmed) name, then sets the column
+`NOT NULL` and drops the old `customerName` column. Distinct customer names
+that only differ by casing (e.g. "Acme Corp" vs "ACME Corp.") are **not**
+merged automatically — check the new Customers page after running this and
+consolidate any duplicates by hand.
 
 ## Common commands
 

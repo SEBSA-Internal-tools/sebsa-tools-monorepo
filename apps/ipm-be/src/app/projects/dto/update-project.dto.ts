@@ -6,6 +6,7 @@ import {
   IsEnum,
   IsOptional,
   IsString,
+  IsUUID,
   MinLength,
   ValidateIf,
 } from 'class-validator';
@@ -58,13 +59,8 @@ export class UpdateProjectDto {
   @IsBoolean()
   isCsoProject?: boolean;
 
-  @ApiPropertyOptional({
-    minLength: 1,
-    nullable: true,
-    description: 'Pass null to clear. Cannot be cleared while isCsoProject is true.',
-  })
+  @ApiPropertyOptional({ format: 'uuid' })
   @IsOptional()
-  @IsString()
-  @MinLength(1)
-  customerName?: string | null;
+  @IsUUID()
+  customerId?: string;
 }

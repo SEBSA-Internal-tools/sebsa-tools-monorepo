@@ -4,6 +4,7 @@ import { PrismaModule } from '@sebsa-pm-tool/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
+import { CustomersModule } from './customers/customers.module';
 import { DepartmentsModule } from './departments/departments.module';
 import { PrivilegeGroupsModule } from './privilege-groups/privilege-groups.module';
 import { ProjectsModule } from './projects/projects.module';
@@ -33,6 +34,7 @@ import { SprintsModule } from './sprints/sprints.module';
     UsersModule,
     DepartmentsModule,
     PrivilegeGroupsModule,
+    CustomersModule,
   ],
   controllers: [AppController],
   providers: [AppService],

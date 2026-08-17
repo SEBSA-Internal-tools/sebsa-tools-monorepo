@@ -73,7 +73,7 @@ export class ProjectsPageComponent {
         type: formData.type,
         customType: formData.customType,
         isCsoProject: formData.isCsoProject,
-        customerName: formData.customerName,
+        customerId: formData.customerId,
       })
       .subscribe({
         next: (project) => {
