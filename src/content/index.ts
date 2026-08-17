@@ -1,12 +1,14 @@
 import home from "./home.json";
+import a11y from "./a11y.json";
 
 
 /**
  * Every user-facing string in one typed catalog.
  */
 export const content = {
-    home,
-} as const;    
+  a11y,
+  home,
+} as const;
 
 /**
  * Substitutes `{name}` placeholders.
