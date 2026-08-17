@@ -2,8 +2,11 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
 import { BehaviorSubject, Observable, tap, map } from 'rxjs';
 import {
+  CreateTaskDependencyRequest,
   CreateTaskRequest,
   Task as BackendTask,
+  TaskDependenciesView,
+  TaskStatusHistoryEntry,
   TaskSummary as BackendTaskSummary,
   TaskListSummary as BackendTaskListSummary,
   UpdateTaskRequest,
@@ -19,6 +22,7 @@ export interface WorkflowStage {
 export interface TaskView {
   id: string;
   title: string;
+  parentTaskId?: string | null;
   category: string;
   /** Raw workflowStageId UUID — used for Kanban column mapping and PATCH requests. */
   status: string;
@@ -194,8 +198,42 @@ export class TasksService {
     return this.http.get<BackendTask>(`/api/tasks/${taskId}`);
   }
 
+  /** Lightweight lookup for pickers (parent-task / dependency-target search)
+   *  — reuses the existing filtered list endpoint, no new backend route. */
+  searchTasksInProject(projectId: string, search?: string): Observable<BackendTaskSummary[]> {
+    let params = new HttpParams().set('projectId', projectId);
+    if (search) params = params.set('search', search);
+    return this.http.get<BackendTaskSummary[]>('/api/tasks', { params });
+  }
+
+  getDependencies(taskId: string): Observable<TaskDependenciesView> {
+    return this.http.get<TaskDependenciesView>(`/api/tasks/${taskId}/dependencies`);
+  }
+
+  createDependency(taskId: string, dto: CreateTaskDependencyRequest): Observable<void> {
+    return this.http.post<void>(`/api/tasks/${taskId}/dependencies`, dto);
+  }
+
+  removeDependency(taskId: string, dependencyId: string): Observable<void> {
+    return this.http.delete<void>(`/api/tasks/${taskId}/dependencies/${dependencyId}`);
+  }
+
+  getStatusHistory(taskId: string): Observable<TaskStatusHistoryEntry[]> {
+    return this.http.get<TaskStatusHistoryEntry[]>(`/api/tasks/${taskId}/status-history`);
+  }
+
   updateTaskDetails(taskId: string, dto: UpdateTaskRequest): Observable<UpdateTaskResponse> {
     return this.http.patch<UpdateTaskResponse>(`/api/tasks/${taskId}`, dto);
+  }
+
+  deleteTask(taskId: string): Observable<{ message: string }> {
+    return this.http.delete<{ message: string }>(`/api/tasks/${taskId}`).pipe(
+      tap(() => {
+        // Immutable filter — new array reference triggers signal consumers & BehaviorSubject,
+        // so Kanban/list views drop the deleted task without a manual reload.
+        this.setState(this._tasks().filter((t) => t.id !== taskId));
+      }),
+    );
   }
 
   getTasksByProject(projectId: string): TaskView[] {
@@ -237,6 +275,7 @@ export class TasksService {
     return {
       id: task.id,
       title: task.title,
+      parentTaskId: task.parentTaskId ?? null,
       category: task.type ?? 'Task',
       // UUID — Kanban column routing matches on this directly.
       status: task.workflowStageId,

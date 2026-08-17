@@ -197,6 +197,8 @@
 .project-display {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   padding: 10px 12px;
   border: 1px solid var(--app-border);
   border-radius: 8px;
@@ -207,6 +209,59 @@
 
   .project-name {
     font-weight: 500;
+  }
+}
+
+.clear-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--app-text-muted);
+  cursor: pointer;
+  border-radius: 4px;
+
+  .material-symbols-outlined {
+    font-size: 16px;
+  }
+
+  &:hover {
+    background: var(--app-hover);
+    color: var(--app-text);
+  }
+}
+
+.members-dropdown {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  max-height: 180px;
+  overflow-y: auto;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-surface);
+  padding: 4px;
+}
+
+.member-option {
+  display: flex;
+  align-items: center;
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--app-text);
+  font-size: 0.85rem;
+  cursor: pointer;
+  text-align: left;
+
+  &:hover {
+    background: var(--app-hover);
   }
 }
 

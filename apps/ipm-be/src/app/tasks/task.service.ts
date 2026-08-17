@@ -10,6 +10,7 @@ import {
   Task,
   TaskDependenciesView,
   TaskDependencyTaskRef,
+  TaskStatusHistoryEntry,
   TaskSummary,
   TaskListSummary,
   UpdateTaskResponse,
@@ -25,6 +26,7 @@ const ADMIN_SYSTEM_ROLES: AuthUser['systemRole'][] = ['ADMIN', 'SUPER_ADMIN'];
 const taskSummarySelect = {
   id: true,
   projectId: true,
+  parentTaskId: true,
   title: true,
   description: true,
   type: true,
@@ -50,6 +52,8 @@ const taskDetailInclude = {
   },
   project: { select: { id: true, name: true } },
   workflowStage: { select: { id: true, name: true } },
+  sprint: { select: { id: true, name: true } },
+  parentTask: { select: { id: true, title: true } },
 } satisfies Prisma.TaskInclude;
 
 type TaskWithDetail = Prisma.TaskGetPayload<{ include: typeof taskDetailInclude }>;
@@ -184,7 +188,32 @@ export class TaskService {
   async findOne(id: string, user: AuthUser): Promise<Task> {
     const task = await this.getTaskDetailOrThrow(id);
     await this.assertVisible(task.projectId, user);
-    return this.toTask(task);
+    const ancestors = await this.getAncestorChain(task.parentTaskId);
+    return this.toTask(task, ancestors);
+  }
+
+  /** Walks up the parentTaskId chain from `parentTaskId` to the root, returning
+   *  [root, ..., immediateParent]. The depth cap guards against a cycle that
+   *  could otherwise form via two independent PATCH calls (parentTaskId has
+   *  no cycle check, unlike TaskDependency). */
+  private async getAncestorChain(
+    parentTaskId: string | null,
+    maxDepth = 20,
+  ): Promise<{ id: string; title: string }[]> {
+    const chain: { id: string; title: string }[] = [];
+    let currentId = parentTaskId;
+
+    for (let i = 0; currentId && i < maxDepth; i++) {
+      const ancestor = await this.prisma.task.findFirst({
+        where: { id: currentId, deletedAt: null },
+        select: { id: true, title: true, parentTaskId: true },
+      });
+      if (!ancestor) break;
+      chain.unshift({ id: ancestor.id, title: ancestor.title });
+      currentId = ancestor.parentTaskId;
+    }
+
+    return chain;
   }
 
   async update(id: string, dto: UpdateTaskDto, user: AuthUser): Promise<UpdateTaskResponse> {
@@ -423,14 +452,41 @@ export class TaskService {
     ]);
 
     const byType = (type: Prisma.TaskDependencyWhereInput['type']): TaskDependencyTaskRef[] =>
-      outgoing.filter((d) => d.type === type).map((d) => d.targetTask);
+      outgoing
+        .filter((d) => d.type === type)
+        .map((d) => ({ ...d.targetTask, dependencyId: d.id }));
 
     return {
       blocks: byType('BLOCKS'),
       relatesTo: byType('RELATES_TO'),
       duplicateOf: byType('DUPLICATE_OF'),
-      blockedBy: incomingBlocks.map((d) => d.sourceTask),
+      blockedBy: incomingBlocks.map((d) => ({ ...d.sourceTask, dependencyId: d.id })),
     };
+  }
+
+  /** Ordered stage-transition log for the Status/Flow Stepper — the initial
+   *  placement (fromStage: null) plus every subsequent change, oldest first. */
+  async getStatusHistory(taskId: string, user: AuthUser): Promise<TaskStatusHistoryEntry[]> {
+    const task = await this.getTaskOrThrow(taskId);
+    await this.assertVisible(task.projectId, user);
+
+    const history = await this.prisma.taskStatusHistory.findMany({
+      where: { taskId },
+      include: {
+        fromStage: { select: { id: true, name: true } },
+        toStage: { select: { id: true, name: true } },
+        changedBy: { select: { id: true, name: true } },
+      },
+      orderBy: { changedAt: 'asc' },
+    });
+
+    return history.map((entry) => ({
+      id: entry.id,
+      fromStage: entry.fromStage,
+      toStage: entry.toStage,
+      changedAt: entry.changedAt.toISOString(),
+      changedBy: entry.changedBy,
+    }));
   }
 
   /** Adding sourceTaskId -> targetTaskId would cycle if targetTaskId can
@@ -760,6 +816,7 @@ export class TaskService {
     return {
       id: task.id,
       projectId: task.projectId,
+      parentTaskId: task.parentTaskId,
       title: task.title,
       description: task.description,
       type: task.type,
@@ -774,20 +831,23 @@ export class TaskService {
     };
   }
 
-  private toTaskDetailSummary(task: TaskWithDetail): Omit<Task, 'subtasks'> {
+  private toTaskDetailSummary(task: TaskWithDetail): Omit<Task, 'subtasks' | 'ancestors'> {
     return {
       id: task.id,
       projectId: task.projectId,
       parentTaskId: task.parentTaskId,
+      parentTask: task.parentTask,
       title: task.title,
       type: task.type,
       priority: task.priority,
       workflowStageId: task.workflowStageId,
       sprintId: task.sprintId,
+      sprint: task.sprint,
       milestoneId: task.milestoneId,
       startDate: task.startDate ? task.startDate.toISOString() : null,
       dueDate: task.dueDate ? task.dueDate.toISOString() : null,
       storyPoints: task.storyPoints,
+      reminderLeadMinutes: task.reminderLeadMinutes,
       createdBy: task.createdBy,
       assignees: task.assignees.map((a) => a.user),
       labels: task.labels.map((l) => l.label),
@@ -801,9 +861,10 @@ export class TaskService {
     };
   }
 
-  private toTask(task: TaskWithDetail): Task {
+  private toTask(task: TaskWithDetail, ancestors: { id: string; title: string }[] = []): Task {
     return {
       ...this.toTaskDetailSummary(task),
+      ancestors,
       subtasks: task.subtasks,
     };
   }

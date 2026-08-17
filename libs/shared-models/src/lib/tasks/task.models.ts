@@ -52,9 +52,15 @@ export interface TaskListSummary {
 /** Detail-view shape — includes the subtask list. */
 export interface Task extends TaskSummary {
   parentTaskId: string | null;
+  parentTask: { id: string; title: string } | null;
+  /** Full ancestor chain from the top-level task down to (not including) this
+   *  task itself — e.g. [GrandparentTask, ParentTask] — for breadcrumb display. */
+  ancestors: { id: string; title: string }[];
   milestoneId: string | null;
   startDate: string | null;
   storyPoints: number | null;
+  reminderLeadMinutes: number | null;
+  sprint: { id: string; name: string } | null;
   createdBy: Pick<UserSummary, 'id' | 'name'>;
   labels: TaskLabelSummary[];
   subtaskCount: number;
@@ -110,6 +116,11 @@ export interface TaskDependencyTaskRef {
   id: string;
   title: string;
   workflowStageId: string;
+  /** The TaskDependency row's own id — needed to call DELETE
+   *  /tasks/:id/dependencies/:dependencyId. Only removable from the
+   *  dependency's source task, so `blockedBy` entries carry it too but the
+   *  UI shouldn't offer a remove action there (this task is the target). */
+  dependencyId: string;
 }
 
 /** BLOCKED_BY is derived (reverse of another task's BLOCKS row targeting
@@ -120,4 +131,12 @@ export interface TaskDependenciesView {
   relatesTo: TaskDependencyTaskRef[];
   duplicateOf: TaskDependencyTaskRef[];
   blockedBy: TaskDependencyTaskRef[];
+}
+
+export interface TaskStatusHistoryEntry {
+  id: string;
+  fromStage: { id: string; name: string } | null;
+  toStage: { id: string; name: string };
+  changedAt: string;
+  changedBy: { id: string; name: string };
 }

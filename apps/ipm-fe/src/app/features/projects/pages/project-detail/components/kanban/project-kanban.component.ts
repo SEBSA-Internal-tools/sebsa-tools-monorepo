@@ -10,6 +10,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import { TasksService, type TaskView } from '../../../../../../core/services/tasks.service';
 import { ProjectsService } from '../../../../services/projects.service';
 
@@ -32,6 +33,7 @@ export class ProjectKanbanComponent implements OnInit, OnDestroy {
 
   private readonly tasksService = inject(TasksService);
   private readonly projectsService = inject(ProjectsService);
+  private readonly router = inject(Router);
 
   readonly workflowStages = signal<WorkflowStage[]>([]);
   readonly isLoading = signal(true);
@@ -130,6 +132,10 @@ export class ProjectKanbanComponent implements OnInit, OnDestroy {
     this.tasksService.patchTaskStageLocally(taskId, newStageId, this.workflowStages());
   }
 
+  openTaskDetail(taskId: string): void {
+    this.router.navigate(['/tasks', taskId]);
+  }
+
   getTaskInitials(name: string): string {
     return name
       .split(' ')
@@ -141,6 +147,33 @@ export class ProjectKanbanComponent implements OnInit, OnDestroy {
 
   getPriorityClass(priority: string): string {
     return priority.toLowerCase();
+  }
+
+  isSubtask(task: TaskView): boolean {
+    return !!task.parentTaskId;
+  }
+
+  getTypeLabel(category: string): string {
+    switch (category) {
+      case 'EPIC':
+        return 'Epic';
+      case 'STORY':
+        return 'Story';
+      case 'TASK':
+        return 'Task';
+      case 'BUG':
+        return 'Bug';
+      case 'IMPROVEMENT':
+        return 'Improvement';
+      case 'TEST':
+        return 'Test';
+      default:
+        return category;
+    }
+  }
+
+  getTypeClass(category: string): string {
+    return `type-${category.toLowerCase()}`;
   }
 
   // ─── Column management ────────────────────────────────────────────────────

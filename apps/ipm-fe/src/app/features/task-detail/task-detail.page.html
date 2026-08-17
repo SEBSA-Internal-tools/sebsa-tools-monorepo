@@ -9,14 +9,24 @@
   Back
 </button>
 @if (task()) {
-  <button
-    type="button"
-    class="edit-btn"
-    (click)="onEditTask()"
-  >
-    <span class="material-symbols-outlined">edit</span>
-    Edit
-  </button>
+  <div class="header-actions-right">
+    <button
+      type="button"
+      class="edit-btn"
+      (click)="onEditTask()"
+    >
+      <span class="material-symbols-outlined">edit</span>
+      Edit
+    </button>
+    <button
+      type="button"
+      class="delete-btn"
+      (click)="deleteTask()"
+    >
+      <span class="material-symbols-outlined">delete</span>
+      Delete
+    </button>
+  </div>
 }
   </div>
 @if (isLoading()) { <div class="loading-state"> <span class="loader"></span> <p>Loading task details…</p> </div>
@@ -35,6 +45,19 @@
   </button>
 </div>
 
+}
+@if (warnings().length > 0) {
+  <div class="warning-banner">
+    <span class="material-symbols-outlined">warning</span>
+    <div class="warning-list">
+      @for (warning of warnings(); track warning) {
+        <p>{{ warning }}</p>
+      }
+    </div>
+    <button type="button" class="dismiss-btn" (click)="dismissWarnings()" title="Dismiss">
+      <span class="material-symbols-outlined">close</span>
+    </button>
+  </div>
 }
 @if (!isLoading() && task(); as task) {
 <div class="task-detail-card">
@@ -60,13 +83,50 @@
     <h1 class="task-title">
       {{ task.title }}
     </h1>
+    <p class="breadcrumb-trail">
+      <a class="breadcrumb-link" [routerLink]="['/projects', task.project.id]">{{ task.project.name }}</a>
+      @for (ancestor of task.ancestors; track ancestor.id) {
+        <span class="breadcrumb-chevron">›</span>
+        <button type="button" class="breadcrumb-link-btn" (click)="navigateToSubtask(ancestor.id)">
+          {{ ancestor.title }}
+        </button>
+      }
+      <span class="breadcrumb-chevron">›</span>
+      <span class="breadcrumb-current">{{ task.title }}</span>
+    </p>
     <p class="task-created-info">
       Created by
-      <strong>{{ task.createdBy?.name }}</strong>
+      <strong>{{ task.createdBy.name }}</strong>
       on
       {{ formatDate(task.createdAt) }}
     </p>
   </div>
+
+  <!-- Status / Flow Stepper -->
+  @if (workflowStages().length > 0) {
+    <div class="section-block stepper-block">
+      <h3 class="section-heading">
+        <span class="material-symbols-outlined">timeline</span>
+        Status
+      </h3>
+      <div class="stepper">
+        @for (stage of workflowStages(); track stage.id) {
+          <button
+            type="button"
+            class="stepper-step"
+            [class.active]="stage.id === task.workflowStageId"
+            [class.past]="isPastStage(stage)"
+            (click)="onStageClick(stage.id)"
+            [title]="enteredStageAt(stage.id) ? ('Since ' + formatDate(enteredStageAt(stage.id))) : stage.name"
+          >
+            <span class="stepper-dot"></span>
+            <span class="stepper-label">{{ stage.name }}</span>
+          </button>
+        }
+      </div>
+    </div>
+  }
+
   <!-- Content Grid -->
   <div class="task-body">
     <!-- Left: Main Content -->
@@ -89,18 +149,25 @@
           </p>
         }
       </div>
+
       <!-- Subtasks -->
-      @if (task.subtasks && task.subtasks.length > 0) {
-        <div class="section-block">
-          <h3 class="section-heading">
-            <span class="material-symbols-outlined">
-              checklist
-            </span>
-            Subtasks
+      <div class="section-block">
+        <h3 class="section-heading">
+          <span class="material-symbols-outlined">
+            checklist
+          </span>
+          Subtasks
+          @if (task.subtasks && task.subtasks.length > 0) {
             <span class="count-badge">
               {{ task.subtasks.length }}
             </span>
-          </h3>
+          }
+          <button type="button" class="add-inline-btn" (click)="openAddSubtaskModal()">
+            <span class="material-symbols-outlined">add</span>
+            Add Subtask
+          </button>
+        </h3>
+        @if (task.subtasks && task.subtasks.length > 0) {
           <div class="subtask-list">
             @for (subtask of task.subtasks; track subtask.id) {
               <button
@@ -120,8 +187,119 @@
               </button>
             }
           </div>
+        } @else {
+          <p class="empty-placeholder">No subtasks yet.</p>
+        }
+      </div>
+
+      <!-- Dependencies -->
+      <div class="section-block">
+        <h3 class="section-heading">
+          <span class="material-symbols-outlined">account_tree</span>
+          Dependencies
+        </h3>
+
+        @if (dependencies(); as deps) {
+          @if (deps.blockedBy.length > 0) {
+            <div class="dependency-group">
+              <p class="dependency-group-label blocked-by-label">Blocked By</p>
+              @for (ref of deps.blockedBy; track ref.dependencyId) {
+                <div class="dependency-item">
+                  <button type="button" class="dependency-link" (click)="navigateToSubtask(ref.id)">
+                    {{ ref.title }}
+                  </button>
+                </div>
+              }
+            </div>
+          }
+          <div class="dependency-group">
+            <p class="dependency-group-label">Blocks</p>
+            @if (deps.blocks.length === 0) {
+              <p class="empty-placeholder small">None</p>
+            }
+            @for (ref of deps.blocks; track ref.dependencyId) {
+              <div class="dependency-item">
+                <button type="button" class="dependency-link" (click)="navigateToSubtask(ref.id)">
+                  {{ ref.title }}
+                </button>
+                <button type="button" class="remove-dependency-btn" (click)="removeDependency(ref.dependencyId)" title="Remove">
+                  <span class="material-symbols-outlined">close</span>
+                </button>
+              </div>
+            }
+          </div>
+          <div class="dependency-group">
+            <p class="dependency-group-label">Relates To</p>
+            @if (deps.relatesTo.length === 0) {
+              <p class="empty-placeholder small">None</p>
+            }
+            @for (ref of deps.relatesTo; track ref.dependencyId) {
+              <div class="dependency-item">
+                <button type="button" class="dependency-link" (click)="navigateToSubtask(ref.id)">
+                  {{ ref.title }}
+                </button>
+                <button type="button" class="remove-dependency-btn" (click)="removeDependency(ref.dependencyId)" title="Remove">
+                  <span class="material-symbols-outlined">close</span>
+                </button>
+              </div>
+            }
+          </div>
+          <div class="dependency-group">
+            <p class="dependency-group-label">Duplicate Of</p>
+            @if (deps.duplicateOf.length === 0) {
+              <p class="empty-placeholder small">None</p>
+            }
+            @for (ref of deps.duplicateOf; track ref.dependencyId) {
+              <div class="dependency-item">
+                <button type="button" class="dependency-link" (click)="navigateToSubtask(ref.id)">
+                  {{ ref.title }}
+                </button>
+                <button type="button" class="remove-dependency-btn" (click)="removeDependency(ref.dependencyId)" title="Remove">
+                  <span class="material-symbols-outlined">close</span>
+                </button>
+              </div>
+            }
+          </div>
+        }
+
+        <!-- Add Dependency form -->
+        <div class="add-dependency-form">
+          <select [(ngModel)]="newDependencyType" class="dependency-type-select">
+            <option value="BLOCKS">Blocks</option>
+            <option value="RELATES_TO">Relates To</option>
+            <option value="DUPLICATE_OF">Duplicate Of</option>
+          </select>
+
+          @if (selectedDependencyTaskId) {
+            <div class="project-display">
+              <span class="project-name">{{ selectedDependencyTaskTitle() }}</span>
+              <button type="button" class="clear-btn" (click)="clearDependencyTask()" title="Clear">
+                <span class="material-symbols-outlined">close</span>
+              </button>
+            </div>
+          } @else {
+            <input
+              type="text"
+              [(ngModel)]="dependencyTaskSearch"
+              placeholder="Search tasks in this project…"
+              class="form-input"
+            />
+            @if (dependencyTaskSearch && getFilteredDependencyTasks().length > 0) {
+              <div class="members-dropdown">
+                @for (candidate of getFilteredDependencyTasks(); track candidate.id) {
+                  <button type="button" class="member-option" (click)="selectDependencyTask(candidate.id)">
+                    <span>{{ candidate.title }}</span>
+                  </button>
+                }
+              </div>
+            }
+          }
+
+          <button type="button" class="btn-add-dependency" [disabled]="!selectedDependencyTaskId" (click)="addDependency()">
+            Add
+          </button>
         </div>
-      }
+      </div>
     </div>
     <!-- Right: Metadata Sidebar -->
     <div class="task-sidebar">
@@ -149,6 +327,12 @@
             {{ formatDate(task.dueDate) }}
           </span>
         </div>
+        @if (task.reminderLeadMinutes) {
+          <div class="meta-row">
+            <span class="meta-label">Reminder</span>
+            <span class="meta-value">{{ task.reminderLeadMinutes }} min before due</span>
+          </div>
+        }
         <div class="meta-row">
           <span class="meta-label">
             Updated
@@ -177,33 +361,43 @@
           </div>
         </div>
       }
-      <!-- Assignees -->
+      <!-- Sprint -->
+      @if (task.sprint) {
+        <div class="meta-card">
+          <h4 class="meta-heading">
+            <span class="material-symbols-outlined">directions_run</span>
+            Sprint
+          </h4>
+          <div class="meta-row">
+            <span class="meta-value">{{ task.sprint.name }}</span>
+          </div>
+        </div>
+      }
+      <!-- Assignee -->
       <div class="meta-card">
         <h4 class="meta-heading">
           <span class="material-symbols-outlined">
-            group
+            person
           </span>
-          Assignees
+          Assignee
         </h4>
         @if (task.assignees && task.assignees.length > 0) {
-          @for (assignee of task.assignees; track assignee.id) {
-            <div class="assignee-chip">
-              <span class="avatar-circle">
-                {{ assignee.name.charAt(0) }}
+          <div class="assignee-chip">
+            <span class="avatar-circle">
+              {{ task.assignees[0].name.charAt(0) }}
+            </span>
+            <div class="assignee-info">
+              <span class="assignee-name">
+                {{ task.assignees[0].name }}
               </span>
-              <div class="assignee-info">
-                <span class="assignee-name">
-                  {{ assignee.name }}
-                </span>
-                <span class="assignee-email">
-                  {{ assignee.email }}
-                </span>
-              </div>
+              <span class="assignee-email">
+                {{ task.assignees[0].email }}
+              </span>
             </div>
-          }
+          </div>
         } @else {
           <p class="empty-placeholder">
-            No assignees
+            Unassigned
           </p>
         }
       </div>
@@ -251,4 +445,16 @@
 (submitted)="handleEditSubmit($event)"
 
 > </app-edit-task-modal>
+
+@if (task(); as t) {
+  <create-task-modal
+    [isOpen]="isAddSubtaskModalOpen()"
+    [projectId]="t.projectId"
+    [projectName]="t.project.name"
+    [lockedParentTaskId]="t.id"
+    [lockedParentTaskTitle]="t.title"
+    (closed)="closeAddSubtaskModal()"
+    (submitted)="onCreateSubtask($event)"
+  ></create-task-modal>
+}
 </section>

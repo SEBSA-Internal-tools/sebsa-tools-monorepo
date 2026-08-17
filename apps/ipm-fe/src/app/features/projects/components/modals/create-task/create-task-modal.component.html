@@ -57,6 +57,40 @@
           }
         </div>
 
+        <!-- Parent Task -->
+        <div class="form-group full-width">
+          <label class="form-label">Parent Task</label>
+          @if (lockedParentTaskId) {
+            <div class="project-display">
+              <span class="material-symbols-outlined">subdirectory_arrow_right</span>
+              <span class="project-name">{{ lockedParentTaskTitle }}</span>
+            </div>
+          } @else if (selectedParentTaskId) {
+            <div class="project-display">
+              <span class="project-name">{{ selectedParentTaskTitle() }}</span>
+              <button type="button" class="clear-btn" (click)="clearParentTask()" title="Clear parent task">
+                <span class="material-symbols-outlined">close</span>
+              </button>
+            </div>
+          } @else {
+            <input
+              type="text"
+              [(ngModel)]="parentTaskSearch"
+              placeholder="Search tasks to set an optional parent…"
+              class="form-input"
+            />
+            @if (parentTaskSearch && getFilteredParentTasks().length > 0) {
+              <div class="members-dropdown">
+                @for (candidate of getFilteredParentTasks(); track candidate.id) {
+                  <button type="button" class="member-option" (click)="selectParentTask(candidate.id)">
+                    <span>{{ candidate.title }}</span>
+                  </button>
+                }
+              </div>
+            }
+          }
+        </div>
+
         <!-- Task Title -->
         <div class="form-group full-width">
           <label for="taskTitle" class="form-label">

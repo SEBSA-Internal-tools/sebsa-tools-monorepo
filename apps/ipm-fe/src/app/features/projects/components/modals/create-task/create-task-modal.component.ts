@@ -12,6 +12,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { SprintService } from '../../../services/sprint.service';
 import { UserAdminService } from '../../../../../core/services/user-admin.service';
+import { TasksService } from '../../../../../core/services/tasks.service';
 import type { SprintSummary } from '@sebsa-pm-tool/shared-models';
 import type { UserAdminSummary } from '@sebsa-pm-tool/shared-models';
 import { ProjectsService } from '../../../services/projects.service';
@@ -29,6 +30,7 @@ export interface TaskFormData {
   description: string;
   sprintId?: string;
   isCsoLabeled: boolean;
+  parentTaskId?: string;
 }
 
 @Component({
@@ -52,12 +54,18 @@ export class CreateTaskModalComponent implements OnChanges {
    *  Overview's "Create Task" entry point, where the task is CSO by
    *  definition no matter which project it's filed under. */
   @Input() forceCsoLabeled = false;
+  /** When set (the "Add Subtask" entry point on the task detail page), the
+   *  parent-task picker is replaced with a fixed "Subtask of" line and the
+   *  task is always created with this as its parent. */
+  @Input() lockedParentTaskId = '';
+  @Input() lockedParentTaskTitle = '';
   @Output() closed = new EventEmitter<void>();
   @Output() submitted = new EventEmitter<TaskFormData>();
 
   private readonly sprintService = inject(SprintService);
   private readonly userAdminService = inject(UserAdminService);
   private readonly projectsService = inject(ProjectsService);
+  private readonly tasksService = inject(TasksService);
 
   taskTitle = '';
   /** Holds the UUID of the selected assignee (bound to user.id in the dropdown) */
@@ -70,10 +78,15 @@ export class CreateTaskModalComponent implements OnChanges {
   selectedProjectId = '';
   selectedProjectName = '';
   isCsoLabeled = false;
+  /** UUID of an existing task picked as this task's parent — ignored when
+   *  `lockedParentTaskId` is set. */
+  selectedParentTaskId = '';
+  parentTaskSearch = '';
 
   readonly availableProjects = signal<Array<{ id: string; name: string; isCsoProject: boolean }>>([]);
   readonly availableSprints = signal<SprintSummary[]>([]);
   readonly availableAssignees = signal<UserAdminSummary[]>([]);
+  readonly availableParentTasks = signal<Array<{ id: string; title: string }>>([]);
   readonly isLoadingSprints = signal(false);
   readonly isLoadingUsers = signal(false);
   readonly sprintError = signal('');
@@ -88,6 +101,7 @@ export class CreateTaskModalComponent implements OnChanges {
         this.selectedProjectId = this.projectId;
         this.selectedProjectName = this.projectName;
         this.loadSprints(this.projectId);
+        if (!this.lockedParentTaskId) this.loadParentTaskCandidates(this.projectId);
       } else {
         this.loadAvailableProjects();
       }
@@ -152,7 +166,40 @@ export class CreateTaskModalComponent implements OnChanges {
     if (project) {
       this.selectedProjectName = project.name;
       this.loadSprints(projectId);
+      if (!this.lockedParentTaskId) this.loadParentTaskCandidates(projectId);
     }
+  }
+
+  /** Loads this project's tasks once, for the optional "Parent Task" picker
+   *  — filtered client-side as the user types, same pattern as the member
+   *  search elsewhere in this app. */
+  private loadParentTaskCandidates(projectId: string): void {
+    this.selectedParentTaskId = '';
+    this.parentTaskSearch = '';
+    this.tasksService.searchTasksInProject(projectId).subscribe({
+      next: (tasks) => this.availableParentTasks.set(tasks.map((t) => ({ id: t.id, title: t.title }))),
+      error: () => this.availableParentTasks.set([]),
+    });
+  }
+
+  getFilteredParentTasks(): Array<{ id: string; title: string }> {
+    const term = this.parentTaskSearch.trim().toLowerCase();
+    return this.availableParentTasks().filter(
+      (t) => !term || t.title.toLowerCase().includes(term),
+    );
+  }
+
+  selectParentTask(taskId: string): void {
+    this.selectedParentTaskId = taskId;
+    this.parentTaskSearch = '';
+  }
+
+  clearParentTask(): void {
+    this.selectedParentTaskId = '';
+  }
+
+  selectedParentTaskTitle(): string {
+    return this.availableParentTasks().find((t) => t.id === this.selectedParentTaskId)?.title ?? '';
   }
 
   /** Whether the task being created will land in a CSO project — either the
@@ -203,6 +250,7 @@ export class CreateTaskModalComponent implements OnChanges {
       description: this.description,
       sprintId: this.selectedSprintId || undefined,
       isCsoLabeled: this.isTargetProjectCso() || this.isCsoLabeled,
+      parentTaskId: this.lockedParentTaskId || this.selectedParentTaskId || undefined,
     };
 
     this.submitted.emit(formData);
@@ -219,8 +267,11 @@ export class CreateTaskModalComponent implements OnChanges {
     this.description = '';
     this.selectedSprintId = '';
     this.isCsoLabeled = false;
+    this.selectedParentTaskId = '';
+    this.parentTaskSearch = '';
     this.availableSprints.set([]);
     this.availableAssignees.set([]);
+    this.availableParentTasks.set([]);
   }
 
   onBackdropClick(): void {
