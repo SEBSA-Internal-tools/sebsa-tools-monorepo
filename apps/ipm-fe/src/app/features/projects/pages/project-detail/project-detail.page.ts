@@ -11,7 +11,7 @@ import { ProjectTaskListComponent } from './components/task-list/project-task-li
 import { ProjectTeamComponent } from './components/team/project-team.component';
 import { ProjectSprintComponent } from './components/sprint/project-sprint.component';
 import { ProjectOverviewComponent } from './components/overview/project-overview.component';
-import { CreateTaskModalComponent, type TaskFormData } from '../../components/modals/create-task/create-task-modal.component';
+import { CreateTaskModalComponent, type TaskFormData } from '../../../tasks/create-task/create-task-modal.component';
 import {
   CreateProjectModalComponent,
   type ProjectFormData,

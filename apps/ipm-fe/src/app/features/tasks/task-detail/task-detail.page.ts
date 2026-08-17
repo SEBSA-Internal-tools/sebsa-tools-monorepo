@@ -1,9 +1,9 @@
 import { Component, ChangeDetectionStrategy, OnInit, inject, signal } from '@angular/core';
 import { CommonModule, Location } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
-import { TasksService } from '../../core/services/tasks.service';
+import { TasksService } from '../../../core/services/tasks.service';
 import type { Task, UpdateTaskRequest } from '@sebsa-pm-tool/shared-models';
-import { EditTaskModalComponent } from './components/edit-task-modal/edit-task-modal.component';
+import { EditTaskModalComponent } from '../edit-task/edit-task-modal.component';
 
 @Component({
   standalone: true,

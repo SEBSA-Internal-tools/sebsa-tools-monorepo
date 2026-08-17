@@ -50,13 +50,13 @@
     </div>
   </div>
   <!-- Create Task Modal -->
-  <create-task-modal
+  <app-create-task-modal
     [isOpen]="isTaskModalOpen"
     [projectId]="project.id"
     [projectName]="project.name"
     (closed)="closeTaskModal()"
     (submitted)="onCreateTask($event)"
-  ></create-task-modal>
+  ></app-create-task-modal>
 
   <!-- Edit Project Modal -->
   <create-project-modal

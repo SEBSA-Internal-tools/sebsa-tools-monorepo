@@ -146,6 +146,21 @@
     }
   }
 
+  .label-row-right {
+    display: flex;
+    justify-content: flex-end;
+
+    .forgot-password {
+      font-size: 0.8rem;
+      color: #d92561;
+      text-decoration: none;
+
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+  }
+
   .input-wrapper {
     position: relative;
     display: flex;

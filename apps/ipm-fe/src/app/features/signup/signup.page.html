@@ -9,17 +9,20 @@
   </div>
 
   <div class="right-panel">
-    <div class="login-form-container" *ngIf="!isRegistered()">
+    @if (!isRegistered()) {
+    <div class="login-form-container">
       <h2>Create an account</h2>
       <p class="subtitle">Sign up with your corporate email address</p>
 
-      <div class="error-alert" *ngIf="hasError()">
+      @if (hasError()) {
+      <div class="error-alert">
         <span class="material-symbols-outlined error-icon">error</span>
         <div class="error-text">
           <strong>Registration Failed</strong>
           <span>{{ errorMessage() }}</span>
         </div>
       </div>
+    }
 
       <form (submit)="register(); $event.preventDefault()">
         <div class="form-group">
@@ -34,7 +37,7 @@
           <label>Corporate Email Address</label>
           <div class="input-wrapper">
             <span class="material-symbols-outlined input-icon">mail</span>
-            <input type="email" tabindex="2" name="email" [(ngModel)]="email" placeholder="user@sebsaworld.com" [class.error-input]="hasError()" />
+            <input type="email" tabindex="2" name="email" autocomplete="current-email" [(ngModel)]="email" placeholder="user@sebsaworld.com" [class.error-input]="hasError()" />
           </div>
         </div>
 
@@ -52,10 +55,10 @@
         </div>
 
         <div class="form-group">
-          <label>Password</label>
+          <label for="password">Password</label>
           <div class="input-wrapper">
             <span class="material-symbols-outlined input-icon">lock</span>
-            <input type="password" tabindex="4" name="password" [(ngModel)]="password" placeholder="••••••••" />
+            <input type="password" tabindex="4" autocomplete="current-password" name="password" [(ngModel)]="password" placeholder="••••••••" />
           </div>
         </div>
 
@@ -70,8 +73,9 @@
         &copy; {{ currentYear }} SEBSA (Pvt) Ltd. All rights reserved.
       </div>
     </div>
-
-    <div class="login-form-container" *ngIf="isRegistered()">
+    }
+    @if (isRegistered()) {
+    <div class="login-form-container">
       <div class="success-alert">
         <span class="material-symbols-outlined success-icon">check_circle</span>
         <h2>Registration received</h2>
@@ -82,5 +86,6 @@
         <p><a routerLink="/login">Back to sign in</a></p>
       </div>
     </div>
+  }
   </div>
 </div>
