@@ -19,10 +19,10 @@
       }
     </select>
 
-    <select [(ngModel)]="selectedCustomerName" (change)="applyFilters()" class="filter-select">
+    <select [(ngModel)]="selectedCustomerId" (change)="applyFilters()" class="filter-select">
       <option value="">All Customers</option>
-      @for (name of availableCustomerNames(); track name) {
-        <option [value]="name">{{ name }}</option>
+      @for (customer of availableCustomers(); track customer.id) {
+        <option [value]="customer.id">{{ customer.name }}</option>
       }
     </select>
 

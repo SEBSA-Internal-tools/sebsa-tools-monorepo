@@ -648,8 +648,8 @@ export class TaskService {
     if (filter.labelId) {
       where.labels = { some: { labelId: filter.labelId } };
     }
-    if (filter.customerName) {
-      where.project = { customerName: { contains: filter.customerName, mode: 'insensitive' } };
+    if (filter.customerId) {
+      where.project = { customerId: filter.customerId };
     }
     if (filter.isCsoLabeled !== undefined) {
       where.isCsoLabeled = filter.isCsoLabeled;

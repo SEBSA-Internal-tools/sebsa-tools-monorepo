@@ -294,6 +294,28 @@ model ProjectMember {
 // Projects
 // ---------------------------------------------------------------------------
 
+/// A customer/client a project is delivered for. Reinstated as a real
+/// entity (see docs/database-architecture.md, design decision #12) — every
+/// Project now belongs to exactly one Customer, replacing the earlier
+/// free-text `Project.customerName` field. Soft-deleted rather than
+/// hard-deleted so historical projects retain a valid reference; deletion
+/// is additionally blocked at the application layer while any non-deleted
+/// project still references it.
+model Customer {
+  id           String    @id @default(uuid())
+  name         String    @unique
+  contactEmail String?
+  contactPhone String?
+  notes        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  projects Project[]
+
+  @@map("customers")
+}
+
 /// The top-level engagement/initiative entity.
 model Project {
   id            String        @id @default(uuid())
@@ -310,14 +332,15 @@ model Project {
   updatedAt     DateTime      @updatedAt
   deletedAt     DateTime?
 
-  /// CSO groundwork (FSD §5.16) — a project can be flagged as a CSO Project.
-  /// customerName is a plain text field, not a Customer entity (deliberate
-  /// simplification per team decision — see docs/database-architecture.md).
-  /// Jira-connection fields are deliberately not modeled yet either.
+  /// CSO groundwork (FSD §5.16) — a project can additionally be flagged as a
+  /// CSO Project, independent of which customer it belongs to (every project
+  /// has a customer; isCsoProject controls whether it surfaces on the CSO
+  /// Overview page). Jira-connection fields are deliberately not modeled yet.
   isCsoProject Boolean @default(false)
-  customerName String?
+  customerId   String
 
-  createdBy User @relation("ProjectCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  createdBy User     @relation("ProjectCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  customer  Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
 
   roles          Role[]
   members        ProjectMember[]
@@ -331,6 +354,7 @@ model Project {
 
   @@index([status])
   @@index([createdById])
+  @@index([customerId])
   @@map("projects")
 }
 

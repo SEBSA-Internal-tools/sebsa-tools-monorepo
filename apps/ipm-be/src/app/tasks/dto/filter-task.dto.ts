@@ -63,12 +63,10 @@ export class FilterTaskDto {
   @IsUUID()
   labelId?: string;
 
-  @ApiPropertyOptional({
-    description: 'Case-insensitive substring match against the project customerName.',
-  })
+  @ApiPropertyOptional({ format: 'uuid', description: "Matches against the project's customerId." })
   @IsOptional()
-  @IsString()
-  customerName?: string;
+  @IsUUID()
+  customerId?: string;
 
   @ApiPropertyOptional({ description: 'Filters to CSO-labeled tasks when true.' })
   @IsOptional()

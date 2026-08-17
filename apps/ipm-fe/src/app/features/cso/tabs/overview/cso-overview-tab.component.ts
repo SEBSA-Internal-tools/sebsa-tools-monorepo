@@ -40,18 +40,20 @@ export class CsoOverviewTabComponent implements OnInit {
     this.availableProjects().filter((p) => p.isCsoProject),
   );
 
-  /** Distinct customer names across CSO projects only — there's no Customer
-   *  entity to list, so the filter dropdown is derived from whatever's
-   *  actually been typed into Project.customerName so far. */
-  protected readonly availableCustomerNames = computed<string[]>(() => {
-    const names = this.csoProjects()
-      .map((p) => p.customerName)
-      .filter((name): name is string => !!name);
-    return [...new Set(names)].sort();
+  /** Distinct customers across CSO projects only — narrows the filter to
+   *  "which CSO engagement," matching the projects filter above. */
+  protected readonly availableCustomers = computed<{ id: string; name: string }[]>(() => {
+    const byId = new Map<string, string>();
+    for (const project of this.csoProjects()) {
+      byId.set(project.customer.id, project.customer.name);
+    }
+    return [...byId.entries()]
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
   });
 
   protected selectedProjectId = '';
-  protected selectedCustomerName = '';
+  protected selectedCustomerId = '';
   protected selectedPriority: '' | 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' = '';
   protected selectedAssigneeId = '';
   protected selectedStatus: StatusFilter = '';
@@ -76,7 +78,7 @@ export class CsoOverviewTabComponent implements OnInit {
   applyFilters(): void {
     this.csoOverviewService.load({
       projectId: this.selectedProjectId || undefined,
-      customerName: this.selectedCustomerName || undefined,
+      customerId: this.selectedCustomerId || undefined,
       priority: this.selectedPriority || undefined,
       assigneeId: this.selectedAssigneeId || undefined,
     });

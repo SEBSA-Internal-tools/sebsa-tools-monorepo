@@ -50,7 +50,7 @@
           @for (project of csoProjects(); track project.id) {
             <tr (click)="onProjectClick(project.id)" class="clickable-row">
               <td>{{ project.name }}</td>
-              <td>{{ project.customerName || '—' }}</td>
+              <td>{{ project.customer.name }}</td>
               <td>
                 <span class="badge">{{ project.status | titlecase }}</span>
               </td>
