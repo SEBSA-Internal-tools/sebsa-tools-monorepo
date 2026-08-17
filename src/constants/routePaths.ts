@@ -1,0 +1,90 @@
+/**
+ * Every route path in the application, in one file.
+ *
+ * Paths are kept out of the routing implementation on purpose: `src/routes/`
+ * declares *structure*, this file declares *addresses*. A component that needs
+ * to link somewhere imports from here and never writes a path literal.
+ *
+ * `SEGMENTS` is the single source of truth. The absolute `routePaths` used for
+ * links and the relative segments used by the router are both derived from it,
+ * so the two can never drift apart — which is the failure mode that previously
+ * left three navigation cards pointing at unmounted routes.
+ */
+
+/** Path segments, as the router nests them. */
+export const SEGMENTS = {
+  crp: "crp",
+  delivery: "delivery",
+  wiki: "wiki",
+
+  developer: "developer",
+  reviewer: "reviewer",
+  admin: "admin",
+
+  tasks: "tasks",
+  new: "new",
+  login: "login",
+} as const;
+
+const CRP = `/${SEGMENTS.crp}` as const;
+
+
+/**
+ * Absolute paths. Builder functions take the values a dynamic segment needs, so
+ */
+export const routePaths = {
+  /**
+   * The Service Delivery Portal root.
+   */
+  root: "/",
+
+  /** Unauthenticated entry point. Sits outside the app shell — no app bar. */
+  login: `/${SEGMENTS.login}`,
+
+  crp: {
+    /**
+     * The Code Review Portal's own workspace 
+     */
+    home: CRP,
+    root: CRP,
+
+    developer: {
+      dashboard: `${CRP}/${SEGMENTS.developer}`,
+    },
+
+    reviewer: {
+      dashboard: `${CRP}/${SEGMENTS.reviewer}`,
+    },
+
+    admin: {
+      dashboard: `${CRP}/${SEGMENTS.admin}`,
+    },
+  },
+
+  delivery: {
+    /**
+     * The Delivery Portal's own workspace - Phase 2
+     */    
+    root: `/${SEGMENTS.delivery}`,
+  },
+
+  wiki: {
+    /**
+     * The Wiki Portal's own workspace - Phase 3
+     */       
+    root: `/${SEGMENTS.wiki}`,
+  },
+} as const;
+
+/**
+ * The router mounts children relative to their parent.
+ */
+export const relativePaths = {
+  crp: {
+    developer: SEGMENTS.developer,
+    reviewer: SEGMENTS.reviewer,
+    admin: SEGMENTS.admin,
+  },
+} as const;
+
+export type RoutePaths = typeof routePaths;

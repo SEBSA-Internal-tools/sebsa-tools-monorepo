@@ -7,6 +7,7 @@
     "types": ["vite/client"],
     "allowArbitraryExtensions": true,
     "skipLibCheck": true,
+    "resolveJsonModule": true,
 
     /* Bundler mode */
     "moduleResolution": "bundler",
@@ -16,11 +17,26 @@
     "noEmit": true,
     "jsx": "react-jsx",
 
+    /*
+     * Path aliases — must mirror `resolve.alias` in vite.config.ts.
+     * No `baseUrl`: it is deprecated in TypeScript 6, and without it these
+     * targets resolve relative to this file, which is what we want anyway.
+     */
+    "paths": {
+      "@/*": ["./src/*"],
+      "@sdp/contracts": ["./packages/contracts/src/index.ts"],
+      "@sdp/types": ["./packages/types/src/index.ts"]
+    },
+
+    /* Type safety */
+    "strict": true,
+    "noUncheckedIndexedAccess": true,    
+
     /* Linting */
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"]
+  "include": ["src", "packages/*/src", ".storybook"]
 }

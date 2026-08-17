@@ -1,0 +1,142 @@
+/*
+ * Design: Brand, Surface, Text, Border, Status, Action, Chart, Role, Gradients
+ */
+
+@theme {
+  /* --- Brand ------------------------------------------------------------ */
+  --color-primary-50: #f3f0fe;
+  --color-primary-100: #e4dcfc;
+  --color-primary-600: #5827e5;
+  /* Named separately in Figma but identical values; kept for traceability. */
+  --color-brand-violet: #5827e5;
+  --color-brand-navy: #00276a;
+
+  /* The SEBSA wordmark ramp. */
+  --color-logo-cyan: #03cff0;
+  --color-logo-blue: #028bde;
+  --color-logo-violet: #7650e1;
+  --color-logo-light-violet: #9b83f2;
+  --color-logo-deep-purple: #6600cc;
+
+  /* --- Surface ---------------------------------------------------------- */
+  --color-page: #f9fafc;
+  --color-surface: #ffffff;
+  --color-surface-header: #ffffff;
+  --color-surface-subtle: #f5f7fb;
+  --color-surface-hover: #eff2f8;
+  --color-surface-field: #ffffff;
+  --color-surface-field-disabled: #f5f7fb;
+  --color-surface-hero: #f1f2fc;
+
+  /* --- Text ------------------------------------------------------------- */
+  --color-heading: #00276a;
+  --color-ink: #152744;
+  --color-secondary: #5a6784;
+  --color-muted: #66738f;
+  --color-placeholder: #66738f;
+  --color-inverse: #ffffff;
+  --color-link: #5827e5;
+
+  /* --- Border ----------------------------------------------------------- */
+  --color-border: #e3e8f1;
+  --color-border-subtle: #eff2f8;
+  --color-border-strong: #c3ccdd;
+  --color-border-focus: #5827e5;
+
+  /* --- Status ----------------------------------------------------------- */
+  /* Each status is a tinted background, a readable foreground, and (where the
+     design defines one) a solid fill */
+  --color-success-bg: #dff7e8;
+  --color-success-fg: #0b7a45;
+  --color-success-solid: #0fa556;
+
+  --color-warning-bg: #fef3d7;
+  --color-warning-fg: #95650a;
+  --color-warning-solid: #e9a21b;
+
+  --color-danger-bg: #fde5e5;
+  --color-danger-fg: #c62b2b;
+  --color-danger-solid: #e14343;
+
+  --color-info-bg: #dbe5fb;
+  --color-info-fg: #1b54d8;
+
+  --color-neutral-bg: #eff2f8;
+  --color-neutral-fg: #47536e;
+
+  --color-purple-bg: #e4dcfc;
+  --color-purple-fg: #5827e5;
+
+  --color-pink-bg: #e4dcfc;
+  --color-pink-fg: #4a1fc4;
+
+  /* --- Role ------------------------------------------------------------- */
+  --color-role-developer: #3b82f6;
+  --color-role-developer-start: #60a5fa;
+  --color-role-reviewer: #6600cc;
+  --color-role-reviewer-start: #7650e1;
+  --color-role-admin: #8b5cf6;
+  --color-role-admin-start: #a78bfa;
+
+  /* --- Shape ------------------------------------------------------------ */
+  --radius-control: 0.5rem;
+  --radius-card: 0.75rem;
+  --radius-panel: 1rem;
+
+  --shadow-card: 0 1px 2px 0 rgb(0 39 106 / 0.04), 0 1px 3px 0 rgb(0 39 106 / 0.06);
+  --shadow-raised: 0 8px 20px -6px rgb(0 39 106 / 0.12);
+  --shadow-popover: 0 12px 32px -8px rgb(0 39 106 / 0.18);
+
+  /* --- Type ------------------------------------------------------------- */
+  /* The design system pairs Poppins for headings with Inter for everything
+   * else.
+   */
+  --font-heading: "Poppins", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+:root {
+  /* --- Gradients -------------------------------------------------------- */
+
+  --gradient-brand: linear-gradient(90deg, #1b54d8 0%, #5827e5 100%);
+  --gradient-developer: linear-gradient(
+    90deg,
+    var(--color-role-developer-start) 0%,
+    var(--color-role-developer) 100%
+  );
+  --gradient-reviewer: linear-gradient(
+    90deg,
+    var(--color-role-reviewer-start) 0%,
+    var(--color-role-reviewer) 100%
+  );
+  --gradient-admin: linear-gradient(
+    90deg,
+    var(--color-role-admin-start) 0%,
+    var(--color-role-admin) 100%
+  );
+
+  /* The login screen's brand panel runs diagonally through the logo ramp. */
+  --gradient-brand-panel: linear-gradient(
+    140deg,
+    var(--color-logo-blue) 0%,
+    var(--color-logo-violet) 55%,
+    var(--color-logo-deep-purple) 100%
+  );
+
+  /*
+   * Chart colour, split by the job the colour is doing.
+   */
+  --status-chart-green: #0fa556;
+  --status-chart-red: #e14343;
+  --status-chart-amber: #e9a21b;
+  --status-chart-orange: #f07c34;
+  --status-chart-violet: #7048eb;
+  --status-chart-track: #e6eaf3;
+
+  --chart-1: #6d28d9;
+  --chart-2: #a16207;
+  --chart-3: #0891b2;
+  --chart-4: #dc2626;
+  --chart-5: #2563eb;
+  --chart-6: #15803d;
+}
