@@ -7,6 +7,9 @@ import {
   OnChanges,
   inject,
   signal,
+  ViewChild,
+  ElementRef,
+  HostListener,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -66,10 +69,14 @@ export class CreateTaskModalComponent implements OnChanges {
   private readonly userAdminService = inject(UserAdminService);
   private readonly projectsService = inject(ProjectsService);
   private readonly tasksService = inject(TasksService);
+  private readonly elementRef = inject(ElementRef);
+  
+  @ViewChild('assigneeDropdownRef') assigneeDropdownRef?: ElementRef<HTMLElement>;
 
   taskTitle = '';
   /** Holds the UUID of the selected assignee (bound to user.id in the dropdown) */
-  selectedAssigneeId = '';
+  selectedAssigneeIds: string[] = [];
+  assigneeSearch = '';
   priority: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' = 'MEDIUM';
   selectedType: 'EPIC' | 'STORY' | 'TASK' | 'BUG' | 'IMPROVEMENT' = 'TASK';
   dueDate = '';
@@ -91,6 +98,7 @@ export class CreateTaskModalComponent implements OnChanges {
   readonly isLoadingUsers = signal(false);
   readonly sprintError = signal('');
   readonly userError = signal('');
+  readonly isAssigneeDropdownOpen = signal(false);
 
   ngOnChanges(): void {
     if (this.isOpen) {
@@ -105,6 +113,20 @@ export class CreateTaskModalComponent implements OnChanges {
       } else {
         this.loadAvailableProjects();
       }
+    }
+  }
+
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent): void {
+    if (!this.isAssigneeDropdownOpen()) {
+      return;
+    }
+    const target = event.target as Node;
+    // Close the dropdown if the click is outside the assignee dropdown container
+    const isInsideDropdown = this.assigneeDropdownRef?.nativeElement?.contains(target);
+    if (!isInsideDropdown) {
+      this.isAssigneeDropdownOpen.set(false);
+      this.assigneeSearch = '';
     }
   }
 
@@ -243,7 +265,7 @@ export class CreateTaskModalComponent implements OnChanges {
       title: this.taskTitle,
       projectId: finalProjectId,
       // Wrap the selected UUID in an array; omit if nothing was selected
-      assigneeIds: this.selectedAssigneeId ? [this.selectedAssigneeId] : [],
+      assigneeIds: this.selectedAssigneeIds,
       priority: this.priority,
       type: this.selectedType,
       dueDate: this.dueDate,
@@ -260,7 +282,10 @@ export class CreateTaskModalComponent implements OnChanges {
 
   private resetForm(): void {
     this.taskTitle = '';
-    this.selectedAssigneeId = '';
+    this.selectedAssigneeIds = [];
+    this.assigneeSearch = '';
+    this.isAssigneeDropdownOpen.set(false);
+
     this.priority = 'MEDIUM';
     this.selectedType = 'TASK';
     this.dueDate = '';
@@ -269,6 +294,7 @@ export class CreateTaskModalComponent implements OnChanges {
     this.isCsoLabeled = false;
     this.selectedParentTaskId = '';
     this.parentTaskSearch = '';
+
     this.availableSprints.set([]);
     this.availableAssignees.set([]);
     this.availableParentTasks.set([]);
@@ -276,5 +302,82 @@ export class CreateTaskModalComponent implements OnChanges {
 
   onBackdropClick(): void {
     this.onCancel();
+  }
+
+  toggleAssigneeDropdown(event?: Event): void {
+    event?.stopPropagation();
+
+    this.isAssigneeDropdownOpen.update((isOpen) => !isOpen);
+  }
+
+  openAssigneeDropdown(): void {
+  this.isAssigneeDropdownOpen.set(true);
+  }
+
+  onAssigneeSearch(): void {
+  // Typing should always keep the list open.
+  if (!this.isAssigneeDropdownOpen()) {
+    this.isAssigneeDropdownOpen.set(true);
+  }
+  }
+
+  getFilteredAssignees(): UserAdminSummary[] {
+    const term = this.assigneeSearch.trim().toLowerCase();
+
+    if (!term) {
+      return this.availableAssignees();
+    }
+
+    return this.availableAssignees().filter(
+      (user) =>
+        user.name.toLowerCase().includes(term) ||
+        user.email?.toLowerCase().includes(term),
+    );
+  }
+
+  isAssigneeSelected(userId: string): boolean {
+    return this.selectedAssigneeIds.includes(userId);
+  }
+
+  toggleAssignee(userId: string): void {
+    if (this.isAssigneeSelected(userId)) {
+      this.selectedAssigneeIds = this.selectedAssigneeIds.filter(
+        (id) => id !== userId,
+      );
+    } else {
+      this.selectedAssigneeIds = [
+        ...this.selectedAssigneeIds,
+        userId,
+      ];
+    }
+  }
+
+  removeAssignee(userId: string, event: Event): void {
+    event.stopPropagation();
+
+    this.selectedAssigneeIds = this.selectedAssigneeIds.filter(
+      (id) => id !== userId,
+    );
+  }
+
+  clearAssignees(event: Event): void {
+    event.stopPropagation();
+
+    this.selectedAssigneeIds = [];
+  }
+
+  selectedAssignees(): UserAdminSummary[] {
+    return this.availableAssignees().filter((user) =>
+      this.selectedAssigneeIds.includes(user.id),
+    );
+  }
+
+  getUserInitials(name: string): string {
+    return name
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((part) => part.charAt(0).toUpperCase())
+      .join('');
   }
 }
