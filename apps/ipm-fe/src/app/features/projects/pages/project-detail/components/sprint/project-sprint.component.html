@@ -59,7 +59,7 @@
               <div class="sprint-meta">
                 <span class="meta-item">
                   <span class="material-symbols-outlined">calendar_today</span>
-                  {{ sprint.startDate }} to {{ sprint.endDate }}
+                  {{ sprint.startDate | date:'yyyy-MM-dd' }} <strong>TO</strong> {{ sprint.endDate | date:'yyyy-MM-dd' }}
                 </span>
                 <span class="meta-item">
                   <span class="material-symbols-outlined">task_alt</span>
@@ -147,7 +147,7 @@
                         </td>
                         <td class="col-due-date">
                           @if (task.dueDate) {
-                            <span class="due-date">{{ task.dueDate }}</span>
+                            <span class="due-date">{{ task.dueDate | date:'yyyy-MM-dd' }}</span>
                           } @else {
                             <span class="empty-cell">—</span>
                           }
