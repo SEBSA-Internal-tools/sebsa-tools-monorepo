@@ -163,7 +163,6 @@
         <!-- Assignee — loaded from GET /api/users/all -->
         <div class="form-group">
           <label for="assignee" class="form-label">Assignee</label>
-
           @if (isLoadingUsers()) {
             <div class="field-loading">
               <span class="material-symbols-outlined spin">progress_activity</span>
@@ -182,21 +181,16 @@
                 class="assignee-input"
                 [class.open]="isAssigneeDropdownOpen()"
               >
-
                 <div class="selected-assignees">
-
                   <!-- Selected users -->
                   @for (user of selectedAssignees(); track user.id) {
                     <span class="selected-assignee-chip">
-
                       <span class="chip-avatar">
                         {{ getUserInitials(user.name) }}
                       </span>
-
                       <span class="chip-name">
                         {{ user.name }}
                       </span>
-
                       <button
                         type="button"
                         class="remove-assignee"
@@ -207,10 +201,8 @@
                           close
                         </span>
                       </button>
-
                     </span>
                   }
-
                   <!-- Search -->
                   <input
                     id="assignee"
@@ -222,9 +214,7 @@
                     (input)="onAssigneeSearch()"
                     autocomplete="off"
                   />
-
                 </div>
-
                 <!-- Manual open/close button -->
                 <button
                   type="button"
@@ -237,55 +227,39 @@
                     {{ isAssigneeDropdownOpen() ? 'expand_less' : 'expand_more' }}
                   </span>
                 </button>
-
               </div>
-
               <!-- User list -->
               @if (isAssigneeDropdownOpen()) {
-
                 <div class="assignee-menu">
-
                   <div class="assignee-options">
-
                     @if (getFilteredAssignees().length === 0) {
-
                       <div class="no-assignees">
                         <span class="material-symbols-outlined">
                           person_search
                         </span>
-
                         <span>No users found</span>
                       </div>
-
                     } @else {
-
                       @for (user of getFilteredAssignees(); track user.id) {
-
                         <button
                           type="button"
                           class="assignee-option"
                           [class.selected]="isAssigneeSelected(user.id)"
                           (click)="toggleAssignee(user.id)"
                         >
-
                           <span class="assignee-avatar">
                             {{ getUserInitials(user.name) }}
                           </span>
-
                           <span class="assignee-info">
-
                             <span class="assignee-name">
                               {{ user.name }}
                             </span>
-
                             @if (user.email) {
                               <span class="assignee-email">
                                 {{ user.email }}
                               </span>
                             }
-
                           </span>
-
                           <!-- Tick -->
                           <span
                             class="assignee-checkbox"
@@ -297,26 +271,18 @@
                               </span>
                             }
                           </span>
-
                         </button>
-
                       }
-
                     }
-
                   </div>
-
                   <!-- Footer -->
                   @if (selectedAssigneeIds.length > 0) {
-
                     <div class="assignee-footer">
-
                       <span>
                         {{ selectedAssigneeIds.length }}
                         {{ selectedAssigneeIds.length === 1 ? 'user' : 'users' }}
                         selected
                       </span>
-
                       <button
                         type="button"
                         class="clear-assignees"
@@ -324,15 +290,10 @@
                       >
                         Clear all
                       </button>
-
                     </div>
-
                   }
-
                 </div>
-
               }
-
             </div>
           }
         </div>
