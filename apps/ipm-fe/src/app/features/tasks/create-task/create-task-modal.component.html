@@ -175,12 +175,165 @@
               {{ userError() }}
             </div>
           } @else {
-            <select id="assignee" [(ngModel)]="selectedAssigneeId" class="form-select">
-              <option value="">Select assignee...</option>
-              @for (user of availableAssignees(); track user.id) {
-                <option [value]="user.id">{{ user.name }}</option>
+            <div class="assignee-dropdown" #assigneeDropdownRef>
+
+              <!-- Assignee field -->
+              <div
+                class="assignee-input"
+                [class.open]="isAssigneeDropdownOpen()"
+              >
+
+                <div class="selected-assignees">
+
+                  <!-- Selected users -->
+                  @for (user of selectedAssignees(); track user.id) {
+                    <span class="selected-assignee-chip">
+
+                      <span class="chip-avatar">
+                        {{ getUserInitials(user.name) }}
+                      </span>
+
+                      <span class="chip-name">
+                        {{ user.name }}
+                      </span>
+
+                      <button
+                        type="button"
+                        class="remove-assignee"
+                        (click)="removeAssignee(user.id, $event)"
+                        [attr.aria-label]="'Remove ' + user.name"
+                      >
+                        <span class="material-symbols-outlined">
+                          close
+                        </span>
+                      </button>
+
+                    </span>
+                  }
+
+                  <!-- Search -->
+                  <input
+                    id="assignee"
+                    type="text"
+                    class="assignee-search-input"
+                    placeholder="Search users..."
+                    [(ngModel)]="assigneeSearch"
+                    (focus)="openAssigneeDropdown()"
+                    (input)="onAssigneeSearch()"
+                    autocomplete="off"
+                  />
+
+                </div>
+
+                <!-- Manual open/close button -->
+                <button
+                  type="button"
+                  class="dropdown-toggle"
+                  [attr.aria-expanded]="isAssigneeDropdownOpen()"
+                  aria-label="Toggle assignee list"
+                  (click)="toggleAssigneeDropdown($event)"
+                >
+                  <span class="material-symbols-outlined">
+                    {{ isAssigneeDropdownOpen() ? 'expand_less' : 'expand_more' }}
+                  </span>
+                </button>
+
+              </div>
+
+              <!-- User list -->
+              @if (isAssigneeDropdownOpen()) {
+
+                <div class="assignee-menu">
+
+                  <div class="assignee-options">
+
+                    @if (getFilteredAssignees().length === 0) {
+
+                      <div class="no-assignees">
+                        <span class="material-symbols-outlined">
+                          person_search
+                        </span>
+
+                        <span>No users found</span>
+                      </div>
+
+                    } @else {
+
+                      @for (user of getFilteredAssignees(); track user.id) {
+
+                        <button
+                          type="button"
+                          class="assignee-option"
+                          [class.selected]="isAssigneeSelected(user.id)"
+                          (click)="toggleAssignee(user.id)"
+                        >
+
+                          <span class="assignee-avatar">
+                            {{ getUserInitials(user.name) }}
+                          </span>
+
+                          <span class="assignee-info">
+
+                            <span class="assignee-name">
+                              {{ user.name }}
+                            </span>
+
+                            @if (user.email) {
+                              <span class="assignee-email">
+                                {{ user.email }}
+                              </span>
+                            }
+
+                          </span>
+
+                          <!-- Tick -->
+                          <span
+                            class="assignee-checkbox"
+                            [class.checked]="isAssigneeSelected(user.id)"
+                          >
+                            @if (isAssigneeSelected(user.id)) {
+                              <span class="material-symbols-outlined">
+                                check
+                              </span>
+                            }
+                          </span>
+
+                        </button>
+
+                      }
+
+                    }
+
+                  </div>
+
+                  <!-- Footer -->
+                  @if (selectedAssigneeIds.length > 0) {
+
+                    <div class="assignee-footer">
+
+                      <span>
+                        {{ selectedAssigneeIds.length }}
+                        {{ selectedAssigneeIds.length === 1 ? 'user' : 'users' }}
+                        selected
+                      </span>
+
+                      <button
+                        type="button"
+                        class="clear-assignees"
+                        (click)="clearAssignees($event)"
+                      >
+                        Clear all
+                      </button>
+
+                    </div>
+
+                  }
+
+                </div>
+
               }
-            </select>
+
+            </div>
           }
         </div>
 
