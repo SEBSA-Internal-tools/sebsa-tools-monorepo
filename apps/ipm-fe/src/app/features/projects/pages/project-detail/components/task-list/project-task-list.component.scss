@@ -85,7 +85,7 @@
 
 .table-header {
   display: grid;
-  grid-template-columns: 2fr 2fr 1fr 110px 100px 100px 80px;
+  grid-template-columns: 2fr 2fr 1.2fr 120px 110px 100px 80px;
   gap: 16px;
   padding: 16px 20px;
   background: var(--app-surface-soft);
@@ -100,7 +100,7 @@
   z-index: 10;
 
   @media (max-width: 1200px) {
-    grid-template-columns: 2fr 2fr 0.8fr 100px 90px 80px 70px;
+    grid-template-columns: 2fr 2fr 1fr 110px 100px 90px 70px;
     gap: 12px;
     padding: 14px 16px;
     font-size: 0.75rem;
@@ -113,7 +113,7 @@
 
 .table-row {
   display: grid;
-  grid-template-columns: 2fr 2fr 1fr 110px 100px 100px 80px;
+  grid-template-columns: 2fr 2fr 1.2fr 120px 110px 100px 80px;
   gap: 16px;
   padding: 16px 20px;
   align-items: center;
@@ -121,7 +121,7 @@
   transition: all 0.2s ease;
 
   @media (max-width: 1200px) {
-    grid-template-columns: 2fr 2fr 0.8fr 100px 90px 80px 70px;
+    grid-template-columns: 2fr 2fr 1fr 110px 100px 90px 70px;
     gap: 12px;
     padding: 14px 16px;
   }
@@ -155,6 +155,21 @@
   }
 }
 
+.col-description {
+  display: flex;
+  align-items: center;
+}
+
+.description-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: break-word;
+  line-height: 1.4;
+}
+
 .col-id {
   justify-content: flex-start;
 }
@@ -170,10 +185,19 @@
   font-size: 0.75rem;
 }
 
+.col-category, .col-status {
+  justify-content: center;
+}
+
 .task-title {
   font-weight: 500;
   line-height: 1.3;
-  word-break: break-word;
+  text-align: left;
+  display: block;
+  width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .category-badge {
@@ -188,18 +212,30 @@
   text-transform: uppercase;
   letter-spacing: 0.03em;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .status-badge {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   padding: 5px 12px;
   border-radius: 6px;
   font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  white-space: nowrap;
+
+  // Allow text to wrap
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: normal;
+
+  // Controls the wrapping width
+  max-width: 120px;
+  text-align: center;
 
   &.new {
     background: rgba(148, 163, 184, 0.15);
@@ -232,6 +268,9 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 
   &.high {
     background: rgba(239, 68, 68, 0.15);
