@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, BehaviorSubject } from 'rxjs';
+import { Observable, BehaviorSubject, tap } from 'rxjs';
 import {
   Project,
   ProjectSummary,
@@ -264,6 +264,12 @@ export class ProjectsService {
   }
 
   getSprints(projectId: string): Sprint[] {
+    this.http.get<Sprint[]>(`/api/projects/${projectId}/sprints`).pipe(
+      tap((sprints) => {
+        const current = this.sprints$.value.filter((s) => s.projectId !== projectId);
+        this.sprints$.next([...current, ...sprints]);
+      }),
+    ).subscribe();
     return this.sprints$.value.filter((s) => s.projectId === projectId);
   }
 
