@@ -38,6 +38,8 @@ export interface TaskView {
   sprintId?: string;
   workflowStageId: string;
   isCsoLabeled: boolean;
+  type?: string;
+  updatedAt?: string;
 }
 
 export interface TaskListView {
