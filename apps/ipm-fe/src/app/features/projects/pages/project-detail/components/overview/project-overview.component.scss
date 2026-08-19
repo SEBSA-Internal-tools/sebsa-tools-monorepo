@@ -1,5 +1,5 @@
 .overview-dashboard {
-  padding: 24px;
+  padding: auto;
   display: grid;
   gap: 24px;
   max-width: 100%;
@@ -512,9 +512,9 @@
 }
 
 @media (max-width: 640px) {
-  .overview-dashboard {
-    padding: 16px;
-  }
+  // .overview-dashboard {
+  //   padding: 2px;
+  // }
 
   .kpi-cards-row {
     grid-template-columns: 1fr;
