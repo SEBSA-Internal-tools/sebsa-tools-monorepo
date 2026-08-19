@@ -7,6 +7,7 @@ import { ProjectsService } from '../../projects/services/projects.service';
 import type {
   CreateTaskRequest,
   Task,
+  TaskCategoryAssignmentEntry,
   TaskDependenciesView,
   TaskDependencyType,
   TaskStatusHistoryEntry,
@@ -41,6 +42,7 @@ export class TaskDetailPageComponent implements OnInit {
 
   workflowStages = signal<WorkflowStage[]>([]);
   statusHistory = signal<TaskStatusHistoryEntry[]>([]);
+  categoryHistory = signal<TaskCategoryAssignmentEntry[]>([]);
   dependencies = signal<TaskDependenciesView | null>(null);
   warnings = signal<string[]>([]);
 
@@ -67,12 +69,14 @@ export class TaskDetailPageComponent implements OnInit {
     this.warnings.set([]);
     this.dependencies.set(null);
     this.statusHistory.set([]);
+    this.categoryHistory.set([]);
     this.tasksService.getTaskById(taskId).subscribe({
       next: (task) => {
         this.task.set(task);
         this.isLoading.set(false);
         this.loadWorkflowStages(task.projectId);
         this.loadStatusHistory(taskId);
+        this.loadCategoryHistory(taskId);
         this.loadDependencies(taskId);
         this.loadDependencyTaskCandidates(task.projectId, taskId);
       },
@@ -95,6 +99,13 @@ export class TaskDetailPageComponent implements OnInit {
     this.tasksService.getStatusHistory(taskId).subscribe({
       next: (history) => this.statusHistory.set(history),
       error: () => this.statusHistory.set([]),
+    });
+  }
+
+  private loadCategoryHistory(taskId: string): void {
+    this.tasksService.getCategoryHistory(taskId).subscribe({
+      next: (history) => this.categoryHistory.set(history),
+      error: () => this.categoryHistory.set([]),
     });
   }
 
@@ -167,6 +178,7 @@ export class TaskDetailPageComponent implements OnInit {
         this.warnings.set(response.warnings);
         this.isLoading.set(false);
         this.closeEditModal();
+        this.loadCategoryHistory(currentTask.id);
       },
 
       error: (err) => {
@@ -253,6 +265,7 @@ export class TaskDetailPageComponent implements OnInit {
       sprintId: formData.sprintId || undefined,
       assigneeIds: formData.assigneeIds.length > 0 ? formData.assigneeIds : undefined,
       isCsoLabeled: formData.isCsoLabeled,
+      category: formData.category,
     };
 
     this.isLoading.set(true);
@@ -403,6 +416,21 @@ export class TaskDetailPageComponent implements OnInit {
       default:
         return 'task';
     }
+  }
+
+  getCategoryLabel(category: string): string {
+    switch (category) {
+      case 'FUNCTIONAL':
+        return 'Functional';
+      case 'TECHNICAL':
+        return 'Technical';
+      default:
+        return category;
+    }
+  }
+
+  getCategoryIcon(category: string): string {
+    return category === 'TECHNICAL' ? 'terminal' : 'psychology';
   }
 
   formatDate(dateStr: string | null | undefined): string {

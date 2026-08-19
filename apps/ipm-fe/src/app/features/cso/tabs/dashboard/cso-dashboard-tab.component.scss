@@ -57,8 +57,10 @@
 }
 
 .stat-card {
-  background: var(--app-surface);
-  border: 1px solid var(--app-border);
+  background: var(--color-surface-glass);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: var(--border-glass);
   border-radius: 12px;
   padding: 18px 20px;
   display: flex;
@@ -66,38 +68,41 @@
   gap: 6px;
 
   &.critical {
-    border-color: rgba(239, 68, 68, 0.3);
+    border-color: rgba(255, 51, 102, 0.3);
   }
 }
 
 .stat-label {
   font-size: 0.8rem;
-  color: var(--app-text-muted);
+  color: var(--text-muted);
   font-weight: 600;
+  font-family: 'Sora', sans-serif;
 }
 
 .stat-value {
+  font-family: 'Sora', sans-serif;
   font-size: 1.8rem;
   font-weight: 700;
-  color: var(--app-text);
+  color: var(--text-primary);
 }
 
 .projects-card {
-  background: var(--app-surface);
-  border: 1px solid var(--app-border);
+  background: var(--color-surface-glass);
+  border: var(--border-glass);
   border-radius: 12px;
   overflow: hidden;
 }
 
 .card-header {
   padding: 16px 20px;
-  border-bottom: 1px solid var(--app-border);
+  border-bottom: var(--border-glass);
 
   h3 {
     margin: 0;
+    font-family: 'Sora', sans-serif;
     font-size: 1rem;
     font-weight: 700;
-    color: var(--app-text);
+    color: var(--text-primary);
   }
 }
 
@@ -110,17 +115,21 @@
     text-align: left;
     padding: 12px 20px;
     font-size: 0.85rem;
-    border-bottom: 1px solid var(--app-border);
+    border-bottom: var(--border-glass);
+    font-family: 'Sora', sans-serif;
   }
 
   th {
-    background: var(--app-surface-soft);
-    color: var(--app-text-muted);
+    background: rgba(255, 255, 255, 0.02);
+    color: var(--text-secondary);
     font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 
   td {
-    color: var(--app-text);
+    color: var(--text-primary);
   }
 
   tr:last-child td {
@@ -129,21 +138,26 @@
 
   .clickable-row {
     cursor: pointer;
+    transition: background 0.2s ease;
 
     &:hover {
-      background: var(--app-hover);
+      background: var(--color-surface-glass-hover);
     }
   }
 }
 
 .badge {
-  display: inline-block;
-  padding: 3px 10px;
-  border-radius: 999px;
-  font-size: 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.72rem;
   font-weight: 600;
-  background: var(--app-surface-soft);
-  color: var(--app-text);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
 }
 
 .empty-state {

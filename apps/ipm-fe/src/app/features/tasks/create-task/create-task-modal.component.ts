@@ -18,6 +18,7 @@ import { UserAdminService } from '../../../core/services/user-admin.service';
 import { TasksService } from '../../../core/services/tasks.service';
 import type { SprintSummary } from '@sebsa-pm-tool/shared-models';
 import type { UserAdminSummary } from '@sebsa-pm-tool/shared-models';
+import type { TaskCategory } from '@sebsa-pm-tool/shared-models';
 import { ProjectsService } from '../../projects/services/projects.service';
 
 export interface TaskFormData {
@@ -34,6 +35,8 @@ export interface TaskFormData {
   sprintId?: string;
   isCsoLabeled: boolean;
   parentTaskId?: string;
+  /** Functional/Technical tag. Required when the task ends up CSO-labeled. */
+  category?: TaskCategory;
 }
 
 @Component({
@@ -62,6 +65,10 @@ export class CreateTaskModalComponent implements OnChanges {
    *  task is always created with this as its parent. */
   @Input() lockedParentTaskId = '';
   @Input() lockedParentTaskTitle = '';
+  /** When set (the CSO Functional/Technical queue's "Create Task" entry
+   *  point), the category picker is hidden and every task is created with
+   *  this fixed tag instead of letting the user choose. */
+  @Input() lockedCategory: TaskCategory | '' = '';
   @Output() closed = new EventEmitter<void>();
   @Output() submitted = new EventEmitter<TaskFormData>();
 
@@ -89,6 +96,7 @@ export class CreateTaskModalComponent implements OnChanges {
    *  `lockedParentTaskId` is set. */
   selectedParentTaskId = '';
   parentTaskSearch = '';
+  selectedCategory: TaskCategory | '' = '';
 
   readonly availableProjects = signal<Array<{ id: string; name: string; isCsoProject: boolean }>>([]);
   readonly availableSprints = signal<SprintSummary[]>([]);
@@ -261,6 +269,12 @@ export class CreateTaskModalComponent implements OnChanges {
       return;
     }
 
+    const finalIsCsoLabeled = this.isTargetProjectCso() || this.isCsoLabeled;
+    if (finalIsCsoLabeled && !this.lockedCategory && !this.selectedCategory) {
+      alert('Please tag this CSO task as Functional or Technical');
+      return;
+    }
+
     const formData: TaskFormData = {
       title: this.taskTitle,
       projectId: finalProjectId,
@@ -271,8 +285,9 @@ export class CreateTaskModalComponent implements OnChanges {
       dueDate: this.dueDate,
       description: this.description,
       sprintId: this.selectedSprintId || undefined,
-      isCsoLabeled: this.isTargetProjectCso() || this.isCsoLabeled,
+      isCsoLabeled: finalIsCsoLabeled,
       parentTaskId: this.lockedParentTaskId || this.selectedParentTaskId || undefined,
+      category: this.lockedCategory || this.selectedCategory || undefined,
     };
 
     this.submitted.emit(formData);
@@ -294,6 +309,7 @@ export class CreateTaskModalComponent implements OnChanges {
     this.isCsoLabeled = false;
     this.selectedParentTaskId = '';
     this.parentTaskSearch = '';
+    this.selectedCategory = '';
 
     this.availableSprints.set([]);
     this.availableAssignees.set([]);

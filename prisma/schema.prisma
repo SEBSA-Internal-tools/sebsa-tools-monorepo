@@ -126,6 +126,16 @@ enum NotificationType {
   SPRINT_EVENT
 }
 
+/// Functional/Technical classification tag. A Functional task (business
+/// analysis, requirements investigation) can later be converted to a
+/// Technical task (implementation) once investigated — see
+/// `TaskCategoryAssignment` for how the assignee at each stage is preserved
+/// rather than overwritten when that conversion happens.
+enum TaskCategory {
+  FUNCTIONAL
+  TECHNICAL
+}
+
 /// Delivery channels a notification preference can target.
 enum NotificationChannel {
   IN_APP
@@ -192,20 +202,22 @@ model User {
 
   department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
 
-  createdProjects       Project[]                @relation("ProjectCreatedBy")
-  projectMemberships    ProjectMember[]
-  createdTasks          Task[]                   @relation("TaskCreatedBy")
-  taskAssignments       TaskAssignee[]
-  taskWatches           TaskWatcher[]
-  comments              Comment[]
-  commentMentions       CommentMention[]
-  uploadedAttachments   Attachment[]
-  activityLogEntries    ActivityLog[]
-  notifications         Notification[]
-  notificationPrefs     NotificationPreference[]
-  savedFilters          SavedFilter[]
-  taskStatusTransitions TaskStatusHistory[]
-  apiTokens             ApiToken[]
+  createdProjects               Project[]                @relation("ProjectCreatedBy")
+  projectMemberships            ProjectMember[]
+  createdTasks                  Task[]                   @relation("TaskCreatedBy")
+  taskAssignments               TaskAssignee[]
+  taskWatches                   TaskWatcher[]
+  comments                      Comment[]
+  commentMentions               CommentMention[]
+  uploadedAttachments           Attachment[]
+  activityLogEntries            ActivityLog[]
+  notifications                 Notification[]
+  notificationPrefs             NotificationPreference[]
+  savedFilters                  SavedFilter[]
+  taskStatusTransitions         TaskStatusHistory[]
+  categoryAssignmentsAsAssignee TaskCategoryAssignment[] @relation("TaskCategoryAssignmentAssignee")
+  categoryAssignmentsChangedBy  TaskCategoryAssignment[] @relation("TaskCategoryAssignmentChangedBy")
+  apiTokens                     ApiToken[]
 
   @@index([departmentId])
   @@map("users")
@@ -450,13 +462,13 @@ model Label {
 /// The core work item. Subtasks are Task rows that reference a
 /// parentTaskId (self-relation) rather than a separate table.
 model Task {
-  id                  String    @id @default(uuid())
+  id                  String        @id @default(uuid())
   projectId           String
   parentTaskId        String?
   title               String
   description         String?
-  type                TaskType  @default(TASK)
-  priority            Priority  @default(MEDIUM)
+  type                TaskType      @default(TASK)
+  priority            Priority      @default(MEDIUM)
   workflowStageId     String
   sprintId            String?
   milestoneId         String?
@@ -466,10 +478,15 @@ model Task {
   reminderLeadMinutes Int?
   /// CSO groundwork (FSD §5.16) — any task, in any project, can be
   /// individually tagged CSO to surface it on the CSO Overview page.
-  isCsoLabeled        Boolean   @default(false)
+  isCsoLabeled        Boolean       @default(false)
+  /// Functional/Technical tag. Nullable for ordinary project tasks; the
+  /// application layer requires it to be set whenever isCsoLabeled is true
+  /// (mirrors the Project.customerId requirement pattern), since CSO's
+  /// Functional/Technical queues filter on it.
+  category            TaskCategory?
   createdById         String
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
   deletedAt           DateTime?
 
   project       Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -480,14 +497,15 @@ model Task {
   milestone     Milestone?    @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
   createdBy     User          @relation("TaskCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
 
-  assignees     TaskAssignee[]
-  watchers      TaskWatcher[]
-  labels        TaskLabel[]
-  comments      Comment[]
-  attachments   Attachment[]
-  statusHistory TaskStatusHistory[]
-  outgoingLinks TaskDependency[]    @relation("TaskDependencySource")
-  incomingLinks TaskDependency[]    @relation("TaskDependencyTarget")
+  assignees       TaskAssignee[]
+  watchers        TaskWatcher[]
+  labels          TaskLabel[]
+  comments        Comment[]
+  attachments     Attachment[]
+  statusHistory   TaskStatusHistory[]
+  categoryHistory TaskCategoryAssignment[]
+  outgoingLinks   TaskDependency[]         @relation("TaskDependencySource")
+  incomingLinks   TaskDependency[]         @relation("TaskDependencyTarget")
 
   @@index([projectId])
   @@index([parentTaskId])
@@ -583,6 +601,28 @@ model TaskStatusHistory {
   @@index([taskId])
   @@index([toStageId])
   @@map("task_status_history")
+}
+
+/// Audit trail of Functional/Technical tag changes and who was assigned at
+/// each point. A new row is appended whenever a task's category or its
+/// (primary) assignee changes — this is what lets a PM/admin see that a task
+/// was investigated as "Functional Assigned - Alice" and later became
+/// "Technical Assigned - Bob" after conversion, instead of losing the
+/// earlier assignment once the tag or assignee is overwritten in place.
+model TaskCategoryAssignment {
+  id          String       @id @default(uuid())
+  taskId      String
+  category    TaskCategory
+  assigneeId  String?
+  changedById String
+  changedAt   DateTime     @default(now())
+
+  task      Task  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  assignee  User? @relation("TaskCategoryAssignmentAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  changedBy User  @relation("TaskCategoryAssignmentChangedBy", fields: [changedById], references: [id], onDelete: Restrict)
+
+  @@index([taskId])
+  @@map("task_category_assignments")
 }
 
 // ---------------------------------------------------------------------------

@@ -265,6 +265,26 @@
   color: #6d28d9;
 }
 
+.tag-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  background: rgba(2, 132, 199, 0.15);
+  color: #0284c7;
+
+  &.technical {
+    background: rgba(112, 0, 255, 0.15);
+    color: #7000ff;
+  }
+}
+
 .priority-badge {
   display: inline-flex;
   align-items: center;

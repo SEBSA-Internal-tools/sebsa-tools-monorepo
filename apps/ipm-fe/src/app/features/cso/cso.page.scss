@@ -1,43 +1,210 @@
-.cso-page {
-  display: flex;
-  flex-direction: column;
-  min-height: 100%;
-  width: 100%;
-  background: var(--app-background);
-}
+// =============================================================================
+// CSO Page — Luminous Depth Design System
+// (mirrors projects-list.page.scss / projects-hero.component.scss so the
+// CSO section matches the rest of the app instead of the old flat cards)
+// =============================================================================
 
-.page-header {
-  padding: 24px 24px 0;
-  max-width: 1300px;
-  margin: 0 auto;
+.workspace-page {
+  display: block;
   width: 100%;
+  padding: 20px 16px;
 
   @media (min-width: 768px) {
-    padding: 32px 32px 0;
+    padding: 28px 24px;
   }
+
+  @media (min-width: 1024px) {
+    padding: 32px;
+  }
+}
+
+.cso-container {
+  width: 100%;
+  max-width: 1300px;
+  margin: 0 auto;
+  display: grid;
+  gap: 28px;
+
+  @media (min-width: 768px) {
+    gap: 32px;
+  }
+
+  @media (min-width: 1024px) {
+    gap: 40px;
+  }
+}
+
+// =============================================================================
+// Hero
+// =============================================================================
+
+.hero-section {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 36px 40px;
+  border-radius: 16px;
+  background: var(--color-surface-dim);
+  backdrop-filter: var(--backdrop-blur-heavy);
+  -webkit-backdrop-filter: var(--backdrop-blur-heavy);
+  border: var(--border-glass);
+  box-shadow: var(--shadow-subtle);
+  width: 100%;
+
+  @media (max-width: 768px) {
+    padding: 24px;
+  }
+}
+
+.hero-content {
+  position: relative;
+  z-index: 1;
+  max-width: 750px;
+  width: 100%;
 
   h1 {
-    margin: 0 0 4px;
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--app-text);
+    margin: 0 0 12px;
+    font-family: 'Sora', sans-serif;
+    color: var(--text-primary);
+    font-size: clamp(1.8rem, 4vw, 2.5rem);
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    font-weight: 600;
   }
 
-  p {
-    margin: 0 0 16px;
-    color: var(--app-text-muted);
-    font-size: 0.9rem;
+  .description {
+    margin: 0;
+    max-width: 700px;
+    font-family: 'Sora', sans-serif;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    color: var(--text-secondary);
   }
+}
+
+.eyebrow {
+  display: block;
+  font-family: 'Sora', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: linear-gradient(135deg, #a855f7 0%, #7000ff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow: 0 4px 15px rgba(112, 0, 255, 0.25);
+  margin-bottom: 8px;
+}
+
+.ambient-decor {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 50%;
+  height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+
+  .orb {
+    position: absolute;
+    width: 300px;
+    height: 300px;
+    border-radius: 50%;
+    filter: blur(60px);
+    -webkit-filter: blur(60px);
+    will-change: transform;
+
+    &.orb-1 {
+      top: -15%;
+      right: -5%;
+      width: 320px;
+      height: 320px;
+      background: rgba(255, 0, 255, 0.08);
+    }
+
+    &.orb-2 {
+      bottom: -20%;
+      right: 15%;
+      width: 280px;
+      height: 280px;
+      background: rgba(112, 0, 255, 0.08);
+    }
+  }
+}
+
+// =============================================================================
+// Body panel — tabs + tab content share one glass card
+// =============================================================================
+
+.cso-body {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  border-radius: 16px;
+  background: var(--color-surface-dim);
+  backdrop-filter: var(--backdrop-blur-heavy);
+  -webkit-backdrop-filter: var(--backdrop-blur-heavy);
+  border: var(--border-glass);
+  box-shadow: var(--shadow-subtle);
 }
 
 .tab-content {
-  flex: 1;
-  padding: 24px;
-  max-width: 1300px;
-  margin: 0 auto;
-  width: 100%;
+  padding: 24px 20px;
 
   @media (min-width: 768px) {
+    padding: 28px 32px;
+  }
+
+  @media (min-width: 1024px) {
     padding: 32px;
+  }
+}
+
+// =============================================================================
+// Queue sub-tabs — nested inside the Queue tab (Functional / Technical)
+// =============================================================================
+
+.queue-subnav {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 20px;
+  border-radius: 10px;
+  background: var(--color-surface-glass);
+  border: var(--border-glass);
+}
+
+.queue-subtab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: 'Sora', sans-serif;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+
+  .material-symbols-outlined {
+    font-size: 18px;
+  }
+
+  &:hover {
+    color: var(--text-primary);
+  }
+
+  &.active {
+    background: var(--color-brand-primary);
+    color: #fff;
+    box-shadow: var(--shadow-glow-purple);
   }
 }
