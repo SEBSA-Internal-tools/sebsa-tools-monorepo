@@ -1,173 +1,261 @@
 <div class="overview-dashboard">
-  <!-- Header Section -->
-  <div class="dashboard-header">
-    <h2>
-      Project Overview
-      @if (project.isCsoProject) {
-        <span class="cso-badge">CSO</span>
-      }
-    </h2>
-    <p class="header-subtitle">{{ project.name }}</p>
+  
+
+  <!-- ROW 1: KPI Metric Cards -->
+  <div class="kpi-cards-row">
+    <!-- Card 1: Total Tasks -->
+    <div class="kpi-card" [style.--accent]="'#6366f1'">
+      <div class="kpi-icon-wrap">
+        <span class="material-symbols-outlined">task_alt</span>
+      </div>
+      <div class="kpi-body">
+        <span class="kpi-value">{{ metrics().totalTasks }}</span>
+        <span class="kpi-label">Total Tasks</span>
+      </div>
+    </div>
+
+    <!-- Card 2: Functional Tasks -->
+    <div class="kpi-card" [style.--accent]="'#0ea5e9'">
+      <div class="kpi-icon-wrap">
+        <span class="material-symbols-outlined">category</span>
+      </div>
+      <div class="kpi-body">
+        <span class="kpi-value">{{ metrics().functionalTasks }}</span>
+        <span class="kpi-label">Functional Tasks</span>
+      </div>
+    </div>
+
+    <!-- Card 3: Technical Tasks -->
+    <div class="kpi-card" [style.--accent]="'#f59e0b'">
+      <div class="kpi-icon-wrap">
+        <span class="material-symbols-outlined">engineering</span>
+      </div>
+      <div class="kpi-body">
+        <span class="kpi-value">{{ metrics().technicalTasks }}</span>
+        <span class="kpi-label">Technical Tasks</span>
+      </div>
+    </div>
+
+    <!-- Card 4: Project Health -->
+    <div class="kpi-card" [style.--accent]="healthClass() === 'healthy' ? '#10b981' : healthClass() === 'at-risk' ? '#f59e0b' : '#ef4444'">
+      <div class="kpi-icon-wrap">
+        <span class="material-symbols-outlined">favorite</span>
+      </div>
+      <div class="kpi-body">
+        <span class="kpi-value">{{ metrics().healthPct }}%</span>
+        <span class="kpi-label">Project Health</span>
+        <span class="health-badge" [class]="healthClass()">{{ healthLabel() }}</span>
+      </div>
+    </div>
   </div>
 
-  <!-- Main Dashboard Grid -->
-  <div class="dashboard-grid">
-    <!-- Section 1: Project Statistics Cards -->
-    <div class="stats-section">
-      <div class="section-title">Project Statistics</div>
-
-      <div class="stats-cards">
-        <!-- Total Tasks Card -->
-        <div class="stat-card">
-          <div class="stat-icon" style="background: #eff6ff">
-            <span class="material-symbols-outlined" style="color: #3b82f6">task_alt</span>
-          </div>
-          <div class="stat-content">
-            <p class="stat-label">Total Tasks</p>
-            <p class="stat-value">{{ taskStats().total }}</p>
-          </div>
-        </div>
-
-        <!-- Completed Tasks Card -->
-        <div class="stat-card">
-          <div class="stat-icon" style="background: #f0fdf4">
-            <span class="material-symbols-outlined" style="color: #10b981">check_circle</span>
-          </div>
-          <div class="stat-content">
-            <p class="stat-label">Completed</p>
-            <p class="stat-value">{{ taskStats().completed }}</p>
-          </div>
-        </div>
-
-        <!-- In Progress Card -->
-        <div class="stat-card">
-          <div class="stat-icon" style="background: #fef3c7">
-            <span class="material-symbols-outlined" style="color: #f59e0b">schedule</span>
-          </div>
-          <div class="stat-content">
-            <p class="stat-label">In Progress</p>
-            <p class="stat-value">{{ taskStats().inProgress }}</p>
-          </div>
-        </div>
-
-        <!-- Overdue Card -->
-        <div class="stat-card critical">
-          <div class="stat-icon" style="background: #fee2e2">
-            <span class="material-symbols-outlined" style="color: #ef4444">warning</span>
-          </div>
-          <div class="stat-content">
-            <p class="stat-label">Overdue</p>
-            <p class="stat-value">{{ taskStats().overdue }}</p>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Section 2: Progress & Sprint Status -->
-    <div class="progress-section">
-      <!-- Overall Progress -->
-      <div class="progress-card">
-        <div class="card-header">
-          <h3>Overall Progress</h3>
-          <span class="progress-percentage">{{ getCompletionPercentage() }}%</span>
-        </div>
-
-        <div class="progress-bar-container">
-          <div class="progress-bar">
-            <div
-              class="progress-fill"
-              [style.width.%]="getCompletionPercentage()"
-            ></div>
-          </div>
-        </div>
-
-        <div class="progress-info">
-          <span>{{ taskStats().completed }} of {{ taskStats().total }} tasks completed</span>
-        </div>
-      </div>
-
-      <!-- Sprint Status -->
-      <div class="sprint-status-card">
-        <div class="card-header">
-          <h3>Sprints</h3>
-        </div>
-
-        <div class="sprint-stats">
-          <div class="sprint-stat">
-            <span class="sprint-count">{{ sprintStats().active }}</span>
-            <span class="sprint-label">Active</span>
-          </div>
-          <div class="sprint-stat">
-            <span class="sprint-count">{{ sprintStats().planned }}</span>
-            <span class="sprint-label">Planned</span>
-          </div>
-          <div class="sprint-stat">
-            <span class="sprint-count">{{ sprintStats().completed }}</span>
-            <span class="sprint-label">Completed</span>
-          </div>
-        </div>
-
-        @if (activeSprint()) {
-          <div class="active-sprint-info">
-            <div class="sprint-name">
-              <span class="material-symbols-outlined">flag</span>
-              {{ activeSprint()!.name }}
-            </div>
-            <p class="sprint-dates">
-              {{ activeSprint()!.startDate }} to {{ activeSprint()!.endDate }}
-            </p>
-          </div>
-        }
-      </div>
-    </div>
-
-    <!-- Section 3: Recent Tasks -->
-    <div class="recent-tasks">
+  <!-- ROW 2: Donut Chart + Status Table -->
+  <div class="dashboard-row-2">
+    <!-- Left: Priority Donut Chart -->
+    <div class="chart-card">
       <div class="card-header">
-        <h3>Recent Tasks</h3>
+        <h3>Tasks by Priority</h3>
       </div>
 
-      @if (recentTasks().length > 0) {
-        <div class="tasks-list">
-          @for (task of recentTasks(); track task.id) {
-            <div class="task-item">
-              <div class="task-left">
-                <div class="task-info">
-                  <p class="task-title">{{ task.title }}</p>
-                  <span class="task-category">{{ task.category }}</span>
-                </div>
-              </div>
+      @if (donutSegments().length > 0) {
+        <div class="donut-layout">
+          <!-- SVG Donut -->
+          <svg viewBox="0 0 180 180" class="donut-svg">
+            <g transform="rotate(-90 90 90)">
+              @for (seg of donutSegments(); track seg.priority) {
+                <circle
+                  cx="90" cy="90" r="70"
+                  fill="none"
+                  [attr.stroke]="seg.color"
+                  stroke-width="28"
+                  [attr.stroke-dasharray]="seg.dasharray"
+                  [attr.stroke-dashoffset]="seg.dashoffset"
+                  class="donut-segment"
+                  [class.active]="activePriority() === seg.priority"
+                  (click)="onSegmentClick(seg.priority)"
+                  (keydown.enter)="onSegmentClick(seg.priority)"
+                  (keydown.space)="onSegmentClick(seg.priority)"
+                  [attr.tabindex]="0"
+                  [attr.role]="'button'"
+                  [attr.aria-pressed]="activePriority() === seg.priority"
+                />
+              }
+            </g>
+            <!-- Centre label -->
+            <text x="90" y="85" class="donut-center-value">
+              {{ activePriority() ? getPriorityCount(activePriority()!) : metrics().totalTasks }}
+            </text>
+            <text x="90" y="105" class="donut-center-label">
+              {{ activePriority() ?? 'Total' }}
+            </text>
+          </svg>
 
-              <div class="task-right">
-                <span
-                  [class]="'priority-badge priority-' + task.priority.toLowerCase()"
-                  [style.backgroundColor]="getPriorityColor(task.priority)"
-                >
-                  {{ task.priority }}
-                </span>
-                <span
-                  [class]="'status-badge status-' + task.statusLabel"
-                  [style.borderLeftColor]="getTaskStatusColor(task.statusLabel)"
-                >
-                  <span class="material-symbols-outlined">
-                    {{ getTaskStatusIcon(task.statusLabel) }}
-                  </span>
-                  {{ getTaskStatusLabel(task.statusLabel) }}
-                </span>
+          <!-- Legend -->
+          <div class="donut-legend">
+            @for (seg of donutSegments(); track seg.priority) {
+              <div class="legend-item"
+                   (click)="onSegmentClick(seg.priority)"
+                   (keydown.enter)="onSegmentClick(seg.priority)"
+                   (keydown.space)="onSegmentClick(seg.priority)"
+                   [class.active]="activePriority() === seg.priority"
+                   [attr.tabindex]="0"
+                   [attr.role]="'button'"
+                   [attr.aria-pressed]="activePriority() === seg.priority">
+                <span class="legend-dot" [style.background]="seg.color"></span>
+                <span class="legend-label">{{ seg.priority }}</span>
+                <span class="legend-count">{{ seg.count }}</span>
               </div>
-            </div>
-          }
+            }
+          </div>
         </div>
       } @else {
-        <div class="empty-state">
-          <span class="material-symbols-outlined">inbox</span>
-          <p>No tasks yet</p>
-        </div>
+        <div class="empty-state">No task priority data</div>
       }
     </div>
 
-    <!-- Section 4: Project Info -->
-    <div class="project-info">
+    <!-- Right: Status × Count Table -->
+    <div class="table-card">
+      <div class="card-header">
+        <h3>Status × Count</h3>
+      </div>
+
+      @if (statusTable().length > 0) {
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>Count</th>
+              <th>% of Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of statusTable(); track row.status) {
+              <tr>
+                <td><span class="status-pill">{{ row.status }}</span></td>
+                <td>{{ row.count }}</td>
+                <td>
+                  <div class="progress-cell">
+                    <div class="mini-progress">
+                      <div class="mini-progress-fill" [style.width.%]="row.pct"></div>
+                    </div>
+                    <span class="pct-label">{{ row.pct }}%</span>
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      } @else {
+        <div class="empty-state">No data</div>
+      }
+    </div>
+  </div>
+
+  <!-- ROW 3: Three Assignee & Aging Tables -->
+  <div class="dashboard-row-3">
+    <!-- Table A: Technical Assignees -->
+    <div class="table-card">
+      <div class="card-header">
+        <h3>Technical Assignees</h3>
+      </div>
+
+      @if (techAssignees().length > 0) {
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Assignee</th>
+              <th>Total</th>
+              <th>In Progress</th>
+              <th>Done</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of techAssignees(); track row.name) {
+              <tr>
+                <td>{{ row.name }}</td>
+                <td>{{ row.total }}</td>
+                <td>{{ row.inProgress }}</td>
+                <td>{{ row.done }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      } @else {
+        <div class="empty-state">No data</div>
+      }
+    </div>
+
+    <!-- Table B: Functional Assignees -->
+    <div class="table-card">
+      <div class="card-header">
+        <h3>Functional Assignees</h3>
+      </div>
+
+      @if (funcAssignees().length > 0) {
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Assignee</th>
+              <th>Total</th>
+              <th>In Progress</th>
+              <th>Done</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of funcAssignees(); track row.name) {
+              <tr>
+                <td>{{ row.name }}</td>
+                <td>{{ row.total }}</td>
+                <td>{{ row.inProgress }}</td>
+                <td>{{ row.done }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      } @else {
+        <div class="empty-state">No data</div>
+      }
+    </div>
+
+    <!-- Table C: Status × Aging -->
+    <div class="table-card">
+      <div class="card-header">
+        <h3>Status × Aging</h3>
+      </div>
+
+      @if (agingTable().length > 0) {
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>Count</th>
+              <th>Avg Days</th>
+              <th>Min Days</th>
+              <th>Max Days</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of agingTable(); track row.status) {
+              <tr>
+                <td><span class="status-pill">{{ row.status }}</span></td>
+                <td>{{ row.count }}</td>
+                <td [class.aging-warn]="row.avgDays > 7" [class.aging-crit]="row.avgDays > 14">{{ row.avgDays }}d</td>
+                <td>{{ row.minDays }}d</td>
+                <td [class.aging-crit]="row.maxDays > 14">{{ row.maxDays }}d</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      } @else {
+        <div class="empty-state">No data</div>
+      }
+    </div>
+  </div>
+
+  <!-- ROW 4: Project Info + Sprint Status (KEPT sections) -->
+  <div class="dashboard-row-4">
+    <!-- Left: Project Information -->
+    <div class="info-card">
       <div class="card-header">
         <h3>Project Information</h3>
       </div>
@@ -202,6 +290,40 @@
           <span class="info-value">{{ project.customer.name }}</span>
         </div>
       </div>
+    </div>
+
+    <!-- Right: Sprint Status -->
+    <div class="sprint-status-card">
+      <div class="card-header">
+        <h3>Sprints</h3>
+      </div>
+
+      <div class="sprint-stats">
+        <div class="sprint-stat">
+          <span class="sprint-count">{{ sprintStats().active }}</span>
+          <span class="sprint-label">Active</span>
+        </div>
+        <div class="sprint-stat">
+          <span class="sprint-count">{{ sprintStats().planned }}</span>
+          <span class="sprint-label">Planned</span>
+        </div>
+        <div class="sprint-stat">
+          <span class="sprint-count">{{ sprintStats().completed }}</span>
+          <span class="sprint-label">Completed</span>
+        </div>
+      </div>
+
+      @if (activeSprint()) {
+        <div class="active-sprint-info">
+          <div class="sprint-name">
+            <span class="material-symbols-outlined">flag</span>
+            {{ activeSprint()!.name }}
+          </div>
+          <p class="sprint-dates">
+            {{ activeSprint()!.startDate }} to {{ activeSprint()!.endDate }}
+          </p>
+        </div>
+      }
     </div>
   </div>
 </div>
