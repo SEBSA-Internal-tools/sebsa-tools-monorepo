@@ -118,19 +118,21 @@ export class ProjectOverviewComponent implements OnInit {
     if (!this.project.id) return;
 
     const tasks = this.tasksService.getTasksByProject(this.project.id);
-    const sprints = this.projectsService.getSprints(this.project.id);
 
-    // Calculate sprint stats (kept as-is)
-    this.sprintStats.set({
-      active: sprints.filter((s: Sprint) => s.status === 'active').length,
-      planned: sprints.filter((s: Sprint) => s.status === 'planned').length,
-      completed: sprints.filter((s: Sprint) => s.status === 'completed').length,
+    // Fetch sprints from API
+    this.projectsService.getSprintsObservable(this.project.id).subscribe((sprints) => {
+      // Calculate sprint stats from API data (status values are uppercase: ACTIVE, PLANNED, COMPLETED)
+      this.sprintStats.set({
+        active: sprints.filter((s: Sprint) => s.status === 'ACTIVE').length,
+        planned: sprints.filter((s: Sprint) => s.status === 'PLANNED').length,
+        completed: sprints.filter((s: Sprint) => s.status === 'COMPLETED').length,
+      });
+
+      // Get active sprint from API data
+      const active = sprints.find((s: Sprint) => s.status === 'ACTIVE');
+      this.activeSprint.set(active || null);
+      this.allSprints.set(sprints);
     });
-
-    // Get active sprint (kept as-is)
-    const active = sprints.find((s: Sprint) => s.status === 'active');
-    this.activeSprint.set(active || null);
-    this.allSprints.set(sprints);
 
     // NEW — populate dashboard signals
     this.metrics.set(this.computeMetrics(tasks));

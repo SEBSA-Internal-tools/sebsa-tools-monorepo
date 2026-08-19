@@ -86,15 +86,11 @@ export class ProjectSprintComponent implements OnInit {
 
     this.sprintService.getSprints(this.projectId).subscribe({
       next: (sprints) => {
-        const normalizedSprints = sprints.map((sprint) => ({
-          ...sprint,
-          status: sprint.status.toLowerCase() as 'planned' | 'active' | 'completed',
-        }));
-        this.sprints.set(normalizedSprints as Sprint[]);
+        this.sprints.set(sprints);
 
         const expandedState: ExpandedState = {};
-        normalizedSprints.forEach((sprint) => {
-          expandedState[sprint.id] = sprint.status === 'active';
+        sprints.forEach((sprint) => {
+          expandedState[sprint.id] = sprint.status === 'ACTIVE';
         });
         this.expandedSprints.set(expandedState);
         this.isLoading.set(false);
@@ -133,11 +129,11 @@ export class ProjectSprintComponent implements OnInit {
 
   getStatusBadgeClass(status: Sprint['status']): string {
     switch (status) {
-      case 'active':
+      case 'ACTIVE':
         return 'status-active';
-      case 'completed':
+      case 'COMPLETED':
         return 'status-completed';
-      case 'planned':
+      case 'PLANNED':
         return 'status-planned';
       default:
         return '';
@@ -146,11 +142,11 @@ export class ProjectSprintComponent implements OnInit {
 
   getStatusLabel(status: Sprint['status']): string {
     switch (status) {
-      case 'active':
+      case 'ACTIVE':
         return 'Active';
-      case 'completed':
+      case 'COMPLETED':
         return 'Completed';
-      case 'planned':
+      case 'PLANNED':
         return 'Planned';
       default:
         return status;

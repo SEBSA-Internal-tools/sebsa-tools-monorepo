@@ -12,6 +12,7 @@ import {
   UpdateProjectMemberRoleRequest,
   CreateRoleRequest,
   UpdateRoleRequest,
+  SprintSummary,
 } from '@sebsa-pm-tool/shared-models';
 
 export interface Task {
@@ -31,11 +32,14 @@ export interface Sprint {
   id: string;
   name: string;
   projectId: string;
-  status: 'planned' | 'active' | 'completed';
+  status: 'PLANNED' | 'ACTIVE' | 'COMPLETED';
   startDate: string;
   endDate: string;
+  goal?: string | null;
+  taskCount?: number;
   description?: string;
   createdAt: string;
+  updatedAt?: string;
   tasks?: Task[];
 }
 
@@ -132,38 +136,49 @@ export class ProjectsService {
   }
 
 
-  private sprints$ = new BehaviorSubject<Sprint[]>([
+  private readonly defaultSprints: Sprint[] = [
     {
       id: 'SPR-001',
       name: 'Sprint 1: Foundation Setup',
       projectId: '954',
-      status: 'completed',
+      status: 'COMPLETED',
       startDate: '2024-01-01',
       endDate: '2024-01-14',
       description: 'Initial infrastructure and database setup',
       createdAt: '2023-12-15',
+      updatedAt: '2024-01-14',
+      taskCount: 5,
+      goal: 'Complete foundation setup',
     },
     {
       id: 'SPR-002',
       name: 'Sprint 2: Data Migration',
       projectId: '954',
-      status: 'active',
+      status: 'ACTIVE',
       startDate: '2024-01-15',
       endDate: '2024-01-31',
       description: 'Legacy data migration and validation',
       createdAt: '2024-01-01',
+      updatedAt: '2024-01-20',
+      taskCount: 8,
+      goal: 'Migrate legacy data',
     },
     {
       id: 'SPR-003',
       name: 'Sprint 3: Testing & QA',
       projectId: '954',
-      status: 'planned',
+      status: 'PLANNED',
       startDate: '2024-02-01',
       endDate: '2024-02-14',
       description: 'Comprehensive testing and quality assurance',
       createdAt: '2024-01-10',
+      updatedAt: '2024-01-10',
+      taskCount: 6,
+      goal: 'Complete QA testing',
     },
-  ]);
+  ];
+
+  private sprints$ = new BehaviorSubject<Sprint[]>(this.defaultSprints);
 
   private tasks$ = new BehaviorSubject<Task[]>([
     {
@@ -264,13 +279,22 @@ export class ProjectsService {
   }
 
   getSprints(projectId: string): Sprint[] {
-    this.http.get<Sprint[]>(`/api/projects/${projectId}/sprints`).pipe(
-      tap((sprints) => {
+    this.http.get<SprintSummary[]>(`/api/projects/${projectId}/sprints`).pipe(
+      tap((sprints: any) => {
         const current = this.sprints$.value.filter((s) => s.projectId !== projectId);
         this.sprints$.next([...current, ...sprints]);
       }),
     ).subscribe();
     return this.sprints$.value.filter((s) => s.projectId === projectId);
+  }
+
+  getSprintsObservable(projectId: string): Observable<Sprint[]> {
+    return this.http.get<SprintSummary[]>(`/api/projects/${projectId}/sprints`).pipe(
+      tap((sprints: any) => {
+        const current = this.sprints$.value.filter((s) => s.projectId !== projectId);
+        this.sprints$.next([...current, ...sprints]);
+      }),
+    ) as Observable<Sprint[]>;
   }
 
   getSprintById(sprintId: string): Sprint | undefined {
@@ -292,11 +316,14 @@ export class ProjectsService {
       id: `SPR-${String(this.sprints$.value.length + 1).padStart(3, '0')}`,
       name: formData.name,
       projectId: formData.projectId,
-      status: 'planned',
+      status: 'PLANNED',
       startDate: formData.startDate,
       endDate: formData.endDate,
       description: formData.description,
       createdAt: new Date().toISOString().split('T')[0],
+      updatedAt: new Date().toISOString().split('T')[0],
+      taskCount: 0,
+      goal: null,
     };
     const currentSprints = this.sprints$.value;
     this.sprints$.next([...currentSprints, newSprint]);
