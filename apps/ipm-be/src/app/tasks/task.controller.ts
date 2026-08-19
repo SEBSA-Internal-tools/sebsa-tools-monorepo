@@ -161,4 +161,11 @@ export class TaskController {
   async getStatusHistory(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
     return this.taskService.getStatusHistory(id, user);
   }
+
+  // --- Category/Assignment History (Functional/Technical conversion trail) ---
+
+  @Get(':id/category-history')
+  async getCategoryHistory(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+    return this.taskService.getCategoryHistory(id, user);
+  }
 }

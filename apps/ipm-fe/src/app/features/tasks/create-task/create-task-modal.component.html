@@ -371,6 +371,47 @@
           </label>
         </div>
       }
+
+      <!-- Functional/Technical tag — required once the task is CSO-labeled
+           (either because the target project is a CSO project, or the
+           checkbox above is ticked), so it can land in the right queue.
+           Hidden when lockedCategory is set: the queue this modal was
+           opened from already determines it. -->
+      @if (lockedCategory) {
+        <div class="form-group full-width">
+          <label class="form-label">Category</label>
+          <div class="project-display">
+            <span class="material-symbols-outlined">{{ lockedCategory === 'TECHNICAL' ? 'terminal' : 'psychology' }}</span>
+            <span class="project-name">{{ lockedCategory === 'TECHNICAL' ? 'Technical' : 'Functional' }} queue</span>
+          </div>
+        </div>
+      } @else if (isTargetProjectCso() || isCsoLabeled) {
+        <div class="form-group full-width">
+          <label class="form-label" id="category-label">
+            Category <span class="required">*</span>
+          </label>
+          <div class="category-group" role="group" aria-labelledby="category-label">
+            <button
+              type="button"
+              class="category-btn functional"
+              [class.active]="selectedCategory === 'FUNCTIONAL'"
+              (click)="selectedCategory = 'FUNCTIONAL'"
+            >
+              <span class="material-symbols-outlined">psychology</span>
+              Functional
+            </button>
+            <button
+              type="button"
+              class="category-btn technical"
+              [class.active]="selectedCategory === 'TECHNICAL'"
+              (click)="selectedCategory = 'TECHNICAL'"
+            >
+              <span class="material-symbols-outlined">terminal</span>
+              Technical
+            </button>
+          </div>
+        </div>
+      }
     </div>
 
     <!-- Modal Footer -->

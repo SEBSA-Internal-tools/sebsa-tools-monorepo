@@ -109,6 +109,7 @@ export class CsoOverviewTabComponent implements OnInit {
       // Always CSO-labeled here regardless of the modal's own checkbox —
       // this is the CSO Overview's dedicated "create task" entry point.
       isCsoLabeled: true,
+      category: formData.category,
       parentTaskId: formData.parentTaskId,
     };
 

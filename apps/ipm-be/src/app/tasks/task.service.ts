@@ -8,6 +8,7 @@ import { PrismaService } from '@sebsa-pm-tool/core';
 import {
   AuthUser,
   Task,
+  TaskCategoryAssignmentEntry,
   TaskDependenciesView,
   TaskDependencyTaskRef,
   TaskStatusHistoryEntry,
@@ -15,7 +16,7 @@ import {
   TaskListSummary,
   UpdateTaskResponse,
 } from '@sebsa-pm-tool/shared-models';
-import { Prisma, TaskType } from '@prisma/client';
+import { Prisma, TaskCategory, TaskType } from '@prisma/client';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { FilterTaskDto } from './dto/filter-task.dto';
@@ -35,6 +36,7 @@ const taskSummarySelect = {
   sprintId: true,
   dueDate: true,
   isCsoLabeled: true,
+  category: true,
   project: { select: { id: true, name: true } },
   workflowStage: { select: { id: true, name: true } },
   assignees: { include: { user: { select: { id: true, name: true, email: true } } } },
@@ -77,6 +79,7 @@ export class TaskService {
     await this.assertAssigneesValid(dto.assigneeIds);
     await this.assertLabelsValid(dto.labelIds, dto.projectId);
     this.assertDatesValid(dto.startDate, dto.dueDate);
+    this.assertCsoCategoryRequirement(dto.isCsoLabeled ?? false, dto.category);
 
     const created = await this.prisma.$transaction(async (tx) => {
       const task = await tx.task.create({
@@ -90,6 +93,7 @@ export class TaskService {
           storyPoints: dto.storyPoints,
           reminderLeadMinutes: dto.reminderLeadMinutes,
           isCsoLabeled: dto.isCsoLabeled ?? false,
+          category: dto.category,
           project: { connect: { id: dto.projectId } },
           workflowStage: { connect: { id: workflowStageId } },
           createdBy: { connect: { id: user.id } },
@@ -116,6 +120,17 @@ export class TaskService {
           changedById: user.id,
         },
       });
+
+      if (task.category) {
+        await tx.taskCategoryAssignment.create({
+          data: {
+            taskId: task.id,
+            category: task.category,
+            assigneeId: dto.assigneeIds?.[0],
+            changedById: user.id,
+          },
+        });
+      }
 
       return task;
     });
@@ -148,6 +163,7 @@ export class TaskService {
         workflowStageId: true,
         priority: true,
         dueDate: true,
+        category: true,
         assignees: { include: { user: { select: { id: true, name: true, email: true } } } },
       },
       orderBy: { createdAt: 'desc' },
@@ -161,6 +177,7 @@ export class TaskService {
       workflowStageId: task.workflowStageId,
       priority: task.priority,
       dueDate: task.dueDate ? task.dueDate.toISOString() : null,
+      category: task.category,
       assignee: task.assignees[0]?.user || null,
     }));
   }
@@ -248,8 +265,24 @@ export class TaskService {
       );
     }
 
+    const mergedIsCsoLabeled = dto.isCsoLabeled ?? existing.isCsoLabeled;
+    const mergedCategory = dto.category !== undefined ? dto.category : existing.category;
+    this.assertCsoCategoryRequirement(mergedIsCsoLabeled, mergedCategory);
+
     const { assigneeIds, labelIds, ...restDto } = dto;
     const isStageChange = !!dto.workflowStageId && dto.workflowStageId !== existing.workflowStageId;
+
+    // Snapshot the current primary assignee (first by assignedAt) before the
+    // update runs, so we can tell whether it actually changed.
+    const oldPrimaryAssignee = await this.prisma.taskAssignee.findFirst({
+      where: { taskId: id },
+      orderBy: { assignedAt: 'asc' },
+      select: { userId: true },
+    });
+    const oldPrimaryAssigneeId = oldPrimaryAssignee?.userId ?? null;
+    const newPrimaryAssigneeId = assigneeIds !== undefined ? assigneeIds[0] ?? null : oldPrimaryAssigneeId;
+    const categoryChanged = dto.category !== undefined && dto.category !== existing.category;
+    const assigneeChanged = assigneeIds !== undefined && newPrimaryAssigneeId !== oldPrimaryAssigneeId;
 
     await this.prisma.$transaction(async (tx) => {
       await tx.task.update({
@@ -273,6 +306,22 @@ export class TaskService {
             taskId: id,
             fromStageId: existing.workflowStageId,
             toStageId: dto.workflowStageId as string,
+            changedById: user.id,
+          },
+        });
+      }
+
+      // Append a new category/assignee-history row whenever the Functional/
+      // Technical tag itself changes, or the assignee changes while a
+      // category is set — this is what lets the UI show "Functional
+      // Assigned - Alice" followed by "Technical Assigned - Bob" instead of
+      // overwriting the earlier assignment in place.
+      if (mergedCategory && (categoryChanged || assigneeChanged)) {
+        await tx.taskCategoryAssignment.create({
+          data: {
+            taskId: id,
+            category: mergedCategory,
+            assigneeId: newPrimaryAssigneeId,
             changedById: user.id,
           },
         });
@@ -307,6 +356,7 @@ export class TaskService {
       data: assigneeIds.map((userId) => ({ taskId, userId })),
       skipDuplicates: true,
     });
+    await this.recordCategoryAssignmentIfChanged(taskId, task.category, user.id);
     return this.findOne(taskId, user);
   }
 
@@ -315,7 +365,40 @@ export class TaskService {
     await this.assertCanEdit(task.projectId, user);
 
     await this.prisma.taskAssignee.deleteMany({ where: { taskId, userId } });
+    await this.recordCategoryAssignmentIfChanged(taskId, task.category, user.id);
     return this.findOne(taskId, user);
+  }
+
+  /** Shared by the dedicated assign/unassign endpoints: re-reads the task's
+   *  new primary assignee after the join-table write and, if it actually
+   *  changed and the task has a category set, appends a history row — same
+   *  rule `update()` applies inline for the general PATCH path. */
+  private async recordCategoryAssignmentIfChanged(
+    taskId: string,
+    category: TaskCategory | null,
+    changedById: string,
+  ): Promise<void> {
+    if (!category) return;
+
+    const latest = await this.prisma.taskCategoryAssignment.findFirst({
+      where: { taskId },
+      orderBy: { changedAt: 'desc' },
+      select: { assigneeId: true, category: true },
+    });
+    const primaryAssignee = await this.prisma.taskAssignee.findFirst({
+      where: { taskId },
+      orderBy: { assignedAt: 'asc' },
+      select: { userId: true },
+    });
+    const newAssigneeId = primaryAssignee?.userId ?? null;
+
+    if (latest && latest.category === category && latest.assigneeId === newAssigneeId) {
+      return;
+    }
+
+    await this.prisma.taskCategoryAssignment.create({
+      data: { taskId, category, assigneeId: newAssigneeId, changedById },
+    });
   }
 
   async getAssignees(taskId: string, user: AuthUser) {
@@ -489,6 +572,31 @@ export class TaskService {
     }));
   }
 
+  /** Ordered Functional/Technical assignment history for the task detail
+   *  page's Assignment History card — e.g. "Functional Assigned - Alice"
+   *  followed by "Technical Assigned - Bob" once the task is converted. */
+  async getCategoryHistory(taskId: string, user: AuthUser): Promise<TaskCategoryAssignmentEntry[]> {
+    const task = await this.getTaskOrThrow(taskId);
+    await this.assertVisible(task.projectId, user);
+
+    const history = await this.prisma.taskCategoryAssignment.findMany({
+      where: { taskId },
+      include: {
+        assignee: { select: { id: true, name: true } },
+        changedBy: { select: { id: true, name: true } },
+      },
+      orderBy: { changedAt: 'asc' },
+    });
+
+    return history.map((entry) => ({
+      id: entry.id,
+      category: entry.category,
+      assignee: entry.assignee,
+      changedAt: entry.changedAt.toISOString(),
+      changedBy: entry.changedBy,
+    }));
+  }
+
   /** Adding sourceTaskId -> targetTaskId would cycle if targetTaskId can
    * already reach sourceTaskId by following existing BLOCKS edges. */
   private async wouldCreateCycle(sourceTaskId: string, targetTaskId: string): Promise<boolean> {
@@ -654,6 +762,9 @@ export class TaskService {
     if (filter.isCsoLabeled !== undefined) {
       where.isCsoLabeled = filter.isCsoLabeled;
     }
+    if (filter.category) {
+      where.category = filter.category;
+    }
     if (filter.priority) {
       where.priority = filter.priority;
     }
@@ -789,6 +900,18 @@ export class TaskService {
     }
   }
 
+  /** CSO tasks feed the Functional/Technical queues, so unlike ordinary
+   *  project tasks (where category is optional) a CSO-labeled task must
+   *  always have one set — mirrors the Project.customerId requirement. */
+  private assertCsoCategoryRequirement(
+    isCsoLabeled: boolean,
+    category: TaskCategory | null | undefined,
+  ): void {
+    if (isCsoLabeled && !category) {
+      throw new BadRequestException('A CSO task must be tagged Functional or Technical.');
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Lookups & mapping
   // ---------------------------------------------------------------------------
@@ -825,6 +948,7 @@ export class TaskService {
       sprintId: task.sprintId,
       dueDate: task.dueDate ? task.dueDate.toISOString() : null,
       isCsoLabeled: task.isCsoLabeled,
+      category: task.category,
       project: task.project,
       workflowStage: task.workflowStage,
       assignees: task.assignees.map((a) => a.user),
@@ -853,6 +977,7 @@ export class TaskService {
       labels: task.labels.map((l) => l.label),
       subtaskCount: task.subtasks.length,
       isCsoLabeled: task.isCsoLabeled,
+      category: task.category,
       project: task.project,
       workflowStage: task.workflowStage,
       createdAt: task.createdAt.toISOString(),

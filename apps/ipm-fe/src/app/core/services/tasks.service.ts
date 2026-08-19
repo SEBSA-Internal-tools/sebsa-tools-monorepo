@@ -5,6 +5,8 @@ import {
   CreateTaskDependencyRequest,
   CreateTaskRequest,
   Task as BackendTask,
+  TaskCategory,
+  TaskCategoryAssignmentEntry,
   TaskDependenciesView,
   TaskStatusHistoryEntry,
   TaskSummary as BackendTaskSummary,
@@ -24,6 +26,10 @@ export interface TaskView {
   title: string;
   parentTaskId?: string | null;
   category: string;
+  /** Functional/Technical classification tag — distinct from `category`
+   *  above (which is actually the task *type* label, e.g. "Bug"). Null for
+   *  ordinary tasks that were never tagged. */
+  tag: TaskCategory | null;
   /** Raw workflowStageId UUID — used for Kanban column mapping and PATCH requests. */
   status: string;
   description?: string;
@@ -45,6 +51,7 @@ export interface TaskListView {
   title: string;
   description: string;
   category: string;
+  tag: TaskCategory | null;
   statusLabel: 'new' | 'todo' | 'inprogress' | 'done';
   priority: 'High' | 'Medium' | 'Low';
   duration: string;
@@ -222,6 +229,10 @@ export class TasksService {
     return this.http.get<TaskStatusHistoryEntry[]>(`/api/tasks/${taskId}/status-history`);
   }
 
+  getCategoryHistory(taskId: string): Observable<TaskCategoryAssignmentEntry[]> {
+    return this.http.get<TaskCategoryAssignmentEntry[]>(`/api/tasks/${taskId}/category-history`);
+  }
+
   updateTaskDetails(taskId: string, dto: UpdateTaskRequest): Observable<UpdateTaskResponse> {
     return this.http.patch<UpdateTaskResponse>(`/api/tasks/${taskId}`, dto);
   }
@@ -251,6 +262,7 @@ export class TasksService {
             title: task.title,
             description: task.description ?? '',
             category: task.type ?? 'Task',
+            tag: task.category ?? null,
             statusLabel: this.getStatusForStageId(task.workflowStageId, this.currentWorkflowStages),
             priority: this.mapPriority(task.priority),
             duration: task.dueDate ? `${task.dueDate.slice(0, 10)}` : 'No due date',
@@ -277,6 +289,7 @@ export class TasksService {
       title: task.title,
       parentTaskId: task.parentTaskId ?? null,
       category: task.type ?? 'Task',
+      tag: task.category ?? null,
       // UUID — Kanban column routing matches on this directly.
       status: task.workflowStageId,
       statusLabel,
