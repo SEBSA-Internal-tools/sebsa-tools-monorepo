@@ -1,13 +1,19 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
 import { forkJoin, map, Observable, of, switchMap } from 'rxjs';
-import { ProjectSummary, TaskSummary as BackendTaskSummary } from '@sebsa-pm-tool/shared-models';
+import {
+  ProjectSummary,
+  TaskCategory,
+  TaskSummary as BackendTaskSummary,
+} from '@sebsa-pm-tool/shared-models';
 
 export interface CsoOverviewFilters {
   projectId?: string;
   customerId?: string;
   priority?: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
   assigneeId?: string;
+  /** Restricts to the Functional or Technical queue when set. */
+  category?: TaskCategory;
 }
 
 export interface CsoTaskView {
@@ -50,6 +56,7 @@ export class CsoOverviewService {
     if (filters.customerId) params = params.set('customerId', filters.customerId);
     if (filters.priority) params = params.set('priority', filters.priority);
     if (filters.assigneeId) params = params.set('assigneeId', filters.assigneeId);
+    if (filters.category) params = params.set('category', filters.category);
 
     this.http
       .get<BackendTaskSummary[]>('/api/tasks', { params })

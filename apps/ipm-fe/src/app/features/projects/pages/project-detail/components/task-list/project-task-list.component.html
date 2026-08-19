@@ -46,7 +46,7 @@
           </div>
 
           <div class="col-description">
-            <span class="description-text">{{ task.description || 'No description' }}</span>
+            <span class="description-text" [title]="task.description || 'No description'">{{ task.description || 'No description' }}</span>
           </div>
 
           <div class="col-category">

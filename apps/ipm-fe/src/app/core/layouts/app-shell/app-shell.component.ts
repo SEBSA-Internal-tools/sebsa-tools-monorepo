@@ -84,6 +84,8 @@ export class AppShellComponent implements OnInit {
           dueDate: formData.dueDate || undefined,
           sprintId: formData.sprintId || undefined,
           assigneeIds: formData.assigneeIds.length > 0 ? formData.assigneeIds : undefined,
+          isCsoLabeled: formData.isCsoLabeled,
+          category: formData.category,
         };
 
         this.tasksService.createTask(dto, project.workflowStages).subscribe({

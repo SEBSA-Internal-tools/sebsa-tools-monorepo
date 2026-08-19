@@ -1,19 +1,61 @@
-<section class="cso-page">
-  <div class="page-header">
-    <h1>CSO</h1>
-    <p>Customer Success Organization — projects, tasks, and cross-project visibility.</p>
-  </div>
+<section class="workspace-page">
+  <div class="cso-container">
+    <header class="hero-section workspace-card">
+      <div class="ambient-decor" aria-hidden="true">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+      </div>
+      <div class="hero-content">
+        <span class="eyebrow">CUSTOMER SUCCESS</span>
+        <h1>CSO</h1>
+        <p class="description">Customer Success Organization — projects, tasks, and cross-project visibility.</p>
+      </div>
+    </header>
 
-  <cso-nav-tabs
-    [activeTab]="activeTab"
-    (tabChange)="onTabChange($event)"
-  ></cso-nav-tabs>
+    <div class="cso-body workspace-card">
+      <cso-nav-tabs
+        [activeTab]="activeTab"
+        (tabChange)="onTabChange($event)"
+      ></cso-nav-tabs>
 
-  <div class="tab-content">
-    @if (activeTab === 'dashboard') {
-      <cso-dashboard-tab></cso-dashboard-tab>
-    } @else {
-      <cso-overview-tab></cso-overview-tab>
-    }
+      <div class="tab-content">
+        @switch (activeTab) {
+          @case ('dashboard') {
+            <cso-dashboard-tab></cso-dashboard-tab>
+          }
+          @case ('overview') {
+            <cso-overview-tab></cso-overview-tab>
+          }
+          @case ('queue') {
+            <div class="queue-subnav" role="tablist" aria-label="Queue">
+              <button
+                type="button"
+                class="queue-subtab"
+                role="tab"
+                [attr.aria-selected]="activeQueueTab === 'functional'"
+                [class.active]="activeQueueTab === 'functional'"
+                (click)="onQueueTabChange('functional')"
+              >
+                <span class="material-symbols-outlined">psychology</span>
+                Functional Queue
+              </button>
+              <button
+                type="button"
+                class="queue-subtab"
+                role="tab"
+                [attr.aria-selected]="activeQueueTab === 'technical'"
+                [class.active]="activeQueueTab === 'technical'"
+                (click)="onQueueTabChange('technical')"
+              >
+                <span class="material-symbols-outlined">terminal</span>
+                Technical Queue
+              </button>
+            </div>
+
+            <cso-queue-tab [category]="activeQueueCategory"></cso-queue-tab>
+          }
+        }
+      </div>
+    </div>
   </div>
 </section>

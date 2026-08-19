@@ -79,6 +79,12 @@
       @if (task.isCsoLabeled) {
         <span class="cso-pill">CSO</span>
       }
+      @if (task.category) {
+        <span class="category-pill" [class.technical]="task.category === 'TECHNICAL'">
+          <span class="material-symbols-outlined category-pill-icon">{{ getCategoryIcon(task.category) }}</span>
+          {{ getCategoryLabel(task.category) }}
+        </span>
+      }
     </div>
     <h1 class="task-title">
       {{ task.title }}
@@ -430,6 +436,35 @@
               >
                 {{ label.name }}
               </span>
+            }
+          </div>
+        </div>
+      }
+
+      <!-- Assignment History — Functional/Technical conversion trail. Only
+           shown once the task has been tagged, since there's nothing
+           meaningful to show for an untagged task. -->
+      @if (categoryHistory().length > 0) {
+        <div class="meta-card">
+          <h4 class="meta-heading">
+            <span class="material-symbols-outlined">history</span>
+            Assignment History
+          </h4>
+          <div class="assignment-history">
+            @for (entry of categoryHistory(); track entry.id) {
+              <div class="assignment-entry" [class.technical]="entry.category === 'TECHNICAL'">
+                <span class="assignment-dot"></span>
+                <div class="assignment-body">
+                  <p class="assignment-line">
+                    <span class="assignment-category">{{ getCategoryLabel(entry.category) }} Assigned</span>
+                    <span class="assignment-dash">—</span>
+                    <span class="assignment-name">{{ entry.assignee?.name ?? 'Unassigned' }}</span>
+                  </p>
+                  <p class="assignment-meta">
+                    {{ formatDate(entry.changedAt) }} by {{ entry.changedBy.name }}
+                  </p>
+                </div>
+              </div>
             }
           </div>
         </div>
