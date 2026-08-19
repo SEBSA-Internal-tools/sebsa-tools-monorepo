@@ -3,6 +3,9 @@ import { UserSummary } from '../users/user-summary.model';
 export type TaskType = 'EPIC' | 'STORY' | 'TASK' | 'BUG' | 'IMPROVEMENT' | 'TEST' | 'SUBTASK';
 export type TaskPriority = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
 export type TaskDependencyType = 'BLOCKS' | 'RELATES_TO' | 'DUPLICATE_OF';
+/** Functional/Technical classification tag — nullable on ordinary project
+ * tasks, required whenever isCsoLabeled is true (enforced server-side). */
+export type TaskCategory = 'FUNCTIONAL' | 'TECHNICAL';
 
 export interface TaskLabelSummary {
   id: string;
@@ -25,6 +28,7 @@ export interface TaskSummary {
   dueDate: string | null;
   description: string | null;
   isCsoLabeled: boolean;
+  category: TaskCategory | null;
   project: { id: string; name: string };
   workflowStage: { id: string; name: string };
   assignees: Pick<UserSummary, 'id' | 'name' | 'email'>[];
@@ -46,6 +50,7 @@ export interface TaskListSummary {
   workflowStageId: string;
   priority: TaskPriority;
   dueDate: string | null;
+  category: TaskCategory | null;
   assignee: Pick<UserSummary, 'id' | 'name' | 'email'> | null;
 }
 
@@ -87,6 +92,8 @@ export interface CreateTaskRequest {
   assigneeIds?: string[];
   labelIds?: string[];
   isCsoLabeled?: boolean;
+  /** Required when isCsoLabeled is true. */
+  category?: TaskCategory;
 }
 
 export type UpdateTaskRequest = Partial<Omit<CreateTaskRequest, 'projectId'>>;
@@ -137,6 +144,18 @@ export interface TaskStatusHistoryEntry {
   id: string;
   fromStage: { id: string; name: string } | null;
   toStage: { id: string; name: string };
+  changedAt: string;
+  changedBy: { id: string; name: string };
+}
+
+/** One entry in a task's Functional/Technical assignment history — see
+ * TaskCategoryAssignment in schema.prisma. Rendered on the task detail page
+ * as e.g. "Functional Assigned - Alice", then "Technical Assigned - Bob"
+ * once the task is converted, so the earlier assignment is never lost. */
+export interface TaskCategoryAssignmentEntry {
+  id: string;
+  category: TaskCategory;
+  assignee: { id: string; name: string } | null;
   changedAt: string;
   changedBy: { id: string; name: string };
 }

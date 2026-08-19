@@ -893,6 +893,70 @@
   border: 1px solid;
 }
 
+/* ─── Assignment History (Functional/Technical conversion trail) ─── */
+.assignment-history {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.assignment-entry {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.assignment-dot {
+  flex-shrink: 0;
+  width: 9px;
+  height: 9px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: #0284c7;
+}
+
+.assignment-entry.technical .assignment-dot {
+  background: #7000ff;
+}
+
+.assignment-body {
+  min-width: 0;
+}
+
+.assignment-line {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--app-text);
+  line-height: 1.4;
+}
+
+.assignment-category {
+  font-weight: 700;
+}
+
+.assignment-entry.technical .assignment-category {
+  color: #7000ff;
+}
+
+.assignment-entry:not(.technical) .assignment-category {
+  color: #0284c7;
+}
+
+.assignment-dash {
+  margin: 0 4px;
+  color: var(--app-text-muted);
+}
+
+.assignment-name {
+  color: var(--app-text);
+}
+
+.assignment-meta {
+  margin: 2px 0 0;
+  font-size: 0.74rem;
+  color: var(--app-text-muted);
+}
+
 /* ─── Priority Pills ─── */
 .priority-pill {
   display: inline-flex;
@@ -917,6 +981,28 @@
   text-transform: uppercase;
   background: rgba(139, 92, 246, 0.15);
   color: #6d28d9;
+}
+
+.category-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  border-radius: 9999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  background: rgba(2, 132, 199, 0.12);
+  color: #0284c7;
+
+  &.technical {
+    background: rgba(112, 0, 255, 0.12);
+    color: #7000ff;
+  }
+
+  .category-pill-icon {
+    font-size: 16px;
+  }
 }
 
 .priority-critical {

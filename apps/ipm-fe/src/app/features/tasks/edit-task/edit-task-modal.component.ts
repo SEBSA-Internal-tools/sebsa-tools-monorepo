@@ -10,7 +10,12 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import type { Task, UpdateTaskRequest, UserAdminSummary } from '@sebsa-pm-tool/shared-models';
+import type {
+  Task,
+  TaskCategory,
+  UpdateTaskRequest,
+  UserAdminSummary,
+} from '@sebsa-pm-tool/shared-models';
 import { UserAdminService } from '../../../core/services/user-admin.service';
 
 @Component({
@@ -37,6 +42,7 @@ export class EditTaskModalComponent implements OnChanges {
   description = '';
   isCsoLabeled = false;
   selectedAssigneeId = '';
+  selectedCategory: TaskCategory | '' = '';
 
   readonly availableAssignees = signal<UserAdminSummary[]>([]);
 
@@ -50,6 +56,7 @@ export class EditTaskModalComponent implements OnChanges {
       this.description = this.task.description || '';
       this.isCsoLabeled = this.task.isCsoLabeled;
       this.selectedAssigneeId = this.task.assignees[0]?.id ?? '';
+      this.selectedCategory = this.task.category ?? '';
       this.loadAssignees();
     }
   }
@@ -70,6 +77,10 @@ export class EditTaskModalComponent implements OnChanges {
       alert('Please enter a task title');
       return;
     }
+    if (this.isCsoLabeled && !this.selectedCategory) {
+      alert('Please tag this CSO task as Functional or Technical');
+      return;
+    }
 
     const formData: UpdateTaskRequest = {
       title: this.taskTitle,
@@ -80,6 +91,7 @@ export class EditTaskModalComponent implements OnChanges {
       description: this.description || undefined,
       isCsoLabeled: this.isCsoLabeled,
       assigneeIds: this.selectedAssigneeId ? [this.selectedAssigneeId] : [],
+      category: this.selectedCategory || undefined,
     };
 
     this.submitted.emit(formData);

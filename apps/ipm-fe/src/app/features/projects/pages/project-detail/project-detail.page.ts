@@ -111,6 +111,7 @@ export class ProjectDetailPageComponent implements OnInit {
       sprintId: formData.sprintId || undefined,
       assigneeIds: formData.assigneeIds.length > 0 ? formData.assigneeIds : undefined,
       isCsoLabeled: formData.isCsoLabeled,
+      category: formData.category,
       parentTaskId: formData.parentTaskId,
     };
 

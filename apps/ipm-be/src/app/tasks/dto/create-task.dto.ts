@@ -1,4 +1,4 @@
-import { TaskType, Priority } from '@prisma/client';
+import { TaskType, Priority, TaskCategory } from '@prisma/client';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsArray,
@@ -109,4 +109,12 @@ export class CreateTaskDto {
   @IsOptional()
   @IsBoolean()
   isCsoLabeled?: boolean;
+
+  @ApiPropertyOptional({
+    enum: TaskCategory,
+    description: 'Functional/Technical tag. Required when isCsoLabeled is true.',
+  })
+  @IsOptional()
+  @IsEnum(TaskCategory)
+  category?: TaskCategory;
 }

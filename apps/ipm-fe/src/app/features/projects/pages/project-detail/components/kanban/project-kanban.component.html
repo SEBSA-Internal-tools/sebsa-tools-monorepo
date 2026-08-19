@@ -45,6 +45,11 @@
                     @if (task.isCsoLabeled) {
                       <span class="cso-badge">CSO</span>
                     }
+                    @if (task.tag) {
+                      <span class="tag-badge" [class.technical]="task.tag === 'TECHNICAL'">
+                        {{ task.tag === 'TECHNICAL' ? 'Technical' : 'Functional' }}
+                      </span>
+                    }
                     @if (isSubtask(task)) {
                       <span class="subtask-badge">
                         <span class="material-symbols-outlined">subdirectory_arrow_right</span>

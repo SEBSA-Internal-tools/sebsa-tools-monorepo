@@ -11,7 +11,7 @@ import {
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Priority, TaskType } from '@prisma/client';
+import { Priority, TaskCategory, TaskType } from '@prisma/client';
 
 export type TaskSortField =
     | 'title'
@@ -72,6 +72,11 @@ export class FilterTaskDto {
   @IsOptional()
   @Transform(({ value }) => value === 'true')
   isCsoLabeled?: boolean;
+
+  @ApiPropertyOptional({ enum: TaskCategory, description: 'Filters to the Functional or Technical queue.' })
+  @IsOptional()
+  @IsEnum(TaskCategory)
+  category?: TaskCategory;
 
   @ApiPropertyOptional({ enum: TaskType })
   @IsOptional()
