@@ -22,7 +22,7 @@ export interface Task {
   title: string;
   category: string;
   status: 'new' | 'todo' | 'inprogress' | 'done';
-  priority: 'High' | 'Medium' | 'Low';
+  priority: string;
   duration: string;
   assignee?: string;
   dueDate: string;
@@ -291,7 +291,7 @@ export class ProjectsService {
     title: string;
     projectId: string;
     assignee: string;
-    priority: 'High' | 'Medium' | 'Low';
+    priority: string;
     dueDate: string;
     description: string;
     sprintId?: string;

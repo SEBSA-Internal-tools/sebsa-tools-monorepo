@@ -36,7 +36,8 @@ export interface TaskView {
   /** Human-readable positional label derived from stage order: 'new' | 'todo' | 'inprogress' | 'done'.
    *  Used by Overview, TaskList, and Sprint views for badge display and stats. */
   statusLabel: 'new' | 'todo' | 'inprogress' | 'done';
-  priority: 'High' | 'Medium' | 'Low';
+  priority: string;
+  priorityColor: string | null;
   duration: string;
   assignee?: string;
   dueDate: string;
@@ -55,7 +56,8 @@ export interface TaskListView {
   category: string;
   tag: TaskCategory | null;
   statusLabel: 'new' | 'todo' | 'inprogress' | 'done';
-  priority: 'High' | 'Medium' | 'Low';
+  priority: string;
+  priorityColor: string | null;
   duration: string;
   assignee?: string;
   dueDate: string;
@@ -267,6 +269,7 @@ export class TasksService {
             tag: task.category ?? null,
             statusLabel: this.getStatusForStageId(task.workflowStageId, this.currentWorkflowStages),
             priority: this.mapPriority(task.priority as any),
+            priorityColor: typeof task.priority === 'object' && task.priority?.color ? task.priority.color : null,
             duration: task.dueDate ? `${task.dueDate.slice(0, 10)}` : 'No due date',
             assignee: task.assignee?.name || undefined,
             dueDate: task.dueDate ?? '',
@@ -296,6 +299,7 @@ export class TasksService {
       status: task.workflowStageId,
       statusLabel,
       priority,
+      priorityColor: typeof task.priority === 'object' && task.priority?.color ? task.priority.color : null,
       duration: task.dueDate ? `${task.dueDate.slice(0, 10)}` : 'No due date',
       assignee,
       dueDate: task.dueDate ?? '',
@@ -307,19 +311,10 @@ export class TasksService {
     };
   }
 
-  private mapPriority(priority?: { id: string; name: string; color: string | null } | string): TaskView['priority'] {
-  const priorityName = typeof priority === 'string' ? priority : priority?.name;
-  const name = priorityName?.toUpperCase();
-  switch (name) {
-    case 'CRITICAL':
-    case 'HIGH':
-      return 'High';
-    case 'LOW':
-      return 'Low';
-    default:
-      return 'Medium';
+  private mapPriority(priority?: { id: string; name: string; color: string | null } | string): string {
+    const priorityName = typeof priority === 'string' ? priority : priority?.name;
+    return priorityName || 'Medium';
   }
-}
 
   private getStatusForStageId(stageId: string, workflowStages: WorkflowStage[]): TaskView['statusLabel'] {
     const sorted = [...workflowStages].sort((a, b) => a.order - b.order);
