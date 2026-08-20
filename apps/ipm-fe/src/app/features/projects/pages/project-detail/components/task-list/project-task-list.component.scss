@@ -130,6 +130,10 @@
     background: var(--app-surface-soft);
   }
 
+  &.clickable-row {
+    cursor: pointer;
+  }
+
   &:last-child {
     border-bottom: none;
   }

@@ -34,15 +34,11 @@
       </div>
 
       @for (task of tasks; track task.id) {
-        <div class="table-row">
+        <div class="table-row clickable-row" (click)="openTask(task.id)">
           <div class="col-title">
-            <button
-              type="button"
-              class="task-title task-title-link"
-              (click)="openTask(task.id)"
-            >
+            <span class="task-title task-title-link">
               {{ task.title }}
-            </button>
+            </span>
           </div>
 
           <div class="col-description">
