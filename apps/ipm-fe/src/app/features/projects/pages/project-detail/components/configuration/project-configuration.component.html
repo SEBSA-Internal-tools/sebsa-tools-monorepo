@@ -1,0 +1,161 @@
+<div class="configuration-container">
+  <h2>Project Configuration</h2>
+  <p class="config-description">Manage your project's workflow stages and priorities here.</p>
+
+  <!-- Success Message -->
+  @if (successMessage()) {
+    <div class="alert alert-success">
+      <span class="material-symbols-outlined">check_circle</span>
+      {{ successMessage() }}
+    </div>
+  }
+
+  <!-- Error Message -->
+  @if (errorMessage()) {
+    <div class="alert alert-error">
+      <span class="material-symbols-outlined">error</span>
+      {{ errorMessage() }}
+    </div>
+  }
+
+  <!-- =================== WORKFLOW STAGES SECTION =================== -->
+  <section class="config-section">
+    <div class="section-header" (click)="toggleWorkflowStages()">
+      <div class="section-title-group">
+        <span
+          class="material-symbols-outlined section-icon toggle-icon"
+          [class.collapsed]="isWorkflowStagesCollapsed"
+        >
+          expand_more
+        </span>
+        <span class="material-symbols-outlined section-icon">account_tree</span>
+        <div>
+          <h3>Workflow Stages</h3>
+          <p class="section-subtitle">Define the lifecycle stages tasks move through (e.g. Backlog → In Progress → Testing → Done)</p>
+        </div>
+      </div>
+      <button class="btn-add" (click)="openAddWorkflowModal(); $event.stopPropagation()">
+        <span class="material-symbols-outlined">add</span>
+        Add Stage
+      </button>
+    </div>
+
+    @if (!isWorkflowStagesCollapsed) {
+      @if (workflowStages().length === 0) {
+      <div class="empty-state">
+        <span class="material-symbols-outlined empty-icon">account_tree</span>
+        <p>No workflow stages configured yet.</p>
+      </div>
+    } @else {
+      <div class="config-list">
+        @for (stage of workflowStages(); track stage.id) {
+          <div class="config-item">
+            <div class="item-info">
+              <span class="item-order">#{{ stage.order }}</span>
+              <span class="item-name">{{ stage.name }}</span>
+            </div>
+            <div class="item-actions">
+              <button
+                class="btn-icon btn-edit"
+                title="Edit stage"
+                (click)="openEditWorkflowModal(stage)"
+              >
+                <span class="material-symbols-outlined">edit</span>
+              </button>
+              @if (!stage.isDefault) {
+                <button
+                  class="btn-icon btn-delete"
+                  title="Delete stage"
+                  (click)="deleteWorkflowStage(stage)"
+                >
+                  <span class="material-symbols-outlined">delete</span>
+                </button>
+              }
+            </div>
+          </div>
+        }
+      </div>
+    }
+    }
+  </section>
+
+  <!-- =================== PRIORITIES SECTION =================== -->
+  <section class="config-section">
+    <div class="section-header" (click)="togglePriorities()">
+      <div class="section-title-group">
+        <span
+          class="material-symbols-outlined section-icon toggle-icon"
+          [class.collapsed]="isPrioritiesCollapsed"
+        >
+          expand_more
+        </span>
+        <span class="material-symbols-outlined section-icon">flag</span>
+        <div>
+          <h3>Priorities</h3>
+          <p class="section-subtitle">Manage the priority levels available for tasks in this project</p>
+        </div>
+      </div>
+      <button class="btn-add" (click)="openAddPriorityModal(); $event.stopPropagation()">
+        <span class="material-symbols-outlined">add</span>
+        Add Priority
+      </button>
+    </div>
+
+    @if (!isPrioritiesCollapsed) {
+      @if (priorities().length === 0) {
+      <div class="empty-state">
+        <span class="material-symbols-outlined empty-icon">flag</span>
+        <p>No priorities configured yet.</p>
+      </div>
+    } @else {
+      <div class="config-list">
+        @for (priority of priorities(); track priority.id) {
+          <div class="config-item">
+            <div class="item-info">
+              <span class="item-order">#{{ priority.order }}</span>
+              @if (priority.color) {
+                <span class="color-dot" [style.background-color]="priority.color"></span>
+              }
+              <span class="item-name">{{ priority.name }}</span>
+            </div>
+            <div class="item-actions">
+              <button
+                class="btn-icon btn-edit"
+                title="Edit priority"
+                (click)="openEditPriorityModal(priority)"
+              >
+                <span class="material-symbols-outlined">edit</span>
+              </button>
+              @if (!priority.isDefault) {
+                <button
+                  class="btn-icon btn-delete"
+                  title="Delete priority"
+                  (click)="deletePriority(priority)"
+                >
+                  <span class="material-symbols-outlined">delete</span>
+                </button>
+              }
+            </div>
+          </div>
+        }
+      </div>
+    }
+    }
+  </section>
+</div>
+
+<!-- Workflow Modal -->
+<workflow-modal
+  [isOpen]="isWorkflowModalOpen"
+  [editData]="editingWorkflowStage"
+  (close)="closeWorkflowModal()"
+  (submit)="onWorkflowSubmit($event)"
+></workflow-modal>
+
+<!-- Priority Modal -->
+<priority-modal
+  [isOpen]="isPriorityModalOpen"
+  [editData]="editingPriority"
+  (close)="closePriorityModal()"
+  (submit)="onPrioritySubmit($event)"
+></priority-modal>

@@ -307,13 +307,12 @@ export class TasksService {
     };
   }
 
-  private mapPriority(priority: BackendTask['priority']): TaskView['priority'] {
-    switch (priority) {
+  private mapPriority(priority?: { id: string; name: string; color: string | null }): TaskView['priority'] {
+    const name = priority?.name?.toUpperCase();
+    switch (name) {
       case 'CRITICAL':
       case 'HIGH':
         return 'High';
-      case 'MEDIUM':
-        return 'Medium';
       case 'LOW':
         return 'Low';
       default:

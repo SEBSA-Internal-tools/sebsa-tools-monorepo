@@ -11,6 +11,7 @@ import { ProjectTaskListComponent } from './components/task-list/project-task-li
 import { ProjectTeamComponent } from './components/team/project-team.component';
 import { ProjectSprintComponent } from './components/sprint/project-sprint.component';
 import { ProjectOverviewComponent } from './components/overview/project-overview.component';
+import { ProjectConfigurationComponent } from './components/configuration/project-configuration.component';
 import { CreateTaskModalComponent, type TaskFormData } from '../../../tasks/create-task/create-task-modal.component';
 import {
   CreateProjectModalComponent,
@@ -32,6 +33,7 @@ import type { CreateTaskRequest, Project } from '@sebsa-pm-tool/shared-models';
     ProjectOverviewComponent,
     CreateTaskModalComponent,
     CreateProjectModalComponent,
+    ProjectConfigurationComponent,
   ],
   templateUrl: './project-detail.page.html',
   styleUrl: './project-detail.page.scss',
@@ -48,7 +50,7 @@ export class ProjectDetailPageComponent implements OnInit {
   readonly isLoading = signal(false);
   readonly errorMessage = signal('');
 
-  activeTab: 'overview' | 'kanban' | 'tasklist' | 'calendar' | 'sprint' | 'team' = 'kanban';
+  activeTab: 'overview' | 'kanban' | 'tasklist' | 'calendar' | 'sprint' | 'team' | 'configuration' = 'kanban';
   isTaskModalOpen = false;
   isEditModalOpen = false;
 
@@ -105,7 +107,7 @@ export class ProjectDetailPageComponent implements OnInit {
       title: formData.title,
       description: formData.description || undefined,
       type: formData.type,
-      priority: formData.priority,
+      priorityId: formData.priorityId,
       workflowStageId: current.workflowStages[0].id,
       dueDate: formData.dueDate || undefined,
       sprintId: formData.sprintId || undefined,

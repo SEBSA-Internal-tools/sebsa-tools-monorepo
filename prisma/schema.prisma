@@ -58,13 +58,7 @@ enum TaskType {
   SUBTASK
 }
 
-/// Task Priority. Default: MEDIUM.
-enum Priority {
-  CRITICAL
-  HIGH
-  MEDIUM
-  LOW
-}
+// Note: Task Priority is now a dynamic model (ProjectPriority) per project.
 
 /// Sprint lifecycle. Only one sprint per project may be ACTIVE
 /// (enforced by a partial unique index — see migration.sql).
@@ -357,6 +351,7 @@ model Project {
   roles          Role[]
   members        ProjectMember[]
   workflowStages WorkflowStage[]
+  priorities     ProjectPriority[]
   milestones     Milestone[]
   sprints        Sprint[]
   tasks          Task[]
@@ -394,6 +389,27 @@ model WorkflowStage {
   @@unique([projectId, order])
   @@index([projectId])
   @@map("workflow_stages")
+}
+
+/// "Custom Priorities" — each project owns its own ordered list
+/// of task priorities (add/rename/reorder/remove).
+model ProjectPriority {
+  id        String   @id @default(uuid())
+  projectId String
+  name      String
+  color     String?
+  order     Int
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project           Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks             Task[]
+
+  @@unique([projectId, name])
+  @@unique([projectId, order])
+  @@index([projectId])
+  @@map("project_priorities")
 }
 
 /// Named checkpoint with a target date; progress is derived from
@@ -467,8 +483,8 @@ model Task {
   parentTaskId        String?
   title               String
   description         String?
-  type                TaskType      @default(TASK)
-  priority            Priority      @default(MEDIUM)
+  type                TaskType  @default(TASK)
+  priorityId          String
   workflowStageId     String
   sprintId            String?
   milestoneId         String?
@@ -493,6 +509,7 @@ model Task {
   parentTask    Task?         @relation("TaskSubtasks", fields: [parentTaskId], references: [id], onDelete: Cascade)
   subtasks      Task[]        @relation("TaskSubtasks")
   workflowStage WorkflowStage @relation(fields: [workflowStageId], references: [id], onDelete: Restrict)
+  priority      ProjectPriority @relation(fields: [priorityId], references: [id], onDelete: Restrict)
   sprint        Sprint?       @relation(fields: [sprintId], references: [id], onDelete: SetNull)
   milestone     Milestone?    @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
   createdBy     User          @relation("TaskCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
@@ -510,6 +527,7 @@ model Task {
   @@index([projectId])
   @@index([parentTaskId])
   @@index([workflowStageId])
+  @@index([priorityId])
   @@index([sprintId])
   @@index([milestoneId])
   @@index([dueDate])

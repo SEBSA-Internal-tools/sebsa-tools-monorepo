@@ -7,10 +7,13 @@ import {
 import { PrismaService } from '@sebsa-pm-tool/core';
 import {
   AuthUser,
+  CreateProjectPriorityRequest,
   Project,
   ProjectMemberSummary,
   ProjectRole,
   ProjectSummary,
+  UpdateProjectPriorityRequest,
+  UpdateWorkflowStageRequest,
 } from '@sebsa-pm-tool/shared-models';
 import { Prisma } from '@prisma/client';
 import { CreateProjectDto } from './dto/create-project.dto';
@@ -49,6 +52,10 @@ const projectDetailInclude = {
   customer: { select: { id: true, name: true } },
   workflowStages: {
     select: { id: true, name: true, order: true },
+    orderBy: { order: 'asc' as const },
+  },
+  priorities: {
+    select: { id: true, name: true, order: true, color: true },
     orderBy: { order: 'asc' as const },
   },
   _count: { select: { tasks: true, members: { where: { deletedAt: null } } } },
@@ -90,6 +97,17 @@ export class ProjectsService {
           name: 'Backlog',
           order: 0,
           isDefault: true,
+        },
+      });
+
+      // Default Priority
+      await tx.projectPriority.create({
+        data: {
+          projectId: project.id,
+          name: 'MEDIUM',
+          order: 2,
+          isDefault: true,
+          color: '#F59E0B',
         },
       });
 
@@ -348,17 +366,16 @@ export class ProjectsService {
   async getWorkflowStages(
     projectId: string,
     user: AuthUser,
-  ): Promise<{ id: string; name: string; order: number }[]> {
+  ): Promise<{ id: string; name: string; order: number; isDefault: boolean }[]> {
     const project = await this.loadProjectWithMembership(projectId);
     const membership = this.findMembership(project, user.id);
     this.assertVisible(!!membership, user);
 
-    const stages = await this.prisma.workflowStage.findMany({
+    return this.prisma.workflowStage.findMany({
       where: { projectId },
-      select: { id: true, name: true, order: true },
+      select: { id: true, name: true, order: true, isDefault: true },
       orderBy: { order: 'asc' },
     });
-    return stages;
   }
 
   async createWorkflowStage(
@@ -400,6 +417,148 @@ export class ProjectsService {
     });
 
     return stage;
+  }
+
+  async updateWorkflowStage(
+    projectId: string,
+    stageId: string,
+    dto: UpdateWorkflowStageRequest,
+    user: AuthUser,
+  ): Promise<{ id: string; name: string; order: number }> {
+    const project = await this.loadProjectWithMembership(projectId);
+    this.assertCanManageMembers(project, user); // Assuming workflow manage goes here for now
+
+    const existing = await this.prisma.workflowStage.findFirst({
+      where: { id: stageId, projectId },
+    });
+    if (!existing) throw new NotFoundException('Workflow stage not found');
+
+    if (dto.name && dto.name !== existing.name) {
+      const nameTaken = await this.prisma.workflowStage.findFirst({
+        where: { projectId, name: dto.name },
+      });
+      if (nameTaken) throw new BadRequestException('Stage name already exists');
+    }
+
+    return this.prisma.workflowStage.update({
+      where: { id: stageId },
+      data: { name: dto.name, order: dto.order },
+      select: { id: true, name: true, order: true },
+    });
+  }
+
+  async deleteWorkflowStage(
+    projectId: string,
+    stageId: string,
+    user: AuthUser,
+  ): Promise<void> {
+    const project = await this.loadProjectWithMembership(projectId);
+    this.assertCanManageMembers(project, user);
+
+    const stage = await this.prisma.workflowStage.findFirst({
+      where: { id: stageId, projectId },
+      include: { _count: { select: { tasks: true } } },
+    });
+    if (!stage) throw new NotFoundException('Workflow stage not found');
+    if (stage.isDefault) throw new BadRequestException('Cannot delete default workflow stage');
+    if (stage._count.tasks > 0) throw new BadRequestException('Cannot delete workflow stage that contains tasks');
+
+    await this.prisma.workflowStage.delete({ where: { id: stageId } });
+  }
+
+  async getProjectPriorities(
+    projectId: string,
+    user: AuthUser,
+  ): Promise<{ id: string; name: string; order: number; color: string | null; isDefault: boolean }[]> {
+    const project = await this.loadProjectWithMembership(projectId);
+    const membership = this.findMembership(project, user.id);
+    this.assertVisible(!!membership, user);
+
+    return this.prisma.projectPriority.findMany({
+      where: { projectId },
+      select: { id: true, name: true, order: true, color: true, isDefault: true },
+      orderBy: { order: 'asc' },
+    });
+  }
+
+  async createProjectPriority(
+    projectId: string,
+    dto: CreateProjectPriorityRequest,
+    user: AuthUser,
+  ): Promise<{ id: string; name: string; order: number; color: string | null }> {
+    const project = await this.loadProjectWithMembership(projectId);
+    this.assertCanManageMembers(project, user);
+
+    let order = dto.order;
+    if (order === undefined || order === null) {
+      const maxOrder = await this.prisma.projectPriority.aggregate({
+        where: { projectId },
+        _max: { order: true },
+      });
+      order = (maxOrder._max.order ?? -1) + 1;
+    }
+
+    const existing = await this.prisma.projectPriority.findFirst({
+      where: { projectId, name: dto.name },
+    });
+    if (existing) throw new BadRequestException('Priority name already exists');
+
+    return this.prisma.projectPriority.create({
+      data: {
+        projectId,
+        name: dto.name,
+        color: dto.color,
+        order,
+      },
+      select: { id: true, name: true, order: true, color: true },
+    });
+  }
+
+  async updateProjectPriority(
+    projectId: string,
+    priorityId: string,
+    dto: UpdateProjectPriorityRequest,
+    user: AuthUser,
+  ): Promise<{ id: string; name: string; order: number; color: string | null }> {
+    const project = await this.loadProjectWithMembership(projectId);
+    this.assertCanManageMembers(project, user);
+
+    const existing = await this.prisma.projectPriority.findFirst({
+      where: { id: priorityId, projectId },
+    });
+    if (!existing) throw new NotFoundException('Priority not found');
+
+    if (dto.name && dto.name !== existing.name) {
+      const nameTaken = await this.prisma.projectPriority.findFirst({
+        where: { projectId, name: dto.name },
+      });
+      if (nameTaken) throw new BadRequestException('Priority name already exists');
+    }
+
+    return this.prisma.projectPriority.update({
+      where: { id: priorityId },
+      data: { name: dto.name, color: dto.color, order: dto.order },
+      select: { id: true, name: true, order: true, color: true },
+    });
+  }
+
+  async deleteProjectPriority(
+    projectId: string,
+    priorityId: string,
+    user: AuthUser,
+  ): Promise<void> {
+    const project = await this.loadProjectWithMembership(projectId);
+    this.assertCanManageMembers(project, user);
+
+    const priority = await this.prisma.projectPriority.findFirst({
+      where: { id: priorityId, projectId },
+      include: { _count: { select: { tasks: true } } },
+    });
+    if (!priority) throw new NotFoundException('Priority not found');
+    if (priority.isDefault) throw new BadRequestException('Cannot delete default priority');
+    if (priority._count.tasks > 0) throw new BadRequestException('Cannot delete priority that contains tasks');
+
+    await this.prisma.projectPriority.delete({ where: { id: priorityId } });
   }
 
   // ---------------------------------------------------------------------------
@@ -592,6 +751,7 @@ export class ProjectsService {
     return {
       ...this.toProjectSummary(project),
       workflowStages: project.workflowStages,
+      priorities: project.priorities,
     };
   }
 
