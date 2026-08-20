@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, HostListener, inject, OnInit } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { ThemeService } from '../../services/theme.service';
 import { AuthService } from '../../services/auth.service';
@@ -31,12 +31,19 @@ export class AppShellComponent implements OnInit {
     { label: 'Customers', icon: 'domain', path: '/customers' },
     { label: 'CSO', icon: 'groups', path: '/cso' },
     { label: 'Calendar', icon: 'calendar_month', path: '/calendar' },
-    { label: 'Notifications', icon: 'notifications', path: '/notifications' },
   ] as const;
 
   protected isTaskModalOpen = false;
   protected lastCreatedTask: TaskFormData | null = null;
   protected isProfileMenuOpen = false;
+  protected isNotificationMenuOpen = false;
+
+  protected readonly notificationPreview = [
+    { id: '1', icon: 'assignment_ind', title: 'New task assigned to you', detail: '"Fix login redirect bug" was assigned by Hiruni Wijethilaka', time: '5m ago', read: false },
+    { id: '2', icon: 'chat_bubble', title: 'New comment on your task', detail: 'Nadeesha commented on "Update API docs"', time: '1h ago', read: false },
+    { id: '3', icon: 'alternate_email', title: 'You were mentioned', detail: 'Kasun mentioned you in "Sprint 12 Planning"', time: '3h ago', read: false },
+    { id: '4', icon: 'campaign', title: 'Project status updated', detail: '"Customer Portal Revamp" moved to In Review', time: 'Yesterday', read: true },
+  ] as const;
 
   ngOnInit(): void {
     // Theme service auto-initializes data-theme on document.documentElement from localStorage or system preference
@@ -44,6 +51,31 @@ export class AppShellComponent implements OnInit {
 
   protected toggleProfileMenu(): void {
     this.isProfileMenuOpen = !this.isProfileMenuOpen;
+    this.isNotificationMenuOpen = false;
+  }
+
+  protected toggleNotificationMenu(): void {
+    this.isNotificationMenuOpen = !this.isNotificationMenuOpen;
+    this.isProfileMenuOpen = false;
+  }
+
+  protected goToAllNotifications(): void {
+    this.isNotificationMenuOpen = false;
+    this.router.navigate(['/notifications']);
+  }
+
+  @HostListener('document:click', ['$event'])
+  protected onDocumentClick(event: MouseEvent): void {
+    if (!this.isNotificationMenuOpen && !this.isProfileMenuOpen) {
+      return;
+    }
+    const target = event.target as HTMLElement;
+    if (this.isNotificationMenuOpen && !target.closest?.('.notification-menu-wrapper')) {
+      this.isNotificationMenuOpen = false;
+    }
+    if (this.isProfileMenuOpen && !target.closest?.('.profile-menu-wrapper')) {
+      this.isProfileMenuOpen = false;
+    }
   }
 
   protected logout(): void {

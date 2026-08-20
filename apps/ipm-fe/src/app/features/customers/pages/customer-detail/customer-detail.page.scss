@@ -1,0 +1,274 @@
+// =============================================================================
+// Customer Detail Page — uses the shared design-token system in styles.scss
+// (.sebsa-card, .btn / .btn-*-outline, .badge) for buttons/cards/badges; this
+// file only covers page-specific layout.
+// =============================================================================
+
+.customer-detail-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px 16px;
+
+  @media (min-width: 768px) {
+    padding: 28px 24px;
+  }
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.header-actions-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 48px 16px;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+
+  &.small {
+    padding: 32px 16px;
+  }
+
+  .spin {
+    animation: spin 1s linear infinite;
+  }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.error-banner {
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: var(--status-error-bg);
+  color: var(--status-error-fg);
+  border: 1px solid var(--status-error-solid);
+  font-size: 0.9rem;
+}
+
+// =============================================================================
+// Customer header card
+// =============================================================================
+
+.customer-header-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.customer-avatar-large {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--brand-primary-100);
+  color: var(--brand-primary);
+  font-size: 1.25rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.customer-header-info {
+  flex: 1;
+  min-width: 0;
+
+  h1 {
+    margin: 0 0 10px;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--text-heading);
+  }
+}
+
+.contact-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.contact-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: var(--surface-muted);
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+
+  .material-symbols-outlined {
+    font-size: 16px;
+  }
+
+  &.muted {
+    color: var(--text-muted);
+    font-style: italic;
+  }
+}
+
+.customer-notes {
+  margin: 14px 0 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.customer-project-count {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 90px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: var(--surface-muted);
+  border: 1px solid var(--border-default);
+
+  .count-value {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--text-heading);
+    font-family: var(--font-heading);
+  }
+
+  .count-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+}
+
+// =============================================================================
+// Projects section
+// =============================================================================
+
+.section-header {
+  margin-bottom: 16px;
+
+  h2 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-heading);
+  }
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 48px 16px;
+  text-align: center;
+
+  .empty-icon {
+    font-size: 48px;
+    color: var(--text-muted);
+  }
+
+  h3 {
+    margin: 0;
+    color: var(--text-heading);
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.88rem;
+  }
+}
+
+.projects-table-container {
+  overflow-x: auto;
+  border-radius: 12px;
+  border: 1px solid var(--border-default);
+}
+
+.projects-table {
+  display: flex;
+  flex-direction: column;
+  min-width: 100%;
+}
+
+.table-row {
+  display: grid;
+  grid-template-columns: 2.2fr 1fr 0.8fr 0.8fr 1.2fr;
+  gap: 16px;
+  padding: 14px 18px;
+  align-items: center;
+  border-bottom: 1px solid var(--border-subtle);
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &.table-header {
+    background: var(--surface-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  &:not(.table-header) {
+    cursor: pointer;
+    transition: background 0.15s ease;
+
+    &:hover {
+      background: var(--surface-muted);
+    }
+  }
+
+  [class^='col-'] {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    font-size: 0.875rem;
+    color: var(--text-primary);
+
+    .material-symbols-outlined {
+      font-size: 16px;
+      color: var(--text-secondary);
+    }
+  }
+}
+
+.col-project {
+  font-weight: 500;
+}
+
+.project-icon {
+  color: var(--brand-primary) !important;
+}
+
+.project-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
