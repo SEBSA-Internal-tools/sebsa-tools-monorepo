@@ -79,7 +79,7 @@ export class AppShellComponent implements OnInit {
           title: formData.title,
           description: formData.description || undefined,
           type: formData.type,
-          priority: formData.priority,
+          priorityId: formData.priorityId,
           workflowStageId: project.workflowStages[0].id,
           dueDate: formData.dueDate || undefined,
           sprintId: formData.sprintId || undefined,
