@@ -266,7 +266,7 @@ export class TasksService {
             category: task.type ?? 'Task',
             tag: task.category ?? null,
             statusLabel: this.getStatusForStageId(task.workflowStageId, this.currentWorkflowStages),
-            priority: this.mapPriority(task.priority),
+            priority: this.mapPriority(task.priority as any),
             duration: task.dueDate ? `${task.dueDate.slice(0, 10)}` : 'No due date',
             assignee: task.assignee?.name || undefined,
             dueDate: task.dueDate ?? '',
@@ -307,18 +307,19 @@ export class TasksService {
     };
   }
 
-  private mapPriority(priority?: { id: string; name: string; color: string | null }): TaskView['priority'] {
-    const name = priority?.name?.toUpperCase();
-    switch (name) {
-      case 'CRITICAL':
-      case 'HIGH':
-        return 'High';
-      case 'LOW':
-        return 'Low';
-      default:
-        return 'Medium';
-    }
+  private mapPriority(priority?: { id: string; name: string; color: string | null } | string): TaskView['priority'] {
+  const priorityName = typeof priority === 'string' ? priority : priority?.name;
+  const name = priorityName?.toUpperCase();
+  switch (name) {
+    case 'CRITICAL':
+    case 'HIGH':
+      return 'High';
+    case 'LOW':
+      return 'Low';
+    default:
+      return 'Medium';
   }
+}
 
   private getStatusForStageId(stageId: string, workflowStages: WorkflowStage[]): TaskView['statusLabel'] {
     const sorted = [...workflowStages].sort((a, b) => a.order - b.order);

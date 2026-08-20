@@ -216,32 +216,6 @@
 
 .roles-table {
   width: 100%;
-  border-collapse: collapse;
-  border: 1px solid var(--app-border);
-  border-radius: 8px;
-  overflow: hidden;
-
-  th,
-  td {
-    text-align: left;
-    padding: 10px 14px;
-    font-size: 0.85rem;
-    border-bottom: 1px solid var(--app-border);
-  }
-
-  th {
-    background: var(--app-surface-soft);
-    color: var(--app-text-muted);
-    font-weight: 600;
-  }
-
-  td {
-    color: var(--app-text);
-  }
-
-  tr:last-child td {
-    border-bottom: none;
-  }
 }
 
 .role-group-select,
