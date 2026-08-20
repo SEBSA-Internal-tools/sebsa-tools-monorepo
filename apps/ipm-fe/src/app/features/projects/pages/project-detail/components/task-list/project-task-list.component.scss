@@ -130,6 +130,10 @@
     background: var(--app-surface-soft);
   }
 
+  &.clickable-row {
+    cursor: pointer;
+  }
+
   &:last-child {
     border-bottom: none;
   }
@@ -261,31 +265,19 @@
 .priority-badge {
   display: inline-flex;
   align-items: center;
-  padding: 5px 12px;
+  justify-content: center;
+  padding: 2px 8px;
   border-radius: 6px;
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
 
-  &.high {
-    background: rgba(239, 68, 68, 0.15);
-    color: #991b1b;
-  }
-
-  &.medium {
-    background: rgba(245, 158, 11, 0.15);
-    color: #b45309;
-  }
-
-  &.low {
-    background: rgba(16, 185, 129, 0.15);
-    color: #047857;
-  }
+  background: color-mix(in srgb, var(--priority-color, #f59e0b) 14%, transparent);
+  color: var(--priority-color, #f59e0b);
+  border: 1px solid color-mix(in srgb, var(--priority-color, #f59e0b) 30%, transparent);
+  backdrop-filter: blur(4px);
 }
 
 .duration-text {

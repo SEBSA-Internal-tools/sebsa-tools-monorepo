@@ -144,10 +144,6 @@ export class ProjectKanbanComponent implements OnInit, OnDestroy {
       .slice(0, 2);
   }
 
-  getPriorityClass(priority: string): string {
-    return priority.toLowerCase();
-  }
-
   isSubtask(task: TaskView): boolean {
     return !!task.parentTaskId;
   }

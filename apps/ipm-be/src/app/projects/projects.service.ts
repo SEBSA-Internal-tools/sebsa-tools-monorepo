@@ -88,14 +88,14 @@ export class ProjectsService {
       });
 
       // Every project is guaranteed to have at least one workflow stage so the
-      // Kanban board is never in an empty state. The "Backlog" stage (order: 0,
+      // Kanban board is never in an empty state. The "Backlog" stage (order: 1,
       // isDefault: true) serves as the automatic landing column for all new tasks
       // that are created without an explicit workflowStageId.
       await tx.workflowStage.create({
         data: {
           projectId: project.id,
           name: 'Backlog',
-          order: 0,
+          order: 1,
           isDefault: true,
         },
       });

@@ -31,7 +31,7 @@
             @for (task of tasks()[stage.id]; track task.id) {
               <div
                 class="task-card"
-                [class]="'task-card priority-' + task.priority.toLowerCase()"
+                [style.--task-priority-color]="task.priorityColor || '#f59e0b'"
                 draggable="true"
                 (dragstart)="onDragStart(task)"
                 (dragend)="onDragEnd()"
@@ -49,7 +49,7 @@
                   <div class="task-header-badges">
                     <span
                       class="priority-badge"
-                      [class]="getPriorityClass(task.priority)"
+                      [style.--priority-color]="task.priorityColor || '#f59e0b'"
                     >
                       {{ task.priority }}
                     </span>
