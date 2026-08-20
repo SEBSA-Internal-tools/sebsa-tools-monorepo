@@ -4,7 +4,6 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { TasksService, WorkflowStage } from '../../../core/services/tasks.service';
 import { ProjectsService } from '../../projects/services/projects.service';
-import { UserAdminService } from '../../../core/services/user-admin.service';
 import type {
   CreateTaskRequest,
   Task,
@@ -14,7 +13,6 @@ import type {
   TaskDependencyType,
   TaskStatusHistoryEntry,
   UpdateTaskRequest,
-  UserAdminSummary,
 } from '@sebsa-pm-tool/shared-models';
 import {
   CreateTaskModalComponent,
@@ -47,7 +45,6 @@ export class TaskDetailPageComponent implements OnInit {
   private location = inject(Location);
   private tasksService = inject(TasksService);
   private projectsService = inject(ProjectsService);
-  private userAdminService = inject(UserAdminService);
 
   task = signal<Task | null>(null);
   isLoading = signal(false);
@@ -73,7 +70,7 @@ export class TaskDetailPageComponent implements OnInit {
     assigneeId: '',
   };
   availablePriorities = signal<Array<{ id: string; name: string; color: string | null; order: number }>>([]);
-  availableAssignees = signal<UserAdminSummary[]>([]);
+  availableAssignees = signal<Array<{ id: string; name: string }>>([]);
 
   workflowStages = signal<WorkflowStage[]>([]);
   statusHistory = signal<TaskStatusHistoryEntry[]>([]);
@@ -116,7 +113,7 @@ export class TaskDetailPageComponent implements OnInit {
         this.loadDependencies(taskId);
         this.loadDependencyTaskCandidates(task.projectId, taskId);
         this.loadPriorities(task.projectId);
-        this.loadAssignees();
+        this.loadAssignees(task.projectId);
       },
       error: (err) => {
         console.error('Failed to load task:', err);
@@ -133,9 +130,9 @@ export class TaskDetailPageComponent implements OnInit {
     });
   }
 
-  private loadAssignees(): void {
-    this.userAdminService.listAll().subscribe({
-      next: (users) => this.availableAssignees.set(users.filter((u) => u.isActive)),
+  private loadAssignees(projectId: string): void {
+    this.projectsService.getMembers(projectId).subscribe({
+      next: (members) => this.availableAssignees.set(members.map((m) => m.user)),
       error: () => this.availableAssignees.set([]),
     });
   }
