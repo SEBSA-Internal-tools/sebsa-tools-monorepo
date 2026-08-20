@@ -11,7 +11,7 @@ import {
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Priority, TaskCategory, TaskType } from '@prisma/client';
+import { TaskCategory, TaskType } from '@prisma/client';
 
 export type TaskSortField =
     | 'title'
@@ -83,10 +83,10 @@ export class FilterTaskDto {
   @IsEnum(TaskType)
   type?: TaskType;
 
-  @ApiPropertyOptional({ enum: Priority })
+  @ApiPropertyOptional({ format: 'uuid' })
   @IsOptional()
-  @IsEnum(Priority)
-  priority?: Priority;
+  @IsUUID()
+  priorityId?: string;
 
   @ApiPropertyOptional({ description: 'Matches against title or description.' })
   @IsOptional()

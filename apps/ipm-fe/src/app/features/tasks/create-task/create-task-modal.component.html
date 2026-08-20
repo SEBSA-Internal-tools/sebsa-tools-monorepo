@@ -18,7 +18,7 @@
       <div class="form-grid">
         <!-- Project Field -->
         <div class="form-group full-width">
-          <label class="form-label">Project</label>
+          <div class="form-label">Project</div>
           @if (projectId) {
             <div class="project-display">
               <span class="project-name">{{ projectName }}</span>
@@ -59,7 +59,7 @@
 
         <!-- Parent Task -->
         <div class="form-group full-width">
-          <label class="form-label">Parent Task</label>
+          <div class="form-label">Parent Task</div>
           @if (lockedParentTaskId) {
             <div class="project-display">
               <span class="material-symbols-outlined">subdirectory_arrow_right</span>
@@ -107,44 +107,25 @@
 
         <!-- Priority -->
         <div class="form-group">
-          <label class="form-label">Priority</label>
+          <div class="form-label">Priority</div>
           <div class="priority-group">
-            <button
-              type="button"
-              class="priority-btn"
-              [class.active]="priority === 'CRITICAL'"
-              (click)="priority = 'CRITICAL'"
-            >
-              <span class="priority-dot critical"></span>
-              <span>Critical</span>
-            </button>
-            <button
-              type="button"
-              class="priority-btn"
-              [class.active]="priority === 'HIGH'"
-              (click)="priority = 'HIGH'"
-            >
-              <span class="priority-dot critical"></span>
-              <span>High</span>
-            </button>
-            <button
-              type="button"
-              class="priority-btn"
-              [class.active]="priority === 'MEDIUM'"
-              (click)="priority = 'MEDIUM'"
-            >
-              <span class="priority-dot medium"></span>
-              <span>Med</span>
-            </button>
-            <button
-              type="button"
-              class="priority-btn"
-              [class.active]="priority === 'LOW'"
-              (click)="priority = 'LOW'"
-            >
-              <span class="priority-dot low"></span>
-              <span>Low</span>
-            </button>
+            @for (prio of availablePriorities(); track prio.id) {
+              <button
+                type="button"
+                class="priority-btn"
+                [class.active]="priorityId === prio.id"
+                (click)="selectPriority(prio)"
+              >
+                <span
+                  class="priority-dot"
+                  [style.background-color]="prio.color || '#94a3b8'"
+                ></span>
+                <span>{{ prio.name }}</span>
+              </button>
+            }
+            @if (availablePriorities().length === 0) {
+              <span class="no-priorities">No priorities configured</span>
+            }
           </div>
         </div>
 
@@ -340,7 +321,7 @@
            opened from already determines it. -->
       @if (lockedCategory) {
         <div class="form-group full-width">
-          <label class="form-label">Category</label>
+          <div class="form-label">Category</div>
           <div class="project-display">
             <span class="material-symbols-outlined">{{ lockedCategory === 'TECHNICAL' ? 'terminal' : 'psychology' }}</span>
             <span class="project-name">{{ lockedCategory === 'TECHNICAL' ? 'Technical' : 'Functional' }} queue</span>
@@ -348,9 +329,10 @@
         </div>
       } @else if (isTargetProjectCso() || isCsoLabeled) {
         <div class="form-group full-width">
-          <label class="form-label" id="category-label">
-            Category <span class="required">*</span>
-          </label>
+          <div class="form-label" id="category-label">
+            Category 
+            <span class="required">*</span>
+          </div>
           <div class="category-group" role="group" aria-labelledby="category-label">
             <button
               type="button"

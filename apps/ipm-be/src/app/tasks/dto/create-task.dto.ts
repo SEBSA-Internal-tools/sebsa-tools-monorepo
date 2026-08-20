@@ -1,4 +1,4 @@
-import { TaskType, Priority, TaskCategory } from '@prisma/client';
+import { TaskType, TaskCategory } from '@prisma/client';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsArray,
@@ -42,10 +42,10 @@ export class CreateTaskDto {
   @IsEnum(TaskType)
   type?: TaskType;
 
-  @ApiPropertyOptional({ enum: Priority, default: Priority.MEDIUM })
+  @ApiPropertyOptional({ format: 'uuid' })
   @IsOptional()
-  @IsEnum(Priority)
-  priority?: Priority;
+  @IsUUID()
+  priorityId?: string;
 
   @ApiPropertyOptional({
     format: 'uuid',

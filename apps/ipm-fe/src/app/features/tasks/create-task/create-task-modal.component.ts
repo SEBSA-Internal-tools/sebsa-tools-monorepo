@@ -26,8 +26,8 @@ export interface TaskFormData {
   projectId: string;
   /** Array of user UUIDs — matches `assigneeIds` in POST /api/tasks */
   assigneeIds: string[];
-  /** Uppercase to match shared-models TaskPriority: CRITICAL | HIGH | MEDIUM | LOW */
-  priority: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+  /** UUID of the selected priority */
+  priorityId?: string;
   /** Task type: EPIC | STORY | TASK | BUG | IMPROVEMENT */
   type: 'EPIC' | 'STORY' | 'TASK' | 'BUG' | 'IMPROVEMENT';
   dueDate: string;
@@ -84,7 +84,16 @@ export class CreateTaskModalComponent implements OnChanges {
   /** Holds the UUID of the selected assignee (bound to user.id in the dropdown) */
   selectedAssigneeIds: string[] = [];
   assigneeSearch = '';
-  priority: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' = 'MEDIUM';
+  priorityId?: string;
+  /** Backward-compatible priority label for UI display */
+  priority = '';
+  readonly availablePriorities = signal<Array<{ id: string; name: string; color: string | null; order: number }>>([]);
+
+  /** Set priority by selecting a dynamic priority object */
+  selectPriority(prio: { id: string; name: string }) {
+    this.priorityId = prio.id;
+    this.priority = prio.name;
+  }
   selectedType: 'EPIC' | 'STORY' | 'TASK' | 'BUG' | 'IMPROVEMENT' = 'TASK';
   dueDate = '';
   description = '';
@@ -117,6 +126,7 @@ export class CreateTaskModalComponent implements OnChanges {
         this.selectedProjectId = this.projectId;
         this.selectedProjectName = this.projectName;
         this.loadSprints(this.projectId);
+        this.loadPriorities(this.projectId);
         if (!this.lockedParentTaskId) this.loadParentTaskCandidates(this.projectId);
       } else {
         this.loadAvailableProjects();
@@ -196,8 +206,26 @@ export class CreateTaskModalComponent implements OnChanges {
     if (project) {
       this.selectedProjectName = project.name;
       this.loadSprints(projectId);
+      this.loadPriorities(projectId);
       if (!this.lockedParentTaskId) this.loadParentTaskCandidates(projectId);
     }
+  }
+
+  /** Fetch priorities from GET /api/projects/:id/priorities */
+  private loadPriorities(projectId: string): void {
+    this.priorityId = undefined;
+    this.priority = '';
+    this.projectsService.getProjectPriorities(projectId).subscribe({
+      next: (priorities) => {
+        const sorted = [...priorities].sort((a, b) => a.order - b.order);
+        this.availablePriorities.set(sorted);
+        // Auto-select the first (default) priority
+        if (sorted.length > 0) {
+          this.selectPriority(sorted[0]);
+        }
+      },
+      error: () => this.availablePriorities.set([]),
+    });
   }
 
   /** Loads this project's tasks once, for the optional "Parent Task" picker
@@ -280,7 +308,7 @@ export class CreateTaskModalComponent implements OnChanges {
       projectId: finalProjectId,
       // Wrap the selected UUID in an array; omit if nothing was selected
       assigneeIds: this.selectedAssigneeIds,
-      priority: this.priority,
+      priorityId: this.priorityId,
       type: this.selectedType,
       dueDate: this.dueDate,
       description: this.description,
@@ -301,7 +329,7 @@ export class CreateTaskModalComponent implements OnChanges {
     this.assigneeSearch = '';
     this.isAssigneeDropdownOpen.set(false);
 
-    this.priority = 'MEDIUM';
+    this.priorityId = undefined;
     this.selectedType = 'TASK';
     this.dueDate = '';
     this.description = '';

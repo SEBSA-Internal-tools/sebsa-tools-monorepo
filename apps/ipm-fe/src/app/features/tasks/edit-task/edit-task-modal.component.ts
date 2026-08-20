@@ -17,6 +17,7 @@ import type {
   UserAdminSummary,
 } from '@sebsa-pm-tool/shared-models';
 import { UserAdminService } from '../../../core/services/user-admin.service';
+import { ProjectsService } from '../../projects/services/projects.service';
 
 @Component({
   standalone: true,
@@ -29,13 +30,23 @@ import { UserAdminService } from '../../../core/services/user-admin.service';
 export class EditTaskModalComponent implements OnChanges {
   @Input() isOpen = false;
   @Input() task: Task | null = null;
+  /** Backward-compatible priority label */
+  priority = '';
+  readonly availablePriorities = signal<Array<{ id: string; name: string; color: string | null; order: number }>>([]);
   @Output() closed = new EventEmitter<void>();
   @Output() submitted = new EventEmitter<UpdateTaskRequest>();
 
   private readonly userAdminService = inject(UserAdminService);
+  private readonly projectsService = inject(ProjectsService);
+
+  /** Set priority by selecting a dynamic priority object */
+  selectPriority(prio: { id: string; name: string }) {
+    this.priorityId = prio.id;
+    this.priority = prio.name;
+  }
 
   taskTitle = '';
-  priority: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' = 'MEDIUM';
+  priorityId?: string;
   startDate = '';
   dueDate = '';
   storyPoints: number | null = null;
@@ -49,7 +60,8 @@ export class EditTaskModalComponent implements OnChanges {
   ngOnChanges(): void {
     if (this.isOpen && this.task) {
       this.taskTitle = this.task.title || '';
-      this.priority = this.task.priority || 'MEDIUM';
+      this.priorityId = this.task.priorityId;
+      this.priority = this.task.priority?.name?.toUpperCase() || '';
       this.startDate = this.task.startDate ? this.task.startDate.split('T')[0] : '';
       this.dueDate = this.task.dueDate ? this.task.dueDate.split('T')[0] : '';
       this.storyPoints = this.task.storyPoints ?? null;
@@ -58,6 +70,9 @@ export class EditTaskModalComponent implements OnChanges {
       this.selectedAssigneeId = this.task.assignees[0]?.id ?? '';
       this.selectedCategory = this.task.category ?? '';
       this.loadAssignees();
+      if (this.task.projectId) {
+        this.loadPriorities(this.task.projectId);
+      }
     }
   }
 
@@ -65,6 +80,17 @@ export class EditTaskModalComponent implements OnChanges {
     this.userAdminService.listAll().subscribe({
       next: (users) => this.availableAssignees.set(users.filter((u) => u.isActive)),
       error: () => this.availableAssignees.set([]),
+    });
+  }
+
+  /** Fetch priorities from GET /api/projects/:id/priorities */
+  private loadPriorities(projectId: string): void {
+    this.projectsService.getProjectPriorities(projectId).subscribe({
+      next: (priorities) => {
+        const sorted = [...priorities].sort((a, b) => a.order - b.order);
+        this.availablePriorities.set(sorted);
+      },
+      error: () => this.availablePriorities.set([]),
     });
   }
 
@@ -84,7 +110,7 @@ export class EditTaskModalComponent implements OnChanges {
 
     const formData: UpdateTaskRequest = {
       title: this.taskTitle,
-      priority: this.priority,
+      priorityId: this.priorityId,
       startDate: this.startDate || undefined,
       dueDate: this.dueDate || undefined,
       storyPoints: this.storyPoints !== null ? this.storyPoints : undefined,
