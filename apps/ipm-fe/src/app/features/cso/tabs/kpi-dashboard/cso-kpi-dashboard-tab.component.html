@@ -1,0 +1,410 @@
+<div class="cso-kpi-dashboard">
+
+  <!-- ── Header ── -->
+  <div class="dashboard-header">
+    <h2>CSO Dashboard</h2>
+    <p class="subtitle">Performance metrics and case analytics</p>
+  </div>
+
+  <!-- ── Tab Bar — always visible ── -->
+  <div class="dashboard-tabs" role="tablist">
+    <button
+      type="button" role="tab" class="tab-btn"
+      [class.active]="activeTab() === 'team'"
+      [attr.aria-selected]="activeTab() === 'team'"
+      (click)="setActiveTab('team')"
+    >
+      <span class="material-symbols-outlined">person</span>
+      Team Dashboard
+    </button>
+    <button
+      type="button" role="tab" class="tab-btn"
+      [class.active]="activeTab() === 'management'"
+      [attr.aria-selected]="activeTab() === 'management'"
+      (click)="setActiveTab('management')"
+    >
+      <span class="material-symbols-outlined">manage_accounts</span>
+      CSO Management Dashboard
+    </button>
+  </div>
+
+  <!-- ── Permission denied (Management tab, insufficient role) ── -->
+  @if (activeTab() === 'management' && !isManagementAllowed()) {
+    <div class="permission-denied">
+      <span class="material-symbols-outlined">lock</span>
+      <h3>Access Restricted</h3>
+      <p>The CSO Management Dashboard is available to <strong>Admins</strong> and <strong>Executives</strong> only.</p>
+      <p class="hint">Contact your administrator if you need access.</p>
+    </div>
+  } @else {
+
+    <!-- ── Loading state ── -->
+    @if (isLoading()) {
+      <div class="loading-state">
+        <div class="spinner"></div>
+        <p>Loading dashboard data…</p>
+      </div>
+    } @else {
+
+      <!-- ══════════════════════════════════════════════ -->
+      <!-- ROW 1 — 9 KPI Cards (3 × 3)                   -->
+      <!-- ══════════════════════════════════════════════ -->
+      <div class="kpi-grid">
+        @for (card of kpiCards(); track card.id) {
+          <div class="kpi-card" [style.--accent]="card.accent">
+            <div class="kpi-icon-wrap">
+              <span class="material-symbols-outlined">{{ card.icon }}</span>
+            </div>
+            <div class="kpi-body">
+              <span class="kpi-value">{{ card.value }}</span>
+              <span class="kpi-label">{{ card.title }}</span>
+              @if (card.badge) {
+                <span class="sla-badge" [class]="card.badge.cls">{{ card.badge.label }}</span>
+              }
+            </div>
+          </div>
+        }
+      </div>
+
+      <!-- ══════════════════════════════════════════════ -->
+      <!-- ROW 2 — Open Cases by Priority Trend          -->
+      <!-- ══════════════════════════════════════════════ -->
+      <div class="chart-card full-width">
+        <div class="chart-card-header">
+          <h3>Open Cases by Priority Trend</h3>
+          <div class="range-btns">
+            @for (r of ['7D', '30D', '90D']; track r) {
+              <button type="button" class="range-btn" [class.active]="trendRange() === r" (click)="setTrendRange(r)">
+                {{ r }}
+              </button>
+            }
+          </div>
+        </div>
+
+        @if (priorityTrendLines().length === 0) {
+          <div class="chart-empty">
+            <span class="material-symbols-outlined">show_chart</span>
+            <p>No open cases in this period</p>
+          </div>
+        } @else {
+          <div class="line-chart-wrap">
+            <svg viewBox="0 0 720 150" class="line-chart-svg" preserveAspectRatio="none">
+              <!-- grid lines -->
+              <line x1="0" y1="10"  x2="720" y2="10"  stroke="var(--app-border)" stroke-width="0.5" stroke-dasharray="4 4" />
+              <line x1="0" y1="75"  x2="720" y2="75"  stroke="var(--app-border)" stroke-width="0.5" stroke-dasharray="4 4" />
+              <line x1="0" y1="140" x2="720" y2="140" stroke="var(--app-border)" stroke-width="0.5" />
+              <!-- priority lines -->
+              @for (line of priorityTrendLines(); track line.priority) {
+                <polyline
+                  [attr.points]="line.points"
+                  [attr.stroke]="line.color"
+                  stroke-width="2.5"
+                  fill="none"
+                  stroke-linejoin="round"
+                  stroke-linecap="round"
+                />
+              }
+            </svg>
+            <!-- X-axis labels -->
+            <div class="x-labels">
+              @for (label of trendBucketLabels(); track label) {
+                <span>{{ label }}</span>
+              }
+            </div>
+          </div>
+          <!-- Legend -->
+          <div class="chart-legend">
+            @for (line of priorityTrendLines(); track line.priority) {
+              <div class="legend-item">
+                <span class="legend-dot" [style.background]="line.color"></span>
+                <span>{{ line.priority }}</span>
+              </div>
+            }
+          </div>
+        }
+      </div>
+
+      <!-- ══════════════════════════════════════════════ -->
+      <!-- ROW 3 — Status Table + Age Table (50 / 50)    -->
+      <!-- ══════════════════════════════════════════════ -->
+      <div class="two-col-row">
+
+        <!-- Case Count by Statuses -->
+        <div class="chart-card">
+          <div class="chart-card-header"><h3>Case Count by Statuses</h3></div>
+          @if (caseStatusTable().length === 0) {
+            <div class="chart-empty"><p>No data</p></div>
+          } @else {
+            <table class="data-table">
+              <thead>
+                <tr><th>Status</th><th>Count</th><th>% of Total</th></tr>
+              </thead>
+              <tbody>
+                @for (row of caseStatusTable(); track row.status) {
+                  <tr>
+                    <td>
+                      <span class="status-pill status-{{ row.status }}">{{ row.status | titlecase }}</span>
+                    </td>
+                    <td><strong>{{ row.count }}</strong></td>
+                    <td>
+                      <div class="mini-bar-wrap">
+                        <div class="mini-bar" [style.width.%]="row.pct"></div>
+                        <span>{{ row.pct }}%</span>
+                      </div>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          }
+        </div>
+
+        <!-- Case Count by Case Age -->
+        <div class="chart-card">
+          <div class="chart-card-header"><h3>Case Count by Case Age</h3></div>
+          <table class="data-table">
+            <thead>
+              <tr><th>Age Range</th><th>Count</th><th>% of Open</th></tr>
+            </thead>
+            <tbody>
+              @for (row of caseAgeTable(); track row.label) {
+                <tr [class.row-warn]="row.minDays === 15" [class.row-crit]="row.minDays === 31">
+                  <td>{{ row.label }}</td>
+                  <td><strong>{{ row.count }}</strong></td>
+                  <td>{{ row.pct }}%</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+
+      <!-- ══════════════════════════════════════════════ -->
+      <!-- ROW 4 — Cases by Customer Over Time           -->
+      <!-- ══════════════════════════════════════════════ -->
+      <div class="chart-card full-width">
+        <div class="chart-card-header">
+          <h3>Cases by Customer Over Time</h3>
+          <div class="month-filter">
+            <label>From</label>
+            <input type="month" [ngModel]="monthFrom()" (ngModelChange)="monthFrom.set($event)" />
+            <label>To</label>
+            <input type="month" [ngModel]="monthTo()" (ngModelChange)="monthTo.set($event)" />
+          </div>
+        </div>
+        @if (customerMonthlyData().length === 0) {
+          <div class="chart-empty">
+            <span class="material-symbols-outlined">calendar_month</span>
+            <p>No data for the selected period</p>
+          </div>
+        } @else {
+          <table class="data-table">
+            <thead>
+              <tr><th>Month</th><th>Customer</th><th>Case Count</th></tr>
+            </thead>
+            <tbody>
+              @for (row of customerMonthlyData(); track row.month + row.customerName) {
+                <tr>
+                  <td>{{ row.month }}</td>
+                  <td>{{ row.customerName }}</td>
+                  <td><strong>{{ row.count }}</strong></td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+      </div>
+
+      <!-- ══════════════════════════════════════════════ -->
+      <!-- ROW 5 — Resolution Trend + Workload Donut     -->
+      <!-- ══════════════════════════════════════════════ -->
+      <div class="chart-row">
+
+        <!-- Resolution Trend -->
+        <div class="chart-card">
+          <div class="chart-card-header"><h3>Resolution Trend</h3></div>
+          @if (resolutionPoints().length === 0) {
+            <div class="chart-empty">
+              <span class="material-symbols-outlined">trending_up</span>
+              <p>No resolved cases in this period</p>
+            </div>
+          } @else {
+            <div class="line-chart-wrap">
+              <svg viewBox="0 0 720 150" class="line-chart-svg" preserveAspectRatio="none">
+                <line x1="0" y1="10"  x2="720" y2="10"  stroke="var(--app-border)" stroke-width="0.5" stroke-dasharray="4 4" />
+                <line x1="0" y1="75"  x2="720" y2="75"  stroke="var(--app-border)" stroke-width="0.5" stroke-dasharray="4 4" />
+                <line x1="0" y1="140" x2="720" y2="140" stroke="var(--app-border)" stroke-width="0.5" />
+                <!-- Area fill -->
+                <path [attr.d]="resolutionSvgArea()" fill="rgba(16,185,129,0.15)" />
+                <!-- Line -->
+                <polyline
+                  [attr.points]="resolutionSvgLine()"
+                  stroke="#10b981"
+                  stroke-width="2.5"
+                  fill="none"
+                  stroke-linejoin="round"
+                  stroke-linecap="round"
+                />
+              </svg>
+              <div class="x-labels">
+                @for (pt of resolutionPoints(); track pt.label) {
+                  <span>{{ pt.label }}</span>
+                }
+              </div>
+            </div>
+          }
+        </div>
+
+        <!-- Workload by Members Donut -->
+        <div class="chart-card">
+          <div class="chart-card-header"><h3>Workload by Members</h3></div>
+          @if (workloadSegments().length === 0) {
+            <div class="chart-empty">
+              <span class="material-symbols-outlined">donut_large</span>
+              <p>No open cases</p>
+            </div>
+          } @else {
+            <div class="donut-layout">
+              <!-- SVG Donut -->
+              <svg viewBox="0 0 180 180" class="donut-svg">
+                <g transform="rotate(-90 90 90)">
+                  @for (seg of workloadSegments(); track seg.memberName) {
+                    <circle
+                      cx="90" cy="90" r="70"
+                      fill="none"
+                      [attr.stroke]="seg.color"
+                      stroke-width="28"
+                      [attr.stroke-dasharray]="seg.dasharray"
+                      [attr.stroke-dashoffset]="seg.dashoffset"
+                      class="donut-segment"
+                      [class.active]="activeMember() === seg.memberName"
+                      (click)="onMemberSegmentClick(seg.memberName)"
+                    />
+                  }
+                </g>
+                <!-- Centre label -->
+                <text x="90" y="84" class="donut-center-value">
+                  {{ activeMember() ? getMemberCount(activeMember()!) : totalOpenCount() }}
+                </text>
+                <text x="90" y="104" class="donut-center-label">
+                  {{ activeMember() ?? 'Open Cases' }}
+                </text>
+              </svg>
+              <!-- Legend -->
+              <div class="donut-legend">
+                @for (seg of workloadSegments(); track seg.memberName) {
+                  <div
+                    class="legend-item"
+                    [class.active]="activeMember() === seg.memberName"
+                    (click)="onMemberSegmentClick(seg.memberName)"
+                  >
+                    <span class="legend-dot" [style.background]="seg.color"></span>
+                    <span class="legend-name">{{ seg.memberName }}</span>
+                    <span class="legend-count">{{ seg.count }}</span>
+                  </div>
+                }
+              </div>
+            </div>
+          }
+        </div>
+
+      </div>
+
+      <!-- ══════════════════════════════════════════════ -->
+      <!-- ROW 6 — Open Cases by Each Member             -->
+      <!-- ══════════════════════════════════════════════ -->
+      <div class="chart-card full-width">
+        <div class="chart-card-header"><h3>Open Cases by Each Member</h3></div>
+        @if (memberOpenRows().length === 0) {
+          <div class="chart-empty">
+            <span class="material-symbols-outlined">group</span>
+            <p>No open cases</p>
+          </div>
+        } @else {
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Member</th>
+                <th>Total Open</th>
+                <th>Critical</th>
+                <th>High</th>
+                <th>Medium</th>
+                <th>Low</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of memberOpenRows(); track row.memberName) {
+                <tr>
+                  <td><strong>{{ row.memberName }}</strong></td>
+                  <td><strong>{{ row.totalOpen }}</strong></td>
+                  <td>
+                    @if (row.critical > 0) {
+                      <span class="priority-badge critical">{{ row.critical }}</span>
+                    } @else {
+                      <span class="muted">0</span>
+                    }
+                  </td>
+                  <td>
+                    @if (row.high > 0) {
+                      <span class="priority-badge high">{{ row.high }}</span>
+                    } @else {
+                      <span class="muted">0</span>
+                    }
+                  </td>
+                  <td>{{ row.medium }}</td>
+                  <td>{{ row.low }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+      </div>
+
+      <!-- ══════════════════════════════════════════════ -->
+      <!-- ROW 7 — Cases Completed by Member             -->
+      <!-- ══════════════════════════════════════════════ -->
+      <div class="chart-card full-width">
+        <div class="chart-card-header"><h3>Cases Completed by Member &amp; Time Spent</h3></div>
+        @if (memberCompletionRows().length === 0) {
+          <div class="chart-empty">
+            <span class="material-symbols-outlined">task_alt</span>
+            <p>No completed cases</p>
+          </div>
+        } @else {
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Member</th>
+                <th>Cases Completed</th>
+                <th>Total Time Spent</th>
+                <th>Avg Time / Case</th>
+                <th>Avg CSAT</th>
+                <th>SLA Met %</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of memberCompletionRows(); track row.memberName) {
+                <tr>
+                  <td><strong>{{ row.memberName }}</strong></td>
+                  <td><strong>{{ row.completed }}</strong></td>
+                  <td class="todo-cell" title="Requires closedAt field from backend">—</td>
+                  <td class="todo-cell" title="Requires closedAt field from backend">—</td>
+                  <td class="todo-cell" title="Requires csatScore field from backend">—</td>
+                  <td class="todo-cell" title="Requires resolvedWithinSla field from backend">—</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+          <p class="todo-note">
+            <span class="material-symbols-outlined">info</span>
+            Time Spent, CSAT, and SLA columns require additional backend fields:
+            <code>closedAt</code>, <code>csatScore</code>, <code>resolvedWithinSla</code>
+          </p>
+        }
+      </div>
+
+    }<!-- /isLoading -->
+  }<!-- /permission -->
+
+</div>

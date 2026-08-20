@@ -1,7 +1,7 @@
 import { Component, Input, Output, EventEmitter, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
-type TabType = 'dashboard' | 'overview' | 'queue';
+type TabType = 'dashboard' | 'cso-board' | 'overview' | 'queue';
 
 interface Tab {
   id: TabType;
@@ -103,6 +103,7 @@ export class CsoNavTabsComponent {
 
   tabs: Tab[] = [
     { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
+    { id: 'cso-board', label: 'CSO Board', icon: 'business' },
     { id: 'overview', label: 'Overview', icon: 'view_list' },
     { id: 'queue', label: 'Queue', icon: 'inbox' },
   ];

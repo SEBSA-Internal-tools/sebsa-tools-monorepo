@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { CsoKpiDashboardTabComponent } from './tabs/kpi-dashboard/cso-kpi-dashboard-tab.component';
 import { CsoDashboardTabComponent } from './tabs/dashboard/cso-dashboard-tab.component';
 import { CsoOverviewTabComponent } from './tabs/overview/cso-overview-tab.component';
 import { CsoQueueTabComponent } from './tabs/queue/cso-queue-tab.component';
@@ -11,6 +12,7 @@ import { CsoNavTabsComponent } from './components/nav-tabs/cso-nav-tabs.componen
   imports: [
     CommonModule,
     CsoNavTabsComponent,
+    CsoKpiDashboardTabComponent,
     CsoDashboardTabComponent,
     CsoOverviewTabComponent,
     CsoQueueTabComponent,
@@ -20,7 +22,7 @@ import { CsoNavTabsComponent } from './components/nav-tabs/cso-nav-tabs.componen
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CsoPageComponent {
-  protected activeTab: 'dashboard' | 'overview' | 'queue' = 'dashboard';
+  protected activeTab: 'dashboard' | 'cso-board' | 'overview' | 'queue' = 'dashboard';
   /** Sub-tab within the Queue tab. */
   protected activeQueueTab: 'functional' | 'technical' = 'functional';
 

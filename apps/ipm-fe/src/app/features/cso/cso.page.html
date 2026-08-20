@@ -15,6 +15,9 @@
       <div class="tab-content">
         @switch (activeTab) {
           @case ('dashboard') {
+            <cso-kpi-dashboard-tab></cso-kpi-dashboard-tab>
+          }
+          @case ('cso-board') {
             <cso-dashboard-tab></cso-dashboard-tab>
           }
           @case ('overview') {
