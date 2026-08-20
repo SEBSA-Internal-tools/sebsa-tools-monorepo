@@ -3,11 +3,11 @@
 // =============================================================================
 
 .health-matrix-container {
-  background: var(--surface-card);
-  border: 1px solid var(--border-default);
+  background: #FFFFFF;
+  border: none;
   border-radius: 24px;
   padding: 28px;
-  box-shadow: var(--shadow-card);
+  box-shadow: none;
   margin-bottom: 24px;
 
   .matrix-header {

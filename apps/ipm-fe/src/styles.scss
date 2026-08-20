@@ -119,10 +119,10 @@ code, pre, .font-mono, .task-id, .crim-id {
 }
 
 .sebsa-page-header {
-  background-color: #F8FAFC; /* Very light ash/gray */
-  border: 1px solid #F1F5F9;
+  background-color: #F1F5F9; /* Slightly darker ash/gray */
+  border: 1px solid #E2E8F0;
   border-radius: 24px;
-  padding: 32px;
+  padding: 48px 40px; /* Increased to match CSO/Projects layout sizes */
   margin-bottom: 24px;
   text-align: left;
   display: flex;
@@ -211,20 +211,34 @@ code, pre, .font-mono, .task-id, .crim-id {
   }
 }
 
-/* 5.1 Primary (Purple) Color Family */
+/* 5.1 Primary (Purple) Color Family — Enforce Solid Deep Purple */
 .btn-primary,
-.btn-primary-solid {
-  @extend .btn;
-  color: #ffffff;
-  background-color: #5B21B6;
-  border: 1px solid #5B21B6;
-  box-shadow: none;
+.btn-primary-solid,
+.sebsa-btn-primary {
+  background-color: #5B21B6 !important; /* Solid deep purple */
+  color: #FFFFFF !important; /* Pure white text */
+  font-weight: 600 !important;
+  border: none !important;
+  border-radius: 8px !important;
+  padding: 10px 20px !important;
+  box-shadow: none !important;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+
+  .material-symbols-outlined,
+  span {
+    color: #FFFFFF !important;
+  }
 
   &:hover:not(:disabled) {
-    background-color: #4C1D95;
-    border-color: #4C1D95;
-    box-shadow: none;
-    transform: translateY(-1px);
+    background-color: #4C1D95 !important; /* Slightly darker shade on hover, no harsh glows */
+    color: #FFFFFF !important;
+    border-color: #4C1D95 !important;
+    box-shadow: none !important;
+    transform: none !important;
   }
 }
 
@@ -508,3 +522,122 @@ code, pre, .font-mono, .task-id, .crim-id {
     'GRAD' 0,
     'opsz' 24;
 }
+
+// =============================================================================
+// 8. Global Layout, Search Bar, Table & Typography Standardization Overrides
+// =============================================================================
+
+/* Global Typography Enforcement */
+body, input, button, table {
+  font-family: 'Inter', sans-serif !important;
+}
+
+h1, h2, h3, h4, h5, h6, .sebsa-page-title {
+  font-family: 'Poppins', sans-serif !important;
+}
+
+/* Task 1: Remove Main Container Borders on Table Pages */
+.table-container, .page-body, .list-card {
+  border: none !important;
+  box-shadow: none !important;
+  background-color: #FFFFFF;
+}
+
+/* Restore Clear Ash Borders to Dashboard Cards & Metric Boxes */
+.dashboard-card,
+.metric-card,
+.stat-box,
+.overview-card,
+.summary-card,
+.card-item,
+.hero-section,
+.cards-grid .card,
+.dashboard-page .card,
+app-dashboard-hero .hero-section,
+app-dashboard-summary-cards .card,
+app-dashboard-portfolio .portfolio-card,
+app-dashboard-timeline .timeline-card,
+app-dashboard-workload .workload-card,
+app-dashboard-activity .activity-card {
+  border: 1px solid #CBD5E1 !important; /* Clear dark ash border */
+  background-color: #FFFFFF !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05) !important; /* Soft depth shadow */
+}
+
+/* Remove Border from Project Health Matrix Card */
+.health-matrix-container,
+app-dashboard-project-health-matrix .health-matrix-container {
+  border: none !important;
+  box-shadow: none !important;
+  background-color: #FFFFFF !important;
+}
+
+/* Task 2: Ash Search Bars */
+input[type="search"], .search-bar input, .search-box, .sebsa-search {
+  background-color: #F1F5F9 !important;
+  border: 1px solid #E2E8F0 !important;
+  color: #1E293B;
+  border-radius: 8px;
+  padding: 10px 16px;
+}
+
+/* Global Borderless Table with Column Separation */
+.sebsa-table, table {
+  width: 100%;
+  border-collapse: separate; /* Required for clean backgrounds */
+  border-spacing: 0;
+}
+
+/* Bold Dark Ash Headers */
+.sebsa-table th, table th {
+  color: #1E293B !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em !important;
+  padding: 16px;
+  background-color: #F8FAFC !important; /* Very light ash header background */
+  border: none !important;
+  border-bottom: 2px solid #E2E8F0 !important;
+  font-family: 'Inter', sans-serif !important;
+}
+
+/* Borderless Cells with Soft Background Separation */
+.sebsa-table td, table td {
+  padding: 16px;
+  border: none !important; /* NO BORDERS */
+  border-bottom: 1px solid #F1F5F9 !important; /* Only bottom row divider */
+  color: #334155 !important;
+  background-color: #FFFFFF;
+  font-size: 0.875rem !important;
+  font-weight: 400 !important;
+  line-height: 1.5 !important;
+  font-family: 'Inter', sans-serif !important;
+}
+
+/* Soft hover effect to track rows */
+.sebsa-table tr:hover td, table tr:hover td {
+  background-color: #F9FAFB !important;
+}
+
+/* Task 3: Glossy User Count Badge */
+.sebsa-glossy-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  margin-left: 12px;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #5B21B6; /* Deep Purple */
+  background: linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 100%);
+  border: 1px solid #FFFFFF;
+  border-radius: 14px;
+  box-shadow: 0 2px 6px rgba(91, 33, 182, 0.15), inset 0 1px 2px rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(4px);
+  vertical-align: middle;
+}
+
+

@@ -1,56 +1,58 @@
 <div class="admin-users-container">
+  <!-- Container 1: The Standard Header -->
   <header class="sebsa-page-header">
-    <div style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%;">
-      <div>
-        <span class="sebsa-eyebrow">SECURITY</span>
-        <h1 class="sebsa-page-title">Privilege Groups</h1>
-        <p class="sebsa-page-desc">Define reusable permission bundles that project roles can be assigned.</p>
-      </div>
-      <button type="button" class="btn-primary" (click)="openCreateModal()">
-        <span class="material-symbols-outlined">add</span>
-        Create Group
-      </button>
-    </div>
+    <span class="sebsa-eyebrow">SECURITY</span>
+    <h1 class="sebsa-page-title">Privilege Groups</h1>
+    <p class="sebsa-page-desc">Define reusable permission bundles that project roles can be assigned.</p>
   </header>
 
-  @if (errorMessage()) {
-    <div class="error-banner">{{ errorMessage() }}</div>
-  }
+  <!-- Container 2: The Content Area -->
+  <div class="sebsa-card">
+    <div class="content-header-row" style="display: flex; justify-content: flex-end; margin-bottom: 24px;">
+      <button type="button" class="btn-primary" (click)="openCreateModal()">
+        + Create Group
+      </button>
+    </div>
 
-  <section class="section">
-    <table class="users-table">
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Description</th>
-          <th>Permissions</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        @for (group of groups(); track group.id) {
+    @if (errorMessage()) {
+      <div class="error-banner">{{ errorMessage() }}</div>
+    }
+
+    <section class="section">
+      <table class="sebsa-table">
+        <thead>
           <tr>
-            <td>{{ group.name }}</td>
-            <td>{{ group.description || '—' }}</td>
-            <td>
-              <div class="permission-badges">
-                @if (group.canCreateTask) { <span class="badge badge-active">Create Task</span> }
-                @if (group.canDeleteTask) { <span class="badge badge-active">Delete Task</span> }
-                @if (group.canManageMembers) { <span class="badge badge-active">Manage Members</span> }
-                @if (group.canConfigureIntegrations) { <span class="badge badge-active">Configure Integrations</span> }
-                @if (group.canManageWorkflow) { <span class="badge badge-active">Manage Workflow</span> }
-                @if (group.isReadOnly) { <span class="badge badge-pending">Read Only</span> }
-              </div>
-            </td>
-            <td class="actions">
-              <button type="button" class="btn-text" (click)="openEditModal(group)">Edit</button>
-              <button type="button" class="btn-text btn-text-danger" (click)="remove(group)">Delete</button>
-            </td>
+            <th>Name</th>
+            <th>Description</th>
+            <th>Permissions</th>
+            <th></th>
           </tr>
-        }
-      </tbody>
-    </table>
-  </section>
+        </thead>
+        <tbody>
+          @for (group of groups(); track group.id) {
+            <tr>
+              <td>{{ group.name }}</td>
+              <td>{{ group.description || '—' }}</td>
+              <td>
+                <div class="permission-badges">
+                  @if (group.canCreateTask) { <span class="badge badge-active">Create Task</span> }
+                  @if (group.canDeleteTask) { <span class="badge badge-active">Delete Task</span> }
+                  @if (group.canManageMembers) { <span class="badge badge-active">Manage Members</span> }
+                  @if (group.canConfigureIntegrations) { <span class="badge badge-active">Configure Integrations</span> }
+                  @if (group.canManageWorkflow) { <span class="badge badge-active">Manage Workflow</span> }
+                  @if (group.isReadOnly) { <span class="badge badge-pending">Read Only</span> }
+                </div>
+              </td>
+              <td class="actions">
+                <button type="button" class="btn-text" (click)="openEditModal(group)">Edit</button>
+                <button type="button" class="btn-text btn-text-danger" (click)="remove(group)">Delete</button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </section>
+  </div>
 
   @if (isModalOpen()) {
     <div class="modal-overlay" (click)="closeModal()"></div>
