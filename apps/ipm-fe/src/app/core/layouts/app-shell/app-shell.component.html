@@ -1,13 +1,8 @@
 <main class="app-shell">
+  <!-- Left Navigation Sidebar -->
   <aside class="sidebar" aria-label="Primary navigation">
     <section class="brand-block">
-      <div class="icon-premium-wrapper brand-logo-icon">
-        <span class="material-symbols-outlined">space_dashboard</span>
-      </div>
-      <div class="brand-copy">
-        <h1>SEBSA PMT</h1>
-        <p>Enterprise PM Tool</p>
-      </div>
+      <div class="sidebar-logo-mask"></div>
     </section>
 
     <button type="button" class="btn-primary new-task-button" aria-haspopup="dialog" [attr.aria-expanded]="isTaskModalOpen" (click)="openTaskModal()">
@@ -64,19 +59,28 @@
     </div>
   </aside>
 
+  <!-- Right Content Viewport with Fixed Top Header -->
   <div class="content-wrapper">
     <header class="top-navbar">
-      <div class="search-container">
-        <span class="material-symbols-outlined search-icon" aria-hidden="true">search</span>
-        <input
-          type="search"
-          placeholder="Search tasks, projects, or documents..."
-          class="search-input"
-          aria-label="Global search"
-        />
+      <!-- Column 1: Left Header Slot -->
+      <div class="navbar-left"></div>
+
+      <!-- Column 2: Centered Search Bar -->
+      <div class="navbar-center">
+        <div class="search-container">
+          <span class="material-symbols-outlined search-icon" aria-hidden="true">search</span>
+          <input
+            type="search"
+            placeholder="Search tasks, projects..."
+            class="search-input"
+            aria-label="Global search"
+          />
+        </div>
       </div>
 
+      <!-- Column 3: Right Header Actions -->
       <div class="navbar-actions">
+        <!-- Theme Toggle -->
         <button
           type="button"
           class="action-btn theme-toggle-btn"
@@ -86,27 +90,36 @@
           <span class="material-symbols-outlined" aria-hidden="true">{{ themeService.iconName }}</span>
         </button>
 
-        <button type="button" class="action-btn" aria-label="Help and Support">
-          <span class="material-symbols-outlined" aria-hidden="true">help</span>
+        <!-- Notification Bell with Red Badge -->
+        <button type="button" class="notification-bell-btn" aria-label="Notifications" routerLink="/notifications">
+          <span class="material-symbols-outlined" aria-hidden="true">notifications</span>
+          <span class="notification-badge">5</span>
         </button>
 
+        <!-- User Profile Chip Pill -->
         <div class="profile-menu-wrapper">
           <button
             type="button"
-            class="user-profile-btn"
+            class="user-profile-chip"
             [attr.aria-expanded]="isProfileMenuOpen"
             aria-label="User account menu"
             (click)="toggleProfileMenu()"
           >
-            <span class="material-symbols-outlined avatar-icon" aria-hidden="true">account_circle</span>
-            <span class="user-name">{{ authService.currentUser()?.name ?? 'Account' }}</span>
-            <span class="material-symbols-outlined dropdown-icon" aria-hidden="true">arrow_drop_down</span>
+            <div class="avatar-circle">
+              {{ (authService.currentUser()?.name || 'Hiruni').charAt(0).toUpperCase() }}
+            </div>
+            <div class="user-meta">
+              <span class="user-name">{{ authService.currentUser()?.name || 'Hiruni Wijethilaka' }}</span>
+              <span class="user-role-subtitle">Developer • Reviewer • Admin</span>
+            </div>
+            <span class="material-symbols-outlined dropdown-chevron" aria-hidden="true">expand_more</span>
           </button>
 
+          <!-- User Profile Dropdown Menu -->
           <div class="profile-menu" *ngIf="isProfileMenuOpen">
             <div class="profile-menu-header">
-              <span class="profile-menu-name">{{ authService.currentUser()?.name }}</span>
-              <span class="profile-menu-email">{{ authService.currentUser()?.email }}</span>
+              <span class="profile-menu-name">{{ authService.currentUser()?.name || 'Hiruni Wijethilaka' }}</span>
+              <span class="profile-menu-email">{{ authService.currentUser()?.email || 'hiruni@sebsa.com' }}</span>
             </div>
             <button type="button" class="profile-menu-item" (click)="logout()">
               <span class="material-symbols-outlined" aria-hidden="true">logout</span>

@@ -1,34 +1,31 @@
 // =============================================================================
-// Dashboard — Project Health & Status Matrix (Luminous Depth Glassmorphism)
+// Dashboard — Project Health & Status Matrix (SEBSA SaaS Light Theme)
 // =============================================================================
 
 .health-matrix-container {
-  background: var(--color-surface-dim);
-  backdrop-filter: var(--backdrop-blur-heavy);
-  -webkit-backdrop-filter: var(--backdrop-blur-heavy);
-  border: var(--border-glass);
-  border-radius: 16px;
-  padding: 24px;
-  box-shadow: var(--shadow-subtle);
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: 24px;
+  padding: 28px;
+  box-shadow: var(--shadow-card);
   margin-bottom: 24px;
-  transition: background-color 0.3s ease, border-color 0.3s ease;
 
   .matrix-header {
     margin-bottom: 24px;
 
     h2 {
-      font-family: 'Sora', sans-serif;
-      font-size: 1.15rem;
+      font-family: var(--font-heading);
+      font-size: 1.25rem;
       font-weight: 600;
-      letter-spacing: -0.02em;
-      color: var(--text-primary);
-      margin: 0 0 6px 0;
+      letter-spacing: -0.015em;
+      color: var(--text-heading);
+      margin: 0 0 4px 0;
     }
 
     .subtitle {
-      font-family: 'Sora', sans-serif;
-      font-size: 0.84rem;
-      color: var(--text-muted);
+      font-family: var(--font-body);
+      font-size: 0.85rem;
+      color: var(--text-secondary);
       margin: 0;
     }
   }
@@ -36,64 +33,43 @@
   .matrix-table-wrapper {
     overflow-x: auto;
     margin-bottom: 20px;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(112, 0, 255, 0.3) transparent;
 
     .health-matrix-table {
       width: 100%;
       border-collapse: collapse;
-      font-family: 'Sora', sans-serif;
-      font-size: 0.85rem;
+      font-family: var(--font-body);
+      font-size: 0.875rem;
 
       thead {
-        background: rgba(255, 255, 255, 0.02);
-        border-bottom: var(--border-glass);
+        background: var(--surface-muted);
+        border-bottom: 1px solid var(--border-default);
 
         th {
-          padding: 14px 16px;
+          padding: 12px 16px;
           text-align: left;
           font-weight: 600;
           font-size: 0.75rem;
-          color: var(--text-muted);
+          color: var(--text-secondary);
           text-transform: uppercase;
-          letter-spacing: 0.06em;
+          letter-spacing: 0.05em;
           white-space: nowrap;
 
-          &.col-project {
-            min-width: 160px;
-          }
-
-          &.col-health {
-            min-width: 130px;
-          }
-
-          &.col-budget,
-          &.col-timeline,
-          &.col-resources {
-            min-width: 110px;
-          }
-
-          &.col-risks {
-            min-width: 120px;
-          }
-
-          &.col-completion {
-            min-width: 100px;
-          }
-
-          &.col-team {
-            min-width: 110px;
-          }
+          &.col-project { min-width: 160px; }
+          &.col-health { min-width: 130px; }
+          &.col-budget, &.col-timeline, &.col-resources { min-width: 120px; }
+          &.col-risks { min-width: 120px; }
+          &.col-completion { min-width: 100px; }
+          &.col-team { min-width: 110px; }
         }
       }
 
       tbody {
         tr {
-          border-bottom: var(--border-glass);
-          transition: background-color 0.2s ease;
+          border-bottom: 1px solid var(--border-subtle);
+          transition: background-color 0.15s ease;
 
           &:hover {
-            background-color: var(--color-surface-glass-hover);
+            background-color: #f8fafc;
           }
 
           &:last-child {
@@ -106,23 +82,21 @@
               vertical-align: middle;
 
               .project-name {
+                font-family: var(--font-heading);
                 font-weight: 600;
-                color: var(--text-primary);
-                letter-spacing: -0.01em;
+                color: var(--text-heading);
               }
 
-              /* Minimalist Status Badges with Colored Indicator Dots */
+              /* Soft Two-Tone Status Badges */
               .health-badge {
                 display: inline-flex;
                 align-items: center;
-                gap: 8px;
-                background: rgba(255, 255, 255, 0.03);
-                border: 1px solid rgba(255, 255, 255, 0.1);
-                border-radius: 12px;
-                padding: 4px 10px;
-                font-size: 0.78rem;
-                font-weight: 500;
-                color: var(--text-primary);
+                gap: 6px;
+                border-radius: 9999px;
+                padding: 4px 12px;
+                font-size: 0.75rem;
+                font-weight: 600;
+                white-space: nowrap;
 
                 .badge-dot {
                   width: 6px;
@@ -131,82 +105,60 @@
                   flex-shrink: 0;
                 }
 
-                &.health-success {
-                  .badge-dot {
-                    background: var(--status-success);
-                    box-shadow: 0 0 8px var(--status-success);
-                  }
+                &.health-success, &.health-good {
+                  background: var(--status-success-bg);
+                  color: var(--status-success-fg);
+                  border: 1px solid rgba(16, 185, 129, 0.2);
+                  .badge-dot { background: var(--status-success-solid); }
                 }
 
-                &.health-warning {
-                  .badge-dot {
-                    background: var(--status-warning);
-                    box-shadow: 0 0 8px var(--status-warning);
-                  }
+                &.health-warning, &.health-at-risk {
+                  background: var(--status-warning-bg);
+                  color: var(--status-warning-fg);
+                  border: 1px solid rgba(245, 158, 11, 0.2);
+                  .badge-dot { background: var(--status-warning-solid); }
                 }
 
-                &.health-danger {
-                  .badge-dot {
-                    background: var(--status-error);
-                    box-shadow: 0 0 8px var(--status-error);
-                  }
+                &.health-danger, &.health-critical {
+                  background: var(--status-error-bg);
+                  color: var(--status-error-fg);
+                  border: 1px solid rgba(239, 68, 68, 0.2);
+                  .badge-dot { background: var(--status-error-solid); }
                 }
               }
 
-              /* Ultra-thin Progress Bars (height: 4px) */
+              /* Elegant 6px Progress Bars with Faint Track and SEBSA Gradient */
               .metric-bar {
-                background: rgba(255, 255, 255, 0.05);
-                border-radius: 2px;
-                height: 4px;
+                background-color: #F1F5F9;
+                border-radius: 4px;
+                height: 6px;
                 overflow: hidden;
-                margin-bottom: 6px;
+                margin-bottom: 4px;
                 width: 100%;
 
                 .bar-fill {
                   height: 100%;
-                  border-radius: 2px;
-                  transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-
-                  &.metric-excellent {
-                    background: linear-gradient(90deg, #00b87c 0%, #00e699 100%);
-                    box-shadow: 0 0 8px rgba(0, 230, 153, 0.4);
-                  }
-
-                  &.metric-good {
-                    background: linear-gradient(90deg, #7000ff 0%, #ff00ff 100%);
-                    box-shadow: 0 0 8px rgba(112, 0, 255, 0.4);
-                  }
-
-                  &.metric-fair {
-                    background: linear-gradient(90deg, #d97706 0%, #ffb300 100%);
-                    box-shadow: 0 0 8px rgba(255, 179, 0, 0.4);
-                  }
-
-                  &.metric-poor {
-                    background: linear-gradient(90deg, #e62e5c 0%, #ff3366 100%);
-                    box-shadow: 0 0 8px rgba(255, 51, 102, 0.4);
-                  }
+                  border-radius: 4px;
+                  background: linear-gradient(90deg, #06b6d4 0%, #3b82f6 33%, #8b5cf6 66%, #5b21b6 100%);
+                  transition: width 0.4s ease;
                 }
               }
 
               .metric-value {
                 font-size: 0.75rem;
-                color: var(--text-muted);
-                font-weight: 500;
+                color: var(--text-secondary);
+                font-weight: 600;
               }
 
-              /* Minimalist Risk Badges */
+              /* Soft Risk Badges */
               .risk-badge {
                 display: inline-flex;
                 align-items: center;
-                gap: 8px;
-                background: rgba(255, 255, 255, 0.03);
-                border: 1px solid rgba(255, 255, 255, 0.1);
-                border-radius: 12px;
-                padding: 4px 10px;
-                font-size: 0.78rem;
-                font-weight: 500;
-                color: var(--text-primary);
+                gap: 6px;
+                border-radius: 9999px;
+                padding: 4px 12px;
+                font-size: 0.75rem;
+                font-weight: 600;
 
                 .badge-dot {
                   width: 6px;
@@ -216,67 +168,60 @@
                 }
 
                 &.risk-none {
-                  .badge-dot {
-                    background: var(--status-success);
-                    box-shadow: 0 0 8px var(--status-success);
-                  }
+                  background: var(--status-success-bg);
+                  color: var(--status-success-fg);
+                  .badge-dot { background: var(--status-success-solid); }
                 }
 
                 &.risk-low {
-                  .badge-dot {
-                    background: var(--status-info);
-                    box-shadow: 0 0 8px var(--status-info);
-                  }
+                  background: var(--status-info-bg);
+                  color: var(--status-info-fg);
+                  .badge-dot { background: var(--status-info-solid); }
                 }
 
                 &.risk-medium {
-                  .badge-dot {
-                    background: var(--status-warning);
-                    box-shadow: 0 0 8px var(--status-warning);
-                  }
+                  background: var(--status-warning-bg);
+                  color: var(--status-warning-fg);
+                  .badge-dot { background: var(--status-warning-solid); }
                 }
 
                 &.risk-high {
-                  .badge-dot {
-                    background: var(--status-error);
-                    box-shadow: 0 0 8px var(--status-error);
-                  }
+                  background: var(--status-error-bg);
+                  color: var(--status-error-fg);
+                  .badge-dot { background: var(--status-error-solid); }
                 }
               }
 
-              /* Elegant Thin Donut Chart (3px ring) */
+              /* Refined Donut Chart Ring (3px Stroke Width) */
               .completion-circle {
-                width: 42px;
-                height: 42px;
+                width: 36px;
+                height: 36px;
                 border-radius: 50%;
                 background: conic-gradient(
-                  var(--color-brand-primary) 0deg,
-                  var(--color-brand-primary) calc(var(--completion) * 3.6deg),
-                  rgba(255, 255, 255, 0.06) calc(var(--completion) * 3.6deg),
-                  rgba(255, 255, 255, 0.06) 360deg
+                  #5b21b6 0deg,
+                  #5b21b6 calc(var(--completion) * 3.6deg),
+                  #F1F5F9 calc(var(--completion) * 3.6deg),
+                  #F1F5F9 360deg
                 );
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                position: relative;
-                box-shadow: 0 0 10px rgba(112, 0, 255, 0.2);
 
                 .completion-text {
-                  width: 36px;
-                  height: 36px;
+                  width: 30px;
+                  height: 30px;
                   border-radius: 50%;
-                  background: var(--color-surface-dim);
-                  backdrop-filter: blur(4px);
+                  background: #ffffff;
                   display: flex;
                   align-items: center;
                   justify-content: center;
-                  font-size: 0.72rem;
-                  font-weight: 600;
-                  color: var(--text-primary);
+                  font-size: 0.68rem;
+                  font-weight: 700;
+                  color: var(--text-heading);
                 }
               }
 
-              /* Standardized Dark Glass Team Avatars */
+              /* Neutralized Ash Team Member Avatars */
               .team-members {
                 display: flex;
                 align-items: center;
@@ -289,26 +234,16 @@
                   width: 28px;
                   height: 28px;
                   border-radius: 50%;
-                  background: var(--color-surface-bright);
-                  border: var(--border-glass);
-                  color: var(--text-primary);
+                  background-color: #F1F5F9;
+                  color: #475569;
                   font-size: 0.7rem;
                   font-weight: 600;
-                  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-
-                  &:nth-child(2) {
-                    background: var(--color-surface-bright);
-                  }
-
-                  &:nth-child(3) {
-                    background: var(--color-surface-bright);
-                  }
+                  border: 1px solid #E2E8F0;
                 }
 
                 .member-more {
-                  font-size: 0.72rem;
-                  color: var(--text-muted);
-                  margin-left: 4px;
+                  font-size: 0.75rem;
+                  color: var(--text-secondary);
                   font-weight: 600;
                 }
               }
@@ -321,8 +256,8 @@
 
   .empty-state {
     text-align: center;
-    padding: 40px;
-    color: var(--text-muted);
+    padding: 32px;
+    color: var(--text-secondary);
     font-size: 0.9rem;
   }
 
@@ -330,66 +265,24 @@
     display: flex;
     gap: 24px;
     padding-top: 16px;
-    border-top: var(--border-glass);
+    border-top: 1px solid var(--border-default);
 
     .legend-item {
       display: flex;
       align-items: center;
       gap: 8px;
       font-size: 0.78rem;
-      color: var(--text-muted);
+      color: var(--text-secondary);
 
       .legend-box {
         width: 8px;
         height: 8px;
         border-radius: 50%;
 
-        &.success {
-          background: var(--status-success);
-          box-shadow: 0 0 6px var(--status-success);
-        }
-
-        &.warning {
-          background: var(--status-warning);
-          box-shadow: 0 0 6px var(--status-warning);
-        }
-
-        &.danger {
-          background: var(--status-error);
-          box-shadow: 0 0 6px var(--status-error);
-        }
+        &.success { background: var(--status-success-solid); }
+        &.warning { background: var(--status-warning-solid); }
+        &.danger { background: var(--status-error-solid); }
       }
-    }
-  }
-}
-
-@media (max-width: 768px) {
-  .health-matrix-container {
-    padding: 16px;
-
-    .matrix-header {
-      h2 {
-        font-size: 1rem;
-      }
-    }
-
-    .matrix-table-wrapper {
-      .health-matrix-table {
-        font-size: 0.8rem;
-
-        thead th {
-          padding: 10px;
-        }
-
-        tbody tr td {
-          padding: 10px;
-        }
-      }
-    }
-
-    .matrix-legend {
-      flex-direction: column;
-      gap: 12px;
     }
   }
 }
