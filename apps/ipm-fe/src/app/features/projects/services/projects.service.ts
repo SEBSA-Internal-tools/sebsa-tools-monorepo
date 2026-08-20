@@ -13,6 +13,8 @@ import {
   CreateRoleRequest,
   UpdateRoleRequest,
   SprintSummary,
+  CreateProjectPriorityRequest,
+  UpdateProjectPriorityRequest,
 } from '@sebsa-pm-tool/shared-models';
 
 export interface Task {
@@ -80,8 +82,8 @@ export class ProjectsService {
     return this.http.get<ProjectRole[]>(`/api/projects/${id}/roles`);
   }
 
-  getWorkflowStages(projectId: string): Observable<{ id: string; name: string; order: number }[]> {
-    return this.http.get<{ id: string; name: string; order: number }[]>(`/api/projects/${projectId}/workflow-stages`);
+  getWorkflowStages(projectId: string): Observable<{ id: string; name: string; order: number; isDefault: boolean }[]> {
+    return this.http.get<{ id: string; name: string; order: number; isDefault: boolean }[]>(`/api/projects/${projectId}/workflow-stages`);
   }
 
   createWorkflowStage(
@@ -93,6 +95,38 @@ export class ProjectsService {
       `/api/projects/${projectId}/workflow-stages`,
       { name, ...(order !== undefined && { order }) },
     );
+  }
+
+  updateWorkflowStage(
+    projectId: string,
+    stageId: string,
+    name: string,
+    order?: number
+  ): Observable<{ id: string; name: string; order: number }> {
+    return this.http.patch<{ id: string; name: string; order: number }>(
+      `/api/projects/${projectId}/workflow-stages/${stageId}`,
+      { name, ...(order !== undefined && { order }) }
+    );
+  }
+
+  deleteWorkflowStage(projectId: string, stageId: string): Observable<void> {
+    return this.http.delete<void>(`/api/projects/${projectId}/workflow-stages/${stageId}`);
+  }
+
+  getProjectPriorities(projectId: string): Observable<{ id: string; name: string; color: string | null; order: number; isDefault: boolean }[]> {
+    return this.http.get<{ id: string; name: string; color: string | null; order: number; isDefault: boolean }[]>(`/api/projects/${projectId}/priorities`);
+  }
+
+  createProjectPriority(projectId: string, dto: CreateProjectPriorityRequest): Observable<{ id: string; name: string; color: string | null; order: number }> {
+    return this.http.post<{ id: string; name: string; color: string | null; order: number }>(`/api/projects/${projectId}/priorities`, dto);
+  }
+
+  updateProjectPriority(projectId: string, priorityId: string, dto: UpdateProjectPriorityRequest): Observable<{ id: string; name: string; color: string | null; order: number }> {
+    return this.http.patch<{ id: string; name: string; color: string | null; order: number }>(`/api/projects/${projectId}/priorities/${priorityId}`, dto);
+  }
+
+  deleteProjectPriority(projectId: string, priorityId: string): Observable<void> {
+    return this.http.delete<void>(`/api/projects/${projectId}/priorities/${priorityId}`);
   }
 
   createRole(id: string, dto: CreateRoleRequest): Observable<ProjectRole> {

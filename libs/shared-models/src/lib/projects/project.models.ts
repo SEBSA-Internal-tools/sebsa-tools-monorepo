@@ -41,9 +41,10 @@ export interface ProjectSummary {
   updatedAt: string;
 }
 
-/** Detail-view shape — includes the project's workflow stages. */
+/** Detail-view shape — includes the project's workflow stages and priorities. */
 export interface Project extends ProjectSummary {
   workflowStages: { id: string; name: string; order: number }[];
+  priorities: { id: string; name: string; order: number; color: string | null }[];
 }
 
 export interface CreateProjectRequest {
@@ -88,4 +89,26 @@ export interface CreateRoleRequest {
 export interface UpdateRoleRequest {
   name?: string;
   privilegeGroupId?: string;
+}
+
+export interface CreateWorkflowStageRequest {
+  name: string;
+  order?: number;
+}
+
+export interface UpdateWorkflowStageRequest {
+  name?: string;
+  order?: number;
+}
+
+export interface CreateProjectPriorityRequest {
+  name: string;
+  color?: string;
+  order?: number;
+}
+
+export interface UpdateProjectPriorityRequest {
+  name?: string;
+  color?: string;
+  order?: number;
 }

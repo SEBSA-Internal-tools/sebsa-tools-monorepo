@@ -46,6 +46,9 @@
         @case ('team') {
           <project-team [projectId]="project.id"></project-team>
         }
+        @case ('configuration') {
+          <project-configuration [project]="project"></project-configuration>
+        }
       }
     </div>
   </div>
