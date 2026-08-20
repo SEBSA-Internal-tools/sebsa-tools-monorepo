@@ -6,7 +6,7 @@
   bottom: 0;
   background: rgba(15, 23, 42, 0.5);
   backdrop-filter: blur(4px);
-  z-index: 999;
+  z-index: 1099;
   animation: fadeIn 0.2s ease;
 }
 
@@ -31,7 +31,7 @@
   border: 1px solid var(--app-border);
   border-radius: 12px;
   box-shadow: 0 20px 60px rgba(15, 23, 42, 0.15);
-  z-index: 1000;
+  z-index: 1100;
   display: flex;
   flex-direction: column;
   animation: slideUp 0.3s ease;

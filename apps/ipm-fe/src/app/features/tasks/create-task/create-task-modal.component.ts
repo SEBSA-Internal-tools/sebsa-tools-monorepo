@@ -20,6 +20,10 @@ import type { SprintSummary } from '@sebsa-pm-tool/shared-models';
 import type { UserAdminSummary } from '@sebsa-pm-tool/shared-models';
 import type { TaskCategory } from '@sebsa-pm-tool/shared-models';
 import { ProjectsService } from '../../projects/services/projects.service';
+import {
+  PriorityModalComponent,
+  PriorityFormData,
+} from '../../projects/components/modals/priority-modal/priority-modal.component';
 
 export interface TaskFormData {
   title: string;
@@ -42,7 +46,7 @@ export interface TaskFormData {
 @Component({
   standalone: true,
   selector: 'app-create-task-modal',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, PriorityModalComponent],
   templateUrl: './create-task-modal.component.html',
   styleUrl: './create-task-modal.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -116,6 +120,7 @@ export class CreateTaskModalComponent implements OnChanges {
   readonly sprintError = signal('');
   readonly userError = signal('');
   readonly isAssigneeDropdownOpen = signal(false);
+  readonly isPriorityModalOpen = signal(false);
 
   ngOnChanges(): void {
     if (this.isOpen) {
@@ -226,6 +231,50 @@ export class CreateTaskModalComponent implements OnChanges {
       },
       error: () => this.availablePriorities.set([]),
     });
+  }
+
+  openAddPriorityModal(): void {
+    const targetProjectId = this.projectId || this.selectedProjectId;
+    if (!targetProjectId) {
+      alert('Please select a project first');
+      return;
+    }
+    this.isPriorityModalOpen.set(true);
+  }
+
+  closePriorityModal(): void {
+    this.isPriorityModalOpen.set(false);
+  }
+
+  onPrioritySubmit(formData: PriorityFormData): void {
+    const targetProjectId = this.projectId || this.selectedProjectId;
+    if (!targetProjectId) return;
+
+    this.projectsService
+      .createProjectPriority(targetProjectId, {
+        name: formData.name,
+        color: formData.color ?? undefined,
+        order: formData.order,
+      })
+      .subscribe({
+        next: (created) => {
+          this.closePriorityModal();
+          this.projectsService.getProjectPriorities(targetProjectId).subscribe({
+            next: (priorities) => {
+              const sorted = [...priorities].sort((a, b) => a.order - b.order);
+              this.availablePriorities.set(sorted);
+              const createdPrio = sorted.find((p) => p.id === created.id) || sorted[0];
+              if (createdPrio) {
+                this.selectPriority(createdPrio);
+              }
+            },
+          });
+        },
+        error: (err) => {
+          console.error('Failed to create priority:', err);
+          alert(err.error?.message || 'Failed to create priority.');
+        },
+      });
   }
 
   /** Loads this project's tasks once, for the optional "Parent Task" picker
