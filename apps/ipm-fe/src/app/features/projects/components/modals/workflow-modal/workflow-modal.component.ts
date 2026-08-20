@@ -13,7 +13,7 @@ import { FormsModule } from '@angular/forms';
 
 export interface WorkflowFormData {
   name: string;
-  order: number;
+  order?: number;
 }
 
 @Component({
@@ -58,15 +58,17 @@ export class WorkflowModalComponent implements OnChanges {
       return;
     }
 
-    if (this.order < 0) {
-      this.errorMessage.set('Order must be 0 or greater');
-      return;
-    }
-
     const formData: WorkflowFormData = {
       name: this.name.trim(),
-      order: this.order,
     };
+
+    if (this.editData) {
+      if (this.order < 1) {
+        this.errorMessage.set('Order must be 1 or greater');
+        return;
+      }
+      formData.order = this.order;
+    }
 
     this.submit.emit(formData);
     this.resetForm();

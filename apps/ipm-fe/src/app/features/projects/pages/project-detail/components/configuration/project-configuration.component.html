@@ -62,7 +62,7 @@
               >
                 <span class="material-symbols-outlined">edit</span>
               </button>
-              @if (!stage.isDefault) {
+                @if (stage.name !== 'Backlog') {
                 <button
                   class="btn-icon btn-delete"
                   title="Delete stage"
@@ -126,15 +126,13 @@
               >
                 <span class="material-symbols-outlined">edit</span>
               </button>
-              @if (!priority.isDefault) {
-                <button
-                  class="btn-icon btn-delete"
-                  title="Delete priority"
-                  (click)="deletePriority(priority)"
-                >
-                  <span class="material-symbols-outlined">delete</span>
-                </button>
-              }
+              <button
+                class="btn-icon btn-delete"
+                title="Delete priority"
+                (click)="deletePriority(priority)"
+              >
+                <span class="material-symbols-outlined">delete</span>
+              </button>
             </div>
           </div>
         }

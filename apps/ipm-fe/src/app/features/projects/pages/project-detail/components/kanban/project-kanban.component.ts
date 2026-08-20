@@ -194,9 +194,7 @@ export class ProjectKanbanComponent implements OnInit, OnDestroy {
     this.isCreatingColumn.set(true);
     this.errorMessage.set('');
 
-    const nextOrder = this.workflowStages().length;
-
-    this.projectsService.createWorkflowStage(this.projectId, name, nextOrder).subscribe({
+    this.projectsService.createWorkflowStage(this.projectId, name).subscribe({
       next: (newStage) => {
         this.workflowStages.set([...this.workflowStages(), newStage]);
         this.isAddingColumn.set(false);

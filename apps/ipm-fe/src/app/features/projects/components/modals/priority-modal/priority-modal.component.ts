@@ -14,7 +14,7 @@ import { FormsModule } from '@angular/forms';
 export interface PriorityFormData {
   name: string;
   color: string | null;
-  order: number;
+  order?: number;
 }
 
 @Component({
@@ -61,16 +61,18 @@ export class PriorityModalComponent implements OnChanges {
       return;
     }
 
-    if (this.order < 0) {
-      this.errorMessage.set('Order must be 0 or greater');
-      return;
-    }
-
     const formData: PriorityFormData = {
       name: this.name.trim(),
       color: this.color,
-      order: this.order,
     };
+
+    if (this.editData) {
+      if (this.order < 1) {
+        this.errorMessage.set('Order must be 1 or greater');
+        return;
+      }
+      formData.order = this.order;
+    }
 
     this.submit.emit(formData);
     this.resetForm();
