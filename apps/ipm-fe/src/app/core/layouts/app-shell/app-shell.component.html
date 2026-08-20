@@ -12,7 +12,7 @@
 
     <nav class="nav-list">
       <a
-        *ngFor="let item of navigationItems"
+        *ngFor="let item of visibleNavigationItems"
         class="nav-item"
         [routerLink]="item.path"
         routerLinkActive="active"

@@ -7,11 +7,11 @@ import { Component } from '@angular/core';
     :host {
       display: block;
       width: 100%;
-      background-color: #FFFFFF;
+      background-color: var(--surface-page);
     }
     .page-container {
       padding: 32px 40px;
-      background-color: #FFFFFF;
+      background-color: var(--surface-page);
       width: 100%;
       box-sizing: border-box;
       display: flex;

@@ -126,12 +126,76 @@
 
   --shadow-subtle:        var(--shadow-card);
 
+  --surface-panel:        #f1f5f9;   // Muted ash panel (page headers, search inputs)
+
   --text-brand:           var(--brand-primary);
 
   --status-success:       var(--status-success-solid);
   --status-warning:       var(--status-warning-solid);
   --status-error:         var(--status-error-solid);
   --status-info:          var(--status-info-solid);
+}
+
+// =============================================================================
+// 1b. Dark Theme Token Overrides
+// Applied when ThemeService sets [data-theme="dark"] on <html>. Every
+// component that reads colors through the var(--...) tokens above (rather
+// than a hardcoded hex) repaints automatically once these are overridden —
+// nothing else needs to change per-component.
+// =============================================================================
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --brand-primary:        #9d5cff;
+  --brand-primary-hover:  #b47bff;
+  --brand-primary-100:    #2e1a52;
+  --brand-primary-50:     #241340;
+  --brand-surface:        #0f172a;
+
+  --surface-page:         #0b1220;
+  --surface-card:         #131c2e;
+  --surface-muted:        #1a2438;
+
+  --text-heading:         #f1f5f9;
+  --text-primary:         #cbd5e1;
+  --text-secondary:       #94a3b8;
+  --text-muted:           #64748b;
+  --text-link:            #b794ff;
+
+  --border-default:       #29344a;
+  --border-subtle:        #1f2937;
+  --border-strong:        #3c4a63;
+
+  --status-success-bg:    rgba(16, 185, 129, 0.15);
+  --status-success-fg:    #34d399;
+
+  --status-warning-bg:    rgba(245, 158, 11, 0.15);
+  --status-warning-fg:    #fbbf24;
+
+  --status-error-bg:      rgba(239, 68, 68, 0.15);
+  --status-error-fg:      #f87171;
+
+  --status-info-bg:       rgba(59, 130, 246, 0.15);
+  --status-info-fg:       #60a5fa;
+
+  --status-purple-bg:     rgba(157, 92, 255, 0.15);
+  --status-purple-fg:     #c4b5fd;
+
+  --status-pink-bg:       rgba(236, 72, 153, 0.15);
+  --status-pink-fg:       #f472b6;
+
+  --status-neutral-bg:    rgba(148, 163, 184, 0.15);
+  --status-neutral-fg:    #cbd5e1;
+
+  --shadow-card:          0 4px 20px rgba(0, 0, 0, 0.35);
+  --shadow-elevated:      0 8px 30px rgba(0, 0, 0, 0.45);
+  --shadow-glow-focus:    0 0 0 3px rgba(157, 92, 255, 0.25);
+  --shadow-glow-purple:   0 4px 14px 0 rgba(157, 92, 255, 0.3);
+
+  --color-surface-glass-hover: #202c44;
+
+  --surface-panel:        #1a2438;
 }
 
 // =============================================================================
@@ -170,12 +234,12 @@ code, pre, .font-mono, .task-id, .crim-id {
 .tasks-page-container,
 .cso-container,
 .admin-users-container {
-  background-color: #FFFFFF;
+  background-color: var(--surface-card);
 }
 
 .sebsa-page-header {
-  background-color: #F1F5F9; /* Slightly darker ash/gray */
-  border: 1px solid #E2E8F0;
+  background-color: var(--surface-panel);
+  border: 1px solid var(--border-default);
   border-radius: 24px;
   padding: 48px 40px; /* Increased to match CSO/Projects layout sizes */
   margin-bottom: 24px;
@@ -186,7 +250,7 @@ code, pre, .font-mono, .task-id, .crim-id {
 }
 
 .sebsa-eyebrow {
-  color: #5B21B6; /* Dark purple */
+  color: var(--brand-primary);
   font-weight: 700;
   text-transform: uppercase;
   font-size: 0.75rem;
@@ -196,7 +260,7 @@ code, pre, .font-mono, .task-id, .crim-id {
 }
 
 .sebsa-page-title {
-  color: #1E293B; /* Very dark slate/ash for high contrast */
+  color: var(--text-heading);
   font-family: 'Poppins', sans-serif;
   font-size: 2rem;
   font-weight: 600;
@@ -204,7 +268,7 @@ code, pre, .font-mono, .task-id, .crim-id {
 }
 
 .sebsa-page-desc {
-  color: #475569; /* Medium gray */
+  color: var(--text-secondary);
   font-size: 0.875rem;
   max-width: 600px;
   line-height: 1.5;
@@ -595,7 +659,7 @@ h1, h2, h3, h4, h5, h6, .sebsa-page-title {
 .table-container, .page-body, .list-card {
   border: none !important;
   box-shadow: none !important;
-  background-color: #FFFFFF;
+  background-color: var(--surface-card);
 }
 
 /* Restore Clear Ash Borders to Dashboard Cards & Metric Boxes */
@@ -614,8 +678,8 @@ app-dashboard-portfolio .portfolio-card,
 app-dashboard-timeline .timeline-card,
 app-dashboard-workload .workload-card,
 app-dashboard-activity .activity-card {
-  border: 1px solid #CBD5E1 !important; /* Clear dark ash border */
-  background-color: #FFFFFF !important;
+  border: 1px solid var(--border-strong) !important; /* Clear dark ash border */
+  background-color: var(--surface-card) !important;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05) !important; /* Soft depth shadow */
 }
 
@@ -624,14 +688,14 @@ app-dashboard-activity .activity-card {
 app-dashboard-project-health-matrix .health-matrix-container {
   border: none !important;
   box-shadow: none !important;
-  background-color: #FFFFFF !important;
+  background-color: var(--surface-card) !important;
 }
 
 /* Task 2: Ash Search Bars */
 input[type="search"], .search-bar input, .search-box, .sebsa-search {
-  background-color: #F1F5F9 !important;
-  border: 1px solid #E2E8F0 !important;
-  color: #1E293B;
+  background-color: var(--surface-panel) !important;
+  border: 1px solid var(--border-default) !important;
+  color: var(--text-heading);
   border-radius: 8px;
   padding: 10px 16px;
 }
@@ -644,75 +708,75 @@ input[type="search"], .search-bar input, .search-box, .sebsa-search {
 table, .sebsa-table {
   width: 100% !important;
   border-collapse: collapse !important;
-  background-color: #FFFFFF !important;
+  background-color: var(--surface-card) !important;
   margin-bottom: 0 !important;
 
   th {
-    color: #475569 !important;
+    color: var(--text-secondary) !important;
     font-weight: 700 !important;
     text-transform: uppercase !important;
     font-size: 0.75rem !important;
     letter-spacing: 0.05em !important;
     padding: 16px 20px !important;
-    background-color: #FFFFFF !important;
+    background-color: var(--surface-card) !important;
     border: none !important;
-    border-bottom: 2px solid #E2E8F0 !important;
+    border-bottom: 2px solid var(--border-default) !important;
     text-align: left !important;
     font-family: 'Inter', sans-serif !important;
   }
 
   td {
     padding: 16px 20px !important;
-    color: #334155 !important;
+    color: var(--text-primary) !important;
     font-size: 0.875rem !important;
     font-weight: 400 !important;
     line-height: 1.5 !important;
-    background-color: #FFFFFF !important;
+    background-color: var(--surface-card) !important;
     border: none !important;
-    border-bottom: 1px solid #F1F5F9 !important;
+    border-bottom: 1px solid var(--border-subtle) !important;
     text-align: left !important;
     font-family: 'Inter', sans-serif !important;
   }
 
   tr:hover td {
-    background-color: #F8FAFC !important;
+    background-color: var(--surface-muted) !important;
   }
 }
 
 /* 2. Grid & Flex List Tables (Projects List, Customers List, Task List) */
 .list-header, .table-header {
-  background-color: #FFFFFF !important;
-  color: #475569 !important;
+  background-color: var(--surface-card) !important;
+  color: var(--text-secondary) !important;
   font-weight: 700 !important;
   font-size: 0.75rem !important;
   text-transform: uppercase !important;
   letter-spacing: 0.05em !important;
   padding: 16px 20px !important;
-  border-bottom: 2px solid #E2E8F0 !important;
+  border-bottom: 2px solid var(--border-default) !important;
   font-family: 'Inter', sans-serif !important;
 }
 
 .list-item, .table-row {
-  background-color: #FFFFFF !important;
-  color: #334155 !important;
+  background-color: var(--surface-card) !important;
+  color: var(--text-primary) !important;
   font-size: 0.875rem !important;
   font-weight: 400 !important;
   line-height: 1.5 !important;
   padding: 16px 20px !important;
-  border-bottom: 1px solid #F1F5F9 !important;
+  border-bottom: 1px solid var(--border-subtle) !important;
   font-family: 'Inter', sans-serif !important;
   transition: background 0.15s ease !important;
 
   &:hover {
-    background-color: #F8FAFC !important;
+    background-color: var(--surface-muted) !important;
   }
 }
 
 .projects-list-container,
 .customers-list-container,
 .tasks-table-container {
-  background-color: #FFFFFF !important;
-  border: 1px solid #F1F5F9 !important;
+  background-color: var(--surface-card) !important;
+  border: 1px solid var(--border-subtle) !important;
   border-radius: 16px !important;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02) !important;
 }

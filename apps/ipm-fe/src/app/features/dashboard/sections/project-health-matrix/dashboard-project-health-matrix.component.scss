@@ -173,8 +173,8 @@
                 background: conic-gradient(
                   #5b21b6 0deg,
                   #5b21b6 calc(var(--completion) * 3.6deg),
-                  #F1F5F9 calc(var(--completion) * 3.6deg),
-                  #F1F5F9 360deg
+                  var(--border-default) calc(var(--completion) * 3.6deg),
+                  var(--border-default) 360deg
                 );
                 display: flex;
                 align-items: center;
@@ -184,7 +184,7 @@
                   width: 30px;
                   height: 30px;
                   border-radius: 50%;
-                  background: #ffffff;
+                  background: var(--surface-card);
                   display: flex;
                   align-items: center;
                   justify-content: center;

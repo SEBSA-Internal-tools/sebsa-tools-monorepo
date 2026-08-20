@@ -85,7 +85,7 @@
   width: 32px;
   height: 32px;
   padding: 0;
-  background: #f1f5f9;
+  background: var(--surface-muted);
   border: 1px solid var(--border-default);
   border-radius: 50%;
   color: var(--text-secondary);
@@ -93,7 +93,7 @@
   transition: all 0.2s ease;
 
   &:hover {
-    background: #e2e8f0;
+    background: var(--border-default);
     color: var(--text-heading);
   }
 }
@@ -162,7 +162,7 @@
   padding: 10px 14px;
   border: 1px solid var(--border-default);
   border-radius: 10px;
-  background: #ffffff;
+  background: var(--surface-muted);
   color: var(--text-heading);
   font-size: 0.875rem;
   font-family: var(--font-body);
@@ -224,7 +224,7 @@
   overflow-y: auto;
   border: 1px solid var(--border-default);
   border-radius: 10px;
-  background: #ffffff;
+  background: var(--surface-card);
   padding: 4px;
 }
 
@@ -259,7 +259,7 @@
   padding: 8px 10px;
   border: 1px solid var(--border-default);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--surface-muted);
   color: var(--text-secondary);
   font-weight: 600;
   font-size: 0.8rem;
@@ -302,7 +302,7 @@
   padding: 10px 12px;
   border: 1px solid var(--border-default);
   border-radius: 10px;
-  background: #ffffff;
+  background: var(--surface-muted);
   color: var(--text-secondary);
   font-weight: 600;
   font-size: 0.85rem;
@@ -343,7 +343,7 @@
   font-weight: 600;
   font-size: 0.875rem;
   color: var(--text-heading);
-  background: #ffffff;
+  background: transparent;
   border: 1px solid var(--border-default);
   cursor: pointer;
   transition: all 0.2s ease;
@@ -396,6 +396,34 @@
   width: 100%;
 }
 
+.dropdown-toggle {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  margin-left: 4px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: var(--border-default);
+    color: var(--text-heading);
+  }
+
+  .material-symbols-outlined {
+    font-size: 1.1rem;
+  }
+}
+
 .assignee-input {
   width: 100%;
   min-height: 42px;
@@ -403,7 +431,7 @@
   align-items: center;
   gap: 8px;
   padding: 6px 12px;
-  background: #ffffff;
+  background: var(--surface-muted);
   border: 1px solid var(--border-default);
   border-radius: 10px;
 
@@ -485,7 +513,7 @@
   top: calc(100% + 4px);
   left: 0;
   width: 100%;
-  background: #ffffff;
+  background: var(--surface-card);
   border: 1px solid var(--border-default);
   border-radius: 12px;
   box-shadow: var(--shadow-elevated);
@@ -505,7 +533,7 @@
   padding: 10px 14px;
   border: none;
   border-bottom: 1px solid var(--border-subtle);
-  background: #ffffff;
+  background: var(--surface-card);
   text-align: left;
   cursor: pointer;
 
