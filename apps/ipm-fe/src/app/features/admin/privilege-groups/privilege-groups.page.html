@@ -1,14 +1,17 @@
 <div class="admin-users-container">
-  <div class="page-header">
-    <div class="header-info">
-      <h1>Privilege Groups</h1>
-      <p>Define reusable permission bundles that project roles can be assigned.</p>
+  <header class="sebsa-page-header">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%;">
+      <div>
+        <span class="sebsa-eyebrow">SECURITY</span>
+        <h1 class="sebsa-page-title">Privilege Groups</h1>
+        <p class="sebsa-page-desc">Define reusable permission bundles that project roles can be assigned.</p>
+      </div>
+      <button type="button" class="btn-primary" (click)="openCreateModal()">
+        <span class="material-symbols-outlined">add</span>
+        Create Group
+      </button>
     </div>
-    <button type="button" class="btn-primary" (click)="openCreateModal()">
-      <span class="material-symbols-outlined">add</span>
-      Create Group
-    </button>
-  </div>
+  </header>
 
   @if (errorMessage()) {
     <div class="error-banner">{{ errorMessage() }}</div>

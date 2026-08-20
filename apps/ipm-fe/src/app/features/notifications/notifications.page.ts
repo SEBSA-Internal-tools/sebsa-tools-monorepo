@@ -5,11 +5,11 @@ import { Component } from '@angular/core';
   selector: 'app-notifications-page',
   template: `
     <section class="workspace-page">
-      <div class="workspace-card">
-        <p class="workspace-eyebrow">Updates</p>
-        <h2>Notifications</h2>
-        <p>Keep alerts, mentions, and system updates visible inside the unified shell.</p>
-      </div>
+      <header class="sebsa-page-header">
+        <span class="sebsa-eyebrow">UPDATES</span>
+        <h1 class="sebsa-page-title">Notifications</h1>
+        <p class="sebsa-page-desc">Keep alerts, mentions, and system updates visible inside the unified shell.</p>
+      </header>
     </section>
   `,
 })

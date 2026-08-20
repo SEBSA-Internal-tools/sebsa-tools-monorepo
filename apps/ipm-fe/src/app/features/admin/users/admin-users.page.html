@@ -1,14 +1,17 @@
 <div class="admin-users-container">
-  <div class="page-header">
-    <div class="header-info">
-      <h1>User Management</h1>
-      <p>Approve pending signups and manage accounts.</p>
+  <header class="sebsa-page-header">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%;">
+      <div>
+        <span class="sebsa-eyebrow">ADMINISTRATION</span>
+        <h1 class="sebsa-page-title">User Management</h1>
+        <p class="sebsa-page-desc">Approve pending signups and manage accounts.</p>
+      </div>
+      <button type="button" class="btn-primary" (click)="openCreateModal()">
+        <span class="material-symbols-outlined">person_add</span>
+        Create User
+      </button>
     </div>
-    <button type="button" class="btn-primary" (click)="openCreateModal()">
-      <span class="material-symbols-outlined">person_add</span>
-      Create User
-    </button>
-  </div>
+  </header>
 
   @if (notification()) {
     <div class="notification-banner" [class.success]="notification()?.type === 'success'" [class.error]="notification()?.type === 'error'">

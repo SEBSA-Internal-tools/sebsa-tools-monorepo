@@ -5,11 +5,11 @@ import { Component } from '@angular/core';
   selector: 'app-calendar-page',
   template: `
     <section class="workspace-page">
-      <div class="workspace-card">
-        <p class="workspace-eyebrow">Scheduling</p>
-        <h2>Calendar</h2>
-        <p>Plan meetings, deadlines, and release dates inside the same layout shell.</p>
-      </div>
+      <header class="sebsa-page-header">
+        <span class="sebsa-eyebrow">SCHEDULING</span>
+        <h1 class="sebsa-page-title">Calendar</h1>
+        <p class="sebsa-page-desc">Plan meetings, deadlines, and release dates inside the same layout shell.</p>
+      </header>
     </section>
   `,
 })
