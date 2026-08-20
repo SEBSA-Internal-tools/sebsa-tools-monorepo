@@ -6,6 +6,7 @@ import {
   signal,
   OnChanges,
   SimpleChanges,
+  ChangeDetectorRef,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Project } from '@sebsa-pm-tool/shared-models';
@@ -40,6 +41,7 @@ export class ProjectConfigurationComponent implements OnChanges {
   @Input({ required: true }) project!: Project;
 
   private readonly projectsService = inject(ProjectsService);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   workflowStages = signal<WorkflowStageView[]>([]);
   priorities = signal<PriorityView[]>([]);
@@ -243,15 +245,28 @@ export class ProjectConfigurationComponent implements OnChanges {
 
   // ---- Helper Methods ----
 
-  private showError(msg: string): void {
-    this.errorMessage.set(msg);
+  private showError(msg: string | string[]): void {
+    const finalMsg = Array.isArray(msg) ? msg.join(', ') : msg;
+    this.errorMessage.set(finalMsg);
     this.successMessage.set('');
-    setTimeout(() => this.errorMessage.set(''), 5000);
+    this.cdr.markForCheck();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    
+    setTimeout(() => {
+      this.errorMessage.set('');
+      this.cdr.markForCheck();
+    }, 5000);
   }
 
   private showSuccess(msg: string): void {
     this.successMessage.set(msg);
     this.errorMessage.set('');
-    setTimeout(() => this.successMessage.set(''), 3000);
+    this.cdr.markForCheck();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    
+    setTimeout(() => {
+      this.successMessage.set('');
+      this.cdr.markForCheck();
+    }, 3000);
   }
 }

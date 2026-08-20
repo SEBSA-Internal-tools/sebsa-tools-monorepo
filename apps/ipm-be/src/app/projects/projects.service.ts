@@ -101,14 +101,37 @@ export class ProjectsService {
       });
 
       // Default Priority
-      await tx.projectPriority.create({
-        data: {
-          projectId: project.id,
-          name: 'MEDIUM',
-          order: 2,
-          isDefault: true,
-          color: '#F59E0B',
-        },
+      await tx.projectPriority.createMany({
+        data: [
+          {
+            projectId: project.id,
+            name: 'Low',
+            order: 1,
+            isDefault: false,
+            color: '#10B981',
+          },
+          {
+            projectId: project.id,
+            name: 'Medium',
+            order: 2,
+            isDefault: true,
+            color: '#F59E0B',
+          },
+          {
+            projectId: project.id,
+            name: 'High',
+            order: 3,
+            isDefault: false,
+            color: '#EF4444',
+          },
+          {
+            projectId: project.id,
+            name: 'Critical',
+            order: 4,
+            isDefault: false,
+            color: '#991B1B',
+          },
+        ],
       });
 
       const defaultGroups = await tx.privilegeGroup.findMany({
@@ -460,10 +483,20 @@ export class ProjectsService {
       include: { _count: { select: { tasks: true } } },
     });
     if (!stage) throw new NotFoundException('Workflow stage not found');
-    if (stage.isDefault) throw new BadRequestException('Cannot delete default workflow stage');
+    if (stage.isDefault && stage.name === 'Backlog') throw new BadRequestException('Cannot delete default workflow stage');
     if (stage._count.tasks > 0) throw new BadRequestException('Cannot delete workflow stage that contains tasks');
 
-    await this.prisma.workflowStage.delete({ where: { id: stageId } });
+    await this.prisma.$transaction([
+      this.prisma.taskStatusHistory.deleteMany({
+        where: {
+          OR: [
+            { fromStageId: stageId },
+            { toStageId: stageId },
+          ],
+        },
+      }),
+      this.prisma.workflowStage.delete({ where: { id: stageId } }),
+    ]);
   }
 
   async getProjectPriorities(
@@ -555,7 +588,6 @@ export class ProjectsService {
       include: { _count: { select: { tasks: true } } },
     });
     if (!priority) throw new NotFoundException('Priority not found');
-    if (priority.isDefault) throw new BadRequestException('Cannot delete default priority');
     if (priority._count.tasks > 0) throw new BadRequestException('Cannot delete priority that contains tasks');
 
     await this.prisma.projectPriority.delete({ where: { id: priorityId } });

@@ -38,18 +38,20 @@
       </div>
 
       <!-- Order -->
-      <div class="form-group full-width">
-        <label for="stageOrder" class="form-label">
-          Order / Sequence
-        </label>
-        <input
-          id="stageOrder"
-          type="number"
-          min="0"
-          [(ngModel)]="order"
-          class="form-input"
-        />
-      </div>
+        @if (editData) {
+          <div class="form-group full-width">
+            <label for="stageOrder" class="form-label">
+              Order / Sequence
+            </label>
+            <input
+              id="stageOrder"
+              type="number"
+              min="0"
+              [(ngModel)]="order"
+              class="form-input"
+            />
+          </div>
+        }
     </div>
 
     <!-- Modal Footer -->

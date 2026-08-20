@@ -1,15 +1,7 @@
 /** FSD 5.2 "Default Task Workflow Statuses" — seeded for every new project. */
 export const DEFAULT_WORKFLOW_STAGES = [
   'New',
-  'In Analysis',
-  'Development in Progress',
-  'Developer Testing',
-  'Code Review',
-  'Review in Progress',
-  'PR Merged',
-  'Regression Testing',
-  'Finished/Closed',
-  'Cancelled',
+  'Backlog'
 ] as const;
 
 interface DefaultRoleDefinition {
