@@ -107,7 +107,7 @@ export class CsoQueueTabComponent implements OnChanges {
       title: formData.title,
       description: formData.description || undefined,
       type: formData.type,
-      priority: formData.priority,
+      priorityId: formData.priorityId,
       dueDate: formData.dueDate || undefined,
       sprintId: formData.sprintId || undefined,
       assigneeIds: formData.assigneeIds.length > 0 ? formData.assigneeIds : undefined,

@@ -1,7 +1,6 @@
 import { UserSummary } from '../users/user-summary.model';
 
 export type TaskType = 'EPIC' | 'STORY' | 'TASK' | 'BUG' | 'IMPROVEMENT' | 'TEST' | 'SUBTASK';
-export type TaskPriority = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
 export type TaskDependencyType = 'BLOCKS' | 'RELATES_TO' | 'DUPLICATE_OF';
 /** Functional/Technical classification tag — nullable on ordinary project
  * tasks, required whenever isCsoLabeled is true (enforced server-side). */
@@ -22,7 +21,7 @@ export interface TaskSummary {
   parentTaskId?: string | null;
   title: string;
   type: TaskType;
-  priority: TaskPriority;
+  priorityId: string;
   workflowStageId: string;
   sprintId: string | null;
   dueDate: string | null;
@@ -31,6 +30,7 @@ export interface TaskSummary {
   category: TaskCategory | null;
   project: { id: string; name: string };
   workflowStage: { id: string; name: string };
+  priority: { id: string; name: string; color: string | null };
   assignees: Pick<UserSummary, 'id' | 'name' | 'email'>[];
   milestoneId?: string | null;
   startDate?: string | null;
@@ -48,7 +48,8 @@ export interface TaskListSummary {
   description: string | null;
   type: TaskType;
   workflowStageId: string;
-  priority: TaskPriority;
+  priorityId: string;
+  priority: { id: string; name: string; color: string | null };
   dueDate: string | null;
   category: TaskCategory | null;
   assignee: Pick<UserSummary, 'id' | 'name' | 'email'> | null;
@@ -80,7 +81,7 @@ export interface CreateTaskRequest {
   title: string;
   description?: string;
   type?: TaskType;
-  priority?: TaskPriority;
+  priorityId?: string;
   /** Omit to fall back to the project's default Backlog stage. */
   workflowStageId?: string;
   sprintId?: string;

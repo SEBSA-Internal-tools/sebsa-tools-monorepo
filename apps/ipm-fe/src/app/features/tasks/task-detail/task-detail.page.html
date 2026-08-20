@@ -72,9 +72,9 @@
       </span>
       <span
         class="priority-pill"
-        [ngClass]="getPriorityClass(task.priority)"
+        [ngClass]="getPriorityClass(task.priority.name)"
       >
-        {{ getPriorityLabel(task.priority) }}
+        {{ getPriorityLabel(task.priority.name) }}
       </span>
       @if (task.isCsoLabeled) {
         <span class="cso-pill">CSO</span>

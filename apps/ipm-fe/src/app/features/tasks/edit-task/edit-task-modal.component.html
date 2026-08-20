@@ -39,35 +39,23 @@
             role="group"
             aria-labelledby="priority-label"
           >
-            <button
-              type="button"
-              class="priority-btn"
-              [class.active]="priority === 'CRITICAL' || priority === 'HIGH'"
-              (click)="priority = 'HIGH'"
-            >
-              <span class="priority-dot critical"></span>
-              <span>High</span>
-            </button>
-
-            <button
-              type="button"
-              class="priority-btn"
-              [class.active]="priority === 'MEDIUM'"
-              (click)="priority = 'MEDIUM'"
-            >
-              <span class="priority-dot medium"></span>
-              <span>Med</span>
-            </button>
-
-            <button
-              type="button"
-              class="priority-btn"
-              [class.active]="priority === 'LOW'"
-              (click)="priority = 'LOW'"
-            >
-              <span class="priority-dot low"></span>
-              <span>Low</span>
-            </button>
+            @for (prio of availablePriorities(); track prio.id) {
+              <button
+                type="button"
+                class="priority-btn"
+                [class.active]="priorityId === prio.id"
+                (click)="selectPriority(prio)"
+              >
+                <span
+                  class="priority-dot"
+                  [style.background-color]="prio.color || '#94a3b8'"
+                ></span>
+                <span>{{ prio.name }}</span>
+              </button>
+            }
+            @if (availablePriorities().length === 0) {
+              <span class="no-priorities">No priorities configured</span>
+            }
           </div>
         </div>
 
@@ -143,9 +131,10 @@
            task's Assignment History instead of overwriting it in place. -->
       @if (isCsoLabeled) {
         <div class="form-group full-width">
-          <label class="form-label" id="category-label">
-            Category <span class="required">*</span>
-          </label>
+          <div class="form-label" id="category-label">
+            Category 
+            <span class="required">*</span>
+          </div>
           <div class="category-group" role="group" aria-labelledby="category-label">
             <button
               type="button"
@@ -166,7 +155,7 @@
               Technical
             </button>
           </div>
-          @if (task?.category && task?.category !== selectedCategory) {
+          @if (task?.category !== selectedCategory) {
             <p class="category-change-hint">
               <span class="material-symbols-outlined">history</span>
               Changing this will record a new entry in the Assignment History below.
