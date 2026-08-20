@@ -77,6 +77,61 @@
   --shadow-card:          0 4px 20px rgba(15, 23, 42, 0.04);
   --shadow-elevated:      0 8px 30px rgba(15, 23, 42, 0.08);
   --shadow-glow-focus:    0 0 0 3px rgba(112, 0, 255, 0.15);
+  --shadow-glow-purple:   0 4px 14px 0 rgba(112, 0, 255, 0.25);
+
+  // --- Self-fix: used by this very stylesheet (.sebsa-card:hover) but never
+  // defined anywhere — without this, hovering any card resolves to an
+  // invalid custom property and silently drops the border-color change.
+  --border-strong:        #cbd5e1;
+
+  // ---------------------------------------------------------------------------
+  // Legacy Compatibility Mapping — many components across the app (built
+  // before this token system existed) still reference the older variable
+  // names below. That original `:root` block was removed when this system
+  // replaced it, which broke every one of those components (transparent
+  // modal/card backgrounds, invisible borders, etc. wherever a `var(--x)`
+  // with no fallback resolved to nothing). Re-pointing the old names at the
+  // new tokens fixes all of them without having to touch each file
+  // individually. Safe to delete a mapping once its last consumer is
+  // migrated to the new token names directly.
+  // ---------------------------------------------------------------------------
+  --app-background:       var(--surface-page);
+  --app-surface:          var(--surface-card);
+  --app-surface-soft:     var(--surface-muted);
+  --app-surface-elevated: var(--surface-card);
+  --app-border:           var(--border-default);
+  --app-text:             var(--text-primary);
+  --app-text-muted:       var(--text-secondary);
+  --app-text-subtle:      var(--text-muted);
+  --app-hover:            var(--surface-muted);
+  --app-accent:           var(--brand-primary);
+  --app-accent-strong:    var(--brand-primary-hover);
+  --app-accent-soft:      var(--brand-primary-100);
+  --app-accent-shadow:    rgba(112, 0, 255, 0.2);
+  --app-accent-on:        #ffffff;
+
+  --color-brand-primary:       var(--brand-primary);
+  --color-surface-bright:      var(--surface-card);
+  --color-surface-dim:         var(--surface-card);
+  --color-surface-glass:       var(--surface-muted);
+  --color-surface-glass-hover: #eef1f6;
+  --color-surface-glass-active: var(--surface-card);
+
+  --border-glass:         1px solid var(--border-default);
+  --border-glass-hover:   1px solid var(--brand-primary-100);
+  --border-glass-active:  1px solid var(--brand-primary);
+
+  --backdrop-blur:        blur(8px);
+  --backdrop-blur-heavy:  blur(16px);
+
+  --shadow-subtle:        var(--shadow-card);
+
+  --text-brand:           var(--brand-primary);
+
+  --status-success:       var(--status-success-solid);
+  --status-warning:       var(--status-warning-solid);
+  --status-error:         var(--status-error-solid);
+  --status-info:          var(--status-info-solid);
 }
 
 // =============================================================================

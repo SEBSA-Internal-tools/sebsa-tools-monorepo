@@ -4,9 +4,11 @@ import {
   Output,
   EventEmitter,
   ChangeDetectionStrategy,
+  inject,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import type { Customer } from '@sebsa-pm-tool/shared-models';
 
 @Component({
@@ -22,6 +24,8 @@ export class CustomersListComponent {
   @Output() newCustomerClick = new EventEmitter<void>();
   @Output() editCustomer = new EventEmitter<Customer>();
   @Output() deleteCustomer = new EventEmitter<string>();
+
+  private readonly router = inject(Router);
 
   searchQuery = '';
 
@@ -46,7 +50,7 @@ export class CustomersListComponent {
     if (target.closest('.col-actions')) {
       return;
     }
-    this.editCustomer.emit(customer);
+    this.router.navigate(['/customers', customer.id]);
   }
 
   onEditCustomer(customer: Customer, event: Event): void {
