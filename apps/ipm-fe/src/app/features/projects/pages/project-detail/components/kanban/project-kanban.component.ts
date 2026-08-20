@@ -144,10 +144,6 @@ export class ProjectKanbanComponent implements OnInit, OnDestroy {
       .slice(0, 2);
   }
 
-  getPriorityClass(priority: string): string {
-    return priority.toLowerCase();
-  }
-
   isSubtask(task: TaskView): boolean {
     return !!task.parentTaskId;
   }
@@ -173,6 +169,17 @@ export class ProjectKanbanComponent implements OnInit, OnDestroy {
 
   getTypeClass(category: string): string {
     return `type-${category.toLowerCase()}`;
+  }
+
+  /** A subtask's own `category` still carries its underlying type (Task/Bug/…),
+   *  so the chip prefers "Subtask" — the more useful signal at a glance — over
+   *  the raw type whenever the task has a parent. */
+  getTypeChipLabel(task: TaskView): string {
+    return this.isSubtask(task) ? 'Subtask' : this.getTypeLabel(task.category);
+  }
+
+  getTypeChipClass(task: TaskView): string {
+    return this.isSubtask(task) ? 'type-subtask' : this.getTypeClass(task.category);
   }
 
   // ─── Column management ────────────────────────────────────────────────────

@@ -26,6 +26,7 @@ import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { CreateWorkflowStageDto } from './dto/create-workflow-stage.dto';
+import { ReorderWorkflowStagesDto } from './dto/reorder-workflow-stages.dto';
 import {
   UpdateWorkflowStageRequest,
   CreateProjectPriorityRequest,
@@ -132,7 +133,7 @@ export class ProjectsController {
   getWorkflowStages(
     @Param('id') id: string,
     @CurrentUser() user: AuthUser,
-  ): Promise<{ id: string; name: string; order: number }[]> {
+  ): Promise<{ id: string; name: string; order: number; taskCount: number }[]> {
     return this.projectsService.getWorkflowStages(id, user);
   }
 
@@ -143,6 +144,16 @@ export class ProjectsController {
     @CurrentUser() user: AuthUser,
   ): Promise<{ id: string; name: string; order: number }> {
     return this.projectsService.createWorkflowStage(projectId, dto, user);
+  }
+
+  // Declared before the ':stageId' route below so 'reorder' isn't swallowed as a stageId param.
+  @Patch(':id/workflow-stages/reorder')
+  reorderWorkflowStages(
+    @Param('id') projectId: string,
+    @Body() dto: ReorderWorkflowStagesDto,
+    @CurrentUser() user: AuthUser,
+  ): Promise<{ id: string; name: string; order: number }[]> {
+    return this.projectsService.reorderWorkflowStages(projectId, dto.stageIds, user);
   }
 
   @Patch(':id/workflow-stages/:stageId')
