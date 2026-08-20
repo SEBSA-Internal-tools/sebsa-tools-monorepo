@@ -81,7 +81,7 @@
               <td>{{ task.projectName }}</td>
               <td>{{ task.customerName || '—' }}</td>
               <td>
-                <span class="priority-badge" [class]="priorityClass(task.priority)">
+                <span class="priority-badge" [style.--priority-color]="task.priorityColor || '#f59e0b'">
                   {{ task.priority }}
                 </span>
               </td>

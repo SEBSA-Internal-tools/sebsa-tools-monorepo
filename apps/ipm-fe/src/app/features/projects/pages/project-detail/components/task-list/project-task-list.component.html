@@ -60,7 +60,10 @@
           </div>
 
           <div class="col-priority" data-label="Priority">
-            <span class="priority-badge" [class]="getPriorityClass(task.priority)">
+            <span
+              class="priority-badge"
+              [style.--priority-color]="task.priorityColor || '#f59e0b'"
+            >
               {{ task.priority }}
             </span>
           </div>
