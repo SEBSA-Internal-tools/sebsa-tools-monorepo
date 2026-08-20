@@ -85,7 +85,7 @@
   width: 32px;
   height: 32px;
   padding: 0;
-  background: #f1f5f9;
+  background: var(--surface-muted);
   border: 1px solid var(--border-default);
   border-radius: 50%;
   color: var(--text-secondary);
@@ -93,7 +93,7 @@
   transition: all 0.2s ease;
 
   &:hover {
-    background: #e2e8f0;
+    background: var(--border-default);
     color: var(--text-heading);
   }
 }
@@ -162,7 +162,7 @@
   padding: 10px 14px;
   border: 1px solid var(--border-default);
   border-radius: 10px;
-  background: #ffffff;
+  background: var(--surface-muted);
   color: var(--text-heading);
   font-size: 0.875rem;
   font-family: var(--font-body);
@@ -224,7 +224,7 @@
   overflow-y: auto;
   border: 1px solid var(--border-default);
   border-radius: 10px;
-  background: #ffffff;
+  background: var(--surface-card);
   padding: 4px;
 }
 
@@ -245,10 +245,91 @@
   }
 }
 
+.form-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+
+  .form-label {
+    margin-bottom: 0;
+  }
+}
+
+.add-priority-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: none;
+  padding: 2px 6px;
+  border-radius: 6px;
+  color: var(--brand-primary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  .material-symbols-outlined {
+    font-size: 14px;
+  }
+
+  &:hover {
+    background: var(--brand-primary-100);
+    text-decoration: underline;
+  }
+}
+
 .priority-group {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 8px;
+
+  &.empty-group {
+    grid-template-columns: 1fr;
+  }
+}
+
+.no-priorities-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--surface-muted);
+  border: 1px dashed var(--border-strong, #cbd5e1);
+  border-radius: 10px;
+  gap: 12px;
+
+  .no-priorities-text {
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+    font-style: italic;
+  }
+}
+
+.btn-create-priority-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--brand-primary);
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+
+  .material-symbols-outlined {
+    font-size: 16px;
+  }
+
+  &:hover {
+    filter: brightness(1.1);
+    transform: translateY(-1px);
+  }
 }
 
 .priority-btn {
@@ -259,7 +340,7 @@
   padding: 8px 10px;
   border: 1px solid var(--border-default);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--surface-muted);
   color: var(--text-secondary);
   font-weight: 600;
   font-size: 0.8rem;
@@ -302,7 +383,7 @@
   padding: 10px 12px;
   border: 1px solid var(--border-default);
   border-radius: 10px;
-  background: #ffffff;
+  background: var(--surface-muted);
   color: var(--text-secondary);
   font-weight: 600;
   font-size: 0.85rem;
@@ -343,7 +424,7 @@
   font-weight: 600;
   font-size: 0.875rem;
   color: var(--text-heading);
-  background: #ffffff;
+  background: transparent;
   border: 1px solid var(--border-default);
   cursor: pointer;
   transition: all 0.2s ease;
@@ -396,6 +477,34 @@
   width: 100%;
 }
 
+.dropdown-toggle {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  margin-left: 4px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: var(--border-default);
+    color: var(--text-heading);
+  }
+
+  .material-symbols-outlined {
+    font-size: 1.1rem;
+  }
+}
+
 .assignee-input {
   width: 100%;
   min-height: 42px;
@@ -403,7 +512,7 @@
   align-items: center;
   gap: 8px;
   padding: 6px 12px;
-  background: #ffffff;
+  background: var(--surface-muted);
   border: 1px solid var(--border-default);
   border-radius: 10px;
 
@@ -485,7 +594,7 @@
   top: calc(100% + 4px);
   left: 0;
   width: 100%;
-  background: #ffffff;
+  background: var(--surface-card);
   border: 1px solid var(--border-default);
   border-radius: 12px;
   box-shadow: var(--shadow-elevated);
@@ -505,7 +614,7 @@
   padding: 10px 14px;
   border: none;
   border-bottom: 1px solid var(--border-subtle);
-  background: #ffffff;
+  background: var(--surface-card);
   text-align: left;
   cursor: pointer;
 

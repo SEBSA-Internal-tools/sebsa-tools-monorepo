@@ -3,6 +3,7 @@ import { AppShellComponent } from './core/layouts/app-shell/app-shell.component'
 import { authGuard } from './core/guards/auth.guard';
 import { adminGuard } from './core/guards/admin.guard';
 import { superAdminGuard } from './core/guards/super-admin.guard';
+import { staffGuard } from './core/guards/staff.guard';
 
 export const appRoutes: Route[] = [
 	{
@@ -42,21 +43,25 @@ export const appRoutes: Route[] = [
 			},
 			{
 				path: 'projects',
+				canActivate: [staffGuard],
 				loadComponent: () =>
 					import('./features/projects/pages/projects-list/projects-list.page').then((m) => m.ProjectsPageComponent),
 			},
 			{
 				path: 'customers',
+				canActivate: [staffGuard],
 				loadComponent: () =>
 					import('./features/customers/pages/customers-list/customers-list.page').then((m) => m.CustomersPageComponent),
 			},
 			{
 				path: 'customers/:id',
+				canActivate: [staffGuard],
 				loadComponent: () =>
 					import('./features/customers/pages/customer-detail/customer-detail.page').then((m) => m.CustomerDetailPageComponent),
 			},
 			{
 				path: 'projects/:id',
+				canActivate: [staffGuard],
 				loadComponent: () =>
 					import('./features/projects/pages/project-detail/project-detail.page').then(
 						(m) => m.ProjectDetailPageComponent

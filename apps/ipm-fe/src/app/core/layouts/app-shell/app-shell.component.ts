@@ -8,7 +8,7 @@ import { CreateTaskModalComponent, type TaskFormData } from '../../../features/t
 import { TasksService } from '../../services/tasks.service';
 import { ProjectsService } from '../../../features/projects/services/projects.service';
 import { NotificationService } from '../../services/notification.service';
-import type { CreateTaskRequest } from '@sebsa-pm-tool/shared-models';
+import type { CreateTaskRequest, SystemRole } from '@sebsa-pm-tool/shared-models';
 
 @Component({
   imports: [CommonModule, RouterLink, RouterLinkActive, RouterOutlet, ToastComponent, CreateTaskModalComponent],
@@ -24,14 +24,19 @@ export class AppShellComponent implements OnInit {
   private readonly projectsService = inject(ProjectsService);
   private readonly notificationService = inject(NotificationService);
 
-  protected readonly navigationItems = [
+  private readonly navigationItems: { label: string; icon: string; path: string; hiddenForRoles?: SystemRole[] }[] = [
     { label: 'Dashboard', icon: 'home', path: '/dashboard' },
     { label: 'My Tasks', icon: 'search', path: '/tasks' },
-    { label: 'Projects', icon: 'favorite', path: '/projects' },
-    { label: 'Customers', icon: 'domain', path: '/customers' },
+    { label: 'Projects', icon: 'favorite', path: '/projects', hiddenForRoles: ['REGULAR_USER'] },
+    { label: 'Customers', icon: 'domain', path: '/customers', hiddenForRoles: ['REGULAR_USER'] },
     { label: 'CSO', icon: 'groups', path: '/cso' },
     { label: 'Calendar', icon: 'calendar_month', path: '/calendar' },
-  ] as const;
+  ];
+
+  protected get visibleNavigationItems() {
+    const role = this.authService.currentUser()?.systemRole;
+    return this.navigationItems.filter((item) => !item.hiddenForRoles || !role || !item.hiddenForRoles.includes(role));
+  }
 
   protected isTaskModalOpen = false;
   protected lastCreatedTask: TaskFormData | null = null;

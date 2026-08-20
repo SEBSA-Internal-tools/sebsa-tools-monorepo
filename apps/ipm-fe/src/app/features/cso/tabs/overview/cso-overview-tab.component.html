@@ -62,40 +62,47 @@
         <p>No CSO-flagged tasks match these filters.</p>
       </div>
     } @else {
-      <table class="results-table">
-        <thead>
-          <tr>
-            <th>Task</th>
-            <th>Project</th>
-            <th>Customer</th>
-            <th>Priority</th>
-            <th>Status</th>
-            <th>Assignee</th>
-            <th>Due Date</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (task of filteredTasks(); track task.id) {
-            <tr class="clickable-row" (click)="onTaskClick(task.id)">
-              <td>{{ task.title }}</td>
-              <td>{{ task.projectName }}</td>
-              <td>{{ task.customerName || '—' }}</td>
-              <td>
-                <span class="priority-badge" [style.--priority-color]="task.priorityColor || '#f59e0b'">
-                  {{ task.priority }}
-                </span>
-              </td>
-              <td>
-                <span class="status-badge" [class]="'status-' + task.statusLabel">
-                  {{ statusLabelText(task.statusLabel) }}
-                </span>
-              </td>
-              <td>{{ task.assignee || '—' }}</td>
-              <td>{{ task.dueDate ? (task.dueDate | date: 'mediumDate') : '—' }}</td>
+      <div class="table-container">
+        <table class="results-table">
+          <thead>
+            <tr>
+              <th>Task</th>
+              <th>Project</th>
+              <th>Customer</th>
+              <th>Priority</th>
+              <th>Status</th>
+              <th>Assignee</th>
+              <th>Due Date</th>
             </tr>
-          }
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            @for (task of filteredTasks(); track task.id) {
+              <tr
+                class="clickable-row"
+                (click)="onTaskClick(task.id)"
+                (keydown.enter)="onTaskClick(task.id)"
+                tabindex="0"
+              >
+                <td>{{ task.title }}</td>
+                <td>{{ task.projectName }}</td>
+                <td>{{ task.customerName || '—' }}</td>
+                <td>
+                  <span class="priority-badge" [style.--priority-color]="task.priorityColor || '#f59e0b'">
+                    {{ task.priority }}
+                  </span>
+                </td>
+                <td>
+                  <span class="status-badge" [class]="'status-' + task.statusLabel">
+                    {{ statusLabelText(task.statusLabel) }}
+                  </span>
+                </td>
+                <td>{{ task.assignee || '—' }}</td>
+                <td>{{ task.dueDate ? (task.dueDate | date: 'mediumDate') : '—' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
     }
   </div>
 

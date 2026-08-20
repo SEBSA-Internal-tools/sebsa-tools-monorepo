@@ -154,6 +154,7 @@ export class ProjectDetailPageComponent implements OnInit {
         customType: formData.customType,
         isCsoProject: formData.isCsoProject,
         customerId: formData.customerId,
+        status: formData.status,
       })
       .subscribe({
         next: (updated) => {

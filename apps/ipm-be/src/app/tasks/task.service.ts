@@ -81,7 +81,7 @@ export class TaskService {
     await this.assertSprintBelongsToProject(dto.sprintId, dto.projectId);
     await this.assertMilestoneBelongsToProject(dto.milestoneId, dto.projectId);
     await this.assertParentTaskBelongsToProject(dto.parentTaskId, dto.projectId);
-    await this.assertAssigneesValid(dto.assigneeIds);
+    await this.assertAssigneesValid(dto.assigneeIds, dto.projectId);
     await this.assertLabelsValid(dto.labelIds, dto.projectId);
     this.assertDatesValid(dto.startDate, dto.dueDate);
     this.assertCsoCategoryRequirement(dto.isCsoLabeled ?? false, dto.category);
@@ -260,7 +260,7 @@ export class TaskService {
       await this.assertParentTaskBelongsToProject(dto.parentTaskId, existing.projectId);
     }
     if (dto.assigneeIds) {
-      await this.assertAssigneesValid(dto.assigneeIds);
+      await this.assertAssigneesValid(dto.assigneeIds, existing.projectId);
     }
     if (dto.labelIds) {
       await this.assertLabelsValid(dto.labelIds, existing.projectId);
@@ -357,7 +357,7 @@ export class TaskService {
   async assignUsers(taskId: string, assigneeIds: string[], user: AuthUser): Promise<Task> {
     const task = await this.getTaskOrThrow(taskId);
     await this.assertCanEdit(task.projectId, user);
-    await this.assertAssigneesValid(assigneeIds);
+    await this.assertAssigneesValid(assigneeIds, task.projectId);
 
     await this.prisma.taskAssignee.createMany({
       data: assigneeIds.map((userId) => ({ taskId, userId })),
@@ -766,9 +766,38 @@ export class TaskService {
     if (filter.customerId) {
       where.project = { customerId: filter.customerId };
     }
+
+    const andConditions: Prisma.TaskWhereInput[] = [];
+
     if (filter.isCsoLabeled !== undefined) {
-      where.isCsoLabeled = filter.isCsoLabeled;
+      if (filter.isCsoLabeled) {
+        andConditions.push({
+          OR: [
+            { isCsoLabeled: true },
+            { project: { isCsoProject: true } },
+          ],
+        });
+      } else {
+        andConditions.push({
+          isCsoLabeled: false,
+          project: { isCsoProject: false },
+        });
+      }
     }
+
+    if (filter.search) {
+      andConditions.push({
+        OR: [
+          { title: { contains: filter.search, mode: 'insensitive' } },
+          { description: { contains: filter.search, mode: 'insensitive' } },
+        ],
+      });
+    }
+
+    if (andConditions.length > 0) {
+      where.AND = andConditions;
+    }
+
     if (filter.category) {
       where.category = filter.category;
     }
@@ -777,12 +806,6 @@ export class TaskService {
     }
     if (filter.type) {
       where.type = filter.type;
-    }
-    if (filter.search) {
-      where.OR = [
-        { title: { contains: filter.search, mode: 'insensitive' } },
-        { description: { contains: filter.search, mode: 'insensitive' } },
-      ];
     }
     if (filter.dueBefore || filter.dueAfter) {
       where.dueDate = {};
@@ -813,13 +836,14 @@ export class TaskService {
 
   /**
    * Finds the project's default Backlog stage — the one seeded automatically on
-   * project creation (isDefault: true, order: 0).  Throws a clear 400 if the
-   * project somehow has no default stage (data integrity issue).
+   * project creation (isDefault: true). Matches on isDefault alone, not order:
+   * order is mutable (manual stage edits, drag-to-reorder) and no longer
+   * reliably identifies Backlog once stages have been reordered. Throws a
+   * clear 400 if the project somehow has no default stage (data integrity issue).
    */
   private async resolveBacklogStageId(projectId: string): Promise<string> {
     const stage = await this.prisma.workflowStage.findFirst({
-      where: { projectId, OR: [{ isDefault: true }, { order: 0 }] },
-      orderBy: { order: 'asc' },
+      where: { projectId, isDefault: true },
       select: { id: true },
     });
     if (!stage) {
@@ -898,15 +922,25 @@ export class TaskService {
     }
   }
 
-  private async assertAssigneesValid(assigneeIds: string[] | undefined): Promise<void> {
+  private async assertAssigneesValid(
+    assigneeIds: string[] | undefined,
+    projectId: string,
+  ): Promise<void> {
     if (!assigneeIds || assigneeIds.length === 0) return;
 
     const uniqueIds = Array.from(new Set(assigneeIds));
-    const count = await this.prisma.user.count({
+    const activeCount = await this.prisma.user.count({
       where: { id: { in: uniqueIds }, isActive: true, deletedAt: null },
     });
-    if (count !== uniqueIds.length) {
+    if (activeCount !== uniqueIds.length) {
       throw new BadRequestException('One or more assigned users do not exist or are inactive.');
+    }
+
+    const memberCount = await this.prisma.projectMember.count({
+      where: { userId: { in: uniqueIds }, projectId, deletedAt: null },
+    });
+    if (memberCount !== uniqueIds.length) {
+      throw new BadRequestException('Assignees must be members of the project.');
     }
   }
 

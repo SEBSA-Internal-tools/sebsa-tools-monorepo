@@ -14,12 +14,16 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { SprintService } from '../../projects/services/sprint.service';
-import { UserAdminService } from '../../../core/services/user-admin.service';
 import { TasksService } from '../../../core/services/tasks.service';
 import type { SprintSummary } from '@sebsa-pm-tool/shared-models';
-import type { UserAdminSummary } from '@sebsa-pm-tool/shared-models';
 import type { TaskCategory } from '@sebsa-pm-tool/shared-models';
 import { ProjectsService } from '../../projects/services/projects.service';
+import {
+  PriorityModalComponent,
+  PriorityFormData,
+} from '../../projects/components/modals/priority-modal/priority-modal.component';
+
+type AssigneeCandidate = { id: string; name: string; email: string };
 
 export interface TaskFormData {
   title: string;
@@ -42,7 +46,7 @@ export interface TaskFormData {
 @Component({
   standalone: true,
   selector: 'app-create-task-modal',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, PriorityModalComponent],
   templateUrl: './create-task-modal.component.html',
   styleUrl: './create-task-modal.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -73,7 +77,6 @@ export class CreateTaskModalComponent implements OnChanges {
   @Output() submitted = new EventEmitter<TaskFormData>();
 
   private readonly sprintService = inject(SprintService);
-  private readonly userAdminService = inject(UserAdminService);
   private readonly projectsService = inject(ProjectsService);
   private readonly tasksService = inject(TasksService);
   private readonly elementRef = inject(ElementRef);
@@ -109,24 +112,23 @@ export class CreateTaskModalComponent implements OnChanges {
 
   readonly availableProjects = signal<Array<{ id: string; name: string; isCsoProject: boolean }>>([]);
   readonly availableSprints = signal<SprintSummary[]>([]);
-  readonly availableAssignees = signal<UserAdminSummary[]>([]);
+  readonly availableAssignees = signal<AssigneeCandidate[]>([]);
   readonly availableParentTasks = signal<Array<{ id: string; title: string }>>([]);
   readonly isLoadingSprints = signal(false);
   readonly isLoadingUsers = signal(false);
   readonly sprintError = signal('');
   readonly userError = signal('');
   readonly isAssigneeDropdownOpen = signal(false);
+  readonly isPriorityModalOpen = signal(false);
 
   ngOnChanges(): void {
     if (this.isOpen) {
-      // Load users from real backend on every open
-      this.loadUsers();
-
       if (this.projectId) {
         this.selectedProjectId = this.projectId;
         this.selectedProjectName = this.projectName;
         this.loadSprints(this.projectId);
         this.loadPriorities(this.projectId);
+        this.loadAssignees(this.projectId);
         if (!this.lockedParentTaskId) this.loadParentTaskCandidates(this.projectId);
       } else {
         this.loadAvailableProjects();
@@ -148,17 +150,20 @@ export class CreateTaskModalComponent implements OnChanges {
     }
   }
 
-  /** Fetch all users from GET /api/users/all */
-  private loadUsers(): void {
+  /** Fetch this project's members from GET /api/projects/:id/members — only
+   *  project members can be assigned a task in it, so the picker must be
+   *  scoped here rather than listing every user in the org. */
+  private loadAssignees(projectId: string): void {
     this.isLoadingUsers.set(true);
     this.userError.set('');
-    this.userAdminService.listAll().subscribe({
-      next: (users) => {
-        this.availableAssignees.set(users.filter((u) => u.isActive));
+    this.selectedAssigneeIds = [];
+    this.projectsService.getMembers(projectId).subscribe({
+      next: (members) => {
+        this.availableAssignees.set(members.map((m) => m.user));
         this.isLoadingUsers.set(false);
       },
       error: () => {
-        this.userError.set('Could not load users.');
+        this.userError.set('Could not load project members.');
         this.availableAssignees.set([]);
         this.isLoadingUsers.set(false);
       },
@@ -207,6 +212,7 @@ export class CreateTaskModalComponent implements OnChanges {
       this.selectedProjectName = project.name;
       this.loadSprints(projectId);
       this.loadPriorities(projectId);
+      this.loadAssignees(projectId);
       if (!this.lockedParentTaskId) this.loadParentTaskCandidates(projectId);
     }
   }
@@ -226,6 +232,50 @@ export class CreateTaskModalComponent implements OnChanges {
       },
       error: () => this.availablePriorities.set([]),
     });
+  }
+
+  openAddPriorityModal(): void {
+    const targetProjectId = this.projectId || this.selectedProjectId;
+    if (!targetProjectId) {
+      alert('Please select a project first');
+      return;
+    }
+    this.isPriorityModalOpen.set(true);
+  }
+
+  closePriorityModal(): void {
+    this.isPriorityModalOpen.set(false);
+  }
+
+  onPrioritySubmit(formData: PriorityFormData): void {
+    const targetProjectId = this.projectId || this.selectedProjectId;
+    if (!targetProjectId) return;
+
+    this.projectsService
+      .createProjectPriority(targetProjectId, {
+        name: formData.name,
+        color: formData.color ?? undefined,
+        order: formData.order,
+      })
+      .subscribe({
+        next: (created) => {
+          this.closePriorityModal();
+          this.projectsService.getProjectPriorities(targetProjectId).subscribe({
+            next: (priorities) => {
+              const sorted = [...priorities].sort((a, b) => a.order - b.order);
+              this.availablePriorities.set(sorted);
+              const createdPrio = sorted.find((p) => p.id === created.id) || sorted[0];
+              if (createdPrio) {
+                this.selectPriority(createdPrio);
+              }
+            },
+          });
+        },
+        error: (err) => {
+          console.error('Failed to create priority:', err);
+          alert(err.error?.message || 'Failed to create priority.');
+        },
+      });
   }
 
   /** Loads this project's tasks once, for the optional "Parent Task" picker
@@ -365,7 +415,7 @@ export class CreateTaskModalComponent implements OnChanges {
   }
   }
 
-  getFilteredAssignees(): UserAdminSummary[] {
+  getFilteredAssignees(): AssigneeCandidate[] {
     const term = this.assigneeSearch.trim().toLowerCase();
 
     if (!term) {
@@ -410,7 +460,7 @@ export class CreateTaskModalComponent implements OnChanges {
     this.selectedAssigneeIds = [];
   }
 
-  selectedAssignees(): UserAdminSummary[] {
+  selectedAssignees(): AssigneeCandidate[] {
     return this.availableAssignees().filter((user) =>
       this.selectedAssigneeIds.includes(user.id),
     );

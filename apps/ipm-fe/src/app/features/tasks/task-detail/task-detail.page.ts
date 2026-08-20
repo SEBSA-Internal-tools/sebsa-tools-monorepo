@@ -7,22 +7,34 @@ import { ProjectsService } from '../../projects/services/projects.service';
 import type {
   CreateTaskRequest,
   Task,
+  TaskCategory,
   TaskCategoryAssignmentEntry,
   TaskDependenciesView,
   TaskDependencyType,
   TaskStatusHistoryEntry,
   UpdateTaskRequest,
 } from '@sebsa-pm-tool/shared-models';
-import { EditTaskModalComponent } from '../edit-task/edit-task-modal.component';
 import {
   CreateTaskModalComponent,
   type TaskFormData,
 } from '../create-task/create-task-modal.component';
 
+interface TaskEditDraft {
+  title: string;
+  description: string;
+  priorityId: string;
+  startDate: string;
+  dueDate: string;
+  storyPoints: number | null;
+  isCsoLabeled: boolean;
+  category: TaskCategory | '';
+  assigneeId: string;
+}
+
 @Component({
   standalone: true,
   selector: 'app-task-detail-page',
-  imports: [CommonModule, FormsModule, RouterLink, EditTaskModalComponent, CreateTaskModalComponent],
+  imports: [CommonModule, FormsModule, RouterLink, CreateTaskModalComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './task-detail.page.html',
   styleUrls: ['./task-detail.page.scss'],
@@ -36,9 +48,29 @@ export class TaskDetailPageComponent implements OnInit {
 
   task = signal<Task | null>(null);
   isLoading = signal(false);
+  isSaving = signal(false);
   errorMessage = signal('');
-  isEditModalOpen = signal(false);
   isAddSubtaskModalOpen = signal(false);
+
+  // ---------------------------------------------------------------------------
+  // Live edit — the page has no separate "Edit" flow; every editable field
+  // binds directly to `draft`, and a "Save Changes" button appears in the
+  // header only once `isDirty` is true.
+  // ---------------------------------------------------------------------------
+  isDirty = signal(false);
+  draft: TaskEditDraft = {
+    title: '',
+    description: '',
+    priorityId: '',
+    startDate: '',
+    dueDate: '',
+    storyPoints: null,
+    isCsoLabeled: false,
+    category: '',
+    assigneeId: '',
+  };
+  availablePriorities = signal<Array<{ id: string; name: string; color: string | null; order: number }>>([]);
+  availableAssignees = signal<Array<{ id: string; name: string }>>([]);
 
   workflowStages = signal<WorkflowStage[]>([]);
   statusHistory = signal<TaskStatusHistoryEntry[]>([]);
@@ -73,18 +105,35 @@ export class TaskDetailPageComponent implements OnInit {
     this.tasksService.getTaskById(taskId).subscribe({
       next: (task) => {
         this.task.set(task);
+        this.populateDraft(task);
         this.isLoading.set(false);
         this.loadWorkflowStages(task.projectId);
         this.loadStatusHistory(taskId);
         this.loadCategoryHistory(taskId);
         this.loadDependencies(taskId);
         this.loadDependencyTaskCandidates(task.projectId, taskId);
+        this.loadPriorities(task.projectId);
+        this.loadAssignees(task.projectId);
       },
       error: (err) => {
         console.error('Failed to load task:', err);
         this.errorMessage.set('Unable to load task details. The task may not exist or you may not have access.');
         this.isLoading.set(false);
       },
+    });
+  }
+
+  private loadPriorities(projectId: string): void {
+    this.projectsService.getProjectPriorities(projectId).subscribe({
+      next: (priorities) => this.availablePriorities.set([...priorities].sort((a, b) => a.order - b.order)),
+      error: () => this.availablePriorities.set([]),
+    });
+  }
+
+  private loadAssignees(projectId: string): void {
+    this.projectsService.getMembers(projectId).subscribe({
+      next: (members) => this.availableAssignees.set(members.map((m) => m.user)),
+      error: () => this.availableAssignees.set([]),
     });
   }
 
@@ -130,12 +179,83 @@ export class TaskDetailPageComponent implements OnInit {
     this.location.back();
   }
 
-  onEditTask(): void {
-    this.isEditModalOpen.set(true);
+  // ---------------------------------------------------------------------------
+  // Live edit — every field-level control below is bound to `draft` via
+  // [(ngModel)] and calls markDirty() on change; nothing hits the network
+  // until saveChanges() runs.
+  // ---------------------------------------------------------------------------
+
+  private populateDraft(task: Task): void {
+    this.draft = {
+      title: task.title,
+      description: task.description ?? '',
+      priorityId: task.priorityId,
+      startDate: task.startDate ? task.startDate.split('T')[0] : '',
+      dueDate: task.dueDate ? task.dueDate.split('T')[0] : '',
+      storyPoints: task.storyPoints,
+      isCsoLabeled: task.isCsoLabeled,
+      category: task.category ?? '',
+      assigneeId: task.assignees[0]?.id ?? '',
+    };
+    this.isDirty.set(false);
   }
 
-  closeEditModal(): void {
-    this.isEditModalOpen.set(false);
+  markDirty(): void {
+    this.isDirty.set(true);
+  }
+
+  selectedPriorityColor(): string {
+    return this.availablePriorities().find((p) => p.id === this.draft.priorityId)?.color ?? '#64748b';
+  }
+
+  discardChanges(): void {
+    const current = this.task();
+    if (!current) return;
+    this.populateDraft(current);
+    this.errorMessage.set('');
+  }
+
+  saveChanges(): void {
+    const current = this.task();
+    if (!current || !this.isDirty()) return;
+
+    if (!this.draft.title.trim()) {
+      this.errorMessage.set('Task title cannot be empty.');
+      return;
+    }
+    if (this.draft.isCsoLabeled && !this.draft.category) {
+      this.errorMessage.set('Please tag this CSO task as Functional or Technical.');
+      return;
+    }
+
+    this.isSaving.set(true);
+    this.errorMessage.set('');
+
+    const dto: UpdateTaskRequest = {
+      title: this.draft.title,
+      description: this.draft.description || undefined,
+      priorityId: this.draft.priorityId || undefined,
+      startDate: this.draft.startDate || undefined,
+      dueDate: this.draft.dueDate || undefined,
+      storyPoints: this.draft.storyPoints !== null ? this.draft.storyPoints : undefined,
+      isCsoLabeled: this.draft.isCsoLabeled,
+      assigneeIds: this.draft.assigneeId ? [this.draft.assigneeId] : [],
+      category: this.draft.category || undefined,
+    };
+
+    this.tasksService.updateTaskDetails(current.id, dto).subscribe({
+      next: (response) => {
+        this.task.set(response.task);
+        this.populateDraft(response.task);
+        this.warnings.set(response.warnings);
+        this.isSaving.set(false);
+        this.loadCategoryHistory(current.id);
+      },
+      error: (err) => {
+        this.errorMessage.set(err?.error?.message || 'Failed to save changes. Please try again.');
+        this.isSaving.set(false);
+      },
+    });
   }
 
   deleteTask(): void {
@@ -157,35 +277,6 @@ export class TaskDetailPageComponent implements OnInit {
       },
       error: (err) => {
         this.errorMessage.set(err?.error?.message || 'Failed to delete task.');
-        this.isLoading.set(false);
-      },
-    });
-  }
-
-  handleEditSubmit(dto: UpdateTaskRequest): void {
-    const currentTask = this.task();
-
-    if (!currentTask) {
-      return;
-    }
-
-    this.isLoading.set(true);
-    this.errorMessage.set('');
-
-    this.tasksService.updateTaskDetails(currentTask.id, dto).subscribe({
-      next: (response) => {
-        this.task.set(response.task);
-        this.warnings.set(response.warnings);
-        this.isLoading.set(false);
-        this.closeEditModal();
-        this.loadCategoryHistory(currentTask.id);
-      },
-
-      error: (err) => {
-        console.error('Failed to update task:', err);
-        this.errorMessage.set(
-          'Failed to update task. Please try again.',
-        );
         this.isLoading.set(false);
       },
     });
@@ -345,36 +436,6 @@ export class TaskDetailPageComponent implements OnInit {
   // ---------------------------------------------------------------------------
   // Formatting helpers
   // ---------------------------------------------------------------------------
-
-  getPriorityClass(priority: string): string {
-    switch (priority) {
-      case 'CRITICAL':
-        return 'priority-critical';
-      case 'HIGH':
-        return 'priority-high';
-      case 'MEDIUM':
-        return 'priority-medium';
-      case 'LOW':
-        return 'priority-low';
-      default:
-        return 'priority-medium';
-    }
-  }
-
-  getPriorityLabel(priority: string): string {
-    switch (priority) {
-      case 'CRITICAL':
-        return 'Critical';
-      case 'HIGH':
-        return 'High';
-      case 'MEDIUM':
-        return 'Medium';
-      case 'LOW':
-        return 'Low';
-      default:
-        return priority;
-    }
-  }
 
   getTypeLabel(type: string): string {
     switch (type) {

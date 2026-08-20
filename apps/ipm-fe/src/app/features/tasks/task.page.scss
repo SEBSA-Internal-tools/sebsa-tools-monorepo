@@ -6,7 +6,7 @@
 :host {
   display: block;
   width: 100%;
-  background-color: #FFFFFF;
+  background-color: var(--surface-page);
 }
 
 .workspace-page {
@@ -17,11 +17,11 @@
   width: 100%;
   max-width: 1600px;
   margin: 0 auto;
-  background-color: #FFFFFF;
+  background-color: var(--surface-page);
 
   .sebsa-card,
   .workspace-card {
-    border: 1px solid #F1F5F9;
+    border: 1px solid var(--border-subtle);
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02);
   }
 
@@ -45,7 +45,7 @@
   padding: 32px 40px;
   border-radius: 24px;
   background: var(--surface-card);
-  border: 1px solid #F1F5F9;
+  border: 1px solid var(--border-subtle);
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02);
   width: 100%;
 }
@@ -101,7 +101,7 @@
   padding: 28px 32px;
   border-radius: 24px;
   background: var(--surface-card);
-  border: 1px solid #F1F5F9;
+  border: 1px solid var(--border-subtle);
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02);
 }
 
@@ -127,7 +127,7 @@
 
   &:focus-within {
     border-color: var(--brand-primary);
-    background: #ffffff;
+    background: var(--surface-card);
     box-shadow: var(--shadow-glow-focus);
   }
 
@@ -165,7 +165,7 @@
     cursor: pointer;
 
     &:hover {
-      background: #e2e8f0;
+      background: var(--border-default);
       color: var(--text-heading);
     }
   }
@@ -215,7 +215,7 @@
   overflow-x: auto;
   border-radius: 16px;
   border: 1px solid var(--border-default);
-  background: #ffffff;
+  background: var(--surface-card);
 }
 
 .tasks-table {
@@ -257,7 +257,7 @@
   }
 
   &:hover {
-    background: #f8fafc;
+    background: var(--surface-muted);
   }
 }
 

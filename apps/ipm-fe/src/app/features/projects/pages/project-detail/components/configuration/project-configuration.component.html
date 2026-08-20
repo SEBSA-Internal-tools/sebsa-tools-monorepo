@@ -47,9 +47,20 @@
         <p>No workflow stages configured yet.</p>
       </div>
     } @else {
+      @if (!canReorderStages()) {
+        <p class="reorder-hint">
+          <span class="material-symbols-outlined">lock</span>
+          Reordering is locked while tasks exist outside Backlog — move or complete them first.
+        </p>
+      }
       <div class="config-list">
         @for (stage of workflowStages(); track stage.id) {
-          <div class="config-item">
+          <div
+            class="config-item"
+            [class.dragging]="draggedStageId === stage.id"
+            (dragover)="onStageDragOver($event)"
+            (drop)="onStageDrop(stage.id)"
+          >
             <div class="item-info">
               <span class="item-order">#{{ stage.order }}</span>
               <span class="item-name">{{ stage.name }}</span>
@@ -71,6 +82,16 @@
                   <span class="material-symbols-outlined">delete</span>
                 </button>
               }
+              <span
+                class="btn-icon drag-handle"
+                [class.disabled]="!canReorderStages()"
+                [attr.draggable]="canReorderStages()"
+                [title]="canReorderStages() ? 'Drag to reorder' : 'Reordering locked — tasks exist outside Backlog'"
+                (dragstart)="onStageDragStart(stage.id)"
+                (dragend)="onStageDragEnd()"
+              >
+                <span class="material-symbols-outlined">drag_indicator</span>
+              </span>
             </div>
           </div>
         }
