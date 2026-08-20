@@ -21,4 +21,14 @@ export const envValidationSchema = Joi.object({
   // "sebsaworld.com,sebsa.com". Required (no default) so a misconfiguration
   // can't accidentally open signup to any domain.
   SIGNUP_ALLOWED_EMAIL_DOMAINS: Joi.string().required(),
+
+  // Jira sync — optional. Omit all of these to run with Jira sync disabled
+  // (JiraClientService.isConfigured() gates every call on this).
+  JIRA_BASE_URL: Joi.string().uri().optional(),
+  JIRA_EMAIL: Joi.string().email().optional(),
+  JIRA_API_TOKEN: Joi.string().optional(),
+  JIRA_PROJECT_KEY: Joi.string().optional(),
+  JIRA_CLOUD_ID: Joi.string().optional(),
+  // Off by default — see JiraPollService. Must be the literal string "true".
+  JIRA_POLLING_ENABLED: Joi.string().valid('true', 'false').optional(),
 });

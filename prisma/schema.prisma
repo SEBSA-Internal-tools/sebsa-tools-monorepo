@@ -155,6 +155,7 @@ enum IntegrationType {
   GOOGLE_DRIVE
   DROPBOX
   CI_CD
+  JIRA
 }
 
 // ---------------------------------------------------------------------------
@@ -500,6 +501,14 @@ model Task {
   /// (mirrors the Project.customerId requirement pattern), since CSO's
   /// Functional/Technical queues filter on it.
   category            TaskCategory?
+  /// Jira 2-way sync (see JiraModule). Null for tasks never linked to a Jira
+  /// issue — most tasks, since sync is opt-in per project via Integration
+  /// (type: JIRA). jiraSyncedAt is the loop-prevention guard: when we push a
+  /// local change out to Jira, we stamp the resulting Jira `updated` time
+  /// here, so an incoming webhook/poll for that exact change is recognized
+  /// as an echo of our own write rather than a new external edit.
+  jiraIssueKey        String?       @unique
+  jiraSyncedAt        DateTime?
   createdById         String
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
