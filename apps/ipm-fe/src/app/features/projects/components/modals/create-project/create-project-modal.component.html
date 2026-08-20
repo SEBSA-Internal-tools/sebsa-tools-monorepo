@@ -39,6 +39,18 @@
         </select>
       </div>
 
+      <!-- Status Field (edit only — a new project always starts Planning) -->
+      @if (isEditMode()) {
+        <div class="form-group">
+          <label for="projectStatus" class="form-label">Status</label>
+          <select id="projectStatus" [(ngModel)]="status" class="form-input">
+            @for (option of statusOptions; track option.value) {
+              <option [value]="option.value">{{ option.label }}</option>
+            }
+          </select>
+        </div>
+      }
+
       <!-- Custom Type Name Field -->
       @if (type === 'CUSTOM') {
         <div class="form-group">

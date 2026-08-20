@@ -16,6 +16,7 @@ import { CustomersService } from '../../../../../core/services/customers.service
 import type {
   Customer,
   Project,
+  ProjectStatus,
   ProjectType,
   UserSummary,
 } from '@sebsa-pm-tool/shared-models';
@@ -28,6 +29,8 @@ export interface ProjectFormData {
   memberIds: string[];
   isCsoProject: boolean;
   customerId: string;
+  /** Only meaningful in edit mode — a new project always starts PLANNING. */
+  status?: ProjectStatus;
 }
 
 const PROJECT_TYPE_OPTIONS: { value: ProjectType; label: string }[] = [
@@ -38,6 +41,14 @@ const PROJECT_TYPE_OPTIONS: { value: ProjectType; label: string }[] = [
   { value: 'UPGRADE', label: 'Upgrade' },
   { value: 'CONFIGURATION', label: 'Configuration' },
   { value: 'CUSTOM', label: 'Custom' },
+];
+
+const PROJECT_STATUS_OPTIONS: { value: ProjectStatus; label: string }[] = [
+  { value: 'PLANNING', label: 'Planning' },
+  { value: 'ACTIVE', label: 'Active' },
+  { value: 'ON_HOLD', label: 'On Hold' },
+  { value: 'COMPLETED', label: 'Completed' },
+  { value: 'ARCHIVED', label: 'Archived' },
 ];
 
 @Component({
@@ -62,6 +73,7 @@ export class CreateProjectModalComponent implements OnChanges {
   @Output() submitted = new EventEmitter<ProjectFormData>();
 
   protected readonly typeOptions = PROJECT_TYPE_OPTIONS;
+  protected readonly statusOptions = PROJECT_STATUS_OPTIONS;
 
   projectName = '';
   description = '';
@@ -71,6 +83,7 @@ export class CreateProjectModalComponent implements OnChanges {
   selectedMembers: UserSummary[] = [];
   isCsoProject = false;
   customerId = '';
+  status: ProjectStatus = 'PLANNING';
 
   protected readonly availableMembers = signal<UserSummary[]>([]);
   protected readonly availableCustomers = signal<Customer[]>([]);
@@ -93,6 +106,7 @@ export class CreateProjectModalComponent implements OnChanges {
       this.customType = this.editingProject.customType ?? '';
       this.isCsoProject = this.editingProject.isCsoProject;
       this.customerId = this.editingProject.customerId;
+      this.status = this.editingProject.status;
     } else {
       this.resetForm();
       this.isCsoProject = this.defaultCsoProject;
@@ -170,6 +184,7 @@ export class CreateProjectModalComponent implements OnChanges {
       memberIds: this.selectedMembers.map((m) => m.id),
       isCsoProject: this.isCsoProject,
       customerId: this.customerId,
+      status: this.isEditMode() ? this.status : undefined,
     };
 
     this.submitted.emit(formData);
@@ -186,6 +201,7 @@ export class CreateProjectModalComponent implements OnChanges {
     this.selectedMembers = [];
     this.isCsoProject = false;
     this.customerId = '';
+    this.status = 'PLANNING';
   }
 
   onBackdropClick(): void {

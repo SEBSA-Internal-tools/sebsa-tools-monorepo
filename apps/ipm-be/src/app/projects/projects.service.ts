@@ -389,10 +389,69 @@ export class ProjectsService {
   async getWorkflowStages(
     projectId: string,
     user: AuthUser,
-  ): Promise<{ id: string; name: string; order: number; isDefault: boolean }[]> {
+  ): Promise<{ id: string; name: string; order: number; isDefault: boolean; taskCount: number }[]> {
     const project = await this.loadProjectWithMembership(projectId);
     const membership = this.findMembership(project, user.id);
     this.assertVisible(!!membership, user);
+
+    const stages = await this.prisma.workflowStage.findMany({
+      where: { projectId },
+      select: {
+        id: true,
+        name: true,
+        order: true,
+        isDefault: true,
+        _count: { select: { tasks: { where: { deletedAt: null } } } },
+      },
+      orderBy: { order: 'asc' },
+    });
+
+    return stages.map((s) => ({
+      id: s.id,
+      name: s.name,
+      order: s.order,
+      isDefault: s.isDefault,
+      taskCount: s._count.tasks,
+    }));
+  }
+
+  /** Reorders every workflow stage for a project in one shot. Two-phase update
+   *  (negative temp orders, then final orders) since `order` has a
+   *  `@@unique([projectId, order])` constraint — writing final orders directly,
+   *  one row at a time, would collide with whatever row currently holds that
+   *  order value. */
+  async reorderWorkflowStages(
+    projectId: string,
+    stageIds: string[],
+    user: AuthUser,
+  ): Promise<{ id: string; name: string; order: number; isDefault: boolean }[]> {
+    const project = await this.loadProjectWithMembership(projectId);
+    this.assertCanManageMembers(project, user);
+
+    const existingStages = await this.prisma.workflowStage.findMany({
+      where: { projectId },
+      include: { _count: { select: { tasks: { where: { deletedAt: null } } } } },
+    });
+
+    if (existingStages.length !== stageIds.length || !existingStages.every((s) => stageIds.includes(s.id))) {
+      throw new BadRequestException('stageIds must include every workflow stage for this project exactly once.');
+    }
+
+    const stagesWithTasks = existingStages.filter((s) => s.name !== 'Backlog' && s._count.tasks > 0);
+    if (stagesWithTasks.length > 0) {
+      throw new BadRequestException(
+        `Cannot reorder while tasks exist outside Backlog (blocked by: ${stagesWithTasks.map((s) => s.name).join(', ')}).`,
+      );
+    }
+
+    await this.prisma.$transaction([
+      ...stageIds.map((id, i) =>
+        this.prisma.workflowStage.update({ where: { id }, data: { order: -(i + 1) } }),
+      ),
+      ...stageIds.map((id, i) =>
+        this.prisma.workflowStage.update({ where: { id }, data: { order: i } }),
+      ),
+    ]);
 
     return this.prisma.workflowStage.findMany({
       where: { projectId },

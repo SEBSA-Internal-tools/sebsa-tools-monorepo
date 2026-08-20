@@ -813,13 +813,14 @@ export class TaskService {
 
   /**
    * Finds the project's default Backlog stage — the one seeded automatically on
-   * project creation (isDefault: true, order: 0).  Throws a clear 400 if the
-   * project somehow has no default stage (data integrity issue).
+   * project creation (isDefault: true). Matches on isDefault alone, not order:
+   * order is mutable (manual stage edits, drag-to-reorder) and no longer
+   * reliably identifies Backlog once stages have been reordered. Throws a
+   * clear 400 if the project somehow has no default stage (data integrity issue).
    */
   private async resolveBacklogStageId(projectId: string): Promise<string> {
     const stage = await this.prisma.workflowStage.findFirst({
-      where: { projectId, OR: [{ isDefault: true }, { order: 0 }] },
-      orderBy: { order: 'asc' },
+      where: { projectId, isDefault: true },
       select: { id: true },
     });
     if (!stage) {

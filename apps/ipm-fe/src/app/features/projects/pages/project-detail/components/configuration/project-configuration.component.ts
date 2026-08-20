@@ -19,6 +19,7 @@ interface WorkflowStageView {
   name: string;
   order: number;
   isDefault: boolean;
+  taskCount: number;
 }
 
 interface PriorityView {
@@ -56,9 +57,20 @@ export class ProjectConfigurationComponent implements OnChanges {
   isPriorityModalOpen = false;
   editingPriority: PriorityView | null = null;
 
-  // Collapsible state
-  isWorkflowStagesCollapsed = false;
-  isPrioritiesCollapsed = false;
+  // Collapsible state — collapsed by default, expand on click.
+  isWorkflowStagesCollapsed = true;
+  isPrioritiesCollapsed = true;
+
+  // ---- Drag-to-reorder state (Workflow Stages only) ----
+  draggedStageId: string | null = null;
+
+  /** Reordering is only safe while the pipeline is empty of in-flight work —
+   *  once a non-Backlog stage holds a task, changing stage order could
+   *  silently reshuffle what "further along" means for that task. Backlog
+   *  is exempt since it's the untouched starting pool. */
+  canReorderStages(): boolean {
+    return this.workflowStages().every((s) => s.name === 'Backlog' || s.taskCount === 0);
+  }
 
   toggleWorkflowStages(): void {
     this.isWorkflowStagesCollapsed = !this.isWorkflowStagesCollapsed;
@@ -153,6 +165,49 @@ export class ProjectConfigurationComponent implements OnChanges {
         this.showError(err.error?.message || 'Failed to delete workflow stage. It may have tasks assigned to it.');
       },
     });
+  }
+
+  // ---- Workflow Stage Reordering ----
+
+  onStageDragStart(stageId: string): void {
+    if (!this.canReorderStages()) return;
+    this.draggedStageId = stageId;
+  }
+
+  onStageDragOver(event: DragEvent): void {
+    if (!this.canReorderStages() || !this.draggedStageId) return;
+    event.preventDefault();
+  }
+
+  onStageDrop(targetStageId: string): void {
+    const draggedId = this.draggedStageId;
+    this.draggedStageId = null;
+    if (!this.canReorderStages() || !draggedId || draggedId === targetStageId) return;
+
+    const current = this.workflowStages();
+    const draggedIndex = current.findIndex((s) => s.id === draggedId);
+    const targetIndex = current.findIndex((s) => s.id === targetStageId);
+    if (draggedIndex === -1 || targetIndex === -1) return;
+
+    const reordered = [...current];
+    const [moved] = reordered.splice(draggedIndex, 1);
+    reordered.splice(targetIndex, 0, moved);
+
+    // Optimistic update so the drag feels instant; reverts on failure below.
+    this.workflowStages.set(reordered.map((s, i) => ({ ...s, order: i })));
+
+    this.projectsService.reorderWorkflowStages(this.project.id, reordered.map((s) => s.id)).subscribe({
+      next: () => this.loadWorkflowStages(),
+      error: (err) => {
+        console.error('Failed to reorder workflow stages:', err);
+        this.showError(err.error?.message || 'Failed to reorder workflow stages.');
+        this.loadWorkflowStages();
+      },
+    });
+  }
+
+  onStageDragEnd(): void {
+    this.draggedStageId = null;
   }
 
   // ---- Priority Methods ----
