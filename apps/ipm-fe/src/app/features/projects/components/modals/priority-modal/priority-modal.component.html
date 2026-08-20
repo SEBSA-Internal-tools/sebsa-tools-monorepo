@@ -1,0 +1,82 @@
+@if (isOpen) {
+  <div class="modal-overlay" (click)="onBackdropClick()"></div>
+
+  <div class="modal-container">
+    <!-- Modal Header -->
+    <div class="modal-header">
+      <div class="header-content">
+        <p class="header-label">{{ editData ? 'EDIT' : 'CREATE' }} PRIORITY</p>
+        <h2>{{ editData ? 'Edit Priority' : 'Add New Priority' }}</h2>
+      </div>
+      <button type="button" class="close-btn" (click)="onCancel()" title="Close">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+
+    <!-- Modal Body -->
+    <div class="modal-body">
+      <!-- Error Message -->
+      @if (errorMessage()) {
+        <div class="error-message">
+          <span class="material-symbols-outlined">error</span>
+          {{ errorMessage() }}
+        </div>
+      }
+
+      <!-- Priority Name -->
+      <div class="form-group full-width">
+        <label for="priorityName" class="form-label">
+          Priority Name <span class="required">*</span>
+        </label>
+        <input
+          id="priorityName"
+          type="text"
+          [(ngModel)]="name"
+          placeholder="e.g. Critical"
+          class="form-input"
+        />
+      </div>
+
+      <!-- Color -->
+      <div class="form-group full-width">
+        <label for="priorityColor" class="form-label">
+          Color Code (Hex)
+        </label>
+        <input
+          id="priorityColor"
+          type="color"
+          [(ngModel)]="color"
+          class="form-input"
+          style="height: 40px; padding: 4px;"
+        />
+      </div>
+
+      <!-- Order -->
+      @if (editData) {
+        <div class="form-group full-width">
+          <label for="priorityOrder" class="form-label">
+            Order / Sequence
+          </label>
+          <input
+            id="priorityOrder"
+            type="number"
+            min="0"
+            [(ngModel)]="order"
+            class="form-input"
+          />
+        </div>
+      }
+    </div>
+
+    <!-- Modal Footer -->
+    <div class="modal-footer">
+      <button type="button" class="btn-cancel" (click)="onCancel()">
+        Cancel
+      </button>
+      <button type="button" class="btn-create" (click)="onSubmit()">
+        <span class="material-symbols-outlined">{{ editData ? 'save' : 'add' }}</span>
+        {{ editData ? 'Save Changes' : 'Add Priority' }}
+      </button>
+    </div>
+  </div>
+}

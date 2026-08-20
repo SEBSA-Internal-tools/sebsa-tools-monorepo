@@ -10,14 +10,25 @@
 </button>
 @if (task()) {
   <div class="header-actions-right">
-    <button
-      type="button"
-      class="edit-btn"
-      (click)="onEditTask()"
-    >
-      <span class="material-symbols-outlined">edit</span>
-      Edit
-    </button>
+    @if (isDirty()) {
+      <button
+        type="button"
+        class="discard-btn"
+        (click)="discardChanges()"
+        [disabled]="isSaving()"
+      >
+        Discard
+      </button>
+      <button
+        type="button"
+        class="save-btn"
+        (click)="saveChanges()"
+        [disabled]="isSaving()"
+      >
+        <span class="material-symbols-outlined">{{ isSaving() ? 'hourglass_empty' : 'save' }}</span>
+        {{ isSaving() ? 'Saving…' : 'Save Changes' }}
+      </button>
+    }
     <button
       type="button"
       class="delete-btn"
@@ -70,25 +81,45 @@
         </span>
         {{ getTypeLabel(task.type) }}
       </span>
-      <span
-        class="priority-pill"
-        [ngClass]="getPriorityClass(task.priority)"
+      <select
+        class="priority-pill-select"
+        [(ngModel)]="draft.priorityId"
+        (ngModelChange)="markDirty()"
+        [style.background]="selectedPriorityColor() + '22'"
+        [style.color]="selectedPriorityColor()"
       >
-        {{ getPriorityLabel(task.priority) }}
-      </span>
-      @if (task.isCsoLabeled) {
-        <span class="cso-pill">CSO</span>
-      }
-      @if (task.category) {
-        <span class="category-pill" [class.technical]="task.category === 'TECHNICAL'">
-          <span class="material-symbols-outlined category-pill-icon">{{ getCategoryIcon(task.category) }}</span>
-          {{ getCategoryLabel(task.category) }}
-        </span>
+        @for (prio of availablePriorities(); track prio.id) {
+          <option [value]="prio.id">{{ prio.name }}</option>
+        }
+      </select>
+      <button
+        type="button"
+        class="cso-pill"
+        [class.active]="draft.isCsoLabeled"
+        (click)="draft.isCsoLabeled = !draft.isCsoLabeled; markDirty()"
+      >
+        CSO
+      </button>
+      @if (draft.isCsoLabeled) {
+        <select
+          class="category-pill-select"
+          [(ngModel)]="draft.category"
+          (ngModelChange)="markDirty()"
+          [class.technical]="draft.category === 'TECHNICAL'"
+        >
+          <option value="" disabled>Select…</option>
+          <option value="FUNCTIONAL">Functional</option>
+          <option value="TECHNICAL">Technical</option>
+        </select>
       }
     </div>
-    <h1 class="task-title">
-      {{ task.title }}
-    </h1>
+    <input
+      type="text"
+      class="task-title-input"
+      [(ngModel)]="draft.title"
+      (ngModelChange)="markDirty()"
+      placeholder="Task title"
+    />
     <p class="breadcrumb-trail">
       <a class="breadcrumb-link" [routerLink]="['/projects', task.project.id]">{{ task.project.name }}</a>
       @for (ancestor of task.ancestors; track ancestor.id) {
@@ -145,15 +176,13 @@
           </span>
           Description
         </h3>
-        @if (task.description) {
-          <div class="description-content">
-            <p>{{ task.description }}</p>
-          </div>
-        } @else {
-          <p class="empty-placeholder">
-            No description provided.
-          </p>
-        }
+        <textarea
+          class="description-input"
+          [(ngModel)]="draft.description"
+          (ngModelChange)="markDirty()"
+          placeholder="No description provided. Click here to add one…"
+          rows="5"
+        ></textarea>
       </div>
 
       <!-- Subtasks -->
@@ -321,17 +350,23 @@
           <span class="meta-label">
             Start Date
           </span>
-          <span class="meta-value">
-            {{ formatDate(task.startDate) }}
-          </span>
+          <input
+            type="date"
+            class="meta-value-input"
+            [(ngModel)]="draft.startDate"
+            (ngModelChange)="markDirty()"
+          />
         </div>
         <div class="meta-row">
           <span class="meta-label">
             Due Date
           </span>
-          <span class="meta-value">
-            {{ formatDate(task.dueDate) }}
-          </span>
+          <input
+            type="date"
+            class="meta-value-input"
+            [(ngModel)]="draft.dueDate"
+            (ngModelChange)="markDirty()"
+          />
         </div>
         @if (task.reminderLeadMinutes) {
           <div class="meta-row">
@@ -349,24 +384,27 @@
         </div>
       </div>
       <!-- Story Points -->
-      @if (task.storyPoints !== null) {
-        <div class="meta-card">
-          <h4 class="meta-heading">
-            <span class="material-symbols-outlined">
-              speed
-            </span>
-            Effort
-          </h4>
-          <div class="meta-row">
-            <span class="meta-label">
-              Story Points
-            </span>
-            <span class="meta-value story-points">
-              {{ task.storyPoints }}
-            </span>
-          </div>
+      <div class="meta-card">
+        <h4 class="meta-heading">
+          <span class="material-symbols-outlined">
+            speed
+          </span>
+          Effort
+        </h4>
+        <div class="meta-row">
+          <span class="meta-label">
+            Story Points
+          </span>
+          <input
+            type="number"
+            min="0"
+            class="meta-value-input story-points-input"
+            [(ngModel)]="draft.storyPoints"
+            (ngModelChange)="markDirty()"
+            placeholder="—"
+          />
         </div>
-      }
+      </div>
       <!-- Sprint -->
       @if (task.sprint) {
         <div class="meta-card">
@@ -387,25 +425,16 @@
           </span>
           Assignee
         </h4>
-        @if (task.assignees && task.assignees.length > 0) {
-          <div class="assignee-chip">
-            <span class="avatar-circle">
-              {{ task.assignees[0].name.charAt(0) }}
-            </span>
-            <div class="assignee-info">
-              <span class="assignee-name">
-                {{ task.assignees[0].name }}
-              </span>
-              <span class="assignee-email">
-                {{ task.assignees[0].email }}
-              </span>
-            </div>
-          </div>
-        } @else {
-          <p class="empty-placeholder">
-            Unassigned
-          </p>
-        }
+        <select
+          class="assignee-select"
+          [(ngModel)]="draft.assigneeId"
+          (ngModelChange)="markDirty()"
+        >
+          <option value="">Unassigned</option>
+          @for (user of availableAssignees(); track user.id) {
+            <option [value]="user.id">{{ user.name }}</option>
+          }
+        </select>
       </div>
       <!-- Labels -->
       @if (task.labels && task.labels.length > 0) {
@@ -473,14 +502,6 @@
   </div>
 </div>
 }
-<app-edit-task-modal
-[isOpen]="isEditModalOpen()"
-[task]="task()"
-(closed)="closeEditModal()"
-(submitted)="handleEditSubmit($event)"
-
-> </app-edit-task-modal>
-
 @if (task(); as t) {
   <app-create-task-modal
     [isOpen]="isAddSubtaskModalOpen()"

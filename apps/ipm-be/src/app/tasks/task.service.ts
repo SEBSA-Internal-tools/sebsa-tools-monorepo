@@ -31,7 +31,7 @@ const taskSummarySelect = {
   title: true,
   description: true,
   type: true,
-  priority: true,
+  priorityId: true,
   workflowStageId: true,
   sprintId: true,
   dueDate: true,
@@ -39,6 +39,7 @@ const taskSummarySelect = {
   category: true,
   project: { select: { id: true, name: true } },
   workflowStage: { select: { id: true, name: true } },
+  priority: { select: { id: true, name: true, color: true } },
   assignees: { include: { user: { select: { id: true, name: true, email: true } } } },
 } satisfies Prisma.TaskSelect;
 
@@ -54,6 +55,7 @@ const taskDetailInclude = {
   },
   project: { select: { id: true, name: true } },
   workflowStage: { select: { id: true, name: true } },
+  priority: { select: { id: true, name: true, color: true } },
   sprint: { select: { id: true, name: true } },
   parentTask: { select: { id: true, title: true } },
 } satisfies Prisma.TaskInclude;
@@ -72,6 +74,9 @@ export class TaskService {
     const workflowStageId =
       dto.workflowStageId ?? (await this.resolveBacklogStageId(dto.projectId));
 
+    const priorityId =
+      dto.priorityId ?? (await this.resolveDefaultPriorityId(dto.projectId));
+
     await this.assertWorkflowStageBelongsToProject(workflowStageId, dto.projectId);
     await this.assertSprintBelongsToProject(dto.sprintId, dto.projectId);
     await this.assertMilestoneBelongsToProject(dto.milestoneId, dto.projectId);
@@ -87,7 +92,6 @@ export class TaskService {
           title: dto.title,
           description: dto.description,
           type: dto.type,
-          priority: dto.priority,
           startDate: dto.startDate ? new Date(dto.startDate) : undefined,
           dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
           storyPoints: dto.storyPoints,
@@ -96,6 +100,7 @@ export class TaskService {
           category: dto.category,
           project: { connect: { id: dto.projectId } },
           workflowStage: { connect: { id: workflowStageId } },
+          priority: { connect: { id: priorityId } },
           createdBy: { connect: { id: user.id } },
           ...(dto.parentTaskId && { parentTask: { connect: { id: dto.parentTaskId } } }),
           ...(dto.sprintId && { sprint: { connect: { id: dto.sprintId } } }),
@@ -161,7 +166,8 @@ export class TaskService {
         description: true,
         type: true,
         workflowStageId: true,
-        priority: true,
+        priorityId: true,
+        priority: { select: { id: true, name: true, color: true } },
         dueDate: true,
         category: true,
         assignees: { include: { user: { select: { id: true, name: true, email: true } } } },
@@ -175,6 +181,7 @@ export class TaskService {
       description: task.description,
       type: task.type,
       workflowStageId: task.workflowStageId,
+      priorityId: task.priorityId,
       priority: task.priority,
       dueDate: task.dueDate ? task.dueDate.toISOString() : null,
       category: task.category,
@@ -765,8 +772,8 @@ export class TaskService {
     if (filter.category) {
       where.category = filter.category;
     }
-    if (filter.priority) {
-      where.priority = filter.priority;
+    if (filter.priorityId) {
+      where.priorityId = filter.priorityId;
     }
     if (filter.type) {
       where.type = filter.type;
@@ -806,13 +813,14 @@ export class TaskService {
 
   /**
    * Finds the project's default Backlog stage — the one seeded automatically on
-   * project creation (isDefault: true, order: 0).  Throws a clear 400 if the
-   * project somehow has no default stage (data integrity issue).
+   * project creation (isDefault: true). Matches on isDefault alone, not order:
+   * order is mutable (manual stage edits, drag-to-reorder) and no longer
+   * reliably identifies Backlog once stages have been reordered. Throws a
+   * clear 400 if the project somehow has no default stage (data integrity issue).
    */
   private async resolveBacklogStageId(projectId: string): Promise<string> {
     const stage = await this.prisma.workflowStage.findFirst({
-      where: { projectId, OR: [{ isDefault: true }, { order: 0 }] },
-      orderBy: { order: 'asc' },
+      where: { projectId, isDefault: true },
       select: { id: true },
     });
     if (!stage) {
@@ -822,6 +830,31 @@ export class TaskService {
       );
     }
     return stage.id;
+  }
+
+  /** Fall back to the project's default priority (isDefault: true, or lowest order). */
+  private async resolveDefaultPriorityId(projectId: string): Promise<string> {
+    const priority = await this.prisma.projectPriority.findFirst({
+      where: { projectId, OR: [{ isDefault: true }] },
+      orderBy: { order: 'asc' },
+      select: { id: true },
+    });
+    if (!priority) {
+      // Fallback: just pick the first priority by order
+      const anyPriority = await this.prisma.projectPriority.findFirst({
+        where: { projectId },
+        orderBy: { order: 'asc' },
+        select: { id: true },
+      });
+      if (!anyPriority) {
+        throw new BadRequestException(
+          'This project has no priorities configured. ' +
+            'Please add a priority before creating tasks.',
+        );
+      }
+      return anyPriority.id;
+    }
+    return priority.id;
   }
 
   private async assertSprintBelongsToProject(
@@ -943,7 +976,7 @@ export class TaskService {
       title: task.title,
       description: task.description,
       type: task.type,
-      priority: task.priority,
+      priorityId: task.priorityId,
       workflowStageId: task.workflowStageId,
       sprintId: task.sprintId,
       dueDate: task.dueDate ? task.dueDate.toISOString() : null,
@@ -951,6 +984,7 @@ export class TaskService {
       category: task.category,
       project: task.project,
       workflowStage: task.workflowStage,
+      priority: task.priority,
       assignees: task.assignees.map((a) => a.user),
     };
   }
@@ -963,7 +997,7 @@ export class TaskService {
       parentTask: task.parentTask,
       title: task.title,
       type: task.type,
-      priority: task.priority,
+      priorityId: task.priorityId,
       workflowStageId: task.workflowStageId,
       sprintId: task.sprintId,
       sprint: task.sprint,
@@ -980,6 +1014,7 @@ export class TaskService {
       category: task.category,
       project: task.project,
       workflowStage: task.workflowStage,
+      priority: task.priority,
       createdAt: task.createdAt.toISOString(),
       updatedAt: task.updatedAt.toISOString(),
       description: task.description,

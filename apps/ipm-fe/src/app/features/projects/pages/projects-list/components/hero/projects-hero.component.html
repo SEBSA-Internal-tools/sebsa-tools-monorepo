@@ -1,13 +1,5 @@
-<header class="hero-section workspace-card" *ngIf="data">
-  <!-- Glowing Orbs (Soft Ambient Mesh Light Watermark) -->
-  <div class="ambient-decor" aria-hidden="true">
-    <div class="orb orb-1"></div>
-    <div class="orb orb-2"></div>
-  </div>
-
-  <div class="hero-content">
-    <span class="eyebrow">PORTFOLIO</span>
-    <h1>Projects</h1>
-    <p class="description">{{ data.description }}</p>
-  </div>
+<header class="sebsa-page-header" *ngIf="data">
+  <span class="sebsa-eyebrow">PORTFOLIO</span>
+  <h1 class="sebsa-page-title">Projects</h1>
+  <p class="sebsa-page-desc">{{ data.description }}</p>
 </header>

@@ -26,6 +26,12 @@ import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { CreateWorkflowStageDto } from './dto/create-workflow-stage.dto';
+import { ReorderWorkflowStagesDto } from './dto/reorder-workflow-stages.dto';
+import {
+  UpdateWorkflowStageRequest,
+  CreateProjectPriorityRequest,
+  UpdateProjectPriorityRequest
+} from '@sebsa-pm-tool/shared-models';
 
 @ApiTags('projects')
 @ApiBearerAuth()
@@ -127,7 +133,7 @@ export class ProjectsController {
   getWorkflowStages(
     @Param('id') id: string,
     @CurrentUser() user: AuthUser,
-  ): Promise<{ id: string; name: string; order: number }[]> {
+  ): Promise<{ id: string; name: string; order: number; taskCount: number }[]> {
     return this.projectsService.getWorkflowStages(id, user);
   }
 
@@ -138,5 +144,70 @@ export class ProjectsController {
     @CurrentUser() user: AuthUser,
   ): Promise<{ id: string; name: string; order: number }> {
     return this.projectsService.createWorkflowStage(projectId, dto, user);
+  }
+
+  // Declared before the ':stageId' route below so 'reorder' isn't swallowed as a stageId param.
+  @Patch(':id/workflow-stages/reorder')
+  reorderWorkflowStages(
+    @Param('id') projectId: string,
+    @Body() dto: ReorderWorkflowStagesDto,
+    @CurrentUser() user: AuthUser,
+  ): Promise<{ id: string; name: string; order: number }[]> {
+    return this.projectsService.reorderWorkflowStages(projectId, dto.stageIds, user);
+  }
+
+  @Patch(':id/workflow-stages/:stageId')
+  updateWorkflowStage(
+    @Param('id') projectId: string,
+    @Param('stageId') stageId: string,
+    @Body() dto: UpdateWorkflowStageRequest,
+    @CurrentUser() user: AuthUser,
+  ): Promise<{ id: string; name: string; order: number }> {
+    return this.projectsService.updateWorkflowStage(projectId, stageId, dto, user);
+  }
+
+  @Delete(':id/workflow-stages/:stageId')
+  deleteWorkflowStage(
+    @Param('id') projectId: string,
+    @Param('stageId') stageId: string,
+    @CurrentUser() user: AuthUser,
+  ): Promise<void> {
+    return this.projectsService.deleteWorkflowStage(projectId, stageId, user);
+  }
+
+  @Get(':id/priorities')
+  getProjectPriorities(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthUser,
+  ): Promise<{ id: string; name: string; order: number; color: string | null }[]> {
+    return this.projectsService.getProjectPriorities(id, user);
+  }
+
+  @Post(':id/priorities')
+  createProjectPriority(
+    @Param('id') projectId: string,
+    @Body() dto: CreateProjectPriorityRequest,
+    @CurrentUser() user: AuthUser,
+  ): Promise<{ id: string; name: string; order: number; color: string | null }> {
+    return this.projectsService.createProjectPriority(projectId, dto, user);
+  }
+
+  @Patch(':id/priorities/:priorityId')
+  updateProjectPriority(
+    @Param('id') projectId: string,
+    @Param('priorityId') priorityId: string,
+    @Body() dto: UpdateProjectPriorityRequest,
+    @CurrentUser() user: AuthUser,
+  ): Promise<{ id: string; name: string; order: number; color: string | null }> {
+    return this.projectsService.updateProjectPriority(projectId, priorityId, dto, user);
+  }
+
+  @Delete(':id/priorities/:priorityId')
+  deleteProjectPriority(
+    @Param('id') projectId: string,
+    @Param('priorityId') priorityId: string,
+    @CurrentUser() user: AuthUser,
+  ): Promise<void> {
+    return this.projectsService.deleteProjectPriority(projectId, priorityId, user);
   }
 }

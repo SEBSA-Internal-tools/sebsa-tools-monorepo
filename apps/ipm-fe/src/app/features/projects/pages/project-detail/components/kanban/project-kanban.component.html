@@ -31,17 +31,28 @@
             @for (task of tasks()[stage.id]; track task.id) {
               <div
                 class="task-card"
-                [class]="'task-card priority-' + task.priority.toLowerCase()"
+                [style.--task-priority-color]="task.priorityColor || '#f59e0b'"
                 draggable="true"
                 (dragstart)="onDragStart(task)"
                 (dragend)="onDragEnd()"
                 [class.dragging]="draggedTask?.id === task.id"
               >
 
-                <h3 class="task-title" (click)="openTaskDetail(task.id)">{{ task.title }}</h3>
+                <div class="task-title-row">
+                  <h3 class="task-title" (click)="openTaskDetail(task.id)">{{ task.title }}</h3>
+                  <span class="type-badge" [class]="getTypeChipClass(task)">
+                    {{ getTypeChipLabel(task) }}
+                  </span>
+                </div>
 
                 <div class="task-meta">
                   <div class="task-header-badges">
+                    <span
+                      class="priority-badge"
+                      [style.--priority-color]="task.priorityColor || '#f59e0b'"
+                    >
+                      {{ task.priority }}
+                    </span>
                     @if (task.isCsoLabeled) {
                       <span class="cso-badge">CSO</span>
                     }
@@ -50,23 +61,6 @@
                         {{ task.tag === 'TECHNICAL' ? 'Technical' : 'Functional' }}
                       </span>
                     }
-                    @if (isSubtask(task)) {
-                      <span class="subtask-badge">
-                        <span class="material-symbols-outlined">subdirectory_arrow_right</span>
-                        Subtask
-                      </span>
-                    }
-                    @if (task.category !== 'SUBTASK') {
-                      <span class="type-badge" [class]="getTypeClass(task.category)">
-                        {{ getTypeLabel(task.category) }}
-                      </span>
-                    }
-                    <span
-                      class="priority-badge"
-                      [class]="getPriorityClass(task.priority)"
-                    >
-                      {{ task.priority }}
-                    </span>
                   </div>
                 </div>
 

@@ -1,94 +1,99 @@
 <div class="admin-users-container">
-  <div class="page-header">
-    <div class="header-info">
-      <h1>User Management</h1>
-      <p>Approve pending signups and manage accounts.</p>
+  <!-- Container 1: The Standard Header -->
+  <header class="sebsa-page-header">
+    <span class="sebsa-eyebrow">ADMINISTRATION</span>
+    <h1 class="sebsa-page-title">User Management</h1>
+    <p class="sebsa-page-desc">Approve pending signups and manage accounts.</p>
+  </header>
+
+  <!-- Container 2: The Content Area -->
+  <div class="sebsa-card">
+    <div class="content-header-row" style="display: flex; justify-content: flex-end; margin-bottom: 24px;">
+      <button type="button" class="btn-primary" (click)="openCreateModal()">
+        + Create User
+      </button>
     </div>
-    <button type="button" class="btn-primary" (click)="openCreateModal()">
-      <span class="material-symbols-outlined">person_add</span>
-      Create User
-    </button>
-  </div>
 
-  @if (notification()) {
-    <div class="notification-banner" [class.success]="notification()?.type === 'success'" [class.error]="notification()?.type === 'error'">
-      <span class="material-symbols-outlined">
-        @if (notification()?.type === 'success') {
-          check_circle
-        } @else {
-          error
-        }
-      </span>
-      <span>{{ notification()?.message }}</span>
-    </div>
-  }
-
-  @if (errorMessage()) {
-    <div class="error-banner">{{ errorMessage() }}</div>
-  }
-
-  @if (pendingUsers().length > 0) {
-    <section class="section">
-      <h2>Pending Approval ({{ pendingUsers().length }})</h2>
-      <div class="pending-list">
-        @for (user of pendingUsers(); track user.id) {
-          <div class="pending-card">
-            <div class="pending-info">
-              <strong>{{ user.name }}</strong>
-              <span class="email">{{ user.email }}</span>
-              <span class="department">{{ departmentName(user.departmentId) }}</span>
-            </div>
-            <button type="button" class="btn-approve" (click)="approve(user.id)">
-              <span class="material-symbols-outlined">check</span>
-              Approve
-            </button>
-          </div>
-        }
+    @if (notification()) {
+      <div class="notification-banner" [class.success]="notification()?.type === 'success'" [class.error]="notification()?.type === 'error'">
+        <span class="material-symbols-outlined">
+          @if (notification()?.type === 'success') {
+            check_circle
+          } @else {
+            error
+          }
+        </span>
+        <span>{{ notification()?.message }}</span>
       </div>
-    </section>
-  }
+    }
 
-  <section class="section">
-    <h2>All Users ({{ users().length }})</h2>
-    <table class="users-table">
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Email</th>
-          <th>Department</th>
-          <th>Role</th>
-          <th>Status</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        @for (user of users(); track user.id) {
+    @if (errorMessage()) {
+      <div class="error-banner">{{ errorMessage() }}</div>
+    }
+
+    @if (pendingUsers().length > 0) {
+      <section class="section">
+        <h2>Pending Approval ({{ pendingUsers().length }})</h2>
+        <div class="pending-list">
+          @for (user of pendingUsers(); track user.id) {
+            <div class="pending-card">
+              <div class="pending-info">
+                <strong>{{ user.name }}</strong>
+                <span class="email">{{ user.email }}</span>
+                <span class="department">{{ departmentName(user.departmentId) }}</span>
+              </div>
+              <button type="button" class="btn-approve" (click)="approve(user.id)">
+                <span class="material-symbols-outlined">check</span>
+                Approve
+              </button>
+            </div>
+          }
+        </div>
+      </section>
+    }
+
+    <section class="section">
+      <h2 class="table-section-title">All Users <span class="sebsa-glossy-badge">{{ users().length }}</span></h2>
+      <table class="sebsa-table">
+        <thead>
           <tr>
-            <td>{{ user.name }}</td>
-            <td>{{ user.email }}</td>
-            <td>{{ departmentName(user.departmentId) }}</td>
-            <td>{{ user.systemRole }}</td>
-            <td>
-              @if (!user.approvedAt) {
-                <span class="badge badge-pending">Pending</span>
-              } @else if (user.isActive) {
-                <span class="badge badge-active">Active</span>
-              } @else {
-                <span class="badge badge-inactive">Deactivated</span>
-              }
-            </td>
-            <td class="actions">
-              @if (user.approvedAt && user.isActive) {
-                <button type="button" class="btn-text" (click)="deactivate(user.id)">Deactivate</button>
-              } @else if (user.approvedAt && !user.isActive) {
-                <button type="button" class="btn-text" (click)="activate(user.id)">Activate</button>
-              }
-            </td>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Department</th>
+            <th>Role</th>
+            <th>Status</th>
+            <th></th>
           </tr>
-        }
-      </tbody>
-    </table>
-  </section>
+        </thead>
+        <tbody>
+          @for (user of users(); track user.id) {
+            <tr>
+              <td>{{ user.name }}</td>
+              <td>{{ user.email }}</td>
+              <td>{{ departmentName(user.departmentId) }}</td>
+              <td>{{ user.systemRole }}</td>
+              <td>
+                @if (!user.approvedAt) {
+                  <span class="badge badge-pending">Pending</span>
+                } @else if (user.isActive) {
+                  <span class="badge badge-active">Active</span>
+                } @else {
+                  <span class="badge badge-inactive">Deactivated</span>
+                }
+              </td>
+              <td class="actions">
+                @if (user.approvedAt && user.isActive) {
+                  <button type="button" class="btn-text" (click)="deactivate(user.id)">Deactivate</button>
+                } @else if (user.approvedAt && !user.isActive) {
+                  <button type="button" class="btn-text" (click)="activate(user.id)">Activate</button>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </section>
+  </div>
 
   @if (isCreateModalOpen()) {
     <div class="modal-overlay" (click)="closeCreateModal()"></div>

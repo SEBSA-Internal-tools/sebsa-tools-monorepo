@@ -1,19 +1,11 @@
 <section class="workspace-page">
-  <!-- Top Hero Banner (Luminous Depth Design System) -->
-  <header class="hero-section workspace-card">
-    <!-- Glowing Orbs (Soft Ambient Mesh Light Watermark) -->
-    <div class="ambient-decor" aria-hidden="true">
-      <div class="orb orb-1"></div>
-      <div class="orb orb-2"></div>
-    </div>
-
-    <div class="hero-content">
-      <span class="eyebrow">WORK QUEUE</span>
-      <h1>Assigned Tasks</h1>
-      <p class="description">
-        Review the tasks that are assigned to you. The list updates automatically for the current user and adapts seamlessly across desktop and mobile.
-      </p>
-    </div>
+  <!-- Top Hero Banner (Global SEBSA Blueprint) -->
+  <header class="sebsa-page-header">
+    <span class="sebsa-eyebrow">WORK QUEUE</span>
+    <h1 class="sebsa-page-title">Assigned Tasks</h1>
+    <p class="sebsa-page-desc">
+      Review the tasks that are assigned to you. The list updates automatically for the current user and adapts seamlessly across desktop and mobile.
+    </p>
   </header>
 
   <!-- Bottom Task List Card -->
@@ -81,14 +73,11 @@
             </div>
 
             @for (task of filteredTasks(); track task.id) {
-              <div class="table-row">
+              <div class="table-row clickable-row" [routerLink]="['/tasks', task.id]">
                 <div class="col-title">
-                  <a
-                    class="task-name-link"
-                    [routerLink]="['/tasks', task.id]"
-                  >
+                  <span class="task-name-link">
                     {{ task.title }}
-                  </a>
+                  </span>
                 </div>
 
                 <div class="col-status">
@@ -102,8 +91,8 @@
 
                 <div class="col-priority">
                   <span
-                    class="priority-pill"
-                    [ngClass]="getPriorityClass(task.priority)"
+                    class="priority-badge"
+                    [style.--priority-color]="task.priorityColor || '#f59e0b'"
                   >
                     {{ task.priority }}
                   </span>

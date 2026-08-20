@@ -10,7 +10,7 @@ import {
 export interface CsoOverviewFilters {
   projectId?: string;
   customerId?: string;
-  priority?: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+  priority?: string;
   assigneeId?: string;
   /** Restricts to the Functional or Technical queue when set. */
   category?: TaskCategory;
@@ -19,7 +19,8 @@ export interface CsoOverviewFilters {
 export interface CsoTaskView {
   id: string;
   title: string;
-  priority: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+  priority: string;
+  priorityColor: string | null;
   /** Positional bucket derived from the task's own project's stage order —
    *  same convention as TasksService.getStatusForStageId, computed per-task
    *  here since CSO Overview spans multiple projects with different stages. */
@@ -128,7 +129,8 @@ export class CsoOverviewService {
     return {
       id: task.id,
       title: task.title,
-      priority: task.priority,
+      priority: task.priority?.name ?? '',
+      priorityColor: task.priority?.color ?? null,
       statusLabel,
       workflowStageName: task.workflowStage.name,
       assignee: task.assignees.map((a) => a.name).join(', ') || undefined,

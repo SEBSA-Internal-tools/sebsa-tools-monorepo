@@ -67,7 +67,7 @@
   border: 1px solid var(--app-border);
   border-radius: 16px;
   padding: 20px;
-  min-height: 540px;
+  max-height: 580px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02);
   backdrop-filter: blur(12px);
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
@@ -127,9 +127,25 @@
   flex-direction: column;
   gap: 14px;
   min-height: 120px;
-  padding: 4px;
+  padding: 4px 8px 4px 4px; /* Added right padding for scrollbar space */
   border-radius: 12px;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--app-border) transparent;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--app-border);
+    border-radius: 999px;
+  }
 
   &.dragging-over {
     background: var(--app-accent-soft);
@@ -147,6 +163,7 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
   gap: 12px;
   padding: 16px 18px 16px 20px;
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, var(--app-surface) 100%);
@@ -160,7 +177,7 @@
               box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1),
               border-color 0.25s ease;
 
-  /* Left accent indicator bar */
+  /* Color-coded ambient hover glows & accent bars */
   &::before {
     content: '';
     position: absolute;
@@ -169,6 +186,7 @@
     bottom: 0;
     width: 3px;
     border-radius: 12px 0 0 12px;
+    background: var(--task-priority-color, #f59e0b);
     transition: opacity 0.2s ease;
   }
 
@@ -176,38 +194,11 @@
     cursor: grabbing;
   }
 
-  /* Color-coded ambient hover glows & accent bars */
-  &.priority-high {
-    &::before {
-      background: linear-gradient(180deg, #ef4444, #f43f5e);
-    }
-    &:hover {
-      transform: translateY(-3px);
-      border-color: rgba(239, 68, 68, 0.35);
-      box-shadow: 0 10px 30px -5px rgba(239, 68, 68, 0.2), 0 0 0 1px rgba(239, 68, 68, 0.2);
-    }
-  }
-
-  &.priority-medium {
-    &::before {
-      background: linear-gradient(180deg, #f59e0b, #fbbf24);
-    }
-    &:hover {
-      transform: translateY(-3px);
-      border-color: rgba(245, 158, 11, 0.35);
-      box-shadow: 0 10px 30px -5px rgba(245, 158, 11, 0.2), 0 0 0 1px rgba(245, 158, 11, 0.2);
-    }
-  }
-
-  &.priority-low {
-    &::before {
-      background: linear-gradient(180deg, #10b981, #34d399);
-    }
-    &:hover {
-      transform: translateY(-3px);
-      border-color: rgba(16, 185, 129, 0.35);
-      box-shadow: 0 10px 30px -5px rgba(16, 185, 129, 0.2), 0 0 0 1px rgba(16, 185, 129, 0.2);
-    }
+  &:hover {
+    transform: translateY(-3px);
+    border-color: color-mix(in srgb, var(--task-priority-color, #f59e0b) 35%, transparent);
+    box-shadow: 0 10px 30px -5px color-mix(in srgb, var(--task-priority-color, #f59e0b) 20%, transparent), 
+                0 0 0 1px color-mix(in srgb, var(--task-priority-color, #f59e0b) 20%, transparent);
   }
 
   /* Dragging State */
@@ -223,14 +214,24 @@
 /* ─────────────────────────────────────────────────────────────────────────────
    3. Typography & Spacing
    ───────────────────────────────────────────────────────────────────────────── */
+.task-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
 .task-title {
-  margin: 0 0 2px 0;
+  margin: 0;
   font-size: 0.95rem;
   font-weight: 600;
   color: var(--app-text);
   line-height: 1.4;
   letter-spacing: -0.01em;
   cursor: pointer;
+  min-width: 0;
+  flex: 1;
 
   &:hover {
     text-decoration: underline;
@@ -297,51 +298,17 @@
   letter-spacing: 0.04em;
   white-space: nowrap;
 
-  &.high {
-    background: rgba(239, 68, 68, 0.14);
-    color: #ef4444;
-    border: 1px solid rgba(239, 68, 68, 0.3);
-    backdrop-filter: blur(4px);
-  }
-
-  &.medium {
-    background: rgba(245, 158, 11, 0.14);
-    color: #f59e0b;
-    border: 1px solid rgba(245, 158, 11, 0.3);
-    backdrop-filter: blur(4px);
-  }
-
-  &.low {
-    background: rgba(16, 185, 129, 0.14);
-    color: #10b981;
-    border: 1px solid rgba(16, 185, 129, 0.3);
-    backdrop-filter: blur(4px);
-  }
-}
-
-.subtask-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 2px 8px 2px 6px;
-  border-radius: 4px;
-  font-size: 0.65rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  white-space: nowrap;
-  background: rgba(100, 116, 139, 0.15);
-  color: #475569;
-
-  .material-symbols-outlined {
-    font-size: 0.9rem;
-  }
+  background: color-mix(in srgb, var(--priority-color, #f59e0b) 14%, transparent);
+  color: var(--priority-color, #f59e0b);
+  border: 1px solid color-mix(in srgb, var(--priority-color, #f59e0b) 30%, transparent);
+  backdrop-filter: blur(4px);
 }
 
 .type-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
   padding: 2px 8px;
   border-radius: 4px;
   font-size: 0.65rem;
@@ -351,6 +318,11 @@
   white-space: nowrap;
   background: rgba(100, 116, 139, 0.15);
   color: #475569;
+
+  &.type-subtask {
+    background: rgba(100, 116, 139, 0.15);
+    color: #475569;
+  }
 
   &.type-bug {
     background: rgba(239, 68, 68, 0.14);

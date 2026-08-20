@@ -1,181 +1,247 @@
 // =============================================================================
-// SEBSA PM Tool — Global Styles
-// Design System: "Luminous Depth" (Dual-Theme: Light & Dark)
+// SEBSA PM Tool — Comprehensive Design System Foundations
+// Archetype: Clean SaaS Dashboard (Lavender-Gray Canvas, 24px White Cards, Purple Accent)
 // =============================================================================
 
-@import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap');
 
 // =============================================================================
-// 1. Light Mode Defaults (:root)
+// 1. Root Theme Variables
 // =============================================================================
 
 :root {
   color-scheme: light;
 
-  // --- Brand Identity: Core Palette ---
-  --color-bg-main:          #f8f9fa;               // Soft off-white canvas
-  --color-brand-primary:    #7000ff;               // Electric Violet
-  --color-accent-magenta:   #c026d3;               // Premium Magenta
-  --color-accent-violet:    #7000ff;               // Electric Violet
+  // --- Semantic Brand Palette ---
+  --brand-primary:        #7000ff;   // Brand/Primary 600 (Main buttons, active states, links)
+  --brand-primary-hover:  #5b00db;   // Primary hover
+  --brand-primary-100:    #f3e8ff;   // Light primary tint
+  --brand-primary-50:     #faf5ff;   // Softest primary tint
+  --brand-navy:           #0f172a;   // Brand/Navy 900 (Solid navy surfaces only)
+  --brand-violet:         #7c3aed;   // Brand/Violet 600 Accent
+  --brand-purple-heart:   #6b21a8;
+  --brand-midnight-blue:  #020617;
+  --brand-surface:        #ffffff;
 
-  // --- Brand Gradients ---
-  --color-accent-gradient:        linear-gradient(135deg, #c026d3 0%, #7000ff 100%);
-  --color-accent-gradient-hover:  linear-gradient(135deg, #d946ef 0%, #851aff 100%);
-  --color-accent-gradient-active: linear-gradient(135deg, #a21caf 0%, #6300e6 100%);
-
-  // --- Surface & Panel Tokens ---
-  --color-surface-bright:       #ffffff;                     // Pure white card surface
-  --color-surface-dim:          rgba(255, 255, 255, 0.85);   // Semi-transparent surface fill
-  --color-surface-glass:        rgba(255, 255, 255, 0.75);   // Light glass panel fill
-  --color-surface-glass-hover:  rgba(255, 255, 255, 0.95);
-  --color-surface-glass-active: #ffffff;
-
-  // --- Borders ---
-  --border-glass:        1px solid rgba(0, 0, 0, 0.08);
-  --border-glass-hover:  1px solid rgba(112, 0, 255, 0.25);
-  --border-glass-active: 1px solid rgba(112, 0, 255, 0.5);
-
-  // --- Backdrop Filters ---
-  --backdrop-blur:       blur(16px);
-  --backdrop-blur-heavy: blur(24px);
-
-  // --- Shadows & Ambient Lighting ---
-  --shadow-subtle:      0 4px 20px rgba(0, 0, 0, 0.06);
-  --shadow-glow-purple: 0 4px 14px 0 rgba(112, 0, 255, 0.25);
-  --shadow-glow-focus:  0 0 0 3px rgba(112, 0, 255, 0.2);
+  // --- Surface & Canvas Tokens ---
+  --surface-page:         #f3f4f8;   // Light lavender-gray canvas
+  --surface-card:         #ffffff;   // White card background
+  --surface-muted:        #f8fafc;   // Soft input/header background
 
   // --- Typography & Content Colors ---
-  --text-primary:   #1e1e2d;               // Dark slate/gray for high legibility
-  --text-secondary: rgba(30, 30, 45, 0.68);
-  --text-muted:     rgba(30, 30, 45, 0.45);
-  --text-brand:     #7000ff;
+  --text-heading:         #0f172a;   // Dark Navy (Poppins headings & title text)
+  --text-primary:         #334155;   // Dark Slate Gray (Main body text)
+  --text-secondary:       #64748b;   // Muted Slate Gray
+  --text-muted:           #94a3b8;   // Light gray for hints & placeholders
+  --text-link:            #7000ff;   // Purple link color
 
-  // --- Status Tokens ---
-  --status-success: #00b87c;
-  --status-warning: #e69d00;
-  --status-error:   #e62e5c;
-  --status-info:    #0099e6;
+  // --- Borders & Dividers ---
+  --border-default:       #e2e8f0;   // Light gray border
+  --border-subtle:        #f1f5f9;   // Soft divider
 
-  // --- Legacy Compatibility Mapping (Light) ---
-  --app-background:       var(--color-bg-main);
-  --app-surface:          var(--color-surface-bright);
-  --app-surface-soft:     #f1f3f5;
-  --app-border:           rgba(0, 0, 0, 0.08);
+  // --- Status & State Color Tokens (Two-Tone System) ---
+  --status-success-bg:    #ecfdf5;   // Soft mint green background
+  --status-success-fg:    #059669;   // Dark green text
+  --status-success-solid: #10b981;   // Saturated solid green
+
+  --status-warning-bg:    #fffbeb;   // Light amber background
+  --status-warning-fg:    #d97706;   // Dark amber text
+  --status-warning-solid: #f59e0b;   // Saturated solid amber
+
+  --status-error-bg:      #fef2f2;   // Light red background
+  --status-error-fg:      #dc2626;   // Dark red text
+  --status-error-solid:   #ef4444;   // Saturated solid red
+
+  --status-info-bg:       #eff6ff;   // Soft blue background
+  --status-info-fg:       #2563eb;   // Dark blue text
+  --status-info-solid:    #3b82f6;   // Saturated solid blue
+
+  --status-purple-bg:     #f3e8ff;   // Light purple background
+  --status-purple-fg:     #7c3aed;   // Dark purple text
+  --status-purple-solid:  #7000ff;   // Saturated solid purple
+
+  --status-pink-bg:       #fce7f3;   // Soft pink background
+  --status-pink-fg:       #db2777;   // Dark pink text
+  --status-pink-solid:    #ec4899;   // Saturated solid pink
+
+  --status-neutral-bg:    #f1f5f9;   // Slate gray tint
+  --status-neutral-fg:    #64748b;   // Dark slate text
+  --status-neutral-solid: #64748b;   // Solid slate gray
+
+  // --- Fonts & Typography ---
+  --font-heading:         'Poppins', sans-serif;
+  --font-body:            'Inter', sans-serif;
+  --font-mono:            'Roboto Mono', monospace;
+
+  // --- Shadows & Elevations ---
+  --shadow-card:          0 4px 20px rgba(15, 23, 42, 0.04);
+  --shadow-elevated:      0 8px 30px rgba(15, 23, 42, 0.08);
+  --shadow-glow-focus:    0 0 0 3px rgba(112, 0, 255, 0.15);
+  --shadow-glow-purple:   0 4px 14px 0 rgba(112, 0, 255, 0.25);
+
+  // --- Self-fix: used by this very stylesheet (.sebsa-card:hover) but never
+  // defined anywhere — without this, hovering any card resolves to an
+  // invalid custom property and silently drops the border-color change.
+  --border-strong:        #cbd5e1;
+
+  // ---------------------------------------------------------------------------
+  // Legacy Compatibility Mapping — many components across the app (built
+  // before this token system existed) still reference the older variable
+  // names below. That original `:root` block was removed when this system
+  // replaced it, which broke every one of those components (transparent
+  // modal/card backgrounds, invisible borders, etc. wherever a `var(--x)`
+  // with no fallback resolved to nothing). Re-pointing the old names at the
+  // new tokens fixes all of them without having to touch each file
+  // individually. Safe to delete a mapping once its last consumer is
+  // migrated to the new token names directly.
+  // ---------------------------------------------------------------------------
+  --app-background:       var(--surface-page);
+  --app-surface:          var(--surface-card);
+  --app-surface-soft:     var(--surface-muted);
+  --app-surface-elevated: var(--surface-card);
+  --app-border:           var(--border-default);
   --app-text:             var(--text-primary);
   --app-text-muted:       var(--text-secondary);
   --app-text-subtle:      var(--text-muted);
-  --app-hover:            rgba(0, 0, 0, 0.04);
-  --app-accent:           #7000ff;
-  --app-accent-strong:    #8b1aff;
-  --app-accent-soft:      rgba(112, 0, 255, 0.1);
+  --app-hover:            var(--surface-muted);
+  --app-accent:           var(--brand-primary);
+  --app-accent-strong:    var(--brand-primary-hover);
+  --app-accent-soft:      var(--brand-primary-100);
   --app-accent-shadow:    rgba(112, 0, 255, 0.2);
   --app-accent-on:        #ffffff;
-  --app-surface-elevated: #ffffff;
+
+  --color-brand-primary:       var(--brand-primary);
+  --color-surface-bright:      var(--surface-card);
+  --color-surface-dim:         var(--surface-card);
+  --color-surface-glass:       var(--surface-muted);
+  --color-surface-glass-hover: #eef1f6;
+  --color-surface-glass-active: var(--surface-card);
+
+  --border-glass:         1px solid var(--border-default);
+  --border-glass-hover:   1px solid var(--brand-primary-100);
+  --border-glass-active:  1px solid var(--brand-primary);
+
+  --backdrop-blur:        blur(8px);
+  --backdrop-blur-heavy:  blur(16px);
+
+  --shadow-subtle:        var(--shadow-card);
+
+  --text-brand:           var(--brand-primary);
+
+  --status-success:       var(--status-success-solid);
+  --status-warning:       var(--status-warning-solid);
+  --status-error:         var(--status-error-solid);
+  --status-info:          var(--status-info-solid);
 }
 
 // =============================================================================
-// 2. Dark Mode Overrides ([data-theme="dark"])
+// 2. Global Resets & Typography Base
 // =============================================================================
 
-[data-theme="dark"] {
-  color-scheme: dark;
-
-  // --- Core Dark Palette ---
-  --color-bg-main:          #12121d;               // Deep Purple canvas
-  --color-brand-primary:    #7000ff;
-  --color-accent-magenta:   #c026d3;
-  --color-accent-violet:    #7000ff;
-
-  // --- Dark Surface & Glass Tokens ---
-  --color-surface-bright:       #383845;
-  --color-surface-dim:          rgba(18, 18, 29, 0.6);
-  --color-surface-glass:        rgba(56, 56, 69, 0.4);
-  --color-surface-glass-hover:  rgba(56, 56, 69, 0.55);
-  --color-surface-glass-active: rgba(56, 56, 69, 0.70);
-
-  // --- Dark Glass Borders ---
-  --border-glass:        1px solid rgba(255, 255, 255, 0.08);
-  --border-glass-hover:  1px solid rgba(255, 255, 255, 0.18);
-  --border-glass-active: 1px solid rgba(112, 0, 255, 0.4);
-
-  // --- Dark Shadows & Glows ---
-  --shadow-subtle:      0 8px 32px 0 rgba(0, 0, 0, 0.37);
-  --shadow-glow-purple: 0 4px 14px 0 rgba(112, 0, 255, 0.4);
-  --shadow-glow-focus:  0 0 0 3px rgba(112, 0, 255, 0.35);
-
-  // --- Dark Typography ---
-  --text-primary:   #f4f4f7;               // Crisp off-white
-  --text-secondary: rgba(244, 244, 247, 0.68);
-  --text-muted:     rgba(244, 244, 247, 0.42);
-  --text-brand:     #a855ff;
-
-  // --- Dark Status Tokens ---
-  --status-success: #00e699;
-  --status-warning: #ffb300;
-  --status-error:   #ff3366;
-  --status-info:    #00bfff;
-
-  // --- Legacy Compatibility Mapping (Dark) ---
-  --app-background:       var(--color-bg-main);
-  --app-surface:          rgba(56, 56, 69, 0.35);
-  --app-surface-soft:     rgba(56, 56, 69, 0.2);
-  --app-border:           rgba(255, 255, 255, 0.08);
-  --app-text:             var(--text-primary);
-  --app-text-muted:       var(--text-secondary);
-  --app-text-subtle:      var(--text-muted);
-  --app-hover:            rgba(56, 56, 69, 0.5);
-  --app-accent:           #7000ff;
-  --app-accent-strong:    #8b1aff;
-  --app-accent-soft:      rgba(112, 0, 255, 0.15);
-  --app-accent-shadow:    rgba(112, 0, 255, 0.35);
-  --app-accent-on:        #ffffff;
-  --app-surface-elevated: rgba(56, 56, 69, 0.5);
-}
-
-// =============================================================================
-// Base Reset & Global Defaults
-// =============================================================================
-
-*,
-*::before,
-*::after {
+*, *::before, *::after {
   box-sizing: border-box;
 }
 
-html,
 body {
-  height: 100%;
   margin: 0;
   padding: 0;
-  overflow: hidden;
-}
-
-body {
-  font-family: 'Sora', sans-serif;
-  font-weight: 400;
-  font-size: 16px;
-  letter-spacing: -0.01em;
-  line-height: 1.5;
-  background-color: var(--color-bg-main);
+  font-family: var(--font-body);
   color: var(--text-primary);
-  transition: background-color 0.3s ease, color 0.3s ease;
+  background-color: var(--surface-page);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  color: var(--text-heading);
+}
+
+code, pre, .font-mono, .task-id, .crim-id {
+  font-family: var(--font-mono);
+}
+
 // =============================================================================
-// Task 1: Redesigned Primary CTA Button (Apple-like Sophisticated Gradient)
+// 3. Global Page Layout & Hero Header Blueprint
 // =============================================================================
 
-.btn-primary,
-.btn-secondary,
-.btn-danger {
-  font-family: 'Sora', sans-serif;
+.workspace-page,
+.page-container,
+.tasks-page-container,
+.cso-container,
+.admin-users-container {
+  background-color: #FFFFFF;
+}
+
+.sebsa-page-header {
+  background-color: #F1F5F9; /* Slightly darker ash/gray */
+  border: 1px solid #E2E8F0;
+  border-radius: 24px;
+  padding: 48px 40px; /* Increased to match CSO/Projects layout sizes */
+  margin-bottom: 24px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.sebsa-eyebrow {
+  color: #5B21B6; /* Dark purple */
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.sebsa-page-title {
+  color: #1E293B; /* Very dark slate/ash for high contrast */
+  font-family: 'Poppins', sans-serif;
+  font-size: 2rem;
+  font-weight: 600;
+  margin: 0 0 12px 0;
+}
+
+.sebsa-page-desc {
+  color: #475569; /* Medium gray */
+  font-size: 0.875rem;
+  max-width: 600px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+// =============================================================================
+// 4. Card Foundations (.sebsa-card)
+// =============================================================================
+
+.sebsa-card,
+.glass-card,
+.workspace-card {
+  background: var(--surface-card);
+  border-radius: 24px;
+  box-shadow: var(--shadow-card);
+  padding: 28px;
+  border: 1px solid var(--border-default);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+
+  &:hover {
+    box-shadow: var(--shadow-elevated);
+    border-color: var(--border-strong);
+  }
+}
+
+// =============================================================================
+// 5. BUTTON SYSTEM (3 Variants per Color Family + Disabled State)
+// =============================================================================
+
+.btn {
+  font-family: var(--font-body);
   font-weight: 600;
   font-size: 0.875rem;
-  letter-spacing: -0.015em;
-  padding: 10px 24px;
-  border-radius: 8px;
+  letter-spacing: -0.01em;
+  padding: 10px 20px;
+  border-radius: 10px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -183,234 +249,492 @@ body {
   cursor: pointer;
   outline: none;
   text-decoration: none;
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.2s ease;
   box-sizing: border-box;
   white-space: nowrap;
+
+  .material-symbols-outlined {
+    font-size: 1.15rem;
+  }
+
+  &:disabled,
+  &.disabled {
+    opacity: 0.5;
+    cursor: not-allowed !important;
+    box-shadow: none !important;
+    transform: none !important;
+  }
 }
 
-/* Primary CTA Button: Magenta to Electric Violet Gradient + Top Inner Glass Reflection */
-.btn-primary {
+/* 5.1 Primary (Purple) Color Family — Enforce Solid Deep Purple */
+.btn-primary,
+.btn-primary-solid,
+.sebsa-btn-primary {
+  background-color: #5B21B6 !important; /* Solid deep purple */
+  color: #FFFFFF !important; /* Pure white text */
+  font-weight: 600 !important;
+  border: none !important;
+  border-radius: 8px !important;
+  padding: 10px 20px !important;
+  box-shadow: none !important;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+
+  .material-symbols-outlined,
+  span {
+    color: #FFFFFF !important;
+  }
+
+  &:hover:not(:disabled) {
+    background-color: #4C1D95 !important; /* Slightly darker shade on hover, no harsh glows */
+    color: #FFFFFF !important;
+    border-color: #4C1D95 !important;
+    box-shadow: none !important;
+    transform: none !important;
+  }
+}
+
+.btn-primary-soft {
+  @extend .btn;
+  color: var(--brand-primary);
+  background: var(--brand-primary-100);
+  border: 1px solid transparent;
+
+  &:hover:not(:disabled) {
+    background: #e9d5ff;
+    color: var(--brand-primary-hover);
+  }
+}
+
+.btn-primary-outline {
+  @extend .btn;
+  color: var(--brand-primary);
+  background: #ffffff;
+  border: 1px solid var(--border-default);
+
+  &:hover:not(:disabled) {
+    background: var(--brand-primary-50);
+    border-color: var(--brand-primary);
+  }
+}
+
+/* 5.2 Secondary (Navy) Color Family */
+.btn-navy-solid {
+  @extend .btn;
   color: #ffffff;
-  background: linear-gradient(135deg, #c026d3 0%, #7000ff 100%);
-  border: none;
-  border-top: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 4px 14px 0 rgba(112, 0, 255, 0.25);
+  background: var(--brand-navy);
+  border: 1px solid var(--brand-navy);
 
-  &:hover {
-    background: linear-gradient(135deg, #d946ef 0%, #851aff 100%);
-    box-shadow: 0 6px 20px 0 rgba(112, 0, 255, 0.45);
-    transform: translateY(-1px);
-  }
-
-  &:active {
-    background: linear-gradient(135deg, #a21caf 0%, #6300e6 100%);
-    transform: translateY(1px);
-    box-shadow: 0 2px 8px 0 rgba(112, 0, 255, 0.3);
-  }
-
-  &:focus-visible {
-    box-shadow: 0 4px 14px 0 rgba(112, 0, 255, 0.35), var(--shadow-glow-focus);
+  &:hover:not(:disabled) {
+    background: #1e293b;
+    border-color: #1e293b;
   }
 }
 
-/* Secondary Button: Glass border + soft highlight */
+.btn-navy-soft {
+  @extend .btn;
+  color: var(--brand-navy);
+  background: #f1f5f9;
+  border: 1px solid transparent;
+
+  &:hover:not(:disabled) {
+    background: #e2e8f0;
+  }
+}
+
+.btn-navy-outline {
+  @extend .btn;
+  color: var(--brand-navy);
+  background: #ffffff;
+  border: 1px solid var(--border-default);
+
+  &:hover:not(:disabled) {
+    background: #f8fafc;
+    border-color: var(--brand-navy);
+  }
+}
+
+/* 5.3 Success (Green) Color Family */
+.btn-success-solid {
+  @extend .btn;
+  color: #ffffff;
+  background: var(--status-success-solid);
+  border: 1px solid var(--status-success-solid);
+
+  &:hover:not(:disabled) {
+    background: #059669;
+  }
+}
+
+.btn-success-soft {
+  @extend .btn;
+  color: var(--status-success-fg);
+  background: var(--status-success-bg);
+  border: 1px solid transparent;
+
+  &:hover:not(:disabled) {
+    background: #d1fae5;
+  }
+}
+
+.btn-success-outline {
+  @extend .btn;
+  color: var(--status-success-fg);
+  background: #ffffff;
+  border: 1px solid var(--status-success-solid);
+
+  &:hover:not(:disabled) {
+    background: var(--status-success-bg);
+  }
+}
+
+/* 5.4 Danger / Error (Red) Color Family */
+.btn-danger-solid {
+  @extend .btn;
+  color: #ffffff;
+  background: var(--status-error-solid);
+  border: 1px solid var(--status-error-solid);
+
+  &:hover:not(:disabled) {
+    background: #dc2626;
+  }
+}
+
+.btn-danger-soft {
+  @extend .btn;
+  color: var(--status-error-fg);
+  background: var(--status-error-bg);
+  border: 1px solid transparent;
+
+  &:hover:not(:disabled) {
+    background: #fee2e2;
+  }
+}
+
+.btn-danger-outline {
+  @extend .btn;
+  color: var(--status-error-fg);
+  background: #ffffff;
+  border: 1px solid var(--status-error-solid);
+
+  &:hover:not(:disabled) {
+    background: var(--status-error-bg);
+  }
+}
+
+// Legacy Alias
 .btn-secondary {
-  color: var(--text-primary);
-  background: var(--color-surface-glass);
-  backdrop-filter: var(--backdrop-blur);
-  -webkit-backdrop-filter: var(--backdrop-blur);
-  border: var(--border-glass);
-
-  &:hover {
-    background: var(--color-surface-glass-hover);
-    border-color: var(--border-glass-hover);
-    color: var(--text-primary);
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-subtle);
-  }
-
-  &:active {
-    transform: translateY(1px);
-  }
-
-  &:focus-visible {
-    box-shadow: var(--shadow-glow-focus);
-  }
+  @extend .btn-navy-outline;
 }
 
-/* Danger Button: Soft dark red glass tint */
-.btn-danger {
-  color: var(--status-error);
-  background: rgba(255, 51, 102, 0.12);
-  backdrop-filter: var(--backdrop-blur);
-  -webkit-backdrop-filter: var(--backdrop-blur);
-  border: 1px solid rgba(255, 51, 102, 0.25);
-
-  &:hover {
-    background: rgba(255, 51, 102, 0.22);
-    border-color: rgba(255, 51, 102, 0.45);
-    color: #ffffff;
-    box-shadow: 0 4px 15px rgba(255, 51, 102, 0.35);
-    transform: translateY(-1px);
-  }
-
-  &:active {
-    transform: translateY(1px);
-    background: rgba(255, 51, 102, 0.3);
-  }
-
-  &:focus-visible {
-    box-shadow: 0 0 0 3px rgba(255, 51, 102, 0.35);
-  }
-}
-
-// =============================================================================
-// Standardized Premium Icon Wrapper (.icon-premium-wrapper)
-// =============================================================================
-
-.icon-premium-wrapper {
+.btn-icon {
   width: 40px;
   height: 40px;
-  min-width: 40px;
-  min-height: 40px;
-  flex: 0 0 40px;
+  padding: 0;
+  border-radius: 10px;
+}
+
+// =============================================================================
+// 6. TWO-TONE BADGE & STATUS PILL SYSTEM
+// =============================================================================
+
+.status-pill,
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+
+  .pill-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+
+  // --- Success (Green) ---
+  &.success,
+  &.done,
+  &.approved,
+  &.badge-active {
+    background: var(--status-success-bg);
+    color: var(--status-success-fg);
+
+    .pill-dot {
+      background: var(--status-success-solid);
+    }
+
+    &.solid {
+      background: var(--status-success-solid);
+      color: #ffffff;
+    }
+  }
+
+  // --- Warning (Amber) ---
+  &.warning,
+  &.in-progress,
+  &.medium,
+  &.badge-pending {
+    background: var(--status-warning-bg);
+    color: var(--status-warning-fg);
+
+    .pill-dot {
+      background: var(--status-warning-solid);
+    }
+
+    &.solid {
+      background: var(--status-warning-solid);
+      color: #ffffff;
+    }
+  }
+
+  // --- Error / Danger (Red) ---
+  &.error,
+  &.danger,
+  &.blocked,
+  &.high,
+  &.critical,
+  &.badge-inactive {
+    background: var(--status-error-bg);
+    color: var(--status-error-fg);
+
+    .pill-dot {
+      background: var(--status-error-solid);
+    }
+
+    &.solid {
+      background: var(--status-error-solid);
+      color: #ffffff;
+    }
+  }
+
+  // --- Info (Blue) ---
+  &.info,
+  &.in-review,
+  &.low {
+    background: var(--status-info-bg);
+    color: var(--status-info-fg);
+
+    .pill-dot {
+      background: var(--status-info-solid);
+    }
+
+    &.solid {
+      background: var(--status-info-solid);
+      color: #ffffff;
+    }
+  }
+
+  // --- Purple ---
+  &.purple,
+  &.cso {
+    background: var(--status-purple-bg);
+    color: var(--status-purple-fg);
+
+    .pill-dot {
+      background: var(--status-purple-solid);
+    }
+
+    &.solid {
+      background: var(--status-purple-solid);
+      color: #ffffff;
+    }
+  }
+
+  // --- Neutral (Slate) ---
+  &.neutral,
+  &.todo {
+    background: var(--status-neutral-bg);
+    color: var(--status-neutral-fg);
+
+    .pill-dot {
+      background: var(--status-neutral-solid);
+    }
+
+    &.solid {
+      background: var(--status-neutral-solid);
+      color: #ffffff;
+    }
+  }
+}
+
+// =============================================================================
+// 7. Outline Material Icons Default
+// =============================================================================
+
+.material-symbols-outlined {
+  font-variation-settings:
+    'FILL' 0,
+    'wght' 400,
+    'GRAD' 0,
+    'opsz' 24;
+}
+
+// =============================================================================
+// 8. Global Layout, Search Bar, Table & Typography Standardization Overrides
+// =============================================================================
+
+/* Global Typography Enforcement */
+body, input, button, table {
+  font-family: 'Inter', sans-serif !important;
+}
+
+h1, h2, h3, h4, h5, h6, .sebsa-page-title {
+  font-family: 'Poppins', sans-serif !important;
+}
+
+/* Task 1: Remove Main Container Borders on Table Pages */
+.table-container, .page-body, .list-card {
+  border: none !important;
+  box-shadow: none !important;
+  background-color: #FFFFFF;
+}
+
+/* Restore Clear Ash Borders to Dashboard Cards & Metric Boxes */
+.dashboard-card,
+.metric-card,
+.stat-box,
+.overview-card,
+.summary-card,
+.card-item,
+.hero-section,
+.cards-grid .card,
+.dashboard-page .card,
+app-dashboard-hero .hero-section,
+app-dashboard-summary-cards .card,
+app-dashboard-portfolio .portfolio-card,
+app-dashboard-timeline .timeline-card,
+app-dashboard-workload .workload-card,
+app-dashboard-activity .activity-card {
+  border: 1px solid #CBD5E1 !important; /* Clear dark ash border */
+  background-color: #FFFFFF !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05) !important; /* Soft depth shadow */
+}
+
+/* Remove Border from Project Health Matrix Card */
+.health-matrix-container,
+app-dashboard-project-health-matrix .health-matrix-container {
+  border: none !important;
+  box-shadow: none !important;
+  background-color: #FFFFFF !important;
+}
+
+/* Task 2: Ash Search Bars */
+input[type="search"], .search-bar input, .search-box, .sebsa-search {
+  background-color: #F1F5F9 !important;
+  border: 1px solid #E2E8F0 !important;
+  color: #1E293B;
+  border-radius: 8px;
+  padding: 10px 16px;
+}
+
+// =============================================================================
+// Task Table Blueprint — Absolute Global Source of Truth (HTML & Grid Tables)
+// =============================================================================
+
+/* 1. Standard HTML Tables */
+table, .sebsa-table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  background-color: #FFFFFF !important;
+  margin-bottom: 0 !important;
+
+  th {
+    color: #475569 !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    font-size: 0.75rem !important;
+    letter-spacing: 0.05em !important;
+    padding: 16px 20px !important;
+    background-color: #FFFFFF !important;
+    border: none !important;
+    border-bottom: 2px solid #E2E8F0 !important;
+    text-align: left !important;
+    font-family: 'Inter', sans-serif !important;
+  }
+
+  td {
+    padding: 16px 20px !important;
+    color: #334155 !important;
+    font-size: 0.875rem !important;
+    font-weight: 400 !important;
+    line-height: 1.5 !important;
+    background-color: #FFFFFF !important;
+    border: none !important;
+    border-bottom: 1px solid #F1F5F9 !important;
+    text-align: left !important;
+    font-family: 'Inter', sans-serif !important;
+  }
+
+  tr:hover td {
+    background-color: #F8FAFC !important;
+  }
+}
+
+/* 2. Grid & Flex List Tables (Projects List, Customers List, Task List) */
+.list-header, .table-header {
+  background-color: #FFFFFF !important;
+  color: #475569 !important;
+  font-weight: 700 !important;
+  font-size: 0.75rem !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  padding: 16px 20px !important;
+  border-bottom: 2px solid #E2E8F0 !important;
+  font-family: 'Inter', sans-serif !important;
+}
+
+.list-item, .table-row {
+  background-color: #FFFFFF !important;
+  color: #334155 !important;
+  font-size: 0.875rem !important;
+  font-weight: 400 !important;
+  line-height: 1.5 !important;
+  padding: 16px 20px !important;
+  border-bottom: 1px solid #F1F5F9 !important;
+  font-family: 'Inter', sans-serif !important;
+  transition: background 0.15s ease !important;
+
+  &:hover {
+    background-color: #F8FAFC !important;
+  }
+}
+
+.projects-list-container,
+.customers-list-container,
+.tasks-table-container {
+  background-color: #FFFFFF !important;
+  border: 1px solid #F1F5F9 !important;
+  border-radius: 16px !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02) !important;
+}
+
+/* Task 3: Glossy User Count Badge */
+.sebsa-glossy-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--color-surface-glass);
-  backdrop-filter: var(--backdrop-blur);
-  -webkit-backdrop-filter: var(--backdrop-blur);
-  border: var(--border-glass);
-  border-radius: 10px;
-  color: var(--color-brand-primary);
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-  box-sizing: border-box;
-
-  .material-symbols-outlined {
-    font-size: 1.25rem;
-    line-height: 1;
-  }
-
-  &:hover {
-    background: var(--color-surface-glass-hover);
-    border-color: var(--border-glass-hover);
-    box-shadow: 0 4px 12px rgba(112, 0, 255, 0.15);
-    transform: translateY(-1px);
-  }
-}
-
-// =============================================================================
-// Global Glass Card Utility
-// =============================================================================
-
-.glass-card {
-  background: var(--color-surface-glass);
-  backdrop-filter: var(--backdrop-blur);
-  -webkit-backdrop-filter: var(--backdrop-blur);
-  border: var(--border-glass);
-  box-shadow: var(--shadow-subtle);
-  border-radius: 12px;
-  padding: 1.5rem;
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-
-  &:hover {
-    background: var(--color-surface-glass-hover);
-    border: var(--border-glass-hover);
-    box-shadow: var(--shadow-subtle), 0 0 15px rgba(112, 0, 255, 0.15);
-    transform: translateY(-2px);
-  }
-}
-
-// =============================================================================
-// Global Input Utility
-// =============================================================================
-
-.glass-input {
-  font-family: 'Sora', sans-serif;
-  font-weight: 400;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  margin-left: 12px;
   font-size: 0.875rem;
-  color: var(--text-primary);
-  background: var(--color-surface-glass);
-  border: var(--border-glass);
-  border-radius: 8px;
-  padding: 0.65rem 1rem;
-  outline: none;
-  width: 100%;
-  transition: all 0.25s ease;
-
-  &::placeholder {
-    color: var(--text-muted);
-  }
-
-  &:hover {
-    border: var(--border-glass-hover);
-  }
-
-  &:focus {
-    border: var(--border-glass-active);
-    background: var(--color-surface-bright);
-    box-shadow: var(--shadow-glow-focus);
-  }
-}
-
-// =============================================================================
-// Workspace Pages
-// =============================================================================
-
-.workspace-page {
-  display: flex;
-  min-height: 100%;
-  padding: 40px;
-}
-
-.workspace-card {
-  width: min(100%, 720px);
-  padding: 28px 30px;
-  border: var(--border-glass);
-  border-radius: 18px;
-  background: var(--color-surface-glass);
-  backdrop-filter: var(--backdrop-blur);
-  -webkit-backdrop-filter: var(--backdrop-blur);
-  box-shadow: var(--shadow-subtle);
-}
-
-.workspace-eyebrow {
-  margin: 0 0 10px;
-  color: var(--text-brand);
-  font-size: 0.74rem;
   font-weight: 700;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
+  color: #5B21B6; /* Deep Purple */
+  background: linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 100%);
+  border: 1px solid #FFFFFF;
+  border-radius: 14px;
+  box-shadow: 0 2px 6px rgba(91, 33, 182, 0.15), inset 0 1px 2px rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(4px);
+  vertical-align: middle;
 }
 
-.workspace-card h2 {
-  margin: 0;
-  color: var(--text-primary);
-  font-size: clamp(2rem, 4vw, 3rem);
-  font-weight: 300;
-  line-height: 1;
-  letter-spacing: -0.05em;
-}
 
-.workspace-card p {
-  max-width: 44ch;
-  margin: 14px 0 0;
-  font-size: 0.98rem;
-  line-height: 1.65;
-  color: var(--text-secondary);
-}
-
-// =============================================================================
-// Accessibility: Reduced Motion
-// =============================================================================
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
-}

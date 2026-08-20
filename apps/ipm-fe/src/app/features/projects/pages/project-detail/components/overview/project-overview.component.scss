@@ -262,45 +262,8 @@
   }
 }
 
-// Data Tables
 .data-table {
   width: 100%;
-  border-collapse: collapse;
-  font-size: 0.85rem;
-
-  thead tr {
-    background: var(--app-hover);
-    cursor: pointer;
-
-    th {
-      padding: 10px 14px;
-      text-align: left;
-      font-weight: 600;
-      font-size: 0.75rem;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      color: var(--app-text-muted);
-      white-space: nowrap;
-    }
-  }
-
-  tbody tr {
-    border-bottom: 1px solid var(--app-border);
-    transition: background 0.15s;
-
-    &:hover {
-      background: var(--app-hover);
-    }
-
-    &:nth-child(even) {
-      background: rgba(0, 0, 0, 0.02);
-    }
-  }
-
-  td {
-    padding: 10px 14px;
-    color: var(--app-text);
-  }
 }
 
 .status-pill {
@@ -532,17 +495,5 @@
 
   .donut-layout {
     flex-direction: column;
-  }
-
-  .data-table {
-    font-size: 0.75rem;
-
-    th {
-      padding: 8px 10px;
-    }
-
-    td {
-      padding: 8px 10px;
-    }
   }
 }
