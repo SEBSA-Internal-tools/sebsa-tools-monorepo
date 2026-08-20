@@ -93,8 +93,47 @@ $desktop: 1024px;
   overflow: hidden;
 }
 
+.table-container {
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: 480px;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: #f8fafc;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+
+    &:hover {
+      background: #94a3b8;
+    }
+  }
+}
+
 .results-table {
   width: 100%;
+  border-collapse: collapse;
+
+  thead {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #FFFFFF;
+
+    th {
+      position: sticky;
+      top: 0;
+      background: #FFFFFF;
+      z-index: 2;
+    }
+  }
 
   .clickable-row {
     cursor: pointer;

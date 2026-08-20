@@ -1,6 +1,6 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
-import { forkJoin, map, Observable, of, switchMap } from 'rxjs';
+import { catchError, forkJoin, map, Observable, of, switchMap } from 'rxjs';
 import {
   ProjectSummary,
   TaskCategory,
@@ -67,7 +67,8 @@ export class CsoOverviewService {
           this._tasks.set(views);
           this._isLoading.set(false);
         },
-        error: () => {
+        error: (err) => {
+          console.error('Failed to load CSO tasks:', err);
           this._tasks.set([]);
           this._isLoading.set(false);
         },
@@ -83,26 +84,30 @@ export class CsoOverviewService {
     const projectIds = [...new Set(tasks.map((t) => t.projectId))];
     const stageRequests = projectIds.reduce<Record<string, Observable<WorkflowStageRef[]>>>(
       (acc, projectId) => {
-        acc[projectId] = this.http.get<WorkflowStageRef[]>(
-          `/api/projects/${projectId}/workflow-stages`,
-        );
+        acc[projectId] = this.http
+          .get<WorkflowStageRef[]>(`/api/projects/${projectId}/workflow-stages`)
+          .pipe(catchError(() => of([])));
         return acc;
       },
       {},
     );
 
     return forkJoin({
-      stagesByProject: forkJoin(stageRequests),
-      projects: this.http.get<ProjectSummary[]>('/api/projects'),
+      stagesByProject:
+        Object.keys(stageRequests).length > 0
+          ? forkJoin(stageRequests)
+          : of<Record<string, WorkflowStageRef[]>>({}),
+      projects: this.http.get<ProjectSummary[]>('/api/projects').pipe(catchError(() => of([]))),
     }).pipe(
       map(({ stagesByProject, projects }) => {
+        const stagesMap = stagesByProject as Record<string, WorkflowStageRef[]>;
         const customerNameByProjectId = new Map(
-          projects.map((project) => [project.id, project.customer.name]),
+          projects.map((project) => [project.id, project.customer?.name]),
         );
         return tasks.map((task) =>
           this.toCsoTaskView(
             task,
-            stagesByProject[task.projectId] ?? [],
+            stagesMap[task.projectId] ?? [],
             customerNameByProjectId.get(task.projectId),
           ),
         );
@@ -132,12 +137,12 @@ export class CsoOverviewService {
       priority: task.priority?.name ?? '',
       priorityColor: task.priority?.color ?? null,
       statusLabel,
-      workflowStageName: task.workflowStage.name,
-      assignee: task.assignees.map((a) => a.name).join(', ') || undefined,
+      workflowStageName: task.workflowStage?.name ?? '',
+      assignee: task.assignees?.map((a) => a.name).join(', ') || undefined,
       dueDate: task.dueDate ?? '',
       projectId: task.projectId,
-      projectName: task.project.name,
-      customerName,
+      projectName: task.project?.name ?? '',
+      customerName: customerName ?? (task.project as any)?.customer?.name,
     };
   }
 }

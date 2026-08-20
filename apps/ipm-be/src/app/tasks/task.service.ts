@@ -766,9 +766,38 @@ export class TaskService {
     if (filter.customerId) {
       where.project = { customerId: filter.customerId };
     }
+
+    const andConditions: Prisma.TaskWhereInput[] = [];
+
     if (filter.isCsoLabeled !== undefined) {
-      where.isCsoLabeled = filter.isCsoLabeled;
+      if (filter.isCsoLabeled) {
+        andConditions.push({
+          OR: [
+            { isCsoLabeled: true },
+            { project: { isCsoProject: true } },
+          ],
+        });
+      } else {
+        andConditions.push({
+          isCsoLabeled: false,
+          project: { isCsoProject: false },
+        });
+      }
     }
+
+    if (filter.search) {
+      andConditions.push({
+        OR: [
+          { title: { contains: filter.search, mode: 'insensitive' } },
+          { description: { contains: filter.search, mode: 'insensitive' } },
+        ],
+      });
+    }
+
+    if (andConditions.length > 0) {
+      where.AND = andConditions;
+    }
+
     if (filter.category) {
       where.category = filter.category;
     }
@@ -777,12 +806,6 @@ export class TaskService {
     }
     if (filter.type) {
       where.type = filter.type;
-    }
-    if (filter.search) {
-      where.OR = [
-        { title: { contains: filter.search, mode: 'insensitive' } },
-        { description: { contains: filter.search, mode: 'insensitive' } },
-      ];
     }
     if (filter.dueBefore || filter.dueAfter) {
       where.dueDate = {};

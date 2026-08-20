@@ -107,8 +107,21 @@
 
         <!-- Priority -->
         <div class="form-group">
-          <div class="form-label">Priority</div>
-          <div class="priority-group">
+          <div class="form-label-row">
+            <div class="form-label">Priority</div>
+            @if (availablePriorities().length > 0) {
+              <button
+                type="button"
+                class="add-priority-link"
+                (click)="openAddPriorityModal()"
+                title="Add new priority"
+              >
+                <span class="material-symbols-outlined">add</span>
+                <span>Add</span>
+              </button>
+            }
+          </div>
+          <div class="priority-group" [class.empty-group]="availablePriorities().length === 0">
             @for (prio of availablePriorities(); track prio.id) {
               <button
                 type="button"
@@ -124,7 +137,17 @@
               </button>
             }
             @if (availablePriorities().length === 0) {
-              <span class="no-priorities">No priorities configured</span>
+              <div class="no-priorities-box">
+                <span class="no-priorities-text">No priorities configured yet</span>
+                <button
+                  type="button"
+                  class="btn-create-priority-inline"
+                  (click)="openAddPriorityModal()"
+                >
+                  <span class="material-symbols-outlined">add_circle</span>
+                  Create Priority
+                </button>
+              </div>
             }
           </div>
         </div>
@@ -367,4 +390,10 @@
       </button>
     </div>
   </div>
+
+  <priority-modal
+    [isOpen]="isPriorityModalOpen()"
+    (close)="closePriorityModal()"
+    (submit)="onPrioritySubmit($event)"
+  />
 }
