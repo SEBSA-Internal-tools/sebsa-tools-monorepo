@@ -43,7 +43,6 @@ export const appRoutes: Route[] = [
 			},
 			{
 				path: 'projects',
-				canActivate: [staffGuard],
 				loadComponent: () =>
 					import('./features/projects/pages/projects-list/projects-list.page').then((m) => m.ProjectsPageComponent),
 			},
@@ -61,7 +60,6 @@ export const appRoutes: Route[] = [
 			},
 			{
 				path: 'projects/:id',
-				canActivate: [staffGuard],
 				loadComponent: () =>
 					import('./features/projects/pages/project-detail/project-detail.page').then(
 						(m) => m.ProjectDetailPageComponent
