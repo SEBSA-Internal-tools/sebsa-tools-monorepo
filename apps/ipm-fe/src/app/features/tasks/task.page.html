@@ -37,6 +37,49 @@
       </div>
     </div>
 
+    <!-- Filter Row -->
+    <div class="filter-row">
+      <select
+        class="filter-select"
+        [ngModel]="selectedProjectId()"
+        (ngModelChange)="selectedProjectId.set($event)"
+      >
+        <option value="">All Projects</option>
+        @for (project of availableProjects(); track project.id) {
+          <option [value]="project.id">{{ project.name }}</option>
+        }
+      </select>
+
+      <select
+        class="filter-select"
+        [ngModel]="selectedStageName()"
+        (ngModelChange)="selectedStageName.set($event)"
+      >
+        <option value="">All Statuses</option>
+        @for (stage of availableStages(); track stage) {
+          <option [value]="stage">{{ stage }}</option>
+        }
+      </select>
+
+      <select
+        class="filter-select"
+        [ngModel]="selectedPriority()"
+        (ngModelChange)="selectedPriority.set($event)"
+      >
+        <option value="">All Priorities</option>
+        @for (priority of availablePriorities(); track priority) {
+          <option [value]="priority">{{ priority }}</option>
+        }
+      </select>
+
+      @if (hasActiveFilters()) {
+        <button type="button" class="clear-filters-btn" (click)="clearFilters()">
+          <span class="material-symbols-outlined">filter_alt_off</span>
+          Clear filters
+        </button>
+      }
+    </div>
+
     @if (errorMessage()) {
       <div class="status-row">
         <span class="status-icon material-symbols-outlined">
@@ -67,6 +110,7 @@
           <div class="tasks-table">
             <div class="table-header">
               <div class="col-title">Task</div>
+              <div class="col-project">Project</div>
               <div class="col-status">Status</div>
               <div class="col-priority">Priority</div>
               <div class="col-due">Due Date</div>
@@ -80,12 +124,18 @@
                   </span>
                 </div>
 
+                <div class="col-project">
+                  <span class="task-project-name">
+                    {{ task.projectName }}
+                  </span>
+                </div>
+
                 <div class="col-status">
                   <span
                     class="status-pill"
-                    [ngClass]="getStatusClass(task.status)"
+                    [ngClass]="getStageBadgeClass(task.stageName)"
                   >
-                    {{ getStatusLabel(task.statusLabel) }}
+                    {{ task.stageName }}
                   </span>
                 </div>
 

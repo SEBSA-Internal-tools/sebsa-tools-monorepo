@@ -114,6 +114,81 @@
   width: 100%;
 }
 
+.filter-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.filter-select {
+  appearance: none;
+  padding: 8px 30px 8px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border-default);
+  background-color: var(--surface-muted);
+  color: var(--text-heading);
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+
+  &:hover {
+    border-color: var(--border-strong);
+  }
+
+  &:focus {
+    outline: none;
+    border-color: var(--brand-primary);
+    box-shadow: var(--shadow-glow-focus);
+  }
+}
+
+.clear-filters-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border-default);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  .material-symbols-outlined {
+    font-size: 16px;
+  }
+
+  &:hover {
+    border-color: var(--status-error-solid);
+    color: var(--status-error-fg);
+    background: var(--status-error-bg);
+  }
+}
+
+.col-project {
+  min-width: 0;
+}
+
+.task-project-name {
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+
 .search-box {
   display: flex;
   align-items: center;
@@ -226,7 +301,7 @@
 
 .table-header {
   display: grid;
-  grid-template-columns: 2.5fr 1.2fr 1fr 1.2fr;
+  grid-template-columns: 2fr 1.3fr 1.1fr 1fr 1.1fr;
   gap: 16px;
   padding: 14px 20px;
   background: var(--surface-muted);
@@ -241,7 +316,7 @@
 
 .table-row {
   display: grid;
-  grid-template-columns: 2.5fr 1.2fr 1fr 1.2fr;
+  grid-template-columns: 2fr 1.3fr 1.1fr 1fr 1.1fr;
   gap: 16px;
   padding: 16px 20px;
   align-items: center;

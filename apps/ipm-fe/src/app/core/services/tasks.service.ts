@@ -42,8 +42,17 @@ export interface TaskView {
   assignee?: string;
   dueDate: string;
   projectId: string;
+  /** Display name of the project this task belongs to — e.g. for a
+   *  cross-project list like "My Tasks" where the project isn't implied
+   *  by context. */
+  projectName: string;
   sprintId?: string;
   workflowStageId: string;
+  /** The task's actual workflow stage name (e.g. "Backlog", "In Review") —
+   *  unlike `statusLabel` below, this doesn't require the caller to supply
+   *  the project's ordered stage list, so it's reliable for cross-project
+   *  lists. */
+  stageName: string;
   isCsoLabeled: boolean;
   type?: string;
   updatedAt?: string;
@@ -304,8 +313,10 @@ export class TasksService {
       assignee,
       dueDate: task.dueDate ?? '',
       projectId: task.projectId,
+      projectName: task.project.name,
       sprintId: task.sprintId ?? undefined,
       workflowStageId: task.workflowStageId,
+      stageName: task.workflowStage.name,
       isCsoLabeled: task.isCsoLabeled,
       description: task.description ?? '',
     };
