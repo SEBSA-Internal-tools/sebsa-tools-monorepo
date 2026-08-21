@@ -23,17 +23,66 @@ export class TasksPageComponent implements OnInit {
   isLoading = signal(false);
   errorMessage = signal('');
 
+  selectedProjectId = signal<string>('');
+  selectedStageName = signal<string>('');
+  selectedPriority = signal<string>('');
+
+  /** Distinct projects among the assigned tasks, sorted for the filter dropdown. */
+  availableProjects = computed<Array<{ id: string; name: string }>>(() => {
+    const byId = new Map<string, string>();
+    for (const task of this.tasks()) {
+      byId.set(task.projectId, task.projectName);
+    }
+    return [...byId.entries()]
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  });
+
+  /** Distinct workflow stage names — varies per project, so this is derived
+   *  from the actual data rather than a fixed enum. */
+  availableStages = computed<string[]>(() => {
+    const names = new Set(this.tasks().map((t) => t.stageName));
+    return [...names].sort((a, b) => a.localeCompare(b));
+  });
+
+  /** Distinct priority names among the assigned tasks. */
+  availablePriorities = computed<string[]>(() => {
+    const names = new Set(this.tasks().map((t) => t.priority));
+    return [...names].sort((a, b) => a.localeCompare(b));
+  });
+
   filteredTasks = computed<TaskView[]>(() => {
     const query = this.searchQuery().toLowerCase().trim();
-    const allTasks = this.tasks();
-    if (!query) return allTasks;
-    return allTasks.filter(
-      (t) =>
-        t.title.toLowerCase().includes(query) ||
-        t.category?.toLowerCase().includes(query) ||
-        t.priority.toLowerCase().includes(query),
-    );
+    const projectId = this.selectedProjectId();
+    const stageName = this.selectedStageName();
+    const priority = this.selectedPriority();
+
+    return this.tasks().filter((t) => {
+      if (projectId && t.projectId !== projectId) return false;
+      if (stageName && t.stageName !== stageName) return false;
+      if (priority && t.priority !== priority) return false;
+      if (
+        query &&
+        !t.title.toLowerCase().includes(query) &&
+        !t.category?.toLowerCase().includes(query) &&
+        !t.priority.toLowerCase().includes(query)
+      ) {
+        return false;
+      }
+      return true;
+    });
   });
+
+  clearFilters(): void {
+    this.selectedProjectId.set('');
+    this.selectedStageName.set('');
+    this.selectedPriority.set('');
+    this.searchQuery.set('');
+  }
+
+  hasActiveFilters = computed<boolean>(
+    () => !!(this.selectedProjectId() || this.selectedStageName() || this.selectedPriority() || this.searchQuery()),
+  );
 
   ngOnInit(): void {
     const user = this.authService.currentUser();
@@ -74,34 +123,15 @@ export class TasksPageComponent implements OnInit {
     this.router.navigate(['/tasks', taskId]);
   }
 
-  getStatusLabel(status: string): string {
-    switch (status) {
-      case 'new':
-        return 'New';
-      case 'todo':
-        return 'To Do';
-      case 'inprogress':
-        return 'In Progress';
-      case 'done':
-        return 'Done';
-      default:
-        return status;
-    }
-  }
-
-  getStatusClass(status: string): string {
-    switch (status) {
-      case 'new':
-        return 'status-new';
-      case 'todo':
-        return 'status-todo';
-      case 'inprogress':
-        return 'status-inprogress';
-      case 'done':
-        return 'status-done';
-      default:
-        return 'status-todo';
-    }
+  /** Workflow stage names are project-defined free text (not a fixed enum),
+   *  so the badge color is a best-effort guess from common naming rather
+   *  than an exact lifecycle mapping. */
+  getStageBadgeClass(stageName: string): string {
+    const name = stageName.toLowerCase();
+    if (name.includes('done') || name.includes('complet')) return 'success';
+    if (name.includes('block')) return 'error';
+    if (name.includes('progress') || name.includes('review') || name.includes('test')) return 'warning';
+    return 'neutral';
   }
 
   getPriorityClass(priority: string): string {

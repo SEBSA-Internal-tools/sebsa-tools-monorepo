@@ -88,6 +88,9 @@
         [style.background]="selectedPriorityColor() + '22'"
         [style.color]="selectedPriorityColor()"
       >
+        @if (fallbackPriorityOption(); as fallback) {
+          <option [value]="fallback.id">{{ fallback.name }}</option>
+        }
         @for (prio of availablePriorities(); track prio.id) {
           <option [value]="prio.id">{{ prio.name }}</option>
         }

@@ -205,7 +205,24 @@ export class TaskDetailPageComponent implements OnInit {
   }
 
   selectedPriorityColor(): string {
-    return this.availablePriorities().find((p) => p.id === this.draft.priorityId)?.color ?? '#64748b';
+    const match = this.availablePriorities().find((p) => p.id === this.draft.priorityId);
+    if (match) return match.color ?? '#64748b';
+    // Priorities load via a separate request from the task itself, so right
+    // after load `availablePriorities` can still be empty — fall back to the
+    // priority the task response already carries rather than flashing gray.
+    const taskPriority = this.task()?.priority;
+    if (taskPriority?.id === this.draft.priorityId) return taskPriority.color ?? '#64748b';
+    return '#64748b';
+  }
+
+  /** The task's own priority, rendered as an extra <option> only when it
+   *  isn't already in `availablePriorities` — covers the window before that
+   *  separate request resolves, so the priority pill never shows blank. */
+  fallbackPriorityOption(): { id: string; name: string } | null {
+    const taskPriority = this.task()?.priority;
+    if (!taskPriority) return null;
+    if (this.availablePriorities().some((p) => p.id === taskPriority.id)) return null;
+    return taskPriority;
   }
 
   discardChanges(): void {
