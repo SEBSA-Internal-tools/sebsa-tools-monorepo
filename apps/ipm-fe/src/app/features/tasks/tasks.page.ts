@@ -130,7 +130,7 @@ export class TasksPageComponent implements OnInit {
     const name = stageName.toLowerCase();
     if (name.includes('done') || name.includes('complet')) return 'success';
     if (name.includes('block')) return 'error';
-    if (name.includes('progress') || name.includes('review') || name.includes('test')) return 'warning';
+    if (name.includes('progress') || name.includes('review') || name.includes('test') || name.includes('revis')) return 'warning';
     return 'neutral';
   }
 
