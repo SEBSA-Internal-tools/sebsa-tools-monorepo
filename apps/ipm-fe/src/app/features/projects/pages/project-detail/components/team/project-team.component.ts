@@ -42,6 +42,12 @@ export class ProjectTeamComponent implements OnInit {
   newRoleName = '';
   newRoleGroupId = '';
 
+  viewMode = signal<'card' | 'list'>('list');
+
+  toggleViewMode(mode: 'card' | 'list'): void {
+    this.viewMode.set(mode);
+  }
+
   ngOnInit(): void {
     this.loadMembers();
     this.loadRoles();
