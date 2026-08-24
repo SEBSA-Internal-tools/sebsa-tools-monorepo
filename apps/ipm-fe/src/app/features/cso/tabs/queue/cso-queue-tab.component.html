@@ -66,6 +66,7 @@
         <table class="results-table">
           <thead>
             <tr>
+              <th>Case</th>
               <th>Task</th>
               <th>Project</th>
               <th>Customer</th>
@@ -83,6 +84,7 @@
                 (keydown.enter)="onTaskClick(task.id)"
                 tabindex="0"
               >
+                <td><span class="task-id">{{ task.id.split('-')[0] | uppercase }}</span></td>
                 <td>{{ task.title }}</td>
                 <td>{{ task.projectName }}</td>
                 <td>{{ task.customerName || '—' }}</td>
@@ -92,7 +94,8 @@
                   </span>
                 </td>
                 <td>
-                  <span class="status-badge" [class]="'status-' + task.statusLabel">
+                  <span class="status-badge status-pill" [class]="'status-' + task.statusLabel">
+                    <span class="pill-dot"></span>
                     {{ statusLabelText(task.statusLabel) }}
                   </span>
                 </td>

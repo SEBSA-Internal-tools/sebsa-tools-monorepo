@@ -111,6 +111,7 @@
             <div class="table-header">
               <div class="col-title">Task</div>
               <div class="col-project">Project</div>
+              <div class="col-type">Type</div>
               <div class="col-status">Status</div>
               <div class="col-priority">Priority</div>
               <div class="col-due">Due Date</div>
@@ -127,6 +128,12 @@
                 <div class="col-project">
                   <span class="task-project-name">
                     {{ task.projectName }}
+                  </span>
+                </div>
+
+                <div class="col-type">
+                  <span class="type-badge">
+                    {{ task.category }}
                   </span>
                 </div>
 
