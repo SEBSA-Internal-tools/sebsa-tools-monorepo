@@ -21,7 +21,6 @@ import { FilterTaskDto } from './dto/filter-task.dto';
 import { AssigneesDto } from './dto/assign-task.dto';
 import { TaskLabelsDto } from './dto/task-label.dto';
 import { CreateTaskDependencyDto } from './dto/create-task-dependency.dto';
-import { CreateSubtaskDto } from './dto/create-subtask.dto';
 import { JiraSyncService } from '../jira/jira-sync.service';
 
 @ApiTags('tasks')
@@ -125,22 +124,6 @@ export class TaskController {
     return this.taskService.detachLabel(id, labelId, user);
   }
 
-  // --- Subtask Endpoints ---
-
-  @Get(':id/subtasks')
-  async getSubtasks(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
-    return this.taskService.getSubtasks(id, user);
-  }
-
-  @Post(':id/subtasks')
-  async createSubtask(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: CreateSubtaskDto,
-    @CurrentUser() user: AuthUser,
-  ) {
-    return this.taskService.createSubtask(id, dto, user);
-  }
-
   // --- Dependency Endpoints (FSD §5.5) ---
 
   @Get(':id/dependencies')
@@ -171,12 +154,5 @@ export class TaskController {
   @Get(':id/status-history')
   async getStatusHistory(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
     return this.taskService.getStatusHistory(id, user);
-  }
-
-  // --- Category/Assignment History (Functional/Technical conversion trail) ---
-
-  @Get(':id/category-history')
-  async getCategoryHistory(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
-    return this.taskService.getCategoryHistory(id, user);
   }
 }

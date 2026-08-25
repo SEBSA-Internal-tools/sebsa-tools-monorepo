@@ -16,6 +16,8 @@ import databaseConfig from '../config/database.config';
 import jiraConfig from '../config/jira.config';
 import { envValidationSchema } from '../config/env.validation';
 import { TaskModule } from './tasks/task.module';
+import { CaseModule } from './cases/case.module';
+import { SubtaskModule } from './subtasks/subtask.module';
 import { SprintsModule } from './sprints/sprints.module';
 import { JiraModule } from './jira/jira.module';
 
@@ -33,7 +35,9 @@ import { JiraModule } from './jira/jira.module';
     PrismaModule,
     AuthModule,
     ProjectsModule,
+    CaseModule,
     TaskModule,
+    SubtaskModule,
     SprintsModule,
     UsersModule,
     DepartmentsModule,

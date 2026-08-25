@@ -1,10 +1,10 @@
 import { UserSummary } from '../users/user-summary.model';
 
-export type TaskType = 'EPIC' | 'STORY' | 'TASK' | 'BUG' | 'IMPROVEMENT' | 'TEST' | 'SUBTASK';
 export type TaskDependencyType = 'BLOCKS' | 'RELATES_TO' | 'DUPLICATE_OF';
-/** Functional/Technical classification tag — nullable on ordinary project
- * tasks, required whenever isCsoLabeled is true (enforced server-side). */
-export type TaskCategory = 'FUNCTIONAL' | 'TECHNICAL';
+
+/** Fixed Task lifecycle. Replaces the old per-project, admin-configurable
+ * WorkflowStage model with a single well-known list shared by every project. */
+export type TaskStatus = 'TO_DO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'BLOCKED' | 'DONE' | 'CANCELLED';
 
 export interface TaskLabelSummary {
   id: string;
@@ -13,26 +13,20 @@ export interface TaskLabelSummary {
 }
 
 /** List-view shape — returned by GET /tasks, /tasks/my-assigned, and
- * subtask lists. Fields only the detail fetch (GET /tasks/:id) populates
- * are optional here; `Task` below re-declares them as required. */
+ * within a Case's task list. Fields only the detail fetch (GET /tasks/:id)
+ * populates are optional here; `Task` below re-declares them as required. */
 export interface TaskSummary {
   id: string;
-  projectId: string;
-  parentTaskId?: string | null;
+  caseId: string;
   title: string;
-  type: TaskType;
+  status: TaskStatus;
   priorityId: string;
-  workflowStageId: string;
-  sprintId: string | null;
   dueDate: string | null;
   description: string | null;
-  isCsoLabeled: boolean;
-  category: TaskCategory | null;
-  project: { id: string; name: string };
-  workflowStage: { id: string; name: string };
+  jiraStatusLabel: string | null;
+  case: { id: string; title: string; type: string; projectId: string };
   priority: { id: string; name: string; color: string | null };
   assignees: Pick<UserSummary, 'id' | 'name' | 'email'>[];
-  milestoneId?: string | null;
   startDate?: string | null;
   storyPoints?: number | null;
   createdBy?: Pick<UserSummary, 'id' | 'name'>;
@@ -46,58 +40,40 @@ export interface TaskListSummary {
   id: string;
   title: string;
   description: string | null;
-  type: TaskType;
-  workflowStageId: string;
+  status: TaskStatus;
   priorityId: string;
   priority: { id: string; name: string; color: string | null };
   dueDate: string | null;
-  category: TaskCategory | null;
   assignee: Pick<UserSummary, 'id' | 'name' | 'email'> | null;
 }
 
 /** Detail-view shape — includes the subtask list. */
 export interface Task extends TaskSummary {
-  parentTaskId: string | null;
-  parentTask: { id: string; title: string } | null;
-  /** Full ancestor chain from the top-level task down to (not including) this
-   *  task itself — e.g. [GrandparentTask, ParentTask] — for breadcrumb display. */
-  ancestors: { id: string; title: string }[];
-  milestoneId: string | null;
-  startDate: string | null;
-  storyPoints: number | null;
   reminderLeadMinutes: number | null;
-  sprint: { id: string; name: string } | null;
   createdBy: Pick<UserSummary, 'id' | 'name'>;
   labels: TaskLabelSummary[];
   subtaskCount: number;
   createdAt: string;
   updatedAt: string;
-  subtasks: Pick<TaskSummary, 'id' | 'title' | 'workflowStageId'>[];
+  subtasks: { id: string; title: string; status: string }[];
 }
 
 export interface CreateTaskRequest {
-  projectId: string;
-  parentTaskId?: string;
+  caseId: string;
   title: string;
   description?: string;
-  type?: TaskType;
   priorityId?: string;
-  /** Omit to fall back to the project's default Backlog stage. */
-  workflowStageId?: string;
-  sprintId?: string;
-  milestoneId?: string;
+  status?: TaskStatus;
   startDate?: string;
   dueDate?: string;
   storyPoints?: number;
   reminderLeadMinutes?: number;
   assigneeIds?: string[];
   labelIds?: string[];
-  isCsoLabeled?: boolean;
-  /** Required when isCsoLabeled is true. */
-  category?: TaskCategory;
+  jiraStatusLabel?: string;
 }
 
-export type UpdateTaskRequest = Partial<Omit<CreateTaskRequest, 'projectId'>>;
+export type UpdateTaskRequest = Partial<Omit<CreateTaskRequest, 'caseId'>>;
 
 /** Update returns dependency-enforcement warnings alongside the task rather
  * than throwing — hard-blocking an unmet-dependency transition is only a
@@ -123,7 +99,7 @@ export interface CreateTaskDependencyRequest {
 export interface TaskDependencyTaskRef {
   id: string;
   title: string;
-  workflowStageId: string;
+  status: TaskStatus;
   /** The TaskDependency row's own id — needed to call DELETE
    *  /tasks/:id/dependencies/:dependencyId. Only removable from the
    *  dependency's source task, so `blockedBy` entries carry it too but the
@@ -143,20 +119,8 @@ export interface TaskDependenciesView {
 
 export interface TaskStatusHistoryEntry {
   id: string;
-  fromStage: { id: string; name: string } | null;
-  toStage: { id: string; name: string };
-  changedAt: string;
-  changedBy: { id: string; name: string };
-}
-
-/** One entry in a task's Functional/Technical assignment history — see
- * TaskCategoryAssignment in schema.prisma. Rendered on the task detail page
- * as e.g. "Functional Assigned - Alice", then "Technical Assigned - Bob"
- * once the task is converted, so the earlier assignment is never lost. */
-export interface TaskCategoryAssignmentEntry {
-  id: string;
-  category: TaskCategory;
-  assignee: { id: string; name: string } | null;
+  fromStatus: TaskStatus | null;
+  toStatus: TaskStatus;
   changedAt: string;
   changedBy: { id: string; name: string };
 }

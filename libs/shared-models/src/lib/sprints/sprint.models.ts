@@ -9,7 +9,8 @@ export interface SprintSummary {
   startDate: string;
   endDate: string;
   status: SprintStatus;
-  taskCount: number;
+  /** Count of Cases in this sprint (sprint planning moved from Task to Case). */
+  caseCount: number;
   createdAt: string;
   updatedAt: string;
 }
