@@ -153,8 +153,8 @@ export class TasksService {
    */
   updateTask(taskId: string, dto: UpdateTaskRequest, workflowStages: WorkflowStage[]): Observable<TaskView> {
     const sortedStages = [...workflowStages].sort((a, b) => a.order - b.order);
-    return this.http.patch<BackendTask>(`/api/tasks/${taskId}`, dto).pipe(
-      map((task) => this.toTaskView(task, sortedStages)),
+    return this.http.patch<UpdateTaskResponse>(`/api/tasks/${taskId}`, dto).pipe(
+      map((response) => this.toTaskView(response.task, sortedStages)),
       tap((updatedTask) => {
         if (updatedTask.projectId === this.currentProjectId) {
           // Immutable replace — new array reference triggers signal consumers & BehaviorSubject.
@@ -247,7 +247,16 @@ export class TasksService {
   }
 
   updateTaskDetails(taskId: string, dto: UpdateTaskRequest): Observable<UpdateTaskResponse> {
-    return this.http.patch<UpdateTaskResponse>(`/api/tasks/${taskId}`, dto);
+    return this.http.patch<UpdateTaskResponse>(`/api/tasks/${taskId}`, dto).pipe(
+      tap((response) => {
+        if (response.task.projectId === this.currentProjectId) {
+          const updatedView = this.toTaskView(response.task, this.currentWorkflowStages);
+          this.setState(
+            this._tasks().map((t) => (t.id === updatedView.id ? updatedView : t))
+          );
+        }
+      })
+    );
   }
 
   deleteTask(taskId: string): Observable<{ message: string }> {

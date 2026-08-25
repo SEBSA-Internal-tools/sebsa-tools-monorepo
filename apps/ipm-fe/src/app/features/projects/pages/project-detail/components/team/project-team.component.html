@@ -4,52 +4,105 @@
       <h3>Project Team</h3>
       <p class="member-count">{{ teamMembers().length }} members</p>
     </div>
-    <button
-      type="button"
-      class="btn-add-member"
-      (click)="onOpenModal()"
-      title="Add team member"
-    >
-      <span class="material-symbols-outlined">person_add</span>
-      Add Member
-    </button>
+    
+    <div class="header-actions">
+      <div class="view-toggle">
+        <button type="button" class="view-btn" [class.active]="viewMode() === 'card'" (click)="toggleViewMode('card')" title="Card View">
+          <span class="material-symbols-outlined">grid_view</span>
+        </button>
+        <button type="button" class="view-btn" [class.active]="viewMode() === 'list'" (click)="toggleViewMode('list')" title="List View">
+          <span class="material-symbols-outlined">view_list</span>
+        </button>
+      </div>
+
+      <button
+        type="button"
+        class="btn-add-member"
+        (click)="onOpenModal()"
+        title="Add team member"
+      >
+        <span class="material-symbols-outlined">person_add</span>
+        Add Member
+      </button>
+    </div>
   </div>
 
   @if (errorMessage()) {
     <div class="team-error">{{ errorMessage() }}</div>
   }
 
-  <div class="team-grid">
-    @for (member of teamMembers(); track member.id) {
-      <div class="team-card">
-        <!-- Card Header -->
-        <div class="card-header">
-          <div class="member-avatar">{{ initials(member.user.name) }}</div>
-          <button
-            type="button"
-            class="btn-remove-member"
-            (click)="onRemoveMember(member.id)"
-            title="Remove from project"
-          >
-            <span class="material-symbols-outlined">person_remove</span>
-          </button>
-        </div>
+  @if (viewMode() === 'card') {
+    <div class="team-grid">
+      @for (member of teamMembers(); track member.id) {
+        <div class="team-card">
+          <!-- Card Header -->
+          <div class="card-header">
+            <div class="member-avatar">{{ initials(member.user.name) }}</div>
+            <button
+              type="button"
+              class="btn-remove-member"
+              (click)="onRemoveMember(member.id)"
+              title="Remove from project"
+            >
+              <span class="material-symbols-outlined">person_remove</span>
+            </button>
+          </div>
 
-        <!-- Member Info -->
-        <div class="member-info">
-          <h4>{{ member.user.name }}</h4>
-          <p class="role">{{ member.role.name }}</p>
-          <p class="email">{{ member.user.email }}</p>
-        </div>
+          <!-- Member Info -->
+          <div class="member-info">
+            <h4>{{ member.user.name }}</h4>
+            <p class="role">{{ member.role.name }}</p>
+            <p class="email">{{ member.user.email }}</p>
+          </div>
 
-        <!-- Join Date -->
-        <div class="join-date">
-          <span class="material-symbols-outlined">calendar_today</span>
-          <span>Joined {{ member.joinedAt | date: 'mediumDate' }}</span>
+          <!-- Join Date -->
+          <div class="join-date">
+            <span class="material-symbols-outlined">calendar_today</span>
+            <span>Joined {{ member.joinedAt | date: 'mediumDate' }}</span>
+          </div>
         </div>
-      </div>
-    }
-  </div>
+      }
+    </div>
+  } @else {
+    <div class="table-container">
+      <table class="sebsa-table">
+        <thead>
+          <tr>
+            <th>Member</th>
+            <th>Role</th>
+            <th>Email</th>
+            <th>Joined Date</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (member of teamMembers(); track member.id) {
+            <tr>
+              <td>
+                <div class="member-cell">
+                  <div class="list-member-avatar">{{ initials(member.user.name) }}</div>
+                  <span>{{ member.user.name }}</span>
+                </div>
+              </td>
+              <td><span class="role-badge">{{ member.role.name }}</span></td>
+              <td>{{ member.user.email }}</td>
+              <td>{{ member.joinedAt | date: 'mediumDate' }}</td>
+              <td>
+                <button
+                  type="button"
+                  class="btn-remove-member"
+                  (click)="onRemoveMember(member.id)"
+                  title="Remove from project"
+                >
+                  <span class="material-symbols-outlined">person_remove</span>
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
 
   <!-- Assign User Modal -->
   <assign-user-modal
