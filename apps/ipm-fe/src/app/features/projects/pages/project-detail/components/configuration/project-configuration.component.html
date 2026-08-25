@@ -1,6 +1,6 @@
 <div class="configuration-container">
   <h2>Project Configuration</h2>
-  <p class="config-description">Manage your project's workflow stages and priorities here.</p>
+  <p class="config-description">Manage your project's priorities here. Task/Case status is a fixed, global lifecycle and is no longer configurable per project.</p>
 
   <!-- Success Message -->
   @if (successMessage()) {
@@ -17,88 +17,6 @@
       {{ errorMessage() }}
     </div>
   }
-
-  <!-- =================== WORKFLOW STAGES SECTION =================== -->
-  <section class="config-section">
-    <div class="section-header" (click)="toggleWorkflowStages()">
-      <div class="section-title-group">
-        <span
-          class="material-symbols-outlined section-icon toggle-icon"
-          [class.collapsed]="isWorkflowStagesCollapsed"
-        >
-          expand_more
-        </span>
-        <span class="material-symbols-outlined section-icon">account_tree</span>
-        <div>
-          <h3>Workflow Stages</h3>
-          <p class="section-subtitle">Define the lifecycle stages tasks move through (e.g. Backlog → In Progress → Testing → Done)</p>
-        </div>
-      </div>
-      <button class="btn-add" (click)="openAddWorkflowModal(); $event.stopPropagation()">
-        <span class="material-symbols-outlined">add</span>
-        Add Stage
-      </button>
-    </div>
-
-    @if (!isWorkflowStagesCollapsed) {
-      @if (workflowStages().length === 0) {
-      <div class="empty-state">
-        <span class="material-symbols-outlined empty-icon">account_tree</span>
-        <p>No workflow stages configured yet.</p>
-      </div>
-    } @else {
-      @if (!canReorderStages()) {
-        <p class="reorder-hint">
-          <span class="material-symbols-outlined">lock</span>
-          Reordering is locked while tasks exist outside Backlog — move or complete them first.
-        </p>
-      }
-      <div class="config-list">
-        @for (stage of workflowStages(); track stage.id) {
-          <div
-            class="config-item"
-            [class.dragging]="draggedStageId === stage.id"
-            (dragover)="onStageDragOver($event)"
-            (drop)="onStageDrop(stage.id)"
-          >
-            <div class="item-info">
-              <span class="item-order">#{{ stage.order }}</span>
-              <span class="item-name">{{ stage.name }}</span>
-            </div>
-            <div class="item-actions">
-              <button
-                class="btn-icon btn-edit"
-                title="Edit stage"
-                (click)="openEditWorkflowModal(stage)"
-              >
-                <span class="material-symbols-outlined">edit</span>
-              </button>
-                @if (stage.name !== 'Backlog') {
-                <button
-                  class="btn-icon btn-delete"
-                  title="Delete stage"
-                  (click)="deleteWorkflowStage(stage)"
-                >
-                  <span class="material-symbols-outlined">delete</span>
-                </button>
-              }
-              <span
-                class="btn-icon drag-handle"
-                [class.disabled]="!canReorderStages()"
-                [attr.draggable]="canReorderStages()"
-                [title]="canReorderStages() ? 'Drag to reorder' : 'Reordering locked — tasks exist outside Backlog'"
-                (dragstart)="onStageDragStart(stage.id)"
-                (dragend)="onStageDragEnd()"
-              >
-                <span class="material-symbols-outlined">drag_indicator</span>
-              </span>
-            </div>
-          </div>
-        }
-      </div>
-    }
-    }
-  </section>
 
   <!-- =================== PRIORITIES SECTION =================== -->
   <section class="config-section">
@@ -162,14 +80,6 @@
     }
   </section>
 </div>
-
-<!-- Workflow Modal -->
-<workflow-modal
-  [isOpen]="isWorkflowModalOpen"
-  [editData]="editingWorkflowStage"
-  (close)="closeWorkflowModal()"
-  (submit)="onWorkflowSubmit($event)"
-></workflow-modal>
 
 <!-- Priority Modal -->
 <priority-modal

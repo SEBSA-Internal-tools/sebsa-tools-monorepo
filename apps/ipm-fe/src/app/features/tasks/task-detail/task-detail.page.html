@@ -75,12 +75,6 @@
   <!-- Task Header -->
   <div class="task-header">
     <div class="task-header-top">
-      <span class="type-badge">
-        <span class="material-symbols-outlined type-icon">
-          {{ getTypeIcon(task.type) }}
-        </span>
-        {{ getTypeLabel(task.type) }}
-      </span>
       <select
         class="priority-pill-select"
         [(ngModel)]="draft.priorityId"
@@ -95,26 +89,6 @@
           <option [value]="prio.id">{{ prio.name }}</option>
         }
       </select>
-      <button
-        type="button"
-        class="cso-pill"
-        [class.active]="draft.isCsoLabeled"
-        (click)="draft.isCsoLabeled = !draft.isCsoLabeled; markDirty()"
-      >
-        CSO
-      </button>
-      @if (draft.isCsoLabeled) {
-        <select
-          class="category-pill-select"
-          [(ngModel)]="draft.category"
-          (ngModelChange)="markDirty()"
-          [class.technical]="draft.category === 'TECHNICAL'"
-        >
-          <option value="" disabled>Select…</option>
-          <option value="FUNCTIONAL">Functional</option>
-          <option value="TECHNICAL">Technical</option>
-        </select>
-      }
     </div>
     <input
       type="text"
@@ -124,13 +98,10 @@
       placeholder="Task title"
     />
     <p class="breadcrumb-trail">
-      <a class="breadcrumb-link" [routerLink]="['/projects', task.project.id]">{{ task.project.name }}</a>
-      @for (ancestor of task.ancestors; track ancestor.id) {
-        <span class="breadcrumb-chevron">›</span>
-        <button type="button" class="breadcrumb-link-btn" (click)="navigateToSubtask(ancestor.id)">
-          {{ ancestor.title }}
-        </button>
-      }
+      <a class="breadcrumb-link" [routerLink]="['/cases', task.caseId]">
+        <span class="material-symbols-outlined breadcrumb-case-icon">folder</span>
+        {{ task.case.title }}
+      </a>
       <span class="breadcrumb-chevron">›</span>
       <span class="breadcrumb-current">{{ task.title }}</span>
     </p>
@@ -142,30 +113,28 @@
     </p>
   </div>
 
-  <!-- Status / Flow Stepper -->
-  @if (workflowStages().length > 0) {
-    <div class="section-block stepper-block">
-      <h3 class="section-heading">
-        <span class="material-symbols-outlined">timeline</span>
-        Status
-      </h3>
-      <div class="stepper">
-        @for (stage of workflowStages(); track stage.id) {
-          <button
-            type="button"
-            class="stepper-step"
-            [class.active]="stage.id === task.workflowStageId"
-            [class.past]="isPastStage(stage)"
-            (click)="onStageClick(stage.id)"
-            [title]="enteredStageAt(stage.id) ? ('Since ' + formatDate(enteredStageAt(stage.id))) : stage.name"
-          >
-            <span class="stepper-dot"></span>
-            <span class="stepper-label">{{ stage.name }}</span>
-          </button>
-        }
-      </div>
+  <!-- Status Stepper -->
+  <div class="section-block stepper-block">
+    <h3 class="section-heading">
+      <span class="material-symbols-outlined">timeline</span>
+      Status
+    </h3>
+    <div class="stepper">
+      @for (status of statuses; track status.id) {
+        <button
+          type="button"
+          class="stepper-step"
+          [class.active]="status.id === task.status"
+          [class.past]="isPastStatus(status)"
+          (click)="onStatusClick(status.id)"
+          [title]="enteredStatusAt(status.id) ? ('Since ' + formatDate(enteredStatusAt(status.id))) : status.name"
+        >
+          <span class="stepper-dot"></span>
+          <span class="stepper-label">{{ status.name }}</span>
+        </button>
+      }
     </div>
-  }
+  </div>
 
   <!-- Content Grid -->
   <div class="task-body">
@@ -195,9 +164,9 @@
             checklist
           </span>
           Subtasks
-          @if (task.subtasks && task.subtasks.length > 0) {
+          @if (subtasks().length > 0) {
             <span class="count-badge">
-              {{ task.subtasks.length }}
+              {{ subtasks().length }}
             </span>
           }
           <button type="button" class="add-inline-btn" (click)="openAddSubtaskModal()">
@@ -205,24 +174,23 @@
             Add Subtask
           </button>
         </h3>
-        @if (task.subtasks && task.subtasks.length > 0) {
+        @if (subtasks().length > 0) {
           <div class="subtask-list">
-            @for (subtask of task.subtasks; track subtask.id) {
-              <button
-                type="button"
-                class="subtask-item"
-                (click)="navigateToSubtask(subtask.id)"
-              >
+            @for (subtask of subtasks(); track subtask.id) {
+              <div class="subtask-item">
                 <span class="material-symbols-outlined subtask-icon">
                   subdirectory_arrow_right
                 </span>
                 <span class="subtask-title">
                   {{ subtask.title }}
                 </span>
-                <span class="material-symbols-outlined chevron-icon">
-                  chevron_right
-                </span>
-              </button>
+                <span class="status-chip">{{ subtask.status }}</span>
+                @if (subtask.assignees.length > 0) {
+                  <span class="task-assignee-mini" [title]="subtask.assignees[0].name">
+                    {{ subtask.assignees[0].name.charAt(0) }}
+                  </span>
+                }
+              </div>
             }
           </div>
         } @else {
@@ -243,9 +211,9 @@
               <p class="dependency-group-label blocked-by-label">Blocked By</p>
               @for (ref of deps.blockedBy; track ref.dependencyId) {
                 <div class="dependency-item">
-                  <button type="button" class="dependency-link" (click)="navigateToSubtask(ref.id)">
+                  <a class="dependency-link" [routerLink]="['/tasks', ref.id]">
                     {{ ref.title }}
-                  </button>
+                  </a>
                 </div>
               }
             </div>
@@ -257,9 +225,9 @@
             }
             @for (ref of deps.blocks; track ref.dependencyId) {
               <div class="dependency-item">
-                <button type="button" class="dependency-link" (click)="navigateToSubtask(ref.id)">
+                <a class="dependency-link" [routerLink]="['/tasks', ref.id]">
                   {{ ref.title }}
-                </button>
+                </a>
                 <button type="button" class="remove-dependency-btn" (click)="removeDependency(ref.dependencyId)" title="Remove">
                   <span class="material-symbols-outlined">close</span>
                 </button>
@@ -273,9 +241,9 @@
             }
             @for (ref of deps.relatesTo; track ref.dependencyId) {
               <div class="dependency-item">
-                <button type="button" class="dependency-link" (click)="navigateToSubtask(ref.id)">
+                <a class="dependency-link" [routerLink]="['/tasks', ref.id]">
                   {{ ref.title }}
-                </button>
+                </a>
                 <button type="button" class="remove-dependency-btn" (click)="removeDependency(ref.dependencyId)" title="Remove">
                   <span class="material-symbols-outlined">close</span>
                 </button>
@@ -289,9 +257,9 @@
             }
             @for (ref of deps.duplicateOf; track ref.dependencyId) {
               <div class="dependency-item">
-                <button type="button" class="dependency-link" (click)="navigateToSubtask(ref.id)">
+                <a class="dependency-link" [routerLink]="['/tasks', ref.id]">
                   {{ ref.title }}
-                </button>
+                </a>
                 <button type="button" class="remove-dependency-btn" (click)="removeDependency(ref.dependencyId)" title="Remove">
                   <span class="material-symbols-outlined">close</span>
                 </button>
@@ -319,7 +287,7 @@
             <input
               type="text"
               [(ngModel)]="dependencyTaskSearch"
-              placeholder="Search tasks in this project…"
+              placeholder="Search tasks in this case…"
               class="form-input"
             />
             @if (dependencyTaskSearch && getFilteredDependencyTasks().length > 0) {
@@ -351,17 +319,6 @@
         </h4>
         <div class="meta-row">
           <span class="meta-label">
-            Start Date
-          </span>
-          <input
-            type="date"
-            class="meta-value-input"
-            [(ngModel)]="draft.startDate"
-            (ngModelChange)="markDirty()"
-          />
-        </div>
-        <div class="meta-row">
-          <span class="meta-label">
             Due Date
           </span>
           <input
@@ -386,40 +343,6 @@
           </span>
         </div>
       </div>
-      <!-- Story Points -->
-      <div class="meta-card">
-        <h4 class="meta-heading">
-          <span class="material-symbols-outlined">
-            speed
-          </span>
-          Effort
-        </h4>
-        <div class="meta-row">
-          <span class="meta-label">
-            Story Points
-          </span>
-          <input
-            type="number"
-            min="0"
-            class="meta-value-input story-points-input"
-            [(ngModel)]="draft.storyPoints"
-            (ngModelChange)="markDirty()"
-            placeholder="—"
-          />
-        </div>
-      </div>
-      <!-- Sprint -->
-      @if (task.sprint) {
-        <div class="meta-card">
-          <h4 class="meta-heading">
-            <span class="material-symbols-outlined">directions_run</span>
-            Sprint
-          </h4>
-          <div class="meta-row">
-            <span class="meta-value">{{ task.sprint.name }}</span>
-          </div>
-        </div>
-      }
       <!-- Assignee -->
       <div class="meta-card">
         <h4 class="meta-heading">
@@ -472,48 +395,17 @@
           </div>
         </div>
       }
-
-      <!-- Assignment History — Functional/Technical conversion trail. Only
-           shown once the task has been tagged, since there's nothing
-           meaningful to show for an untagged task. -->
-      @if (categoryHistory().length > 0) {
-        <div class="meta-card">
-          <h4 class="meta-heading">
-            <span class="material-symbols-outlined">history</span>
-            Assignment History
-          </h4>
-          <div class="assignment-history">
-            @for (entry of categoryHistory(); track entry.id) {
-              <div class="assignment-entry" [class.technical]="entry.category === 'TECHNICAL'">
-                <span class="assignment-dot"></span>
-                <div class="assignment-body">
-                  <p class="assignment-line">
-                    <span class="assignment-category">{{ getCategoryLabel(entry.category) }} Assigned</span>
-                    <span class="assignment-dash">—</span>
-                    <span class="assignment-name">{{ entry.assignee?.name ?? 'Unassigned' }}</span>
-                  </p>
-                  <p class="assignment-meta">
-                    {{ formatDate(entry.changedAt) }} by {{ entry.changedBy.name }}
-                  </p>
-                </div>
-              </div>
-            }
-          </div>
-        </div>
-      }
     </div>
   </div>
 </div>
 }
 @if (task(); as t) {
-  <app-create-task-modal
+  <app-create-subtask-modal
     [isOpen]="isAddSubtaskModalOpen()"
-    [projectId]="t.projectId"
-    [projectName]="t.project.name"
-    [lockedParentTaskId]="t.id"
-    [lockedParentTaskTitle]="t.title"
+    [projectId]="t.case.projectId"
+    [taskTitle]="t.title"
     (closed)="closeAddSubtaskModal()"
     (submitted)="onCreateSubtask($event)"
-  ></app-create-task-modal>
+  ></app-create-subtask-modal>
 }
 </section>

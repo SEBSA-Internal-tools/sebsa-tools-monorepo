@@ -42,6 +42,11 @@ export const appRoutes: Route[] = [
 					import('./features/tasks/task-detail/task-detail.page').then((m) => m.TaskDetailPageComponent),
 			},
 			{
+				path: 'cases/:id',
+				loadComponent: () =>
+					import('./features/cases/case-detail/case-detail.page').then((m) => m.CaseDetailPageComponent),
+			},
+			{
 				path: 'projects',
 				loadComponent: () =>
 					import('./features/projects/pages/projects-list/projects-list.page').then((m) => m.ProjectsPageComponent),

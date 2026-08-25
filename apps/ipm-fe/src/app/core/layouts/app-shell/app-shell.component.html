@@ -7,7 +7,7 @@
 
     <button type="button" class="btn-primary new-task-button" aria-haspopup="dialog" [attr.aria-expanded]="isTaskModalOpen" (click)="openTaskModal()">
       <span class="material-symbols-outlined button-icon" aria-hidden="true">add</span>
-      <span>New Task</span>
+      <span>New Case</span>
     </button>
 
     <nav class="nav-list">
@@ -181,11 +181,11 @@
     </section>
   </div>
 
-  <app-create-task-modal
+  <app-create-case-modal
     [isOpen]="isTaskModalOpen"
     (closed)="closeTaskModal()"
     (submitted)="handleTaskSaved($event)"
-  ></app-create-task-modal>
+  ></app-create-case-modal>
 
   <app-toast></app-toast>
 </main>

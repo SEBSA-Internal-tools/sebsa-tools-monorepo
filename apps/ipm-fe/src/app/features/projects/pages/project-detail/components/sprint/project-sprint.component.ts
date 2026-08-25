@@ -11,7 +11,7 @@ import { CommonModule } from '@angular/common';
 import { ProjectsService, Sprint } from '../../../../services/projects.service';
 import { SprintService } from '../../../../services/sprint.service';
 import { AuthService } from '../../../../../../core/services/auth.service';
-import { TasksService, type TaskView } from '../../../../../../core/services/tasks.service';
+import { CasesService, type CaseView } from '../../../../../../core/services/cases.service';
 import { AddSprintModalComponent } from '../../../../components/modals/add-sprint/add-sprint-modal.component';
 
 interface ExpandedState {
@@ -34,13 +34,12 @@ export class ProjectSprintComponent implements OnInit {
   private projectsService = inject(ProjectsService);
   private sprintService = inject(SprintService);
   private authService = inject(AuthService);
-  private tasksService = inject(TasksService);
+  private casesService = inject(CasesService);
 
   sprints = signal<Sprint[]>([]);
   expandedSprints = signal<ExpandedState>({});
   isModalOpen = signal(false);
   userRole = signal<UserRole>('VIEWER');
-  selectedSprintForTask = signal<Sprint | null>(null);
   isLoading = signal(false);
   errorMessage = signal('');
 
@@ -110,8 +109,8 @@ export class ProjectSprintComponent implements OnInit {
     }));
   }
 
-  getSprintTasks(sprintId: string): TaskView[] {
-    return this.tasksService.getSprintTasks(sprintId);
+  getSprintCases(sprintId: string): CaseView[] {
+    return this.casesService.getSprintCases(sprintId);
   }
 
   getSprintStats(sprintId: string): {
@@ -119,11 +118,11 @@ export class ProjectSprintComponent implements OnInit {
     completed: number;
     inProgress: number;
   } {
-    const tasks = this.getSprintTasks(sprintId);
+    const cases = this.getSprintCases(sprintId);
     return {
-      total: tasks.length,
-      completed: tasks.filter((t) => t.statusLabel === 'done').length,
-      inProgress: tasks.filter((t) => t.statusLabel === 'inprogress').length,
+      total: cases.length,
+      completed: cases.filter((c) => c.status === 'DONE' || c.status === 'CANCELLED').length,
+      inProgress: cases.filter((c) => c.status === 'IN_PROGRESS' || c.status === 'IN_REVIEW' || c.status === 'BLOCKED').length,
     };
   }
 
@@ -153,7 +152,7 @@ export class ProjectSprintComponent implements OnInit {
     }
   }
 
-  getPriorityClass(priority: TaskView['priority']): string {
+  getPriorityClass(priority: CaseView['priority']): string {
     switch (priority) {
       case 'High':
         return 'priority-high';
@@ -166,33 +165,39 @@ export class ProjectSprintComponent implements OnInit {
     }
   }
 
-  getStatusClass(statusLabel: TaskView['statusLabel']): string {
-    switch (statusLabel) {
-      case 'new':
+  getStatusClass(status: CaseView['status']): string {
+    switch (status) {
+      case 'TO_DO':
         return 'status-new';
-      case 'todo':
-        return 'status-todo';
-      case 'inprogress':
+      case 'IN_PROGRESS':
+      case 'IN_REVIEW':
         return 'status-in-progress';
-      case 'done':
+      case 'BLOCKED':
+        return 'status-todo';
+      case 'DONE':
+      case 'CANCELLED':
         return 'status-done';
       default:
         return '';
     }
   }
 
-  getStatusLabel_(statusLabel: TaskView['statusLabel']): string {
-    switch (statusLabel) {
-      case 'new':
-        return 'New';
-      case 'todo':
+  getCaseStatusLabel(status: CaseView['status']): string {
+    switch (status) {
+      case 'TO_DO':
         return 'To Do';
-      case 'inprogress':
+      case 'IN_PROGRESS':
         return 'In Progress';
-      case 'done':
+      case 'IN_REVIEW':
+        return 'In Review';
+      case 'BLOCKED':
+        return 'Blocked';
+      case 'DONE':
         return 'Done';
+      case 'CANCELLED':
+        return 'Cancelled';
       default:
-        return statusLabel;
+        return status;
     }
   }
 
@@ -233,7 +238,7 @@ export class ProjectSprintComponent implements OnInit {
   }
 
   onDeleteSprint(sprintId: string): void {
-    if (confirm('Are you sure you want to delete this sprint? All associated tasks will be unassigned.')) {
+    if (confirm('Are you sure you want to delete this sprint? All associated cases will be unassigned.')) {
       this.sprintService.deleteSprint(this.projectId, sprintId).subscribe({
         next: () => {
           this.loadSprints();

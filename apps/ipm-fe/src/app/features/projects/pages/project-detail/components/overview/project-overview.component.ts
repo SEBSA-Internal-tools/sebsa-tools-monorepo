@@ -8,7 +8,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ProjectsService, type Sprint } from '../../../../services/projects.service';
-import { TasksService, type TaskView } from '../../../../../../core/services/tasks.service';
+import { CasesService, type CaseView } from '../../../../../../core/services/cases.service';
 import type { Project, ProjectStatus } from '@sebsa-pm-tool/shared-models';
 
 const STATUS_LABELS: Record<ProjectStatus, string> = {
@@ -35,9 +35,9 @@ interface SprintStats {
 }
 
 interface OverviewMetrics {
-  totalTasks: number;
-  functionalTasks: number;
-  technicalTasks: number;
+  totalCases: number;
+  functionalCases: number;
+  technicalCases: number;
   healthPct: number;
   healthLabel: 'Healthy' | 'At Risk' | 'Critical';
 }
@@ -71,6 +71,10 @@ interface AgingRow {
   maxDays: number;
 }
 
+/** Cases are the level Task used to be tracked at before the Case hierarchy
+ * split — this dashboard reads Cases now, and the "done"/"in progress"
+ * buckets map from the fixed CaseStatus enum instead of a per-project
+ * workflow-stage position. */
 @Component({
   standalone: true,
   selector: 'project-overview',
@@ -82,7 +86,7 @@ interface AgingRow {
 export class ProjectOverviewComponent implements OnInit {
   @Input() project!: Project;
 
-  private tasksService = inject(TasksService);
+  private casesService = inject(CasesService);
   private projectsService = inject(ProjectsService);
 
   sprintStats = signal<SprintStats>({
@@ -95,9 +99,9 @@ export class ProjectOverviewComponent implements OnInit {
   activeSprint = signal<Sprint | null>(null);
 
   readonly metrics = signal<OverviewMetrics>({
-    totalTasks: 0,
-    functionalTasks: 0,
-    technicalTasks: 0,
+    totalCases: 0,
+    functionalCases: 0,
+    technicalCases: 0,
     healthPct: 0,
     healthLabel: 'Healthy',
   });
@@ -110,62 +114,66 @@ export class ProjectOverviewComponent implements OnInit {
   readonly agingTable = signal<AgingRow[]>([]);
 
   ngOnInit(): void {
-    this.tasksService.tasks$.subscribe(() => this.loadProjectData());
+    this.casesService.cases$.subscribe(() => this.loadProjectData());
     this.loadProjectData();
+  }
+
+  private isDone(kase: CaseView): boolean {
+    return kase.status === 'DONE' || kase.status === 'CANCELLED';
+  }
+
+  private isInProgress(kase: CaseView): boolean {
+    return kase.status === 'IN_PROGRESS' || kase.status === 'IN_REVIEW' || kase.status === 'BLOCKED';
   }
 
   private loadProjectData(): void {
     if (!this.project.id) return;
 
-    const tasks = this.tasksService.getTasksByProject(this.project.id);
+    const cases = this.casesService.getCasesByProject(this.project.id);
 
-    // Fetch sprints from API
     this.projectsService.getSprintsObservable(this.project.id).subscribe((sprints) => {
-      // Calculate sprint stats from API data (status values are uppercase: ACTIVE, PLANNED, COMPLETED)
       this.sprintStats.set({
         active: sprints.filter((s: Sprint) => s.status === 'ACTIVE').length,
         planned: sprints.filter((s: Sprint) => s.status === 'PLANNED').length,
         completed: sprints.filter((s: Sprint) => s.status === 'COMPLETED').length,
       });
 
-      // Get active sprint from API data
       const active = sprints.find((s: Sprint) => s.status === 'ACTIVE');
       this.activeSprint.set(active || null);
       this.allSprints.set(sprints);
     });
 
-    // NEW — populate dashboard signals
-    this.metrics.set(this.computeMetrics(tasks));
-    this.donutSegments.set(this.computeDonutSegments(tasks));
-    this.statusTable.set(this.computeStatusTable(tasks));
-    this.techAssignees.set(this.computeTechnicalAssignees(tasks));
-    this.funcAssignees.set(this.computeFunctionalAssignees(tasks));
-    this.agingTable.set(this.computeAgingTable(tasks));
+    this.metrics.set(this.computeMetrics(cases));
+    this.donutSegments.set(this.computeDonutSegments(cases));
+    this.statusTable.set(this.computeStatusTable(cases));
+    this.techAssignees.set(this.computeAssignees(cases, 'TECHNICAL'));
+    this.funcAssignees.set(this.computeAssignees(cases, 'FUNCTIONAL'));
+    this.agingTable.set(this.computeAgingTable(cases));
   }
 
-  private computeMetrics(tasks: TaskView[]): OverviewMetrics {
-    const total = tasks.length;
-    const functional = tasks.filter((t: TaskView) => t.type === 'FUNCTIONAL').length;
-    const technical = tasks.filter((t: TaskView) => t.type === 'TECHNICAL').length;
-    const done = tasks.filter((t: TaskView) => t.statusLabel === 'done').length;
-    const inProgress = tasks.filter((t: TaskView) => t.statusLabel === 'inprogress').length;
+  private computeMetrics(cases: CaseView[]): OverviewMetrics {
+    const total = cases.length;
+    const functional = cases.filter((c) => c.tag === 'FUNCTIONAL').length;
+    const technical = cases.filter((c) => c.tag === 'TECHNICAL').length;
+    const done = cases.filter((c) => this.isDone(c)).length;
+    const inProgress = cases.filter((c) => this.isInProgress(c)).length;
 
     const rawHealth = total === 0 ? 100 : ((done * 1.0 + inProgress * 0.4) / total) * 100;
     const healthPct = Math.min(100, Math.round(rawHealth));
     const healthLabel: 'Healthy' | 'At Risk' | 'Critical' =
       healthPct >= 75 ? 'Healthy' : healthPct >= 40 ? 'At Risk' : 'Critical';
 
-    return { totalTasks: total, functionalTasks: functional, technicalTasks: technical, healthPct, healthLabel };
+    return { totalCases: total, functionalCases: functional, technicalCases: technical, healthPct, healthLabel };
   }
 
-  private computeDonutSegments(tasks: TaskView[]): DonutSegment[] {
+  private computeDonutSegments(cases: CaseView[]): DonutSegment[] {
     const RADIUS = 70;
     const CIRC = 2 * Math.PI * RADIUS;
-    const total = tasks.length || 1;
+    const total = cases.length || 1;
 
     const priorityCounts = new Map<string, number>();
-    tasks.forEach((t: TaskView) => {
-      const key = t.priority ?? 'NONE';
+    cases.forEach((c) => {
+      const key = c.priority ?? 'NONE';
       priorityCounts.set(key, (priorityCounts.get(key) ?? 0) + 1);
     });
 
@@ -187,15 +195,15 @@ export class ProjectOverviewComponent implements OnInit {
   }
 
   private getPriorityColor(priority: string, index: number): string {
-    return PRIORITY_COLORS[priority] ?? FALLBACK_COLORS[index % FALLBACK_COLORS.length];
+    return PRIORITY_COLORS[priority.toUpperCase()] ?? FALLBACK_COLORS[index % FALLBACK_COLORS.length];
   }
 
-  private computeStatusTable(tasks: TaskView[]): StatusRow[] {
-    const total = tasks.length;
+  private computeStatusTable(cases: CaseView[]): StatusRow[] {
+    const total = cases.length;
 
     const statusCounts = new Map<string, number>();
-    tasks.forEach((t: TaskView) => {
-      const key = t.statusLabel ?? 'unknown';
+    cases.forEach((c) => {
+      const key = c.status ?? 'unknown';
       statusCounts.set(key, (statusCounts.get(key) ?? 0) + 1);
     });
 
@@ -208,53 +216,36 @@ export class ProjectOverviewComponent implements OnInit {
       }));
   }
 
-  private computeTechnicalAssignees(tasks: TaskView[]): AssigneeRow[] {
-    const technical = tasks.filter((t: TaskView) => t.type === 'TECHNICAL');
-    const map = new Map<string, TaskView[]>();
-    technical.forEach((t: TaskView) => {
-      const key = t.assignee ?? 'Unassigned';
-      map.set(key, [...(map.get(key) ?? []), t]);
+  private computeAssignees(cases: CaseView[], tag: 'TECHNICAL' | 'FUNCTIONAL'): AssigneeRow[] {
+    const filtered = cases.filter((c) => c.tag === tag);
+    const map = new Map<string, CaseView[]>();
+    filtered.forEach((c) => {
+      const key = c.assignee ?? 'Unassigned';
+      map.set(key, [...(map.get(key) ?? []), c]);
     });
     return [...map.entries()]
-      .map(([name, ts]) => ({
+      .map(([name, cs]) => ({
         name,
-        total: ts.length,
-        inProgress: ts.filter((t: TaskView) => t.statusLabel === 'inprogress').length,
-        done: ts.filter((t: TaskView) => t.statusLabel === 'done').length,
+        total: cs.length,
+        inProgress: cs.filter((c) => this.isInProgress(c)).length,
+        done: cs.filter((c) => this.isDone(c)).length,
       }))
       .sort((a, b) => b.total - a.total);
   }
 
-  private computeFunctionalAssignees(tasks: TaskView[]): AssigneeRow[] {
-    const functional = tasks.filter((t: TaskView) => t.type === 'FUNCTIONAL');
-    const map = new Map<string, TaskView[]>();
-    functional.forEach((t: TaskView) => {
-      const key = t.assignee ?? 'Unassigned';
-      map.set(key, [...(map.get(key) ?? []), t]);
-    });
-    return [...map.entries()]
-      .map(([name, ts]) => ({
-        name,
-        total: ts.length,
-        inProgress: ts.filter((t: TaskView) => t.statusLabel === 'inprogress').length,
-        done: ts.filter((t: TaskView) => t.statusLabel === 'done').length,
-      }))
-      .sort((a, b) => b.total - a.total);
-  }
-
-  private computeAgingTable(tasks: TaskView[]): AgingRow[] {
+  private computeAgingTable(cases: CaseView[]): AgingRow[] {
     const today = new Date();
 
-    const statusGroups = new Map<string, TaskView[]>();
-    tasks.forEach((t: TaskView) => {
-      const key = t.statusLabel ?? 'unknown';
-      statusGroups.set(key, [...(statusGroups.get(key) ?? []), t]);
+    const statusGroups = new Map<string, CaseView[]>();
+    cases.forEach((c) => {
+      const key = c.status ?? 'unknown';
+      statusGroups.set(key, [...(statusGroups.get(key) ?? []), c]);
     });
 
     return [...statusGroups.entries()]
       .map(([status, group]) => {
-        const days = group.map((t: TaskView) => {
-          const ref = t.updatedAt ? new Date(t.updatedAt) : new Date(t.dueDate ?? today);
+        const days = group.map((c) => {
+          const ref = c.updatedAt ? new Date(c.updatedAt) : new Date(c.dueDate || today);
           return Math.max(0, Math.floor((today.getTime() - ref.getTime()) / 86_400_000));
         });
         return {

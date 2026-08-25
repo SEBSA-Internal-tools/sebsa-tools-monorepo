@@ -2,7 +2,7 @@ import { Component, ChangeDetectionStrategy, OnInit, inject, signal, computed } 
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
-import { TasksService, type TaskView } from '../../core/services/tasks.service';
+import { TasksService, TASK_STATUSES, type TaskView } from '../../core/services/tasks.service';
 import { FormsModule } from '@angular/forms';
 
 @Component({
@@ -23,26 +23,20 @@ export class TasksPageComponent implements OnInit {
   isLoading = signal(false);
   errorMessage = signal('');
 
-  selectedProjectId = signal<string>('');
-  selectedStageName = signal<string>('');
+  readonly statuses = TASK_STATUSES;
+  selectedCaseId = signal<string>('');
+  selectedStatus = signal<string>('');
   selectedPriority = signal<string>('');
 
-  /** Distinct projects among the assigned tasks, sorted for the filter dropdown. */
-  availableProjects = computed<Array<{ id: string; name: string }>>(() => {
+  /** Distinct cases among the assigned tasks, sorted for the filter dropdown. */
+  availableCases = computed<Array<{ id: string; title: string }>>(() => {
     const byId = new Map<string, string>();
     for (const task of this.tasks()) {
-      byId.set(task.projectId, task.projectName);
+      byId.set(task.caseId, task.caseTitle);
     }
     return [...byId.entries()]
-      .map(([id, name]) => ({ id, name }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  });
-
-  /** Distinct workflow stage names — varies per project, so this is derived
-   *  from the actual data rather than a fixed enum. */
-  availableStages = computed<string[]>(() => {
-    const names = new Set(this.tasks().map((t) => t.stageName));
-    return [...names].sort((a, b) => a.localeCompare(b));
+      .map(([id, title]) => ({ id, title }))
+      .sort((a, b) => a.title.localeCompare(b.title));
   });
 
   /** Distinct priority names among the assigned tasks. */
@@ -53,18 +47,18 @@ export class TasksPageComponent implements OnInit {
 
   filteredTasks = computed<TaskView[]>(() => {
     const query = this.searchQuery().toLowerCase().trim();
-    const projectId = this.selectedProjectId();
-    const stageName = this.selectedStageName();
+    const caseId = this.selectedCaseId();
+    const status = this.selectedStatus();
     const priority = this.selectedPriority();
 
     return this.tasks().filter((t) => {
-      if (projectId && t.projectId !== projectId) return false;
-      if (stageName && t.stageName !== stageName) return false;
+      if (caseId && t.caseId !== caseId) return false;
+      if (status && t.status !== status) return false;
       if (priority && t.priority !== priority) return false;
       if (
         query &&
         !t.title.toLowerCase().includes(query) &&
-        !t.category?.toLowerCase().includes(query) &&
+        !t.caseTitle?.toLowerCase().includes(query) &&
         !t.priority.toLowerCase().includes(query)
       ) {
         return false;
@@ -74,14 +68,14 @@ export class TasksPageComponent implements OnInit {
   });
 
   clearFilters(): void {
-    this.selectedProjectId.set('');
-    this.selectedStageName.set('');
+    this.selectedCaseId.set('');
+    this.selectedStatus.set('');
     this.selectedPriority.set('');
     this.searchQuery.set('');
   }
 
   hasActiveFilters = computed<boolean>(
-    () => !!(this.selectedProjectId() || this.selectedStageName() || this.selectedPriority() || this.searchQuery()),
+    () => !!(this.selectedCaseId() || this.selectedStatus() || this.selectedPriority() || this.searchQuery()),
   );
 
   ngOnInit(): void {
@@ -123,15 +117,23 @@ export class TasksPageComponent implements OnInit {
     this.router.navigate(['/tasks', taskId]);
   }
 
-  /** Workflow stage names are project-defined free text (not a fixed enum),
-   *  so the badge color is a best-effort guess from common naming rather
-   *  than an exact lifecycle mapping. */
-  getStageBadgeClass(stageName: string): string {
-    const name = stageName.toLowerCase();
-    if (name.includes('done') || name.includes('complet')) return 'success';
-    if (name.includes('block')) return 'error';
-    if (name.includes('progress') || name.includes('review') || name.includes('test')) return 'warning';
-    return 'neutral';
+  getStatusLabel(status: string): string {
+    return this.statuses.find((s) => s.id === status)?.name ?? status;
+  }
+
+  getStageBadgeClass(status: string): string {
+    switch (status) {
+      case 'DONE':
+        return 'success';
+      case 'CANCELLED':
+      case 'BLOCKED':
+        return 'error';
+      case 'IN_PROGRESS':
+      case 'IN_REVIEW':
+        return 'warning';
+      default:
+        return 'neutral';
+    }
   }
 
   getPriorityClass(priority: string): string {

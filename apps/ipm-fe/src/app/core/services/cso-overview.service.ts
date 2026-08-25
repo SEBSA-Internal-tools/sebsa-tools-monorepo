@@ -1,11 +1,7 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
-import { catchError, forkJoin, map, Observable, of, switchMap } from 'rxjs';
-import {
-  ProjectSummary,
-  TaskCategory,
-  TaskSummary as BackendTaskSummary,
-} from '@sebsa-pm-tool/shared-models';
+import { catchError, map, Observable, of, switchMap } from 'rxjs';
+import { CaseStatus, CaseSummary as BackendCaseSummary, ProjectSummary, TaskCategory } from '@sebsa-pm-tool/shared-models';
 
 export interface CsoOverviewFilters {
   projectId?: string;
@@ -21,9 +17,8 @@ export interface CsoTaskView {
   title: string;
   priority: string;
   priorityColor: string | null;
-  /** Positional bucket derived from the task's own project's stage order —
-   *  same convention as TasksService.getStatusForStageId, computed per-task
-   *  here since CSO Overview spans multiple projects with different stages. */
+  /** Bucketed from the fixed, global CaseStatus enum — no per-project
+   *  workflow-stage lookup needed anymore. */
   statusLabel: 'new' | 'todo' | 'inprogress' | 'done';
   workflowStageName: string;
   assignee?: string;
@@ -33,10 +28,20 @@ export interface CsoTaskView {
   customerName?: string;
 }
 
-interface WorkflowStageRef {
-  id: string;
-  name: string;
-  order: number;
+function bucketStatus(status: CaseStatus): CsoTaskView['statusLabel'] {
+  switch (status) {
+    case 'TO_DO':
+      return 'new';
+    case 'IN_PROGRESS':
+    case 'IN_REVIEW':
+    case 'BLOCKED':
+      return 'inprogress';
+    case 'DONE':
+    case 'CANCELLED':
+      return 'done';
+    default:
+      return 'todo';
+  }
 }
 
 @Injectable({ providedIn: 'root' })
@@ -60,89 +65,50 @@ export class CsoOverviewService {
     if (filters.category) params = params.set('category', filters.category);
 
     this.http
-      .get<BackendTaskSummary[]>('/api/tasks', { params })
-      .pipe(switchMap((tasks) => this.resolveDetails(tasks)))
+      .get<BackendCaseSummary[]>('/api/cases', { params })
+      .pipe(switchMap((cases) => this.resolveDetails(cases)))
       .subscribe({
         next: (views) => {
           this._tasks.set(views);
           this._isLoading.set(false);
         },
         error: (err) => {
-          console.error('Failed to load CSO tasks:', err);
+          console.error('Failed to load CSO cases:', err);
           this._tasks.set([]);
           this._isLoading.set(false);
         },
       });
   }
 
-  /** For each distinct project among the results, loads its ordered workflow
-   *  stages (for status bucketing) and its customerName (for display) —
-   *  neither is present on the flat cross-project task response. */
-  private resolveDetails(tasks: BackendTaskSummary[]): Observable<CsoTaskView[]> {
-    if (tasks.length === 0) return of([]);
+  /** customerName isn't present on the flat cases response (project only
+   *  carries {id, name}), so resolve it via one /api/projects call. */
+  private resolveDetails(cases: BackendCaseSummary[]): Observable<CsoTaskView[]> {
+    if (cases.length === 0) return of([]);
 
-    const projectIds = [...new Set(tasks.map((t) => t.projectId))];
-    const stageRequests = projectIds.reduce<Record<string, Observable<WorkflowStageRef[]>>>(
-      (acc, projectId) => {
-        acc[projectId] = this.http
-          .get<WorkflowStageRef[]>(`/api/projects/${projectId}/workflow-stages`)
-          .pipe(catchError(() => of([])));
-        return acc;
-      },
-      {},
-    );
-
-    return forkJoin({
-      stagesByProject:
-        Object.keys(stageRequests).length > 0
-          ? forkJoin(stageRequests)
-          : of<Record<string, WorkflowStageRef[]>>({}),
-      projects: this.http.get<ProjectSummary[]>('/api/projects').pipe(catchError(() => of([]))),
-    }).pipe(
-      map(({ stagesByProject, projects }) => {
-        const stagesMap = stagesByProject as Record<string, WorkflowStageRef[]>;
+    return this.http.get<ProjectSummary[]>('/api/projects').pipe(
+      catchError(() => of([])),
+      map((projects) => {
         const customerNameByProjectId = new Map(
           projects.map((project) => [project.id, project.customer?.name]),
         );
-        return tasks.map((task) =>
-          this.toCsoTaskView(
-            task,
-            stagesMap[task.projectId] ?? [],
-            customerNameByProjectId.get(task.projectId),
-          ),
-        );
+        return cases.map((kase) => this.toCsoTaskView(kase, customerNameByProjectId.get(kase.projectId)));
       }),
     );
   }
 
-  private toCsoTaskView(
-    task: BackendTaskSummary,
-    stages: WorkflowStageRef[],
-    customerName: string | undefined,
-  ): CsoTaskView {
-    const sorted = [...stages].sort((a, b) => a.order - b.order);
-    const index = sorted.findIndex((stage) => stage.id === task.workflowStageId);
-
-    let statusLabel: CsoTaskView['statusLabel'] = 'todo';
-    if (sorted.length > 0) {
-      if (index === 0) statusLabel = 'new';
-      else if (index === sorted.length - 1) statusLabel = 'done';
-      else if (index === 1) statusLabel = 'todo';
-      else statusLabel = 'inprogress';
-    }
-
+  private toCsoTaskView(kase: BackendCaseSummary, customerName: string | undefined): CsoTaskView {
     return {
-      id: task.id,
-      title: task.title,
-      priority: task.priority?.name ?? '',
-      priorityColor: task.priority?.color ?? null,
-      statusLabel,
-      workflowStageName: task.workflowStage?.name ?? '',
-      assignee: task.assignees?.map((a) => a.name).join(', ') || undefined,
-      dueDate: task.dueDate ?? '',
-      projectId: task.projectId,
-      projectName: task.project?.name ?? '',
-      customerName: customerName ?? (task.project as any)?.customer?.name,
+      id: kase.id,
+      title: kase.title,
+      priority: kase.priority?.name ?? '',
+      priorityColor: kase.priority?.color ?? null,
+      statusLabel: bucketStatus(kase.status),
+      workflowStageName: kase.type,
+      assignee: kase.assignees?.map((a) => a.name).join(', ') || undefined,
+      dueDate: kase.dueDate ?? '',
+      projectId: kase.projectId,
+      projectName: kase.project?.name ?? '',
+      customerName,
     };
   }
 }

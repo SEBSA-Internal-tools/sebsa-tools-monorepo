@@ -16,79 +16,12 @@
     <!-- Modal Body -->
     <div class="modal-body">
       <div class="form-grid">
-        <!-- Project Field -->
+        <!-- Case -->
         <div class="form-group full-width">
-          <div class="form-label">Project</div>
-          @if (projectId) {
-            <div class="project-display">
-              <span class="project-name">{{ projectName }}</span>
-            </div>
-          } @else {
-            <select [(ngModel)]="selectedProjectId" (change)="onProjectSelect(selectedProjectId)" class="form-select">
-              <option value="">Select a project...</option>
-              @for (project of availableProjects(); track project.id) {
-                <option [value]="project.id">{{ project.name }}</option>
-              }
-            </select>
-          }
-        </div>
-
-        <!-- Sprint Selection -->
-        <div class="form-group full-width">
-          <label for="sprint" class="form-label">Sprint</label>
-
-          @if (isLoadingSprints()) {
-            <div class="field-loading">
-              <span class="material-symbols-outlined spin">progress_activity</span>
-              Loading sprints...
-            </div>
-          } @else if (sprintError()) {
-            <div class="field-error">
-              <span class="material-symbols-outlined">error</span>
-              {{ sprintError() }}
-            </div>
-          } @else {
-            <select id="sprint" [(ngModel)]="selectedSprintId" class="form-select">
-              <option value="">No sprint (Backlog)</option>
-              @for (sprint of availableSprints(); track sprint.id) {
-                <option [value]="sprint.id">{{ getSprintLabel(sprint) }}</option>
-              }
-            </select>
-          }
-        </div>
-
-        <!-- Parent Task -->
-        <div class="form-group full-width">
-          <div class="form-label">Parent Task</div>
-          @if (lockedParentTaskId) {
-            <div class="project-display">
-              <span class="material-symbols-outlined">subdirectory_arrow_right</span>
-              <span class="project-name">{{ lockedParentTaskTitle }}</span>
-            </div>
-          } @else if (selectedParentTaskId) {
-            <div class="project-display">
-              <span class="project-name">{{ selectedParentTaskTitle() }}</span>
-              <button type="button" class="clear-btn" (click)="clearParentTask()" title="Clear parent task">
-                <span class="material-symbols-outlined">close</span>
-              </button>
-            </div>
-          } @else {
-            <input
-              type="text"
-              [(ngModel)]="parentTaskSearch"
-              placeholder="Search tasks to set an optional parent…"
-              class="form-input"
-            />
-            @if (parentTaskSearch && getFilteredParentTasks().length > 0) {
-              <div class="members-dropdown">
-                @for (candidate of getFilteredParentTasks(); track candidate.id) {
-                  <button type="button" class="member-option" (click)="selectParentTask(candidate.id)">
-                    <span>{{ candidate.title }}</span>
-                  </button>
-                }
-              </div>
-            }
-          }
+          <div class="form-label">Case</div>
+          <div class="project-display">
+            <span class="project-name">{{ caseTitle }}</span>
+          </div>
         </div>
 
         <!-- Task Title -->
@@ -110,12 +43,7 @@
           <div class="form-label-row">
             <div class="form-label">Priority</div>
             @if (availablePriorities().length > 0) {
-              <button
-                type="button"
-                class="add-priority-link"
-                (click)="openAddPriorityModal()"
-                title="Add new priority"
-              >
+              <button type="button" class="add-priority-link" (click)="openAddPriorityModal()" title="Add new priority">
                 <span class="material-symbols-outlined">add</span>
                 <span>Add</span>
               </button>
@@ -129,21 +57,14 @@
                 [class.active]="priorityId === prio.id"
                 (click)="selectPriority(prio)"
               >
-                <span
-                  class="priority-dot"
-                  [style.background-color]="prio.color || '#94a3b8'"
-                ></span>
+                <span class="priority-dot" [style.background-color]="prio.color || '#94a3b8'"></span>
                 <span>{{ prio.name }}</span>
               </button>
             }
             @if (availablePriorities().length === 0) {
               <div class="no-priorities-box">
                 <span class="no-priorities-text">No priorities configured yet</span>
-                <button
-                  type="button"
-                  class="btn-create-priority-inline"
-                  (click)="openAddPriorityModal()"
-                >
+                <button type="button" class="btn-create-priority-inline" (click)="openAddPriorityModal()">
                   <span class="material-symbols-outlined">add_circle</span>
                   Create Priority
                 </button>
@@ -152,19 +73,7 @@
           </div>
         </div>
 
-        <!-- Task Type -->
-        <div class="form-group">
-          <label for="taskType" class="form-label">Type</label>
-          <select id="taskType" [(ngModel)]="selectedType" class="form-select">
-            <option value="TASK">Task</option>
-            <option value="EPIC">Epic</option>
-            <option value="STORY">Story</option>
-            <option value="BUG">Bug</option>
-            <option value="IMPROVEMENT">Improvement</option>
-          </select>
-        </div>
-
-        <!-- Assignee — loaded from GET /api/users/all -->
+        <!-- Assignee -->
         <div class="form-group">
           <label for="assignee" class="form-label">Assignee</label>
           @if (isLoadingUsers()) {
@@ -179,35 +88,17 @@
             </div>
           } @else {
             <div class="assignee-dropdown" #assigneeDropdownRef>
-
-              <!-- Assignee field -->
-              <div
-                class="assignee-input"
-                [class.open]="isAssigneeDropdownOpen()"
-              >
+              <div class="assignee-input" [class.open]="isAssigneeDropdownOpen()">
                 <div class="selected-assignees">
-                  <!-- Selected users -->
                   @for (user of selectedAssignees(); track user.id) {
                     <span class="selected-assignee-chip">
-                      <span class="chip-avatar">
-                        {{ getUserInitials(user.name) }}
-                      </span>
-                      <span class="chip-name">
-                        {{ user.name }}
-                      </span>
-                      <button
-                        type="button"
-                        class="remove-assignee"
-                        (click)="removeAssignee(user.id, $event)"
-                        [attr.aria-label]="'Remove ' + user.name"
-                      >
-                        <span class="material-symbols-outlined">
-                          close
-                        </span>
+                      <span class="chip-avatar">{{ getUserInitials(user.name) }}</span>
+                      <span class="chip-name">{{ user.name }}</span>
+                      <button type="button" class="remove-assignee" (click)="removeAssignee(user.id, $event)" [attr.aria-label]="'Remove ' + user.name">
+                        <span class="material-symbols-outlined">close</span>
                       </button>
                     </span>
                   }
-                  <!-- Search -->
                   <input
                     id="assignee"
                     type="text"
@@ -219,81 +110,41 @@
                     autocomplete="off"
                   />
                 </div>
-                <!-- Manual open/close button -->
-                <button
-                  type="button"
-                  class="dropdown-toggle"
-                  [attr.aria-expanded]="isAssigneeDropdownOpen()"
-                  aria-label="Toggle assignee list"
-                  (click)="toggleAssigneeDropdown($event)"
-                >
-                  <span class="material-symbols-outlined">
-                    {{ isAssigneeDropdownOpen() ? 'expand_less' : 'expand_more' }}
-                  </span>
+                <button type="button" class="dropdown-toggle" [attr.aria-expanded]="isAssigneeDropdownOpen()" aria-label="Toggle assignee list" (click)="toggleAssigneeDropdown($event)">
+                  <span class="material-symbols-outlined">{{ isAssigneeDropdownOpen() ? 'expand_less' : 'expand_more' }}</span>
                 </button>
               </div>
-              <!-- User list -->
               @if (isAssigneeDropdownOpen()) {
                 <div class="assignee-menu">
                   <div class="assignee-options">
                     @if (getFilteredAssignees().length === 0) {
                       <div class="no-assignees">
-                        <span class="material-symbols-outlined">
-                          person_search
-                        </span>
+                        <span class="material-symbols-outlined">person_search</span>
                         <span>No users found</span>
                       </div>
                     } @else {
                       @for (user of getFilteredAssignees(); track user.id) {
-                        <button
-                          type="button"
-                          class="assignee-option"
-                          [class.selected]="isAssigneeSelected(user.id)"
-                          (click)="toggleAssignee(user.id)"
-                        >
-                          <span class="assignee-avatar">
-                            {{ getUserInitials(user.name) }}
-                          </span>
+                        <button type="button" class="assignee-option" [class.selected]="isAssigneeSelected(user.id)" (click)="toggleAssignee(user.id)">
+                          <span class="assignee-avatar">{{ getUserInitials(user.name) }}</span>
                           <span class="assignee-info">
-                            <span class="assignee-name">
-                              {{ user.name }}
-                            </span>
+                            <span class="assignee-name">{{ user.name }}</span>
                             @if (user.email) {
-                              <span class="assignee-email">
-                                {{ user.email }}
-                              </span>
+                              <span class="assignee-email">{{ user.email }}</span>
                             }
                           </span>
-                          <!-- Tick -->
-                          <span
-                            class="assignee-checkbox"
-                            [class.checked]="isAssigneeSelected(user.id)"
-                          >
+                          <span class="assignee-checkbox" [class.checked]="isAssigneeSelected(user.id)">
                             @if (isAssigneeSelected(user.id)) {
-                              <span class="material-symbols-outlined">
-                                check
-                              </span>
+                              <span class="material-symbols-outlined">check</span>
                             }
                           </span>
                         </button>
                       }
                     }
                   </div>
-                  <!-- Footer -->
                   @if (selectedAssigneeIds.length > 0) {
                     <div class="assignee-footer">
-                      <span>
-                        {{ selectedAssigneeIds.length }}
-                        {{ selectedAssigneeIds.length === 1 ? 'user' : 'users' }}
-                        selected
-                      </span>
-                      <button
-                        type="button"
-                        class="clear-assignees"
-                        (click)="clearAssignees($event)"
-                      >
-                        Clear all
-                      </button>
+                      <span>{{ selectedAssigneeIds.length }} {{ selectedAssigneeIds.length === 1 ? 'user' : 'users' }} selected</span>
+                      <button type="button" class="clear-assignees" (click)="clearAssignees($event)">Clear all</button>
                     </div>
                   }
                 </div>
@@ -305,12 +156,7 @@
         <!-- Due Date -->
         <div class="form-group">
           <label for="dueDate" class="form-label">Due Date</label>
-          <input
-            id="dueDate"
-            type="date"
-            [(ngModel)]="dueDate"
-            class="form-input"
-          />
+          <input id="dueDate" type="date" [(ngModel)]="dueDate" class="form-input" />
         </div>
       </div>
 
@@ -325,69 +171,12 @@
           rows="6"
         ></textarea>
       </div>
-
-      <!-- CSO Label — hidden when the target project is already a CSO
-           project, since its tasks sync automatically regardless. -->
-      @if (!isTargetProjectCso()) {
-        <div class="form-group full-width">
-          <label class="checkbox-label">
-            <input type="checkbox" [(ngModel)]="isCsoLabeled" />
-            Tag as CSO — surfaces this task on the CSO Overview page
-          </label>
-        </div>
-      }
-
-      <!-- Functional/Technical tag — required once the task is CSO-labeled
-           (either because the target project is a CSO project, or the
-           checkbox above is ticked), so it can land in the right queue.
-           Hidden when lockedCategory is set: the queue this modal was
-           opened from already determines it. -->
-      @if (lockedCategory) {
-        <div class="form-group full-width">
-          <div class="form-label">Category</div>
-          <div class="project-display">
-            <span class="material-symbols-outlined">{{ lockedCategory === 'TECHNICAL' ? 'terminal' : 'psychology' }}</span>
-            <span class="project-name">{{ lockedCategory === 'TECHNICAL' ? 'Technical' : 'Functional' }} queue</span>
-          </div>
-        </div>
-      } @else if (isTargetProjectCso() || isCsoLabeled) {
-        <div class="form-group full-width">
-          <div class="form-label" id="category-label">
-            Category 
-            <span class="required">*</span>
-          </div>
-          <div class="category-group" role="group" aria-labelledby="category-label">
-            <button
-              type="button"
-              class="category-btn functional"
-              [class.active]="selectedCategory === 'FUNCTIONAL'"
-              (click)="selectedCategory = 'FUNCTIONAL'"
-            >
-              <span class="material-symbols-outlined">psychology</span>
-              Functional
-            </button>
-            <button
-              type="button"
-              class="category-btn technical"
-              [class.active]="selectedCategory === 'TECHNICAL'"
-              (click)="selectedCategory = 'TECHNICAL'"
-            >
-              <span class="material-symbols-outlined">terminal</span>
-              Technical
-            </button>
-          </div>
-        </div>
-      }
     </div>
 
     <!-- Modal Footer -->
     <div class="modal-footer">
-      <button type="button" class="btn-cancel" (click)="onCancel()">
-        Cancel
-      </button>
-      <button type="button" class="btn-create" (click)="onSubmit()">
-        Create task
-      </button>
+      <button type="button" class="btn-cancel" (click)="onCancel()">Cancel</button>
+      <button type="button" class="btn-create" (click)="onSubmit()">Create task</button>
     </div>
   </div>
 

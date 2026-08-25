@@ -52,15 +52,15 @@
       }
     </div>
   </div>
-  <!-- Create Task Modal -->
-  <app-create-task-modal
+  <!-- Create Case Modal -->
+  <app-create-case-modal
     [isOpen]="isTaskModalOpen"
     [projectId]="project.id"
     [projectName]="project.name"
     [isProjectCso]="project.isCsoProject"
     (closed)="closeTaskModal()"
     (submitted)="onCreateTask($event)"
-  ></app-create-task-modal>
+  ></app-create-case-modal>
 
   <!-- Edit Project Modal -->
   <create-project-modal

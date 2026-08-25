@@ -16,6 +16,9 @@ export type CaseStatus = 'TO_DO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'BLOCKED' | 'DO
  * required whenever isCsoLabeled is true (enforced server-side). Lives on
  * Case (not Task) now, alongside CSO labeling. */
 export type CaseCategory = 'FUNCTIONAL' | 'TECHNICAL';
+/** Alias kept for the many existing frontend call sites written against the
+ * pre-split name (the concept moved from Task to Case, the name didn't). */
+export type TaskCategory = CaseCategory;
 
 /** List-view shape — returned by GET /cases. */
 export interface CaseSummary {
