@@ -148,8 +148,8 @@ export class TasksService {
   updateTaskDetails(taskId: string, dto: UpdateTaskRequest): Observable<UpdateTaskResponse> {
     return this.http.patch<UpdateTaskResponse>(`/api/tasks/${taskId}`, dto).pipe(
       tap((response) => {
-        if (response.task.projectId === this.currentProjectId) {
-          const updatedView = this.toTaskView(response.task, this.currentWorkflowStages);
+        const updatedView = this.toTaskView(response.task);
+        if (updatedView.caseId === this.currentCaseId) {
           this.setState(
             this._tasks().map((t) => (t.id === updatedView.id ? updatedView : t))
           );
