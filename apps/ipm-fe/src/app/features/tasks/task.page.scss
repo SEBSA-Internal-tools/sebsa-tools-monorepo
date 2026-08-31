@@ -301,7 +301,7 @@
 
 .table-header {
   display: grid;
-  grid-template-columns: 2fr 1.3fr 1.1fr 1fr 1.1fr;
+  grid-template-columns: 2fr 1.3fr 0.9fr 1.1fr 1fr 1.1fr;
   gap: 16px;
   padding: 14px 20px;
   background: var(--surface-muted);
@@ -316,7 +316,7 @@
 
 .table-row {
   display: grid;
-  grid-template-columns: 2fr 1.3fr 1.1fr 1fr 1.1fr;
+  grid-template-columns: 2fr 1.3fr 0.9fr 1.1fr 1fr 1.1fr;
   gap: 16px;
   padding: 16px 20px;
   align-items: center;
@@ -354,6 +354,21 @@
   font-family: var(--font-body);
   font-size: 0.84rem;
   color: var(--text-secondary);
+}
+
+.type-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-default);
 }
 
 // =============================================================================
