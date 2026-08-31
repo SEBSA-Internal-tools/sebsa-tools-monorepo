@@ -2,19 +2,19 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import type { CreateTaskRequest, ProjectSummary, UserAdminSummary } from '@sebsa-pm-tool/shared-models';
+import type { CreateCaseRequest, ProjectSummary, UserAdminSummary } from '@sebsa-pm-tool/shared-models';
 import { CsoOverviewService, CsoTaskView } from '../../../../core/services/cso-overview.service';
 import { ProjectsService } from '../../../projects/services/projects.service';
 import { UserAdminService } from '../../../../core/services/user-admin.service';
-import { TasksService } from '../../../../core/services/tasks.service';
-import { CreateTaskModalComponent, type TaskFormData } from '../../../tasks/create-task/create-task-modal.component';
+import { CasesService } from '../../../../core/services/cases.service';
+import { CreateCaseModalComponent, type CaseFormData } from '../../../cases/create-case/create-case-modal.component';
 
 type StatusFilter = '' | 'new' | 'todo' | 'inprogress' | 'done';
 
 @Component({
   standalone: true,
   selector: 'cso-overview-tab',
-  imports: [CommonModule, FormsModule, CreateTaskModalComponent],
+  imports: [CommonModule, FormsModule, CreateCaseModalComponent],
   templateUrl: './cso-overview-tab.component.html',
   styleUrl: './cso-overview-tab.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -23,7 +23,7 @@ export class CsoOverviewTabComponent implements OnInit {
   private readonly csoOverviewService = inject(CsoOverviewService);
   private readonly projectsService = inject(ProjectsService);
   private readonly userAdminService = inject(UserAdminService);
-  private readonly tasksService = inject(TasksService);
+  private readonly casesService = inject(CasesService);
   private readonly router = inject(Router);
 
   protected readonly tasks = this.csoOverviewService.tasks;
@@ -92,12 +92,12 @@ export class CsoOverviewTabComponent implements OnInit {
     this.isTaskModalOpen = false;
   }
 
-  onTaskClick(taskId: string): void {
-    this.router.navigate(['/tasks', taskId]);
+  onTaskClick(caseId: string): void {
+    this.router.navigate(['/cases', caseId]);
   }
 
-  onCreateTask(formData: TaskFormData): void {
-    const dto: CreateTaskRequest = {
+  onCreateTask(formData: CaseFormData): void {
+    const dto: CreateCaseRequest = {
       projectId: formData.projectId,
       title: formData.title,
       description: formData.description || undefined,
@@ -107,19 +107,18 @@ export class CsoOverviewTabComponent implements OnInit {
       sprintId: formData.sprintId || undefined,
       assigneeIds: formData.assigneeIds.length > 0 ? formData.assigneeIds : undefined,
       // Always CSO-labeled here regardless of the modal's own checkbox —
-      // this is the CSO Overview's dedicated "create task" entry point.
+      // this is the CSO Overview's dedicated "create case" entry point.
       isCsoLabeled: true,
       category: formData.category,
-      parentTaskId: formData.parentTaskId,
     };
 
-    this.tasksService.createTask(dto, []).subscribe({
+    this.casesService.createCase(dto).subscribe({
       next: () => {
         this.closeTaskModal();
         this.applyFilters();
       },
       error: () => {
-        this.errorMessage = 'Failed to create task. Please try again.';
+        this.errorMessage = 'Failed to create case. Please try again.';
       },
     });
   }

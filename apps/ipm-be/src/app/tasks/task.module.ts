@@ -4,9 +4,10 @@ import { TaskController } from './task.controller';
 import { LabelsController } from './labels.controller';
 import { LabelsService } from './labels.service';
 import { AuthModule } from '../auth/auth.module';
+import { JiraModule } from '../jira/jira.module';
 
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, JiraModule],
   controllers: [TaskController, LabelsController],
   providers: [TaskService, LabelsService],
 })

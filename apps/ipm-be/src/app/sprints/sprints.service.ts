@@ -13,7 +13,7 @@ import { UpdateSprintDto } from './dto/update-sprint.dto';
 const ADMIN_SYSTEM_ROLES: AuthUser['systemRole'][] = ['ADMIN', 'SUPER_ADMIN'];
 
 const sprintDetailInclude = {
-  _count: { select: { tasks: true } },
+  _count: { select: { cases: true } },
 } satisfies Prisma.SprintInclude;
 
 type SprintWithDetail = Prisma.SprintGetPayload<{ include: typeof sprintDetailInclude }>;
@@ -117,13 +117,13 @@ export class SprintsService {
       throw new NotFoundException('Sprint not found.');
     }
 
-    const taskCount = await this.prisma.task.count({
+    const caseCount = await this.prisma.case.count({
       where: { sprintId: id },
     });
 
-    if (taskCount > 0) {
+    if (caseCount > 0) {
       throw new BadRequestException(
-        'Cannot delete a sprint with associated tasks. Move or remove tasks first.',
+        'Cannot delete a sprint with associated cases. Move or remove cases first.',
       );
     }
 
@@ -200,7 +200,7 @@ export class SprintsService {
       startDate: sprint.startDate.toISOString(),
       endDate: sprint.endDate.toISOString(),
       status: sprint.status,
-      taskCount: sprint._count.tasks,
+      caseCount: sprint._count.cases,
       createdAt: sprint.createdAt.toISOString(),
       updatedAt: sprint.updatedAt.toISOString(),
     };

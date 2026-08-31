@@ -2,22 +2,22 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, Input, OnChanges, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import type { CreateTaskRequest, ProjectSummary, TaskCategory, UserAdminSummary } from '@sebsa-pm-tool/shared-models';
+import type { CreateCaseRequest, ProjectSummary, TaskCategory, UserAdminSummary } from '@sebsa-pm-tool/shared-models';
 import { CsoOverviewService, CsoTaskView } from '../../../../core/services/cso-overview.service';
 import { ProjectsService } from '../../../projects/services/projects.service';
 import { UserAdminService } from '../../../../core/services/user-admin.service';
-import { TasksService } from '../../../../core/services/tasks.service';
-import { CreateTaskModalComponent, type TaskFormData } from '../../../tasks/create-task/create-task-modal.component';
+import { CasesService } from '../../../../core/services/cases.service';
+import { CreateCaseModalComponent, type CaseFormData } from '../../../cases/create-case/create-case-modal.component';
 
 type StatusFilter = '' | 'new' | 'todo' | 'inprogress' | 'done';
 
 /** Renders one CSO queue (Functional or Technical) — a category-locked view
- *  of the same cross-project task list the Overview tab shows, so PMs can
+ *  of the same cross-project case list the Overview tab shows, so PMs can
  *  work each queue separately without re-filtering every time. */
 @Component({
   standalone: true,
   selector: 'cso-queue-tab',
-  imports: [CommonModule, FormsModule, CreateTaskModalComponent],
+  imports: [CommonModule, FormsModule, CreateCaseModalComponent],
   templateUrl: './cso-queue-tab.component.html',
   styleUrl: './cso-queue-tab.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -29,7 +29,7 @@ export class CsoQueueTabComponent implements OnChanges {
   private readonly csoOverviewService = inject(CsoOverviewService);
   private readonly projectsService = inject(ProjectsService);
   private readonly userAdminService = inject(UserAdminService);
-  private readonly tasksService = inject(TasksService);
+  private readonly casesService = inject(CasesService);
   private readonly router = inject(Router);
 
   protected readonly tasks = this.csoOverviewService.tasks;
@@ -58,7 +58,7 @@ export class CsoQueueTabComponent implements OnChanges {
   protected selectedAssigneeId = '';
   protected selectedStatus: StatusFilter = '';
 
-  protected isTaskModalOpen = false;
+  protected isCaseModalOpen = false;
   protected errorMessage = '';
 
   protected readonly filteredTasks = computed<CsoTaskView[]>(() => {
@@ -90,19 +90,19 @@ export class CsoQueueTabComponent implements OnChanges {
   }
 
   openTaskModal(): void {
-    this.isTaskModalOpen = true;
+    this.isCaseModalOpen = true;
   }
 
   closeTaskModal(): void {
-    this.isTaskModalOpen = false;
+    this.isCaseModalOpen = false;
   }
 
-  onTaskClick(taskId: string): void {
-    this.router.navigate(['/tasks', taskId]);
+  onTaskClick(caseId: string): void {
+    this.router.navigate(['/cases', caseId]);
   }
 
-  onCreateTask(formData: TaskFormData): void {
-    const dto: CreateTaskRequest = {
+  onCreateTask(formData: CaseFormData): void {
+    const dto: CreateCaseRequest = {
       projectId: formData.projectId,
       title: formData.title,
       description: formData.description || undefined,
@@ -115,16 +115,15 @@ export class CsoQueueTabComponent implements OnChanges {
       // of the modal's own checkbox/category picker.
       isCsoLabeled: true,
       category: this.category,
-      parentTaskId: formData.parentTaskId,
     };
 
-    this.tasksService.createTask(dto, []).subscribe({
+    this.casesService.createCase(dto).subscribe({
       next: () => {
         this.closeTaskModal();
         this.applyFilters();
       },
       error: () => {
-        this.errorMessage = 'Failed to create task. Please try again.';
+        this.errorMessage = 'Failed to create case. Please try again.';
       },
     });
   }

@@ -13,7 +13,6 @@ import {
   ProjectRole,
   ProjectSummary,
   UpdateProjectPriorityRequest,
-  UpdateWorkflowStageRequest,
 } from '@sebsa-pm-tool/shared-models';
 import { Prisma } from '@prisma/client';
 import { CreateProjectDto } from './dto/create-project.dto';
@@ -22,7 +21,6 @@ import { AddMemberDto } from './dto/add-member.dto';
 import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
-import { CreateWorkflowStageDto } from './dto/create-workflow-stage.dto';
 import {
   DEFAULT_PROJECT_ROLES,
   PROJECT_OWNER_ROLE_NAME,
@@ -50,15 +48,11 @@ type ProjectWithMembership = Prisma.ProjectGetPayload<{
 const projectDetailInclude = {
   createdBy: { select: { id: true, name: true } },
   customer: { select: { id: true, name: true } },
-  workflowStages: {
-    select: { id: true, name: true, order: true },
-    orderBy: { order: 'asc' as const },
-  },
   priorities: {
     select: { id: true, name: true, order: true, color: true },
     orderBy: { order: 'asc' as const },
   },
-  _count: { select: { tasks: true, members: { where: { deletedAt: null } } } },
+  _count: { select: { cases: true, members: { where: { deletedAt: null } } } },
 } satisfies Prisma.ProjectInclude;
 
 type ProjectWithDetail = Prisma.ProjectGetPayload<{ include: typeof projectDetailInclude }>;
@@ -84,19 +78,6 @@ export class ProjectsService {
           createdById: creator.id,
           isCsoProject: dto.isCsoProject ?? false,
           customerId: dto.customerId,
-        },
-      });
-
-      // Every project is guaranteed to have at least one workflow stage so the
-      // Kanban board is never in an empty state. The "Backlog" stage (order: 1,
-      // isDefault: true) serves as the automatic landing column for all new tasks
-      // that are created without an explicit workflowStageId.
-      await tx.workflowStage.create({
-        data: {
-          projectId: project.id,
-          name: 'Backlog',
-          order: 1,
-          isDefault: true,
         },
       });
 
@@ -386,178 +367,6 @@ export class ProjectsService {
     });
   }
 
-  async getWorkflowStages(
-    projectId: string,
-    user: AuthUser,
-  ): Promise<{ id: string; name: string; order: number; isDefault: boolean; taskCount: number }[]> {
-    const project = await this.loadProjectWithMembership(projectId);
-    const membership = this.findMembership(project, user.id);
-    this.assertVisible(!!membership, user);
-
-    const stages = await this.prisma.workflowStage.findMany({
-      where: { projectId },
-      select: {
-        id: true,
-        name: true,
-        order: true,
-        isDefault: true,
-        _count: { select: { tasks: { where: { deletedAt: null } } } },
-      },
-      orderBy: { order: 'asc' },
-    });
-
-    return stages.map((s) => ({
-      id: s.id,
-      name: s.name,
-      order: s.order,
-      isDefault: s.isDefault,
-      taskCount: s._count.tasks,
-    }));
-  }
-
-  /** Reorders every workflow stage for a project in one shot. Two-phase update
-   *  (negative temp orders, then final orders) since `order` has a
-   *  `@@unique([projectId, order])` constraint — writing final orders directly,
-   *  one row at a time, would collide with whatever row currently holds that
-   *  order value. */
-  async reorderWorkflowStages(
-    projectId: string,
-    stageIds: string[],
-    user: AuthUser,
-  ): Promise<{ id: string; name: string; order: number; isDefault: boolean }[]> {
-    const project = await this.loadProjectWithMembership(projectId);
-    this.assertCanManageMembers(project, user);
-
-    const existingStages = await this.prisma.workflowStage.findMany({
-      where: { projectId },
-      include: { _count: { select: { tasks: { where: { deletedAt: null } } } } },
-    });
-
-    if (existingStages.length !== stageIds.length || !existingStages.every((s) => stageIds.includes(s.id))) {
-      throw new BadRequestException('stageIds must include every workflow stage for this project exactly once.');
-    }
-
-    const stagesWithTasks = existingStages.filter((s) => s.name !== 'Backlog' && s._count.tasks > 0);
-    if (stagesWithTasks.length > 0) {
-      throw new BadRequestException(
-        `Cannot reorder while tasks exist outside Backlog (blocked by: ${stagesWithTasks.map((s) => s.name).join(', ')}).`,
-      );
-    }
-
-    await this.prisma.$transaction([
-      ...stageIds.map((id, i) =>
-        this.prisma.workflowStage.update({ where: { id }, data: { order: -(i + 1) } }),
-      ),
-      ...stageIds.map((id, i) =>
-        this.prisma.workflowStage.update({ where: { id }, data: { order: i } }),
-      ),
-    ]);
-
-    return this.prisma.workflowStage.findMany({
-      where: { projectId },
-      select: { id: true, name: true, order: true, isDefault: true },
-      orderBy: { order: 'asc' },
-    });
-  }
-
-  async createWorkflowStage(
-    projectId: string,
-    dto: CreateWorkflowStageDto,
-    user: AuthUser,
-  ): Promise<{ id: string; name: string; order: number }> {
-    const project = await this.loadProjectWithMembership(projectId);
-    this.assertCanManageMembers(project, user);
-
-    // Auto-calculate order if not provided
-    let order = dto.order;
-    if (order === undefined || order === null) {
-      const maxOrder = await this.prisma.workflowStage.aggregate({
-        where: { projectId },
-        _max: { order: true },
-      });
-      order = (maxOrder._max.order ?? -1) + 1;
-    }
-
-    // Validate unique stage name per project
-    const existing = await this.prisma.workflowStage.findFirst({
-      where: { projectId, name: dto.name },
-    });
-    if (existing) {
-      throw new BadRequestException(
-        `A workflow stage with the name "${dto.name}" already exists in this project.`,
-      );
-    }
-
-    const stage = await this.prisma.workflowStage.create({
-      data: {
-        projectId,
-        name: dto.name,
-        order,
-        isDefault: false,
-      },
-      select: { id: true, name: true, order: true },
-    });
-
-    return stage;
-  }
-
-  async updateWorkflowStage(
-    projectId: string,
-    stageId: string,
-    dto: UpdateWorkflowStageRequest,
-    user: AuthUser,
-  ): Promise<{ id: string; name: string; order: number }> {
-    const project = await this.loadProjectWithMembership(projectId);
-    this.assertCanManageMembers(project, user); // Assuming workflow manage goes here for now
-
-    const existing = await this.prisma.workflowStage.findFirst({
-      where: { id: stageId, projectId },
-    });
-    if (!existing) throw new NotFoundException('Workflow stage not found');
-
-    if (dto.name && dto.name !== existing.name) {
-      const nameTaken = await this.prisma.workflowStage.findFirst({
-        where: { projectId, name: dto.name },
-      });
-      if (nameTaken) throw new BadRequestException('Stage name already exists');
-    }
-
-    return this.prisma.workflowStage.update({
-      where: { id: stageId },
-      data: { name: dto.name, order: dto.order },
-      select: { id: true, name: true, order: true },
-    });
-  }
-
-  async deleteWorkflowStage(
-    projectId: string,
-    stageId: string,
-    user: AuthUser,
-  ): Promise<void> {
-    const project = await this.loadProjectWithMembership(projectId);
-    this.assertCanManageMembers(project, user);
-
-    const stage = await this.prisma.workflowStage.findFirst({
-      where: { id: stageId, projectId },
-      include: { _count: { select: { tasks: true } } },
-    });
-    if (!stage) throw new NotFoundException('Workflow stage not found');
-    if (stage.isDefault && stage.name === 'Backlog') throw new BadRequestException('Cannot delete default workflow stage');
-    if (stage._count.tasks > 0) throw new BadRequestException('Cannot delete workflow stage that contains tasks');
-
-    await this.prisma.$transaction([
-      this.prisma.taskStatusHistory.deleteMany({
-        where: {
-          OR: [
-            { fromStageId: stageId },
-            { toStageId: stageId },
-          ],
-        },
-      }),
-      this.prisma.workflowStage.delete({ where: { id: stageId } }),
-    ]);
-  }
-
   async getProjectPriorities(
     projectId: string,
     user: AuthUser,
@@ -644,10 +453,12 @@ export class ProjectsService {
 
     const priority = await this.prisma.projectPriority.findFirst({
       where: { id: priorityId, projectId },
-      include: { _count: { select: { tasks: true } } },
+      include: { _count: { select: { tasks: true, cases: true } } },
     });
     if (!priority) throw new NotFoundException('Priority not found');
-    if (priority._count.tasks > 0) throw new BadRequestException('Cannot delete priority that contains tasks');
+    if (priority._count.tasks > 0 || priority._count.cases > 0) {
+      throw new BadRequestException('Cannot delete priority that is in use by cases or tasks');
+    }
 
     await this.prisma.projectPriority.delete({ where: { id: priorityId } });
   }
@@ -829,7 +640,7 @@ export class ProjectsService {
       color: project.color,
       createdBy: project.createdBy,
       memberCount: project._count.members,
-      taskCount: project._count.tasks,
+      caseCount: project._count.cases,
       isCsoProject: project.isCsoProject,
       customerId: project.customerId,
       customer: project.customer,
@@ -841,7 +652,6 @@ export class ProjectsService {
   private toProject(project: ProjectWithDetail): Project {
     return {
       ...this.toProjectSummary(project),
-      workflowStages: project.workflowStages,
       priorities: project.priorities,
     };
   }

@@ -41,23 +41,23 @@
     <div class="filter-row">
       <select
         class="filter-select"
-        [ngModel]="selectedProjectId()"
-        (ngModelChange)="selectedProjectId.set($event)"
+        [ngModel]="selectedCaseId()"
+        (ngModelChange)="selectedCaseId.set($event)"
       >
-        <option value="">All Projects</option>
-        @for (project of availableProjects(); track project.id) {
-          <option [value]="project.id">{{ project.name }}</option>
+        <option value="">All Cases</option>
+        @for (kase of availableCases(); track kase.id) {
+          <option [value]="kase.id">{{ kase.title }}</option>
         }
       </select>
 
       <select
         class="filter-select"
-        [ngModel]="selectedStageName()"
-        (ngModelChange)="selectedStageName.set($event)"
+        [ngModel]="selectedStatus()"
+        (ngModelChange)="selectedStatus.set($event)"
       >
         <option value="">All Statuses</option>
-        @for (stage of availableStages(); track stage) {
-          <option [value]="stage">{{ stage }}</option>
+        @for (status of statuses; track status.id) {
+          <option [value]="status.id">{{ status.name }}</option>
         }
       </select>
 
@@ -110,8 +110,7 @@
           <div class="tasks-table">
             <div class="table-header">
               <div class="col-title">Task</div>
-              <div class="col-project">Project</div>
-              <div class="col-type">Type</div>
+              <div class="col-project">Case</div>
               <div class="col-status">Status</div>
               <div class="col-priority">Priority</div>
               <div class="col-due">Due Date</div>
@@ -127,7 +126,7 @@
 
                 <div class="col-project">
                   <span class="task-project-name">
-                    {{ task.projectName }}
+                    {{ task.caseTitle }}
                   </span>
                 </div>
 
@@ -140,9 +139,9 @@
                 <div class="col-status">
                   <span
                     class="status-pill"
-                    [ngClass]="getStageBadgeClass(task.stageName)"
+                    [ngClass]="getStageBadgeClass(task.status)"
                   >
-                    {{ task.stageName }}
+                    {{ getStatusLabel(task.status) }}
                   </span>
                 </div>
 

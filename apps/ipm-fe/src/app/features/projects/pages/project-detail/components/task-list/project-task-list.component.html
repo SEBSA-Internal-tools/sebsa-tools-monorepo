@@ -16,62 +16,62 @@
     </div>
 
     <div class="task-count">
-      Total: <strong>{{ tasks.length }}</strong> tasks
+      Total: <strong>{{ cases.length }}</strong> cases
     </div>
   </div>
 
-  <!-- Tasks Table -->
-  @if (tasks.length > 0) {
+  <!-- Cases Table -->
+  @if (cases.length > 0) {
     <div class="tasks-table">
       <div class="table-header">
-        <div class="col-title">Task Title</div>
-        <div class="col-description">Task Description</div>
-        <div class="col-category">Category</div>
+        <div class="col-title">Case Title</div>
+        <div class="col-description">Description</div>
+        <div class="col-category">Type</div>
         <div class="col-status">Status</div>
         <div class="col-priority">Priority</div>
         <div class="col-duration">Duration</div>
         <div class="col-assignee">Assignee</div>
       </div>
 
-      @for (task of tasks; track task.id) {
-        <div class="table-row clickable-row" (click)="openTask(task.id)">
+      @for (kase of cases; track kase.id) {
+        <div class="table-row clickable-row" (click)="openCase(kase.id)">
           <div class="col-title">
             <span class="task-title task-title-link">
-              {{ task.title }}
+              {{ kase.title }}
             </span>
           </div>
 
           <div class="col-description">
-            <span class="description-text" [title]="task.description || 'No description'">{{ task.description || 'No description' }}</span>
+            <span class="description-text" [title]="kase.description || 'No description'">{{ kase.description || 'No description' }}</span>
           </div>
 
           <div class="col-category">
-            <span class="category-badge">{{ task.category }}</span>
+            <span class="category-badge">{{ kase.type }}</span>
           </div>
 
           <div class="col-status" data-label="Status">
-            <span class="status-badge" [class]="getStatusBadgeClass(task)">
-              {{ getStageName(task) }}
+            <span class="status-badge" [class]="getStatusBadgeClass(kase)">
+              {{ getStatusLabel(kase) }}
             </span>
           </div>
 
           <div class="col-priority" data-label="Priority">
             <span
               class="priority-badge"
-              [style.--priority-color]="task.priorityColor || '#f59e0b'"
+              [style.--priority-color]="kase.priorityColor || '#f59e0b'"
             >
-              {{ task.priority }}
+              {{ kase.priority }}
             </span>
           </div>
 
           <div class="col-duration" data-label="Duration">
-            <span class="duration-text">{{ task.duration }}</span>
+            <span class="duration-text">{{ kase.duration }}</span>
           </div>
 
           <div class="col-assignee" data-label="Assignee">
-            @if (task.assignee) {
-              <div class="assignee-avatar" [title]="task.assignee">
-                {{ getTaskInitials(task.assignee) }}
+            @if (kase.assignee) {
+              <div class="assignee-avatar" [title]="kase.assignee">
+                {{ getTaskInitials(kase.assignee) }}
               </div>
             } @else {
               <span class="no-assignee">—</span>
@@ -83,8 +83,8 @@
   } @else {
     <div class="empty-state">
       <span class="material-symbols-outlined">task_alt</span>
-      <h3>No tasks yet</h3>
-      <p>Create your first task to get started</p>
+      <h3>No cases yet</h3>
+      <p>Create your first case to get started</p>
     </div>
   }
 </div>

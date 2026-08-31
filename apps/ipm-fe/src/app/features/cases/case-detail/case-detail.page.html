@@ -1,0 +1,274 @@
+<section class="task-detail-page">
+  <div class="header-actions">
+    <button type="button" class="back-btn" (click)="goBack()">
+      <span class="material-symbols-outlined">arrow_back</span>
+      Back
+    </button>
+    @if (kase()) {
+      <div class="header-actions-right">
+        @if (isDirty()) {
+          <button type="button" class="discard-btn" (click)="discardChanges()" [disabled]="isSaving()">
+            Discard
+          </button>
+          <button type="button" class="save-btn" (click)="saveChanges()" [disabled]="isSaving()">
+            <span class="material-symbols-outlined">{{ isSaving() ? 'hourglass_empty' : 'save' }}</span>
+            {{ isSaving() ? 'Saving…' : 'Save Changes' }}
+          </button>
+        }
+        <button type="button" class="delete-btn" (click)="deleteCase()">
+          <span class="material-symbols-outlined">delete</span>
+          Delete
+        </button>
+      </div>
+    }
+  </div>
+
+  @if (isLoading()) {
+    <div class="loading-state"><span class="loader"></span><p>Loading case details…</p></div>
+  }
+  @if (errorMessage()) {
+    <div class="error-state">
+      <span class="material-symbols-outlined error-icon">error_outline</span>
+      <p>{{ errorMessage() }}</p>
+      <button type="button" class="retry-btn" (click)="goBack()">Go Back</button>
+    </div>
+  }
+
+  @if (!isLoading() && kase(); as kase) {
+    <div class="task-detail-card">
+      <!-- Header -->
+      <div class="task-header">
+        <div class="task-header-top">
+          <span class="type-badge">
+            <span class="material-symbols-outlined type-icon">{{ getTypeIcon(kase.type) }}</span>
+            {{ getTypeLabel(kase.type) }}
+          </span>
+          <select
+            class="priority-pill-select"
+            [(ngModel)]="draft.priorityId"
+            (ngModelChange)="markDirty()"
+            [style.background]="selectedPriorityColor() + '22'"
+            [style.color]="selectedPriorityColor()"
+          >
+            @if (fallbackPriorityOption(); as fallback) {
+              <option [value]="fallback.id">{{ fallback.name }}</option>
+            }
+            @for (prio of availablePriorities(); track prio.id) {
+              <option [value]="prio.id">{{ prio.name }}</option>
+            }
+          </select>
+          <button type="button" class="cso-pill" [class.active]="draft.isCsoLabeled" (click)="draft.isCsoLabeled = !draft.isCsoLabeled; markDirty()">
+            CSO
+          </button>
+          @if (draft.isCsoLabeled) {
+            <select class="category-pill-select" [(ngModel)]="draft.category" (ngModelChange)="markDirty()" [class.technical]="draft.category === 'TECHNICAL'">
+              <option value="" disabled>Select…</option>
+              <option value="FUNCTIONAL">Functional</option>
+              <option value="TECHNICAL">Technical</option>
+            </select>
+          }
+        </div>
+        <input type="text" class="task-title-input" [(ngModel)]="draft.title" (ngModelChange)="markDirty()" placeholder="Case title" />
+        <p class="breadcrumb-trail">
+          <a class="breadcrumb-link" [routerLink]="['/projects', kase.project.id]">{{ kase.project.name }}</a>
+          <span class="breadcrumb-chevron">›</span>
+          <span class="breadcrumb-current">{{ kase.title }}</span>
+        </p>
+        <p class="task-created-info">
+          Created by <strong>{{ kase.createdBy.name }}</strong> on {{ formatDate(kase.createdAt) }}
+        </p>
+      </div>
+
+      <!-- Status Stepper -->
+      <div class="section-block stepper-block">
+        <h3 class="section-heading">
+          <span class="material-symbols-outlined">timeline</span>
+          Status
+        </h3>
+        <div class="stepper">
+          @for (status of statuses; track status.id) {
+            <button
+              type="button"
+              class="stepper-step"
+              [class.active]="status.id === kase.status"
+              [class.past]="isPastStatus(status)"
+              (click)="onStatusClick(status.id)"
+            >
+              <span class="stepper-dot"></span>
+              <span class="stepper-label">{{ status.name }}</span>
+            </button>
+          }
+        </div>
+      </div>
+
+      <!-- Content Grid -->
+      <div class="task-body">
+        <div class="task-main">
+          <!-- Description -->
+          <div class="section-block">
+            <h3 class="section-heading">
+              <span class="material-symbols-outlined">description</span>
+              Description
+            </h3>
+            <textarea
+              class="description-input"
+              [(ngModel)]="draft.description"
+              (ngModelChange)="markDirty()"
+              placeholder="No description provided. Click here to add one…"
+              rows="5"
+            ></textarea>
+          </div>
+
+          <!-- Tasks -->
+          <div class="section-block">
+            <h3 class="section-heading">
+              <span class="material-symbols-outlined">checklist</span>
+              Tasks
+              @if (tasks().length > 0) {
+                <span class="count-badge">{{ tasks().length }}</span>
+              }
+              <button type="button" class="add-inline-btn" (click)="openAddTaskModal()">
+                <span class="material-symbols-outlined">add</span>
+                Add Task
+              </button>
+            </h3>
+            @if (tasks().length > 0) {
+              <div class="subtask-list">
+                @for (task of tasks(); track task.id) {
+                  <button type="button" class="subtask-item" (click)="navigateToTask(task.id)">
+                    <span class="material-symbols-outlined subtask-icon">task_alt</span>
+                    <span class="subtask-title">{{ task.title }}</span>
+                    <span class="status-chip">{{ task.status }}</span>
+                    @if (task.assignee) {
+                      <span class="task-assignee-mini" [title]="task.assignee">{{ getTaskInitials(task.assignee) }}</span>
+                    }
+                    <span class="material-symbols-outlined chevron-icon">chevron_right</span>
+                  </button>
+                }
+              </div>
+            } @else {
+              <p class="empty-placeholder">No tasks yet.</p>
+            }
+          </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="task-sidebar">
+          <div class="meta-card">
+            <h4 class="meta-heading">
+              <span class="material-symbols-outlined">calendar_today</span>
+              Dates
+            </h4>
+            <div class="meta-row">
+              <span class="meta-label">Start Date</span>
+              <input type="date" class="meta-value-input" [(ngModel)]="draft.startDate" (ngModelChange)="markDirty()" />
+            </div>
+            <div class="meta-row">
+              <span class="meta-label">Due Date</span>
+              <input type="date" class="meta-value-input" [(ngModel)]="draft.dueDate" (ngModelChange)="markDirty()" />
+            </div>
+          </div>
+
+          <div class="meta-card">
+            <h4 class="meta-heading">
+              <span class="material-symbols-outlined">speed</span>
+              Effort
+            </h4>
+            <div class="meta-row">
+              <span class="meta-label">Story Points</span>
+              <input type="number" min="0" class="meta-value-input story-points-input" [(ngModel)]="draft.storyPoints" (ngModelChange)="markDirty()" placeholder="—" />
+            </div>
+          </div>
+
+          @if (kase.sprint) {
+            <div class="meta-card">
+              <h4 class="meta-heading">
+                <span class="material-symbols-outlined">directions_run</span>
+                Sprint
+              </h4>
+              <div class="meta-row"><span class="meta-value">{{ kase.sprint.name }}</span></div>
+            </div>
+          }
+
+          @if (kase.milestone) {
+            <div class="meta-card">
+              <h4 class="meta-heading">
+                <span class="material-symbols-outlined">flag</span>
+                Milestone
+              </h4>
+              <div class="meta-row"><span class="meta-value">{{ kase.milestone.name }}</span></div>
+            </div>
+          }
+
+          <div class="meta-card">
+            <h4 class="meta-heading">
+              <span class="material-symbols-outlined">person</span>
+              Assignee
+            </h4>
+            <select class="assignee-select" [(ngModel)]="draft.assigneeId" (ngModelChange)="markDirty()">
+              <option value="">Unassigned</option>
+              @for (user of availableAssignees(); track user.id) {
+                <option [value]="user.id">{{ user.name }}</option>
+              }
+            </select>
+          </div>
+
+          @if (kase.labels && kase.labels.length > 0) {
+            <div class="meta-card">
+              <h4 class="meta-heading">
+                <span class="material-symbols-outlined">label</span>
+                Labels
+              </h4>
+              <div class="labels-wrap">
+                @for (label of kase.labels; track label.id) {
+                  <span
+                    class="label-chip"
+                    [style.background]="label.color ? label.color + '22' : 'var(--app-surface-soft)'"
+                    [style.color]="label.color || 'var(--app-text)'"
+                    [style.border-color]="label.color ? label.color + '44' : 'var(--app-border)'"
+                  >
+                    {{ label.name }}
+                  </span>
+                }
+              </div>
+            </div>
+          }
+
+          @if (categoryHistory().length > 0) {
+            <div class="meta-card">
+              <h4 class="meta-heading">
+                <span class="material-symbols-outlined">history</span>
+                Assignment History
+              </h4>
+              <div class="assignment-history">
+                @for (entry of categoryHistory(); track entry.id) {
+                  <div class="assignment-entry" [class.technical]="entry.category === 'TECHNICAL'">
+                    <span class="assignment-dot"></span>
+                    <div class="assignment-body">
+                      <p class="assignment-line">
+                        <span class="assignment-category">{{ getCategoryLabel(entry.category) }} Assigned</span>
+                        <span class="assignment-dash">—</span>
+                        <span class="assignment-name">{{ entry.assignee?.name ?? 'Unassigned' }}</span>
+                      </p>
+                      <p class="assignment-meta">{{ formatDate(entry.changedAt) }} by {{ entry.changedBy.name }}</p>
+                    </div>
+                  </div>
+                }
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (kase(); as k) {
+    <app-create-task-modal
+      [isOpen]="isAddTaskModalOpen()"
+      [projectId]="k.projectId"
+      [caseTitle]="k.title"
+      (closed)="closeAddTaskModal()"
+      (submitted)="onCreateTask($event)"
+    ></app-create-task-modal>
+  }
+</section>

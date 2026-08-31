@@ -17,19 +17,6 @@ import {
   UpdateProjectPriorityRequest,
 } from '@sebsa-pm-tool/shared-models';
 
-export interface Task {
-  id: string;
-  title: string;
-  category: string;
-  status: 'new' | 'todo' | 'inprogress' | 'done';
-  priority: string;
-  duration: string;
-  assignee?: string;
-  dueDate: string;
-  projectId: string;
-  sprintId?: string;
-}
-
 export interface Sprint {
   id: string;
   name: string;
@@ -38,11 +25,10 @@ export interface Sprint {
   startDate: string;
   endDate: string;
   goal?: string | null;
-  taskCount?: number;
+  caseCount?: number;
   description?: string;
   createdAt: string;
   updatedAt?: string;
-  tasks?: Task[];
 }
 
 export interface ProjectsHeroData {
@@ -79,44 +65,6 @@ export class ProjectsService {
 
   getRoles(id: string): Observable<ProjectRole[]> {
     return this.http.get<ProjectRole[]>(`/api/projects/${id}/roles`);
-  }
-
-  getWorkflowStages(projectId: string): Observable<{ id: string; name: string; order: number; isDefault: boolean; taskCount: number }[]> {
-    return this.http.get<{ id: string; name: string; order: number; isDefault: boolean; taskCount: number }[]>(`/api/projects/${projectId}/workflow-stages`);
-  }
-
-  createWorkflowStage(
-    projectId: string,
-    name: string,
-    order?: number,
-  ): Observable<{ id: string; name: string; order: number }> {
-    return this.http.post<{ id: string; name: string; order: number }>(
-      `/api/projects/${projectId}/workflow-stages`,
-      { name, ...(order !== undefined && { order }) },
-    );
-  }
-
-  updateWorkflowStage(
-    projectId: string,
-    stageId: string,
-    name: string,
-    order?: number
-  ): Observable<{ id: string; name: string; order: number }> {
-    return this.http.patch<{ id: string; name: string; order: number }>(
-      `/api/projects/${projectId}/workflow-stages/${stageId}`,
-      { name, ...(order !== undefined && { order }) }
-    );
-  }
-
-  deleteWorkflowStage(projectId: string, stageId: string): Observable<void> {
-    return this.http.delete<void>(`/api/projects/${projectId}/workflow-stages/${stageId}`);
-  }
-
-  reorderWorkflowStages(projectId: string, stageIds: string[]): Observable<{ id: string; name: string; order: number }[]> {
-    return this.http.patch<{ id: string; name: string; order: number }[]>(
-      `/api/projects/${projectId}/workflow-stages/reorder`,
-      { stageIds },
-    );
   }
 
   getProjectPriorities(projectId: string): Observable<{ id: string; name: string; color: string | null; order: number; isDefault: boolean }[]> {

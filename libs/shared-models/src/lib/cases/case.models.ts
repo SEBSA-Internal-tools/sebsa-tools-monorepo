@@ -1,96 +1,112 @@
-export type CasePriority = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | null;
-export type CaseSlaStatus = 'OK' | 'AT_RISK' | 'BREACHED' | null;
+import { UserSummary } from '../users/user-summary.model';
+import { TaskLabelSummary } from '../tasks/task.models';
 
-export interface CaseView {
+/** Epic/Story/Bug/Improvement/Test classification a Case carries — this used
+ * to be Task.type before Task/Subtask were split out underneath Case
+ * (Customer -> Project -> Case -> Task -> Subtask). GENERAL is used both for
+ * auto-migrated placeholder containers and for teams that don't want to
+ * categorize a Case as one of the other five. */
+export type CaseType = 'EPIC' | 'STORY' | 'BUG' | 'IMPROVEMENT' | 'TEST' | 'GENERAL';
+
+/** Fixed Case lifecycle — not customizable per project (see TaskStatus in
+ * task.models.ts for the equivalent at the Task level). */
+export type CaseStatus = 'TO_DO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'BLOCKED' | 'DONE' | 'CANCELLED';
+
+/** Functional/Technical classification tag — nullable on ordinary cases,
+ * required whenever isCsoLabeled is true (enforced server-side). Lives on
+ * Case (not Task) now, alongside CSO labeling. */
+export type CaseCategory = 'FUNCTIONAL' | 'TECHNICAL';
+/** Alias kept for the many existing frontend call sites written against the
+ * pre-split name (the concept moved from Task to Case, the name didn't). */
+export type TaskCategory = CaseCategory;
+
+/** List-view shape — returned by GET /cases. */
+export interface CaseSummary {
   id: string;
-  status: string;
-  priority: CasePriority;
-  assignedTo: string | null;
-  assignedToName: string | null;
-  customerId: string;
-  customerName: string;
+  projectId: string;
+  title: string;
+  description: string | null;
+  type: CaseType;
+  status: CaseStatus;
+  priorityId: string;
+  sprintId: string | null;
+  milestoneId: string | null;
+  dueDate: string | null;
+  isCsoLabeled: boolean;
+  category: CaseCategory | null;
+  jiraStatusLabel: string | null;
+  project: { id: string; name: string };
+  priority: { id: string; name: string; color: string | null };
+  assignees: Pick<UserSummary, 'id' | 'name' | 'email'>[];
+  startDate?: string | null;
+  storyPoints?: number | null;
+  createdBy?: Pick<UserSummary, 'id' | 'name'>;
+  labels?: TaskLabelSummary[];
+  taskCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/** Detail-view shape. */
+export interface Case extends CaseSummary {
+  startDate: string | null;
+  storyPoints: number | null;
+  sprint: { id: string; name: string } | null;
+  milestone: { id: string; name: string } | null;
+  createdBy: Pick<UserSummary, 'id' | 'name'>;
+  labels: TaskLabelSummary[];
+  taskCount: number;
   createdAt: string;
-  closedAt: string | null;
-  slaStatus: CaseSlaStatus;
-  resolvedWithinSla: boolean | null;
-  csatScore: number | null;
+  updatedAt: string;
+  tasks: { id: string; title: string; status: string }[];
 }
 
-export interface CsoKpiMetrics {
-  totalCases: number;
-  openCases: number;
-  closedCases: number;
-  newCasesLast7Days: number;
-  criticalHighOpenCases: number;
-  slaRiskCases: number;
-  averageCaseAgeDays: number;
-  customerSatisfactionScore: number;
-  slaCompliancePct: number;
+export interface CreateCaseRequest {
+  projectId: string;
+  title: string;
+  description?: string;
+  type: CaseType;
+  status?: CaseStatus;
+  priorityId?: string;
+  sprintId?: string;
+  milestoneId?: string;
+  startDate?: string;
+  dueDate?: string;
+  storyPoints?: number;
+  assigneeIds?: string[];
+  labelIds?: string[];
+  isCsoLabeled?: boolean;
+  /** Required when isCsoLabeled is true. */
+  category?: CaseCategory;
+  jiraStatusLabel?: string;
 }
 
-export interface CaseStatusRow {
-  status: string;
-  count: number;
-  pct: number;
-  delta?: number;
+export type UpdateCaseRequest = Partial<Omit<CreateCaseRequest, 'projectId'>>;
+
+export interface AssignCaseRequest {
+  assigneeIds: string[];
 }
 
-export interface CaseAgeBucketRow {
-  label: string;
-  minDays: number;
-  maxDays: number | null;
-  count: number;
-  pct: number;
+export interface CaseLabelsRequest {
+  labelIds: string[];
 }
 
-export interface PriorityTrendPoint {
-  date: string;
-  CRITICAL: number;
-  HIGH: number;
-  MEDIUM: number;
-  LOW: number;
-  [priority: string]: number | string;
+export interface CaseStatusHistoryEntry {
+  id: string;
+  fromStatus: CaseStatus | null;
+  toStatus: CaseStatus;
+  changedAt: string;
+  changedBy: { id: string; name: string };
 }
 
-export interface ResolutionTrendPoint {
-  date: string;
-  resolved: number;
-}
-
-export interface CustomerMonthRow {
-  month: string;
-  customerId: string;
-  customerName: string;
-  count: number;
-  delta?: number;
-}
-
-export interface WorkloadSegment {
-  memberId: string;
-  memberName: string;
-  openCaseCount: number;
-  color: string;
-  dasharray: string;
-  dashoffset: number;
-}
-
-export interface MemberOpenCaseRow {
-  memberId: string;
-  memberName: string;
-  totalOpen: number;
-  critical: number;
-  high: number;
-  medium: number;
-  low: number;
-  slaRisk: number;
-}
-
-export interface MemberCompletionRow {
-  memberId: string;
-  memberName: string;
-  casesCompleted: number;
-  totalTimeHours: number;
-  avgTimeHours: number;
-  avgCsat: number | null;
-  slaMetPct: number;
+/** One entry in a case's Functional/Technical assignment history — see
+ * CaseCategoryAssignment in schema.prisma. Rendered as e.g. "Functional
+ * Assigned - Alice", then "Technical Assigned - Bob" once converted, so the
+ * earlier assignment is never lost. */
+export interface CaseCategoryAssignmentEntry {
+  id: string;
+  category: CaseCategory;
+  assignee: { id: string; name: string } | null;
+  changedAt: string;
+  changedBy: { id: string; name: string };
 }

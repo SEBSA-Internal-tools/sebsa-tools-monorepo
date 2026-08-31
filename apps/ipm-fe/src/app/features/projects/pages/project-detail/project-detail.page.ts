@@ -2,8 +2,8 @@ import { Component, inject, OnInit, signal, ChangeDetectionStrategy } from '@ang
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ProjectsService } from '../../services/projects.service';
-import { TasksService } from '../../../../core/services/tasks.service';
-import { NotificationService } from '../../../../core/services/notification.service'; 
+import { CasesService } from '../../../../core/services/cases.service';
+import { NotificationService } from '../../../../core/services/notification.service';
 import { ProjectDetailHeaderComponent } from './components/header/project-detail-header.component';
 import { ProjectNavTabsComponent } from './components/nav-tabs/project-nav-tabs.component';
 import { ProjectKanbanComponent } from './components/kanban/project-kanban.component';
@@ -12,12 +12,12 @@ import { ProjectTeamComponent } from './components/team/project-team.component';
 import { ProjectSprintComponent } from './components/sprint/project-sprint.component';
 import { ProjectOverviewComponent } from './components/overview/project-overview.component';
 import { ProjectConfigurationComponent } from './components/configuration/project-configuration.component';
-import { CreateTaskModalComponent, type TaskFormData } from '../../../tasks/create-task/create-task-modal.component';
+import { CreateCaseModalComponent, type CaseFormData } from '../../../cases/create-case/create-case-modal.component';
 import {
   CreateProjectModalComponent,
   type ProjectFormData,
 } from '../../components/modals/create-project/create-project-modal.component';
-import type { CreateTaskRequest, Project } from '@sebsa-pm-tool/shared-models';
+import type { CreateCaseRequest, Project } from '@sebsa-pm-tool/shared-models';
 
 @Component({
   standalone: true,
@@ -31,7 +31,7 @@ import type { CreateTaskRequest, Project } from '@sebsa-pm-tool/shared-models';
     ProjectTeamComponent,
     ProjectSprintComponent,
     ProjectOverviewComponent,
-    CreateTaskModalComponent,
+    CreateCaseModalComponent,
     CreateProjectModalComponent,
     ProjectConfigurationComponent,
   ],
@@ -43,7 +43,7 @@ export class ProjectDetailPageComponent implements OnInit {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private projectsService = inject(ProjectsService);
-  private tasksService = inject(TasksService);
+  private casesService = inject(CasesService);
   private notificationService = inject(NotificationService);
 
   readonly project = signal<Project | null>(null);
@@ -69,7 +69,7 @@ export class ProjectDetailPageComponent implements OnInit {
     this.projectsService.getProject(projectId).subscribe({
       next: (project) => {
         this.project.set(project);
-        this.tasksService.loadTasks(project.id, project.workflowStages);
+        this.casesService.loadCases(project.id);
         this.isLoading.set(false);
       },
       error: () => {
@@ -91,43 +91,36 @@ export class ProjectDetailPageComponent implements OnInit {
     this.isTaskModalOpen = false;
   }
 
-  onCreateTask(formData: TaskFormData): void {
+  onCreateTask(formData: CaseFormData): void {
     const current = this.project();
     if (!current) {
       return;
     }
 
-    if (!current.workflowStages.length) {
-      this.errorMessage.set('This project does not have any workflow stages configured.');
-      return;
-    }
-
-    const dto: CreateTaskRequest = {
+    const dto: CreateCaseRequest = {
       projectId: current.id,
       title: formData.title,
       description: formData.description || undefined,
       type: formData.type,
       priorityId: formData.priorityId,
-      workflowStageId: current.workflowStages[0].id,
       dueDate: formData.dueDate || undefined,
       sprintId: formData.sprintId || undefined,
       assigneeIds: formData.assigneeIds.length > 0 ? formData.assigneeIds : undefined,
       isCsoLabeled: formData.isCsoLabeled,
       category: formData.category,
-      parentTaskId: formData.parentTaskId,
     };
 
     this.isLoading.set(true);
-    this.tasksService.createTask(dto, current.workflowStages).subscribe({
+    this.casesService.createCase(dto).subscribe({
       next: () => {
         this.isLoading.set(false);
         this.closeTaskModal();
-        this.notificationService.success(`Task "${formData.title}" created successfully!`);
+        this.notificationService.success(`Case "${formData.title}" created successfully!`);
       },
       error: () => {
         this.isLoading.set(false);
-        this.errorMessage.set('Failed to create task. Please try again.');
-        this.notificationService.error('Failed to create task. Please try again.');
+        this.errorMessage.set('Failed to create case. Please try again.');
+        this.notificationService.error('Failed to create case. Please try again.');
       },
     });
   }

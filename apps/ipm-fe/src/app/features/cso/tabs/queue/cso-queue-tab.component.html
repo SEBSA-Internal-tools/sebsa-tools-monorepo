@@ -106,11 +106,11 @@
     }
   </div>
 
-  <app-create-task-modal
-    [isOpen]="isTaskModalOpen"
+  <app-create-case-modal
+    [isOpen]="isCaseModalOpen"
     [forceCsoLabeled]="true"
     [lockedCategory]="category"
     (closed)="closeTaskModal()"
     (submitted)="onCreateTask($event)"
-  ></app-create-task-modal>
+  ></app-create-case-modal>
 </div>

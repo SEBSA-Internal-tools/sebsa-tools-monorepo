@@ -9,7 +9,7 @@
         <span class="material-symbols-outlined">task_alt</span>
       </div>
       <div class="kpi-body">
-        <span class="kpi-value">{{ metrics().totalTasks }}</span>
+        <span class="kpi-value">{{ metrics().totalCases }}</span>
         <span class="kpi-label">Total Tasks</span>
       </div>
     </div>
@@ -20,7 +20,7 @@
         <span class="material-symbols-outlined">category</span>
       </div>
       <div class="kpi-body">
-        <span class="kpi-value">{{ metrics().functionalTasks }}</span>
+        <span class="kpi-value">{{ metrics().functionalCases }}</span>
         <span class="kpi-label">Functional Tasks</span>
       </div>
     </div>
@@ -31,7 +31,7 @@
         <span class="material-symbols-outlined">engineering</span>
       </div>
       <div class="kpi-body">
-        <span class="kpi-value">{{ metrics().technicalTasks }}</span>
+        <span class="kpi-value">{{ metrics().technicalCases }}</span>
         <span class="kpi-label">Technical Tasks</span>
       </div>
     </div>
@@ -83,7 +83,7 @@
             </g>
             <!-- Centre label -->
             <text x="90" y="85" class="donut-center-value">
-              {{ activePriority() ? getPriorityCount(activePriority()!) : metrics().totalTasks }}
+              {{ activePriority() ? getPriorityCount(activePriority()!) : metrics().totalCases }}
             </text>
             <text x="90" y="105" class="donut-center-label">
               {{ activePriority() ?? 'Total' }}

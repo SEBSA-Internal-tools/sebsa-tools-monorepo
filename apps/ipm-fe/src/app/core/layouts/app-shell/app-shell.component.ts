@@ -4,14 +4,13 @@ import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/rou
 import { ThemeService } from '../../services/theme.service';
 import { AuthService } from '../../services/auth.service';
 import { ToastComponent } from '../../components/toast/toast.component';
-import { CreateTaskModalComponent, type TaskFormData } from '../../../features/tasks/create-task/create-task-modal.component';
-import { TasksService } from '../../services/tasks.service';
-import { ProjectsService } from '../../../features/projects/services/projects.service';
+import { CreateCaseModalComponent, type CaseFormData } from '../../../features/cases/create-case/create-case-modal.component';
+import { CasesService } from '../../services/cases.service';
 import { NotificationService } from '../../services/notification.service';
-import type { CreateTaskRequest, SystemRole } from '@sebsa-pm-tool/shared-models';
+import type { CreateCaseRequest, SystemRole } from '@sebsa-pm-tool/shared-models';
 
 @Component({
-  imports: [CommonModule, RouterLink, RouterLinkActive, RouterOutlet, ToastComponent, CreateTaskModalComponent],
+  imports: [CommonModule, RouterLink, RouterLinkActive, RouterOutlet, ToastComponent, CreateCaseModalComponent],
   selector: 'app-shell',
   templateUrl: './app-shell.component.html',
   styleUrl: './app-shell.component.scss',
@@ -20,8 +19,7 @@ export class AppShellComponent implements OnInit {
   private readonly router = inject(Router);
   protected readonly authService = inject(AuthService);
   protected readonly themeService = inject(ThemeService);
-  private readonly tasksService = inject(TasksService);
-  private readonly projectsService = inject(ProjectsService);
+  private readonly casesService = inject(CasesService);
   private readonly notificationService = inject(NotificationService);
 
   private readonly navigationItems: { label: string; icon: string; path: string; hiddenForRoles?: SystemRole[] }[] = [
@@ -39,7 +37,7 @@ export class AppShellComponent implements OnInit {
   }
 
   protected isTaskModalOpen = false;
-  protected lastCreatedTask: TaskFormData | null = null;
+  protected lastCreatedTask: CaseFormData | null = null;
   protected isProfileMenuOpen = false;
   protected isNotificationMenuOpen = false;
 
@@ -101,43 +99,30 @@ export class AppShellComponent implements OnInit {
     this.isTaskModalOpen = false;
   }
 
-  protected handleTaskSaved(formData: TaskFormData): void {
+  protected handleTaskSaved(formData: CaseFormData): void {
     if (!formData.projectId) return;
-    
-    this.projectsService.getProject(formData.projectId).subscribe({
-      next: (project) => {
-        if (!project.workflowStages.length) {
-          this.notificationService.error('Project has no workflow stages.');
-          return;
-        }
 
-        const dto: CreateTaskRequest = {
-          projectId: project.id,
-          title: formData.title,
-          description: formData.description || undefined,
-          type: formData.type,
-          priorityId: formData.priorityId,
-          workflowStageId: project.workflowStages[0].id,
-          dueDate: formData.dueDate || undefined,
-          sprintId: formData.sprintId || undefined,
-          assigneeIds: formData.assigneeIds.length > 0 ? formData.assigneeIds : undefined,
-          isCsoLabeled: formData.isCsoLabeled,
-          category: formData.category,
-        };
+    const dto: CreateCaseRequest = {
+      projectId: formData.projectId,
+      title: formData.title,
+      description: formData.description || undefined,
+      type: formData.type,
+      priorityId: formData.priorityId,
+      dueDate: formData.dueDate || undefined,
+      sprintId: formData.sprintId || undefined,
+      assigneeIds: formData.assigneeIds.length > 0 ? formData.assigneeIds : undefined,
+      isCsoLabeled: formData.isCsoLabeled,
+      category: formData.category,
+    };
 
-        this.tasksService.createTask(dto, project.workflowStages).subscribe({
-          next: () => {
-            this.notificationService.success(`Task "${formData.title}" created successfully!`);
-            this.closeTaskModal();
-          },
-          error: () => {
-            this.notificationService.error('Failed to create task. Please try again.');
-          }
-        });
+    this.casesService.createCase(dto).subscribe({
+      next: () => {
+        this.notificationService.success(`Case "${formData.title}" created successfully!`);
+        this.closeTaskModal();
       },
       error: () => {
-        this.notificationService.error('Failed to fetch project details.');
-      }
+        this.notificationService.error('Failed to create case. Please try again.');
+      },
     });
   }
 }

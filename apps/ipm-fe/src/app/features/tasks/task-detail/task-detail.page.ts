@@ -2,22 +2,23 @@ import { Component, ChangeDetectionStrategy, OnInit, inject, signal } from '@ang
 import { CommonModule, Location } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { TasksService, WorkflowStage } from '../../../core/services/tasks.service';
+import { TasksService, TASK_STATUSES } from '../../../core/services/tasks.service';
+import { SubtasksService } from '../../../core/services/subtasks.service';
 import { ProjectsService } from '../../projects/services/projects.service';
 import type {
-  CreateTaskRequest,
+  CreateSubtaskRequest,
   Task,
-  TaskCategory,
-  TaskCategoryAssignmentEntry,
   TaskDependenciesView,
   TaskDependencyType,
+  TaskStatus,
   TaskStatusHistoryEntry,
+  Subtask,
   UpdateTaskRequest,
 } from '@sebsa-pm-tool/shared-models';
 import {
-  CreateTaskModalComponent,
-  type TaskFormData,
-} from '../create-task/create-task-modal.component';
+  CreateSubtaskModalComponent,
+  type SubtaskFormData,
+} from '../create-subtask/create-subtask-modal.component';
 
 interface TaskEditDraft {
   title: string;
@@ -26,15 +27,13 @@ interface TaskEditDraft {
   startDate: string;
   dueDate: string;
   storyPoints: number | null;
-  isCsoLabeled: boolean;
-  category: TaskCategory | '';
   assigneeId: string;
 }
 
 @Component({
   standalone: true,
   selector: 'app-task-detail-page',
-  imports: [CommonModule, FormsModule, RouterLink, CreateTaskModalComponent],
+  imports: [CommonModule, FormsModule, RouterLink, CreateSubtaskModalComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './task-detail.page.html',
   styleUrls: ['./task-detail.page.scss'],
@@ -44,6 +43,7 @@ export class TaskDetailPageComponent implements OnInit {
   private router = inject(Router);
   private location = inject(Location);
   private tasksService = inject(TasksService);
+  private subtasksService = inject(SubtasksService);
   private projectsService = inject(ProjectsService);
 
   task = signal<Task | null>(null);
@@ -52,11 +52,6 @@ export class TaskDetailPageComponent implements OnInit {
   errorMessage = signal('');
   isAddSubtaskModalOpen = signal(false);
 
-  // ---------------------------------------------------------------------------
-  // Live edit — the page has no separate "Edit" flow; every editable field
-  // binds directly to `draft`, and a "Save Changes" button appears in the
-  // header only once `isDirty` is true.
-  // ---------------------------------------------------------------------------
   isDirty = signal(false);
   draft: TaskEditDraft = {
     title: '',
@@ -65,16 +60,14 @@ export class TaskDetailPageComponent implements OnInit {
     startDate: '',
     dueDate: '',
     storyPoints: null,
-    isCsoLabeled: false,
-    category: '',
     assigneeId: '',
   };
   availablePriorities = signal<Array<{ id: string; name: string; color: string | null; order: number }>>([]);
   availableAssignees = signal<Array<{ id: string; name: string }>>([]);
 
-  workflowStages = signal<WorkflowStage[]>([]);
+  readonly statuses = TASK_STATUSES;
   statusHistory = signal<TaskStatusHistoryEntry[]>([]);
-  categoryHistory = signal<TaskCategoryAssignmentEntry[]>([]);
+  subtasks = signal<Subtask[]>([]);
   dependencies = signal<TaskDependenciesView | null>(null);
   warnings = signal<string[]>([]);
 
@@ -101,19 +94,18 @@ export class TaskDetailPageComponent implements OnInit {
     this.warnings.set([]);
     this.dependencies.set(null);
     this.statusHistory.set([]);
-    this.categoryHistory.set([]);
+    this.subtasks.set([]);
     this.tasksService.getTaskById(taskId).subscribe({
       next: (task) => {
         this.task.set(task);
         this.populateDraft(task);
         this.isLoading.set(false);
-        this.loadWorkflowStages(task.projectId);
         this.loadStatusHistory(taskId);
-        this.loadCategoryHistory(taskId);
+        this.loadSubtasks(taskId);
         this.loadDependencies(taskId);
-        this.loadDependencyTaskCandidates(task.projectId, taskId);
-        this.loadPriorities(task.projectId);
-        this.loadAssignees(task.projectId);
+        this.loadDependencyTaskCandidates(task.caseId, taskId);
+        this.loadPriorities(task.case.projectId);
+        this.loadAssignees(task.case.projectId);
       },
       error: (err) => {
         console.error('Failed to load task:', err);
@@ -137,13 +129,6 @@ export class TaskDetailPageComponent implements OnInit {
     });
   }
 
-  private loadWorkflowStages(projectId: string): void {
-    this.projectsService.getWorkflowStages(projectId).subscribe({
-      next: (stages) => this.workflowStages.set([...stages].sort((a, b) => a.order - b.order)),
-      error: () => this.workflowStages.set([]),
-    });
-  }
-
   private loadStatusHistory(taskId: string): void {
     this.tasksService.getStatusHistory(taskId).subscribe({
       next: (history) => this.statusHistory.set(history),
@@ -151,10 +136,10 @@ export class TaskDetailPageComponent implements OnInit {
     });
   }
 
-  private loadCategoryHistory(taskId: string): void {
-    this.tasksService.getCategoryHistory(taskId).subscribe({
-      next: (history) => this.categoryHistory.set(history),
-      error: () => this.categoryHistory.set([]),
+  private loadSubtasks(taskId: string): void {
+    this.subtasksService.getByTask(taskId).subscribe({
+      next: (subtasks) => this.subtasks.set(subtasks),
+      error: () => this.subtasks.set([]),
     });
   }
 
@@ -165,8 +150,8 @@ export class TaskDetailPageComponent implements OnInit {
     });
   }
 
-  private loadDependencyTaskCandidates(projectId: string, excludeTaskId: string): void {
-    this.tasksService.searchTasksInProject(projectId).subscribe({
+  private loadDependencyTaskCandidates(caseId: string, excludeTaskId: string): void {
+    this.tasksService.searchTasksInCase(caseId).subscribe({
       next: (tasks) =>
         this.availableDependencyTasks.set(
           tasks.filter((t) => t.id !== excludeTaskId).map((t) => ({ id: t.id, title: t.title })),
@@ -180,9 +165,7 @@ export class TaskDetailPageComponent implements OnInit {
   }
 
   // ---------------------------------------------------------------------------
-  // Live edit — every field-level control below is bound to `draft` via
-  // [(ngModel)] and calls markDirty() on change; nothing hits the network
-  // until saveChanges() runs.
+  // Live edit
   // ---------------------------------------------------------------------------
 
   private populateDraft(task: Task): void {
@@ -190,11 +173,9 @@ export class TaskDetailPageComponent implements OnInit {
       title: task.title,
       description: task.description ?? '',
       priorityId: task.priorityId,
-      startDate: task.startDate ? task.startDate.split('T')[0] : '',
+      startDate: '',
       dueDate: task.dueDate ? task.dueDate.split('T')[0] : '',
-      storyPoints: task.storyPoints,
-      isCsoLabeled: task.isCsoLabeled,
-      category: task.category ?? '',
+      storyPoints: null,
       assigneeId: task.assignees[0]?.id ?? '',
     };
     this.isDirty.set(false);
@@ -207,17 +188,11 @@ export class TaskDetailPageComponent implements OnInit {
   selectedPriorityColor(): string {
     const match = this.availablePriorities().find((p) => p.id === this.draft.priorityId);
     if (match) return match.color ?? '#64748b';
-    // Priorities load via a separate request from the task itself, so right
-    // after load `availablePriorities` can still be empty — fall back to the
-    // priority the task response already carries rather than flashing gray.
     const taskPriority = this.task()?.priority;
     if (taskPriority?.id === this.draft.priorityId) return taskPriority.color ?? '#64748b';
     return '#64748b';
   }
 
-  /** The task's own priority, rendered as an extra <option> only when it
-   *  isn't already in `availablePriorities` — covers the window before that
-   *  separate request resolves, so the priority pill never shows blank. */
   fallbackPriorityOption(): { id: string; name: string } | null {
     const taskPriority = this.task()?.priority;
     if (!taskPriority) return null;
@@ -240,10 +215,6 @@ export class TaskDetailPageComponent implements OnInit {
       this.errorMessage.set('Task title cannot be empty.');
       return;
     }
-    if (this.draft.isCsoLabeled && !this.draft.category) {
-      this.errorMessage.set('Please tag this CSO task as Functional or Technical.');
-      return;
-    }
 
     this.isSaving.set(true);
     this.errorMessage.set('');
@@ -252,12 +223,8 @@ export class TaskDetailPageComponent implements OnInit {
       title: this.draft.title,
       description: this.draft.description || undefined,
       priorityId: this.draft.priorityId || undefined,
-      startDate: this.draft.startDate || undefined,
       dueDate: this.draft.dueDate || undefined,
-      storyPoints: this.draft.storyPoints !== null ? this.draft.storyPoints : undefined,
-      isCsoLabeled: this.draft.isCsoLabeled,
       assigneeIds: this.draft.assigneeId ? [this.draft.assigneeId] : [],
-      category: this.draft.category || undefined,
     };
 
     this.tasksService.updateTaskDetails(current.id, dto).subscribe({
@@ -266,7 +233,6 @@ export class TaskDetailPageComponent implements OnInit {
         this.populateDraft(response.task);
         this.warnings.set(response.warnings);
         this.isSaving.set(false);
-        this.loadCategoryHistory(current.id);
       },
       error: (err) => {
         this.errorMessage.set(err?.error?.message || 'Failed to save changes. Please try again.');
@@ -285,13 +251,7 @@ export class TaskDetailPageComponent implements OnInit {
     this.errorMessage.set('');
 
     this.tasksService.deleteTask(current.id).subscribe({
-      next: () => {
-        if (current.parentTask) {
-          this.router.navigate(['/tasks', current.parentTask.id]);
-        } else {
-          this.router.navigate(['/projects', current.projectId]);
-        }
-      },
+      next: () => this.router.navigate(['/cases', current.caseId]),
       error: (err) => {
         this.errorMessage.set(err?.error?.message || 'Failed to delete task.');
         this.isLoading.set(false);
@@ -304,17 +264,18 @@ export class TaskDetailPageComponent implements OnInit {
   }
 
   // ---------------------------------------------------------------------------
-  // Status/Flow Stepper — clicking a stage moves the task there directly,
-  // same PATCH path as Kanban drag-drop, so dependency warnings surface here too.
+  // Status Stepper — clicking a status moves the task there directly, same
+  // PATCH path as the Task board drag-drop, so dependency warnings surface
+  // here too.
   // ---------------------------------------------------------------------------
 
-  onStageClick(stageId: string): void {
+  onStatusClick(status: TaskStatus): void {
     const current = this.task();
-    if (!current || stageId === current.workflowStageId) return;
+    if (!current || status === current.status) return;
 
     this.isLoading.set(true);
     this.errorMessage.set('');
-    this.tasksService.updateTaskDetails(current.id, { workflowStageId: stageId }).subscribe({
+    this.tasksService.updateTaskDetails(current.id, { status }).subscribe({
       next: (response) => {
         this.task.set(response.task);
         this.warnings.set(response.warnings);
@@ -328,26 +289,22 @@ export class TaskDetailPageComponent implements OnInit {
     });
   }
 
-  /** The most recent history entry that landed the task in `stageId`, if any
-   *  — used to show "since <date>" under the current stage in the stepper. */
-  enteredStageAt(stageId: string): string | null {
-    const matching = this.statusHistory().filter((h) => h.toStage.id === stageId);
+  enteredStatusAt(status: TaskStatus): string | null {
+    const matching = this.statusHistory().filter((h) => h.toStatus === status);
     if (matching.length === 0) return null;
     return matching[matching.length - 1].changedAt;
   }
 
-  /** Whether `stage` sits before the task's current stage in the project's
-   *  workflow order — drives the stepper's "completed" styling. */
-  isPastStage(stage: WorkflowStage): boolean {
+  isPastStatus(status: { id: TaskStatus }): boolean {
     const current = this.task();
     if (!current) return false;
-    const currentStage = this.workflowStages().find((s) => s.id === current.workflowStageId);
-    if (!currentStage) return false;
-    return stage.order < currentStage.order;
+    const currentIndex = this.statuses.findIndex((s) => s.id === current.status);
+    const statusIndex = this.statuses.findIndex((s) => s.id === status.id);
+    return statusIndex < currentIndex;
   }
 
   // ---------------------------------------------------------------------------
-  // Add Subtask
+  // Subtasks
   // ---------------------------------------------------------------------------
 
   openAddSubtaskModal(): void {
@@ -358,39 +315,29 @@ export class TaskDetailPageComponent implements OnInit {
     this.isAddSubtaskModalOpen.set(false);
   }
 
-  onCreateSubtask(formData: TaskFormData): void {
+  onCreateSubtask(formData: SubtaskFormData): void {
     const current = this.task();
     if (!current) return;
 
-    const dto: CreateTaskRequest = {
-      projectId: current.projectId,
-      parentTaskId: current.id,
+    const dto: CreateSubtaskRequest = {
       title: formData.title,
       description: formData.description || undefined,
-      type: formData.type,
-      priorityId: formData.priorityId,
       dueDate: formData.dueDate || undefined,
-      sprintId: formData.sprintId || undefined,
       assigneeIds: formData.assigneeIds.length > 0 ? formData.assigneeIds : undefined,
-      isCsoLabeled: formData.isCsoLabeled,
-      category: formData.category,
     };
 
     this.isLoading.set(true);
-    this.tasksService.createTask(dto, this.workflowStages()).subscribe({
+    this.subtasksService.create(current.id, dto).subscribe({
       next: () => {
         this.closeAddSubtaskModal();
-        this.loadTask(current.id);
+        this.isLoading.set(false);
+        this.loadSubtasks(current.id);
       },
       error: () => {
         this.errorMessage.set('Failed to create subtask. Please try again.');
         this.isLoading.set(false);
       },
     });
-  }
-
-  navigateToSubtask(subtaskId: string): void {
-    this.router.navigate(['/tasks', subtaskId]);
   }
 
   // ---------------------------------------------------------------------------
@@ -423,10 +370,7 @@ export class TaskDetailPageComponent implements OnInit {
 
     this.errorMessage.set('');
     this.tasksService
-      .createDependency(current.id, {
-        targetTaskId: this.selectedDependencyTaskId,
-        type: this.newDependencyType,
-      })
+      .createDependency(current.id, { targetTaskId: this.selectedDependencyTaskId, type: this.newDependencyType })
       .subscribe({
         next: () => {
           this.selectedDependencyTaskId = '';
@@ -454,70 +398,9 @@ export class TaskDetailPageComponent implements OnInit {
   // Formatting helpers
   // ---------------------------------------------------------------------------
 
-  getTypeLabel(type: string): string {
-    switch (type) {
-      case 'EPIC':
-        return 'Epic';
-      case 'STORY':
-        return 'Story';
-      case 'TASK':
-        return 'Task';
-      case 'BUG':
-        return 'Bug';
-      case 'IMPROVEMENT':
-        return 'Improvement';
-      case 'TEST':
-        return 'Test';
-      case 'SUBTASK':
-        return 'Subtask';
-      default:
-        return type;
-    }
-  }
-
-  getTypeIcon(type: string): string {
-    switch (type) {
-      case 'EPIC':
-        return 'bolt';
-      case 'STORY':
-        return 'auto_stories';
-      case 'TASK':
-        return 'task_alt';
-      case 'BUG':
-        return 'bug_report';
-      case 'IMPROVEMENT':
-        return 'trending_up';
-      case 'TEST':
-        return 'science';
-      case 'SUBTASK':
-        return 'subdirectory_arrow_right';
-      default:
-        return 'task';
-    }
-  }
-
-  getCategoryLabel(category: string): string {
-    switch (category) {
-      case 'FUNCTIONAL':
-        return 'Functional';
-      case 'TECHNICAL':
-        return 'Technical';
-      default:
-        return category;
-    }
-  }
-
-  getCategoryIcon(category: string): string {
-    return category === 'TECHNICAL' ? 'terminal' : 'psychology';
-  }
-
   formatDate(dateStr: string | null | undefined): string {
     if (!dateStr) return '—';
     const d = new Date(dateStr);
-    return d.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
+    return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
   }
 }

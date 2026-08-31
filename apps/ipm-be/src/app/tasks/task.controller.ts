@@ -21,18 +21,26 @@ import { FilterTaskDto } from './dto/filter-task.dto';
 import { AssigneesDto } from './dto/assign-task.dto';
 import { TaskLabelsDto } from './dto/task-label.dto';
 import { CreateTaskDependencyDto } from './dto/create-task-dependency.dto';
-import { CreateSubtaskDto } from './dto/create-subtask.dto';
+import { JiraSyncService } from '../jira/jira-sync.service';
 
 @ApiTags('tasks')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('tasks')
 export class TaskController {
-  constructor(private readonly taskService: TaskService) {}
+  constructor(
+    private readonly taskService: TaskService,
+    private readonly jiraSync: JiraSyncService,
+  ) {}
 
   @Post()
   async create(@CurrentUser() user: AuthUser, @Body() dto: CreateTaskDto) {
-    return this.taskService.create(dto, user);
+    const task = await this.taskService.create(dto, user);
+    // Awaited so the response reflects the post-sync state, but
+    // pushTaskToJira swallows its own errors — a Jira outage never fails
+    // the user's task creation, it just skips the sync for this call.
+    await this.jiraSync.pushTaskToJira(task.id);
+    return task;
   }
 
   @Get()
@@ -61,7 +69,9 @@ export class TaskController {
     @Body() dto: UpdateTaskDto,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.taskService.update(id, dto, user);
+    const result = await this.taskService.update(id, dto, user);
+    await this.jiraSync.pushTaskToJira(result.task.id);
+    return result;
   }
 
   @Delete(':id')
@@ -114,22 +124,6 @@ export class TaskController {
     return this.taskService.detachLabel(id, labelId, user);
   }
 
-  // --- Subtask Endpoints ---
-
-  @Get(':id/subtasks')
-  async getSubtasks(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
-    return this.taskService.getSubtasks(id, user);
-  }
-
-  @Post(':id/subtasks')
-  async createSubtask(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: CreateSubtaskDto,
-    @CurrentUser() user: AuthUser,
-  ) {
-    return this.taskService.createSubtask(id, dto, user);
-  }
-
   // --- Dependency Endpoints (FSD §5.5) ---
 
   @Get(':id/dependencies')
@@ -160,12 +154,5 @@ export class TaskController {
   @Get(':id/status-history')
   async getStatusHistory(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
     return this.taskService.getStatusHistory(id, user);
-  }
-
-  // --- Category/Assignment History (Functional/Technical conversion trail) ---
-
-  @Get(':id/category-history')
-  async getCategoryHistory(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
-    return this.taskService.getCategoryHistory(id, user);
   }
 }

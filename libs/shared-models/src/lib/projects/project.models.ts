@@ -20,7 +20,7 @@ export interface ProjectMemberSummary {
   role: Pick<ProjectRole, 'id' | 'name'> & { privilegeGroup: Pick<PrivilegeGroup, 'isReadOnly'> };
 }
 
-/** List-view shape — lighter than Project, no nested roles/stages. */
+/** List-view shape — lighter than Project, no nested roles. */
 export interface ProjectSummary {
   id: string;
   name: string;
@@ -33,7 +33,9 @@ export interface ProjectSummary {
   color: string | null;
   createdBy: Pick<UserSummary, 'id' | 'name'>;
   memberCount: number;
-  taskCount: number;
+  /** Count of Cases directly under the project (Case is the level Task used
+   * to be counted at before the Case hierarchy split). */
+  caseCount: number;
   isCsoProject: boolean;
   customerId: string;
   customer: { id: string; name: string };
@@ -41,9 +43,11 @@ export interface ProjectSummary {
   updatedAt: string;
 }
 
-/** Detail-view shape — includes the project's workflow stages and priorities. */
+/** Detail-view shape — includes the project's priorities. Task status is now
+ * a fixed, global enum (see TaskStatus in task.models.ts) rather than a
+ * per-project customizable WorkflowStage list, so there's nothing
+ * project-specific left to include for it here. */
 export interface Project extends ProjectSummary {
-  workflowStages: { id: string; name: string; order: number }[];
   priorities: { id: string; name: string; order: number; color: string | null }[];
 }
 
@@ -89,16 +93,6 @@ export interface CreateRoleRequest {
 export interface UpdateRoleRequest {
   name?: string;
   privilegeGroupId?: string;
-}
-
-export interface CreateWorkflowStageRequest {
-  name: string;
-  order?: number;
-}
-
-export interface UpdateWorkflowStageRequest {
-  name?: string;
-  order?: number;
 }
 
 export interface CreateProjectPriorityRequest {

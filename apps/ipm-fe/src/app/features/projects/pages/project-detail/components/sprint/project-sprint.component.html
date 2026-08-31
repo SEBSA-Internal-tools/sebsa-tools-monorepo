@@ -63,7 +63,7 @@
                 </span>
                 <span class="meta-item">
                   <span class="material-symbols-outlined">task_alt</span>
-                  {{ getSprintStats(sprint.id).total }} tasks
+                  {{ getSprintStats(sprint.id).total }} cases
                 </span>
               </div>
             </div>
@@ -107,12 +107,12 @@
           <!-- Sprint Tasks (Table View) -->
           @if (expandedSprints()[sprint.id]) {
             <div class="sprint-tasks-table">
-              @if (getSprintTasks(sprint.id).length > 0) {
+              @if (getSprintCases(sprint.id).length > 0) {
                 <table class="tasks-table">
                   <thead>
                     <tr>
                       <th>Title</th>
-                      <th>Category</th>
+                      <th>Type</th>
                       <th>Status</th>
                       <th>Priority</th>
                       <th>Assignee</th>
@@ -120,34 +120,34 @@
                     </tr>
                   </thead>
                   <tbody>
-                    @for (task of getSprintTasks(sprint.id); track task.id) {
+                    @for (kase of getSprintCases(sprint.id); track kase.id) {
                       <tr class="task-row">
                         <td class="col-title">
-                          <span class="task-title">{{ task.title }}</span>
+                          <span class="task-title">{{ kase.title }}</span>
                         </td>
                         <td class="col-category">
-                          <span class="task-category">{{ task.category }}</span>
+                          <span class="task-category">{{ kase.type }}</span>
                         </td>
                         <td class="col-status">
-                          <span [class]="'task-status ' + getStatusClass(task.statusLabel)">
-                            {{ getStatusLabel_(task.statusLabel) }}
+                          <span [class]="'task-status ' + getStatusClass(kase.status)">
+                            {{ getCaseStatusLabel(kase.status) }}
                           </span>
                         </td>
                         <td class="col-priority">
-                          <span [class]="'task-priority ' + getPriorityClass(task.priority)">
-                            {{ task.priority }}
+                          <span [class]="'task-priority ' + getPriorityClass(kase.priority)">
+                            {{ kase.priority }}
                           </span>
                         </td>
                         <td class="col-assignee">
-                          @if (task.assignee) {
-                            <span class="assignee-badge">{{ task.assignee }}</span>
+                          @if (kase.assignee) {
+                            <span class="assignee-badge">{{ kase.assignee }}</span>
                           } @else {
                             <span class="empty-cell">—</span>
                           }
                         </td>
                         <td class="col-due-date">
-                          @if (task.dueDate) {
-                            <span class="due-date">{{ task.dueDate | date:'yyyy-MM-dd' }}</span>
+                          @if (kase.dueDate) {
+                            <span class="due-date">{{ kase.dueDate | date:'yyyy-MM-dd' }}</span>
                           } @else {
                             <span class="empty-cell">—</span>
                           }
@@ -159,7 +159,7 @@
               } @else {
                 <div class="empty-tasks">
                   <span class="material-symbols-outlined">inbox</span>
-                  <p>No tasks in this sprint</p>
+                  <p>No cases in this sprint</p>
                 </div>
               }
             </div>

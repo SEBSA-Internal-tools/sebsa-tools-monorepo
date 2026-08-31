@@ -1,136 +1,74 @@
-@if (isLoading()) {
-  <div class="kanban-loading">
-    <span class="material-symbols-outlined">hourglass_empty</span>
-    <p>Loading board...</p>
-  </div>
-} @else if (errorMessage() && workflowStages().length === 0) {
-  <div class="kanban-error-state">
-    <span class="material-symbols-outlined">error_outline</span>
-    <p>{{ errorMessage() }}</p>
-  </div>
-} @else {
+<div class="kanban-container">
+  @for (status of statuses; track status.id) {
+    <div class="kanban-column">
 
-  <div class="kanban-container">
-    @for (stage of workflowStages(); track stage.id) {
-      <div class="kanban-column">
-
-        <div class="column-header">
-          <div class="column-title">
-            <span class="title-text">{{ stage.name }}</span>
-            <span class="task-count">{{ tasks()[stage.id]?.length || 0 }}</span>
-          </div>
+      <div class="column-header">
+        <div class="column-title">
+          <span class="title-text">{{ status.name }}</span>
+          <span class="task-count">{{ cases()[status.id]?.length || 0 }}</span>
         </div>
+      </div>
 
-        <div
-          class="drop-zone"
-          [id]="stage.id"
-          (dragover)="onDragOver($event)"
-          (drop)="onDrop($event, stage.id)"
-        >
-          @if ((tasks()[stage.id]?.length || 0) > 0) {
-            @for (task of tasks()[stage.id]; track task.id) {
-              <div
-                class="task-card"
-                [style.--task-priority-color]="task.priorityColor || '#f59e0b'"
-                draggable="true"
-                (dragstart)="onDragStart(task)"
-                (dragend)="onDragEnd()"
-                [class.dragging]="draggedTask?.id === task.id"
-              >
+      <div
+        class="drop-zone"
+        [id]="status.id"
+        (dragover)="onDragOver($event)"
+        (drop)="onDrop($event, status.id)"
+      >
+        @if ((cases()[status.id]?.length || 0) > 0) {
+          @for (kase of cases()[status.id]; track kase.id) {
+            <div
+              class="task-card"
+              [style.--task-priority-color]="kase.priorityColor || '#f59e0b'"
+              draggable="true"
+              (dragstart)="onDragStart(kase)"
+              (dragend)="onDragEnd()"
+              [class.dragging]="draggedCase?.id === kase.id"
+            >
 
-                <div class="task-title-row">
-                  <h3 class="task-title" (click)="openTaskDetail(task.id)">{{ task.title }}</h3>
-                  <span class="type-badge" [class]="getTypeChipClass(task)">
-                    {{ getTypeChipLabel(task) }}
+              <div class="task-title-row">
+                <h3 class="task-title" (click)="openCaseDetail(kase.id)">{{ kase.title }}</h3>
+                <span class="type-badge" [class]="getTypeClass(kase.type)">
+                  {{ getTypeLabel(kase.type) }}
+                </span>
+              </div>
+
+              <div class="task-meta">
+                <div class="task-header-badges">
+                  <span class="priority-badge" [style.--priority-color]="kase.priorityColor || '#f59e0b'">
+                    {{ kase.priority }}
                   </span>
-                </div>
-
-                <div class="task-meta">
-                  <div class="task-header-badges">
-                    <span
-                      class="priority-badge"
-                      [style.--priority-color]="task.priorityColor || '#f59e0b'"
-                    >
-                      {{ task.priority }}
+                  @if (kase.isCsoLabeled) {
+                    <span class="cso-badge">CSO</span>
+                  }
+                  @if (kase.tag) {
+                    <span class="tag-badge" [class.technical]="kase.tag === 'TECHNICAL'">
+                      {{ kase.tag === 'TECHNICAL' ? 'Technical' : 'Functional' }}
                     </span>
-                    @if (task.isCsoLabeled) {
-                      <span class="cso-badge">CSO</span>
-                    }
-                    @if (task.tag) {
-                      <span class="tag-badge" [class.technical]="task.tag === 'TECHNICAL'">
-                        {{ task.tag === 'TECHNICAL' ? 'Technical' : 'Functional' }}
-                      </span>
-                    }
-                  </div>
-                </div>
-
-                <div class="task-footer">
-                  <span class="duration">
-                    <span class="material-symbols-outlined">schedule</span>
-                    {{ task.duration }}
-                  </span>
-                  @if (task.assignee) {
-                    <div class="task-assignee" [title]="task.assignee">
-                      {{ getTaskInitials(task.assignee) }}
-                    </div>
                   }
                 </div>
               </div>
-            }
-          } @else {
-            <div class="empty-column">
-              <span class="material-symbols-outlined">inbox</span>
-              <p>No tasks</p>
+
+              <div class="task-footer">
+                <span class="duration">
+                  <span class="material-symbols-outlined">schedule</span>
+                  {{ kase.duration }}
+                </span>
+                @if (kase.assignee) {
+                  <div class="task-assignee" [title]="kase.assignee">
+                    {{ getCaseInitials(kase.assignee) }}
+                  </div>
+                }
+              </div>
             </div>
           }
-        </div>
-      </div>
-    }
-
-    <!-- Permanent "+ Add Column" panel at the far right of the scroll area -->
-    @if (isAddingColumn()) {
-      <div class="add-column-card">
-        <div class="inline-input-form">
-          <input
-            type="text"
-            class="column-name-input"
-            placeholder="Column name…"
-            [(ngModel)]="newColumnName"
-            [disabled]="isCreatingColumn()"
-            (keyup.enter)="saveNewColumn()"
-            (keyup.escape)="cancelAddColumn()"
-            autofocus
-          />
-          @if (errorMessage()) {
-            <p class="input-error">{{ errorMessage() }}</p>
-          }
-          <div class="btn-row">
-            <button
-              type="button"
-              class="btn-save"
-              (click)="saveNewColumn()"
-              [disabled]="isCreatingColumn()"
-            >
-              <span class="material-symbols-outlined">{{ isCreatingColumn() ? 'hourglass_empty' : 'check' }}</span>
-            </button>
-            <button
-              type="button"
-              class="btn-cancel"
-              (click)="cancelAddColumn()"
-              [disabled]="isCreatingColumn()"
-            >
-              <span class="material-symbols-outlined">close</span>
-            </button>
+        } @else {
+          <div class="empty-column">
+            <span class="material-symbols-outlined">inbox</span>
+            <p>No cases</p>
           </div>
-        </div>
+        }
       </div>
-    } @else {
-      <div class="add-column-button-wrapper">
-        <button type="button" class="btn-add-column" (click)="onAddColumn()">
-          <span class="material-symbols-outlined">add</span>
-          <span>Add Column</span>
-        </button>
-      </div>
-    }
-  </div>
-}
+    </div>
+  }
+</div>
