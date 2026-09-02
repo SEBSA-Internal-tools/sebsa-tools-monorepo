@@ -803,3 +803,30 @@
   clip: rect(0, 0, 0, 0);
   border: 0;
 }
+
+/* Skeleton Shimmer Styles */
+.skeleton-row {
+  cursor: default !important;
+  pointer-events: none;
+
+  &:hover {
+    background: transparent !important;
+  }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--surface-muted) 0%,
+    rgba(255, 255, 255, 0.8) 50%,
+    var(--surface-muted) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmerMatrix 1.6s infinite ease-in-out;
+  border-radius: 6px;
+}
+
+@keyframes shimmerMatrix {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}

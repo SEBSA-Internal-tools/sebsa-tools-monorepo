@@ -204,3 +204,35 @@
   }
   .card-meta { color: var(--status-error-fg); }
 }
+
+/* Skeleton Shimmer Styles */
+.skeleton-card {
+  cursor: default;
+  pointer-events: none;
+
+  &:hover {
+    transform: none;
+    box-shadow: var(--shadow-card);
+  }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--surface-muted) 0%,
+    rgba(255, 255, 255, 0.8) 50%,
+    var(--surface-muted) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s infinite ease-in-out;
+  border-radius: 6px;
+}
+
+.skeleton-circle {
+  border-radius: 12px;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}

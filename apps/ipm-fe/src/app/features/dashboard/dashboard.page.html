@@ -20,13 +20,22 @@
     <dashboard-summary-cards
       [cards]="(summaryCards$ | async)"
       [activeFilter]="activeCardFilter()"
+      [loading]="isLoading()"
       (cardClick)="onCardFilterSelected($event)"
     ></dashboard-summary-cards>
+
+    <!-- Action Items & Urgent Tasks Widget -->
+    <app-dashboard-urgent-tasks
+      [tasks]="(urgentTasks$ | async)"
+      [loading]="isLoading()"
+      (taskCompleted)="onTaskCompleted($event)"
+    ></app-dashboard-urgent-tasks>
 
     <!-- Project Health & Status Matrix -->
     <app-dashboard-project-health-matrix
       [projectHealthMatrix]="(projectHealthMatrix$ | async)"
       [activeCardFilter]="activeCardFilter()"
+      [loading]="isLoading()"
       (clearCardFilter)="clearCardFilter()"
     ></app-dashboard-project-health-matrix>
   </div>

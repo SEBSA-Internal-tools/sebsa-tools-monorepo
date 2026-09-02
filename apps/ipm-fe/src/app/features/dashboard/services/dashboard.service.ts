@@ -8,9 +8,10 @@ import { TimelineService } from './timeline.service';
 import { WorkloadService } from './workload.service';
 import { ActivityService } from './activity.service';
 import { ProjectHealthMatrixService } from './project-health-matrix.service';
-import { DashboardSummaryResponse } from '@sebsa-pm-tool/shared-models';
+import { DashboardSummaryResponse, DashboardUrgentTask } from '@sebsa-pm-tool/shared-models';
 
-// Data Models/Interfaces
+export type { DashboardUrgentTask };
+
 export interface HeroData {
   greeting?: string;
   title: string;
@@ -89,6 +90,7 @@ export interface DashboardData {
   workload$: Observable<TeamMember[] | null>;
   activity$: Observable<ActivityItem[] | null>;
   projectHealthMatrix$: Observable<ProjectHealthMatrix[] | null>;
+  urgentTasks$: Observable<DashboardUrgentTask[] | null>;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -104,6 +106,11 @@ export class DashboardService {
     @Optional() private activityService?: ActivityService,
     @Optional() private projectHealthMatrixService?: ProjectHealthMatrixService
   ) {}
+
+  completeTask(taskId: string): Observable<unknown> {
+    if (!this.http) return of(null);
+    return this.http.patch(`/api/tasks/${taskId}`, { status: 'DONE' });
+  }
 
   getSummary(): Observable<DashboardSummaryResponse> {
     if (!this.http) {
@@ -155,6 +162,11 @@ export class DashboardService {
         ),
         projectHealthMatrix$: liveSummary$.pipe(
           map((res) => (res?.projectHealthMatrix ? (res.projectHealthMatrix as ProjectHealthMatrix[]) : null)),
+          catchError(handleError),
+          shareReplay(1)
+        ),
+        urgentTasks$: liveSummary$.pipe(
+          map((res) => (res?.urgentTasks ? (res.urgentTasks as DashboardUrgentTask[]) : [])),
           catchError(handleError),
           shareReplay(1)
         ),
@@ -231,6 +243,7 @@ export class DashboardService {
         catchError(handleError),
         shareReplay(1)
       ),
+      urgentTasks$: of([]),
     };
   }
 }

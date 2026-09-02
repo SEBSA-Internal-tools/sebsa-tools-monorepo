@@ -6,6 +6,7 @@ import {
   DashboardProjectHealthItem,
   DashboardSummaryCard,
   DashboardSummaryResponse,
+  DashboardUrgentTask,
 } from '@sebsa-pm-tool/shared-models';
 
 const PRIVILEGED_ROLES: AuthUser['systemRole'][] = ['ADMIN', 'SUPER_ADMIN', 'EXECUTIVE'];
@@ -39,8 +40,10 @@ export class DashboardService {
                 title: true,
                 status: true,
                 dueDate: true,
+                caseId: true,
                 assignees: { select: { userId: true } },
                 incomingLinks: { where: { type: 'BLOCKS' }, select: { id: true } },
+                priority: { select: { name: true, color: true } },
               },
             },
           },
@@ -274,10 +277,79 @@ export class DashboardService {
       },
     ];
 
+    // 6. Actionable Urgent Tasks
+    const allCandidateTasks: Array<{
+      task: (typeof projects)[0]['cases'][0]['tasks'][0];
+      projectName: string;
+      projectId: string;
+    }> = [];
+
+    projects.forEach((proj) => {
+      proj.cases.forEach((c) => {
+        c.tasks.forEach((t) => {
+          if (t.status !== 'DONE' && t.status !== 'CANCELLED') {
+            allCandidateTasks.push({
+              task: t,
+              projectName: proj.name,
+              projectId: proj.id,
+            });
+          }
+        });
+      });
+    });
+
+    allCandidateTasks.sort((a, b) => {
+      // Prioritize tasks assigned to current user
+      const aIsAssigned = a.task.assignees.some((u) => u.userId === user.id) ? 1 : 0;
+      const bIsAssigned = b.task.assignees.some((u) => u.userId === user.id) ? 1 : 0;
+      if (aIsAssigned !== bIsAssigned) return bIsAssigned - aIsAssigned;
+
+      // Overdue tasks
+      const aOverdue = a.task.dueDate && new Date(a.task.dueDate) < now ? 1 : 0;
+      const bOverdue = b.task.dueDate && new Date(b.task.dueDate) < now ? 1 : 0;
+      if (aOverdue !== bOverdue) return bOverdue - aOverdue;
+
+      // Blocked tasks
+      const aBlocked =
+        a.task.status === 'BLOCKED' || (a.task.incomingLinks && a.task.incomingLinks.length > 0)
+          ? 1
+          : 0;
+      const bBlocked =
+        b.task.status === 'BLOCKED' || (b.task.incomingLinks && b.task.incomingLinks.length > 0)
+          ? 1
+          : 0;
+      if (aBlocked !== bBlocked) return bBlocked - aBlocked;
+
+      // Earliest due date
+      if (a.task.dueDate && b.task.dueDate) {
+        return new Date(a.task.dueDate).getTime() - new Date(b.task.dueDate).getTime();
+      }
+      return a.task.dueDate ? -1 : 1;
+    });
+
+    const urgentTasks: DashboardUrgentTask[] = allCandidateTasks
+      .slice(0, 5)
+      .map(({ task, projectName, projectId }) => ({
+        id: task.id,
+        title: task.title,
+        projectName,
+        projectId,
+        caseId: task.caseId,
+        status: task.status,
+        dueDate: task.dueDate ? task.dueDate.toISOString() : null,
+        isOverdue: Boolean(task.dueDate && new Date(task.dueDate) < now),
+        isBlocked: Boolean(
+          task.status === 'BLOCKED' || (task.incomingLinks && task.incomingLinks.length > 0)
+        ),
+        priorityName: task.priority?.name,
+        priorityColor: task.priority?.color,
+      }));
+
     return {
       hero,
       summaryCards,
       projectHealthMatrix,
+      urgentTasks,
     };
   }
 }

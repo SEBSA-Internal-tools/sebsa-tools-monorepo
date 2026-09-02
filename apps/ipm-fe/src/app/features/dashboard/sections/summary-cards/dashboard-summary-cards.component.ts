@@ -13,8 +13,11 @@ import { SummaryCard } from '../../services/dashboard.service';
 export class DashboardSummaryCardsComponent {
   @Input() cards: SummaryCard[] | null | undefined;
   @Input() activeFilter: string | null = null;
+  @Input() loading = false;
 
   @Output() cardClick = new EventEmitter<string>();
+
+  readonly skeletonCards = [1, 2, 3, 4];
 
   getCardKey(card: SummaryCard): string {
     const label = card.label.toLowerCase();

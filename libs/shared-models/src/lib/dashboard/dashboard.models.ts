@@ -36,8 +36,23 @@ export interface DashboardProjectHealthItem {
   color?: string | null;
 }
 
+export interface DashboardUrgentTask {
+  id: string;
+  title: string;
+  projectName: string;
+  projectId: string;
+  caseId: string;
+  status: string;
+  dueDate: string | null;
+  isOverdue: boolean;
+  isBlocked: boolean;
+  priorityName?: string;
+  priorityColor?: string;
+}
+
 export interface DashboardSummaryResponse {
   hero: DashboardHeroData;
   summaryCards: DashboardSummaryCard[];
   projectHealthMatrix: DashboardProjectHealthItem[];
+  urgentTasks?: DashboardUrgentTask[];
 }

@@ -55,7 +55,11 @@ export class DashboardProjectHealthMatrixComponent implements OnChanges {
     return this.cardFilterSignal();
   }
 
+  @Input() loading = false;
+
   @Output() clearCardFilter = new EventEmitter<void>();
+
+  readonly skeletonRows = [1, 2, 3, 4, 5];
 
   readonly searchQuery = signal<string>('');
   readonly selectedStatusFilter = signal<string>('ALL');

@@ -55,7 +55,61 @@
     </div>
   }
 
-  @if (filteredProjects().length > 0) {
+  @if (loading) {
+    <!-- Skeleton Shimmer Matrix View -->
+    <div class="matrix-table-wrapper desktop-view" aria-hidden="true">
+      <table class="health-matrix-table">
+        <thead>
+          <tr>
+            <th class="col-project">Project</th>
+            <th class="col-status">Status</th>
+            <th class="col-health">Health</th>
+            <th class="col-completion">Completion</th>
+            <th class="col-timeline">Timeline</th>
+            <th class="col-risks">Risks</th>
+            <th class="col-team">Team</th>
+            <th class="col-action"></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (sk of skeletonRows; track sk) {
+            <tr class="health-row skeleton-row">
+              <td class="col-project">
+                <div class="project-title-group">
+                  <div class="skeleton-circle skeleton-shimmer" style="width: 10px; height: 10px; border-radius: 50%;"></div>
+                  <div class="skeleton-pill skeleton-shimmer" style="width: 140px; height: 16px;"></div>
+                </div>
+              </td>
+              <td class="col-status"><div class="skeleton-pill skeleton-shimmer" style="width: 65px; height: 20px; border-radius: 9999px;"></div></td>
+              <td class="col-health"><div class="skeleton-pill skeleton-shimmer" style="width: 85px; height: 22px; border-radius: 9999px;"></div></td>
+              <td class="col-completion"><div class="skeleton-pill skeleton-shimmer" style="width: 130px; height: 14px;"></div></td>
+              <td class="col-timeline"><div class="skeleton-pill skeleton-shimmer" style="width: 110px; height: 14px;"></div></td>
+              <td class="col-risks"><div class="skeleton-pill skeleton-shimmer" style="width: 65px; height: 20px; border-radius: 9999px;"></div></td>
+              <td class="col-team"><div class="skeleton-pill skeleton-shimmer" style="width: 75px; height: 24px; border-radius: 9999px;"></div></td>
+              <td class="col-action"></td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <div class="matrix-cards-wrapper mobile-view" aria-hidden="true">
+      @for (sk of skeletonRows.slice(0, 3); track sk) {
+        <div class="mobile-project-card skeleton-card">
+          <div class="card-top">
+            <div class="skeleton-pill skeleton-shimmer" style="width: 140px; height: 18px;"></div>
+            <div class="skeleton-pill skeleton-shimmer" style="width: 60px; height: 20px; border-radius: 9999px;"></div>
+          </div>
+          <div class="card-meta-row">
+            <div class="skeleton-pill skeleton-shimmer" style="width: 80px; height: 22px; border-radius: 9999px;"></div>
+            <div class="skeleton-pill skeleton-shimmer" style="width: 60px; height: 20px; border-radius: 9999px;"></div>
+          </div>
+          <div class="card-progress-section">
+            <div class="skeleton-pill skeleton-shimmer" style="width: 100%; height: 8px;"></div>
+          </div>
+        </div>
+      }
+    </div>
+  } @else if (filteredProjects().length > 0) {
     <!-- 1. Desktop Table View (>= 800px) with Interactive Column Sorting -->
     <div class="matrix-table-wrapper desktop-view">
       <table class="health-matrix-table">

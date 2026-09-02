@@ -5,6 +5,8 @@ import { DashboardService } from './services/dashboard.service';
 import { DashboardHeroComponent } from './sections/hero/dashboard-hero.component';
 import { DashboardSummaryCardsComponent } from './sections/summary-cards/dashboard-summary-cards.component';
 import { DashboardProjectHealthMatrixComponent } from './sections/project-health-matrix/dashboard-project-health-matrix.component';
+import { DashboardUrgentTasksComponent } from './sections/urgent-tasks/dashboard-urgent-tasks.component';
+import type { DashboardUrgentTask } from '@sebsa-pm-tool/shared-models';
 import type {
   HeroData,
   SummaryCard,
@@ -20,6 +22,7 @@ import type {
     DashboardHeroComponent,
     DashboardSummaryCardsComponent,
     DashboardProjectHealthMatrixComponent,
+    DashboardUrgentTasksComponent,
   ],
   templateUrl: './dashboard.page.html',
   styleUrl: './dashboard.page.scss',
@@ -35,6 +38,7 @@ export class DashboardPageComponent implements OnInit {
   hero$!: Observable<HeroData | null>;
   summaryCards$!: Observable<SummaryCard[] | null>;
   projectHealthMatrix$!: Observable<ProjectHealthMatrix[] | null>;
+  urgentTasks$!: Observable<DashboardUrgentTask[] | null>;
 
   ngOnInit(): void {
     this.loadData();
@@ -62,6 +66,10 @@ export class DashboardPageComponent implements OnInit {
       catchError(() => of(null))
     );
 
+    this.urgentTasks$ = data.urgentTasks$.pipe(
+      catchError(() => of([]))
+    );
+
     this.projectHealthMatrix$ = data.projectHealthMatrix$.pipe(
       tap(() => this.isLoading.set(false)),
       catchError(() => of(null))
@@ -78,5 +86,16 @@ export class DashboardPageComponent implements OnInit {
 
   clearCardFilter(): void {
     this.activeCardFilter.set(null);
+  }
+
+  onTaskCompleted(taskId: string): void {
+    this.dashboardService.completeTask(taskId).subscribe({
+      next: () => {
+        // Task completed successfully
+      },
+      error: (err) => {
+        console.error('Failed to complete task:', err);
+      },
+    });
   }
 }
