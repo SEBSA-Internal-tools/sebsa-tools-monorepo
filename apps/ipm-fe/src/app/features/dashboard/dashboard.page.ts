@@ -1,6 +1,14 @@
-import { Component, inject, OnInit, signal, ChangeDetectionStrategy } from '@angular/core';
+import {
+  Component,
+  inject,
+  OnInit,
+  OnDestroy,
+  signal,
+  ChangeDetectionStrategy,
+  HostListener,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Observable, tap, catchError, of } from 'rxjs';
+import { Observable, tap, catchError, of, Subject, takeUntil } from 'rxjs';
 import { DashboardService } from './services/dashboard.service';
 import { DashboardHeroComponent } from './sections/hero/dashboard-hero.component';
 import { DashboardSummaryCardsComponent } from './sections/summary-cards/dashboard-summary-cards.component';
@@ -28,8 +36,9 @@ import type {
   styleUrl: './dashboard.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class DashboardPageComponent implements OnInit {
+export class DashboardPageComponent implements OnInit, OnDestroy {
   private readonly dashboardService = inject(DashboardService);
+  private readonly destroy$ = new Subject<void>();
 
   readonly isLoading = signal(true);
   readonly errorMessage = signal('');
@@ -44,8 +53,21 @@ export class DashboardPageComponent implements OnInit {
     this.loadData();
   }
 
-  loadData(): void {
-    this.isLoading.set(true);
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
+
+  @HostListener('window:focus')
+  onWindowFocus(): void {
+    // Background re-sync when user returns to the tab (without showing full skeleton)
+    this.refreshSilently();
+  }
+
+  loadData(silent = false): void {
+    if (!silent) {
+      this.isLoading.set(true);
+    }
     this.errorMessage.set('');
 
     const data: DashboardData = this.dashboardService.getDashboardData();
@@ -56,8 +78,10 @@ export class DashboardPageComponent implements OnInit {
       }),
       catchError((err) => {
         console.error('Dashboard load error:', err);
-        this.isLoading.set(false);
-        this.errorMessage.set('Failed to load dashboard data. Please try again.');
+        if (!silent) {
+          this.isLoading.set(false);
+          this.errorMessage.set('Failed to load dashboard data. Please try again.');
+        }
         return of(null);
       })
     );
@@ -76,6 +100,10 @@ export class DashboardPageComponent implements OnInit {
     );
   }
 
+  refreshSilently(): void {
+    this.loadData(true);
+  }
+
   onCardFilterSelected(filterKey: string): void {
     if (this.activeCardFilter() === filterKey) {
       this.activeCardFilter.set(null);
@@ -89,13 +117,19 @@ export class DashboardPageComponent implements OnInit {
   }
 
   onTaskCompleted(taskId: string): void {
-    this.dashboardService.completeTask(taskId).subscribe({
-      next: () => {
-        // Task completed successfully
-      },
-      error: (err) => {
-        console.error('Failed to complete task:', err);
-      },
-    });
+    this.dashboardService
+      .completeTask(taskId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => {
+          // Re-sync after animation completes
+          setTimeout(() => {
+            this.refreshSilently();
+          }, 600);
+        },
+        error: (err) => {
+          console.error('Failed to complete task:', err);
+        },
+      });
   }
 }

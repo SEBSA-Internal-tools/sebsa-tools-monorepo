@@ -198,9 +198,11 @@
               <td class="col-timeline">
                 <div class="progress-block">
                   <div class="metric-bar timeline-bar">
-                    <div class="bar-fill timeline-fill" [style.width.%]="project.timeline"></div>
+                    <div class="bar-fill timeline-fill" [style.width.%]="project.timeline || 0"></div>
                   </div>
-                  <span class="metric-value">{{ project.timeline }}% elapsed</span>
+                  <span class="metric-value">
+                    {{ (project.timeline && project.timeline > 0) ? (project.timeline + '% elapsed') : 'No target date' }}
+                  </span>
                 </div>
               </td>
               <td class="col-risks">
@@ -282,7 +284,7 @@
           <div class="card-footer-row">
             <span class="timeline-info">
               <span class="material-symbols-outlined">schedule</span>
-              {{ project.timeline }}% elapsed
+              {{ (project.timeline && project.timeline > 0) ? (project.timeline + '% elapsed') : 'No target date' }}
             </span>
             <div class="team-members">
               @for (member of project.team.slice(0, 3); track member) {

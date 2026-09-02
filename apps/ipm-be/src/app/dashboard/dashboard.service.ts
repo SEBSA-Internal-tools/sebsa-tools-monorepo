@@ -19,16 +19,43 @@ export class DashboardService {
     const isPrivileged = PRIVILEGED_ROLES.includes(user.systemRole);
     const now = new Date();
 
-    // 1. Query all projects visible to this user with members and cases -> tasks
+    // 1. Consolidated Single Query: Fetch all projects with members, cases, tasks, and active sprints
     const projects = await this.prisma.project.findMany({
       where: {
         deletedAt: null,
-        ...(isPrivileged ? {} : { members: { some: { userId: user.id, deletedAt: null } } }),
+        ...(isPrivileged
+          ? {}
+          : {
+              OR: [
+                { members: { some: { userId: user.id, deletedAt: null } } },
+                {
+                  cases: {
+                    some: {
+                      deletedAt: null,
+                      tasks: {
+                        some: {
+                          deletedAt: null,
+                          assignees: { some: { userId: user.id } },
+                        },
+                      },
+                    },
+                  },
+                },
+              ],
+            }),
       },
       include: {
         members: {
           where: { deletedAt: null },
           include: { user: { select: { id: true, name: true, email: true } } },
+        },
+        sprints: {
+          where: {
+            status: 'ACTIVE',
+            endDate: { gte: now },
+          },
+          orderBy: { endDate: 'asc' },
+          take: 1,
         },
         cases: {
           where: { deletedAt: null },
@@ -52,35 +79,7 @@ export class DashboardService {
       orderBy: { updatedAt: 'desc' },
     });
 
-    const projectIds = projects.map((p) => p.id);
-
-    // 2. Next upcoming sprint or task deadline
-    const [nextSprint, nextDueTask] = await Promise.all([
-      projectIds.length > 0
-        ? this.prisma.sprint.findFirst({
-            where: {
-              projectId: { in: projectIds },
-              status: 'ACTIVE',
-              endDate: { gte: now },
-            },
-            orderBy: { endDate: 'asc' },
-          })
-        : null,
-      projectIds.length > 0
-        ? this.prisma.task.findFirst({
-            where: {
-              case: { projectId: { in: projectIds } },
-              deletedAt: null,
-              status: { notIn: ['DONE', 'CANCELLED'] },
-              dueDate: { gte: now },
-              ...(isPrivileged ? {} : { assignees: { some: { userId: user.id } } }),
-            },
-            orderBy: { dueDate: 'asc' },
-          })
-        : null,
-    ]);
-
-    // 3. Process each project into real health metrics
+    // 2. Aggregate metrics and candidate tasks in-memory in a single pass
     let totalOpenTasks = 0;
     let totalCompletedTasks = 0;
     let totalOverdueTasks = 0;
@@ -88,9 +87,19 @@ export class DashboardService {
     let userAssignedOpenTasks = 0;
     const distinctActiveUserIds = new Set<string>();
 
+    const allCandidateTasks: Array<{
+      task: (typeof projects)[0]['cases'][0]['tasks'][0];
+      projectName: string;
+      projectId: string;
+    }> = [];
+
+    const activeSprints: Array<(typeof projects)[0]['sprints'][0]> = [];
+
     const projectHealthMatrix: DashboardProjectHealthItem[] = projects.map((project) => {
-      // Collect distinct members
       project.members.forEach((m) => distinctActiveUserIds.add(m.user.id));
+      if (project.sprints && project.sprints.length > 0) {
+        activeSprints.push(...project.sprints);
+      }
 
       const projectTasks = project.cases.flatMap((c) => c.tasks);
       const totalTasks = projectTasks.length;
@@ -118,6 +127,12 @@ export class DashboardService {
             projBlocked++;
             totalBlockedTasks++;
           }
+
+          allCandidateTasks.push({
+            task,
+            projectName: project.name,
+            projectId: project.id,
+          });
         }
       });
 
@@ -130,7 +145,7 @@ export class DashboardService {
           ? 100
           : 0;
 
-      // Timeline percentage
+      // Real timeline percentage
       let timeline = 0;
       if (project.startDate && project.targetEndDate) {
         const start = new Date(project.startDate).getTime();
@@ -139,8 +154,6 @@ export class DashboardService {
         if (end > start) {
           timeline = Math.min(100, Math.max(0, Math.round(((cur - start) / (end - start)) * 100)));
         }
-      } else {
-        timeline = completionPercentage;
       }
 
       const risks = projOverdue + projBlocked;
@@ -190,10 +203,23 @@ export class DashboardService {
     const overallDeliveryRate =
       allTasksCount > 0 ? Math.round((totalCompletedTasks / allTasksCount) * 100) : 0;
 
-    // 4. Hero Section Data
+    // 3. Hero Section In-Memory Calculation
     const hour = now.getHours();
     const timeGreeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
     const firstName = user.name ? user.name.split(' ')[0] : 'there';
+
+    // Sort active sprints to get earliest release
+    activeSprints.sort((a, b) => new Date(a.endDate).getTime() - new Date(b.endDate).getTime());
+    const nextSprint = activeSprints[0];
+
+    // Find next upcoming due task in-memory
+    const upcomingTasks = allCandidateTasks.filter(
+      (c) => c.task.dueDate && new Date(c.task.dueDate) >= now
+    );
+    upcomingTasks.sort(
+      (a, b) => new Date(a.task.dueDate!).getTime() - new Date(b.task.dueDate!).getTime()
+    );
+    const nextDueTask = upcomingTasks[0];
 
     let deadlineValue = '0';
     let deadlineLabel = 'days to next release';
@@ -201,29 +227,29 @@ export class DashboardService {
     if (nextSprint && nextSprint.endDate) {
       const days = Math.max(
         0,
-        Math.ceil((new Date(nextSprint.endDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)),
+        Math.ceil((new Date(nextSprint.endDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
       );
       deadlineValue = `${days}`;
-      deadlineLabel = `days to ${nextSprint.name} end`;
-    } else if (nextDueTask && nextDueTask.dueDate) {
+      deadlineLabel = `${nextSprint.name || 'Active Sprint'} ends`;
+    } else if (nextDueTask && nextDueTask.task.dueDate) {
       const days = Math.max(
         0,
-        Math.ceil((new Date(nextDueTask.dueDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)),
+        Math.ceil(
+          (new Date(nextDueTask.task.dueDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+        )
       );
       deadlineValue = `${days}`;
-      deadlineLabel = 'days to next task due';
+      deadlineLabel = days === 0 ? 'Next task due today' : `Next task due in ${days}d`;
     } else {
       deadlineValue = `${activeProjects}`;
-      deadlineLabel = `active project${activeProjects === 1 ? '' : 's'}`;
+      deadlineLabel = 'Active Projects On Track';
     }
 
     const hero: DashboardHeroData = {
-      greeting: `${timeGreeting}, ${firstName}!`,
+      greeting: `${timeGreeting}, ${firstName}`,
       title: 'Keep delivery, team load, and blockers in one view',
       description:
-        userAssignedOpenTasks > 0
-          ? `You have ${userAssignedOpenTasks} task${userAssignedOpenTasks === 1 ? '' : 's'} assigned to you across ${activeProjects} active project${activeProjects === 1 ? '' : 's'}.`
-          : `Monitor real-time delivery health, deadlines, and project risks across ${activeProjects} active project${activeProjects === 1 ? '' : 's'}.`,
+        'Real-time metrics aggregated across your assigned projects, active cases, and open deliverables.',
       stats: [
         {
           icon: 'schedule',
@@ -232,13 +258,13 @@ export class DashboardService {
         },
         {
           icon: 'group',
-          value: `${distinctActiveUserIds.size || 1}`,
-          label: 'team members active',
+          value: `${distinctActiveUserIds.size}`,
+          label: 'Active Team Members',
         },
       ],
     };
 
-    // 5. Summary Cards
+    // 4. Summary Cards Data
     const totalRisks = totalOverdueTasks + totalBlockedTasks;
 
     const summaryCards: DashboardSummaryCard[] = [
@@ -277,27 +303,7 @@ export class DashboardService {
       },
     ];
 
-    // 6. Actionable Urgent Tasks
-    const allCandidateTasks: Array<{
-      task: (typeof projects)[0]['cases'][0]['tasks'][0];
-      projectName: string;
-      projectId: string;
-    }> = [];
-
-    projects.forEach((proj) => {
-      proj.cases.forEach((c) => {
-        c.tasks.forEach((t) => {
-          if (t.status !== 'DONE' && t.status !== 'CANCELLED') {
-            allCandidateTasks.push({
-              task: t,
-              projectName: proj.name,
-              projectId: proj.id,
-            });
-          }
-        });
-      });
-    });
-
+    // 5. Actionable Urgent Tasks Prioritization
     allCandidateTasks.sort((a, b) => {
       // Prioritize tasks assigned to current user
       const aIsAssigned = a.task.assignees.some((u) => u.userId === user.id) ? 1 : 0;
