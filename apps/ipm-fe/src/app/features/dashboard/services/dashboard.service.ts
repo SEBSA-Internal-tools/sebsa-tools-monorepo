@@ -1,35 +1,19 @@
-import { Injectable, inject, Optional } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, catchError, map, of, shareReplay } from 'rxjs';
-import { HeroService } from './hero.service';
-import { SummaryCardsService } from './summary-cards.service';
-import { PortfolioService } from './portfolio.service';
-import { TimelineService } from './timeline.service';
-import { WorkloadService } from './workload.service';
-import { ActivityService } from './activity.service';
-import { ProjectHealthMatrixService } from './project-health-matrix.service';
-import { DashboardSummaryResponse, DashboardUrgentTask } from '@sebsa-pm-tool/shared-models';
+import {
+  DashboardHeroData,
+  DashboardSummaryCard,
+  DashboardProjectHealthItem,
+  DashboardSummaryResponse,
+  DashboardUrgentTask,
+} from '@sebsa-pm-tool/shared-models';
 
-export type { DashboardUrgentTask };
+export type { DashboardHeroData, DashboardSummaryCard, DashboardProjectHealthItem, DashboardUrgentTask };
 
-export interface HeroData {
-  greeting?: string;
-  title: string;
-  description: string;
-  stats: Array<{
-    icon: string;
-    value: string;
-    label: string;
-  }>;
-}
-
-export interface SummaryCard {
-  label: string;
-  value: string;
-  change: string;
-  icon: string;
-  tone?: 'primary' | 'success' | 'warning' | 'danger';
-}
+export type HeroData = DashboardHeroData;
+export type SummaryCard = DashboardSummaryCard;
+export type ProjectHealthMatrix = DashboardProjectHealthItem;
 
 export interface Project {
   name: string;
@@ -60,23 +44,6 @@ export interface ActivityItem {
   time: string;
 }
 
-export interface ProjectHealthMatrix {
-  id?: string;
-  projectName: string;
-  status?: string;
-  health: string;
-  healthStatus: 'success' | 'warning' | 'danger';
-  budget: number;
-  timeline: number;
-  resources: number;
-  risks: number;
-  completionPercentage: number;
-  team: string[];
-  totalTasks?: number;
-  completedTasks?: number;
-  color?: string | null;
-}
-
 export interface DashboardState {
   loading: boolean;
   error: string | null;
@@ -85,10 +52,6 @@ export interface DashboardState {
 export interface DashboardData {
   hero$: Observable<HeroData | null>;
   summaryCards$: Observable<SummaryCard[] | null>;
-  portfolio$: Observable<Project[] | null>;
-  timeline$: Observable<Milestone[] | null>;
-  workload$: Observable<TeamMember[] | null>;
-  activity$: Observable<ActivityItem[] | null>;
   projectHealthMatrix$: Observable<ProjectHealthMatrix[] | null>;
   urgentTasks$: Observable<DashboardUrgentTask[] | null>;
 }
@@ -96,16 +59,6 @@ export interface DashboardData {
 @Injectable({ providedIn: 'root' })
 export class DashboardService {
   private readonly http = inject(HttpClient, { optional: true });
-
-  constructor(
-    @Optional() private heroService?: HeroService,
-    @Optional() private summaryService?: SummaryCardsService,
-    @Optional() private portfolioService?: PortfolioService,
-    @Optional() private timelineService?: TimelineService,
-    @Optional() private workloadService?: WorkloadService,
-    @Optional() private activityService?: ActivityService,
-    @Optional() private projectHealthMatrixService?: ProjectHealthMatrixService
-  ) {}
 
   completeTask(taskId: string): Observable<unknown> {
     if (!this.http) return of(null);
@@ -123,6 +76,7 @@ export class DashboardService {
         },
         summaryCards: [],
         projectHealthMatrix: [],
+        urgentTasks: [],
       });
     }
     return this.http.get<DashboardSummaryResponse>('/api/dashboard/summary');
@@ -134,7 +88,6 @@ export class DashboardService {
       return of(null);
     };
 
-    // If HTTP client is present, fetch live aggregated summary from backend
     if (this.http) {
       const liveSummary$ = this.getSummary().pipe(
         catchError(handleError),
@@ -161,7 +114,9 @@ export class DashboardService {
           shareReplay(1)
         ),
         projectHealthMatrix$: liveSummary$.pipe(
-          map((res) => (res?.projectHealthMatrix ? (res.projectHealthMatrix as ProjectHealthMatrix[]) : null)),
+          map((res) =>
+            res?.projectHealthMatrix ? (res.projectHealthMatrix as ProjectHealthMatrix[]) : null
+          ),
           catchError(handleError),
           shareReplay(1)
         ),
@@ -170,79 +125,13 @@ export class DashboardService {
           catchError(handleError),
           shareReplay(1)
         ),
-        portfolio$: this.portfolioService
-          ? this.portfolioService.getProjects().pipe(catchError(handleError), shareReplay(1))
-          : of(null),
-        timeline$: this.timelineService
-          ? this.timelineService.getMilestones().pipe(catchError(handleError), shareReplay(1))
-          : of(null),
-        workload$: this.workloadService
-          ? this.workloadService.getTeamWorkload().pipe(catchError(handleError), shareReplay(1))
-          : of(null),
-        activity$: this.activityService
-          ? this.activityService.getRecentActivity().pipe(catchError(handleError), shareReplay(1))
-          : of(null),
       };
     }
 
-    // Fallback for tests or environments without HttpClient
-    const heroSource$: Observable<HeroData | null> = this.heroService
-      ? this.heroService.getHeroData()
-      : of(null);
-
-    const summarySource$: Observable<SummaryCard[] | null> = this.summaryService
-      ? this.summaryService.getSummaryCards()
-      : of(null);
-
-    const portfolioSource$: Observable<Project[] | null> = this.portfolioService
-      ? this.portfolioService.getProjects()
-      : of(null);
-
-    const timelineSource$: Observable<Milestone[] | null> = this.timelineService
-      ? this.timelineService.getMilestones()
-      : of(null);
-
-    const workloadSource$: Observable<TeamMember[] | null> = this.workloadService
-      ? this.workloadService.getTeamWorkload()
-      : of(null);
-
-    const activitySource$: Observable<ActivityItem[] | null> = this.activityService
-      ? this.activityService.getRecentActivity()
-      : of(null);
-
-    const matrixSource$: Observable<ProjectHealthMatrix[] | null> = this.projectHealthMatrixService
-      ? this.projectHealthMatrixService.getProjectHealthMatrix()
-      : of(null);
-
     return {
-      hero$: heroSource$.pipe(
-        catchError(handleError),
-        shareReplay(1)
-      ),
-      summaryCards$: summarySource$.pipe(
-        catchError(handleError),
-        shareReplay(1)
-      ),
-      portfolio$: portfolioSource$.pipe(
-        catchError(handleError),
-        shareReplay(1)
-      ),
-      timeline$: timelineSource$.pipe(
-        catchError(handleError),
-        shareReplay(1)
-      ),
-      workload$: workloadSource$.pipe(
-        catchError(handleError),
-        shareReplay(1)
-      ),
-      activity$: activitySource$.pipe(
-        catchError(handleError),
-        shareReplay(1)
-      ),
-      projectHealthMatrix$: matrixSource$.pipe(
-        catchError(handleError),
-        shareReplay(1)
-      ),
+      hero$: of(null),
+      summaryCards$: of([]),
+      projectHealthMatrix$: of([]),
       urgentTasks$: of([]),
     };
   }
