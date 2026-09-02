@@ -1,16 +1,36 @@
 <div class="cards-grid">
   @for (card of cards; track card.label) {
-    <div class="card sebsa-card">
+    <div
+      class="card sebsa-card clickable-card"
+      [ngClass]="'tone-' + (card.tone || 'primary')"
+      [class.is-active]="isCardActive(card)"
+      (click)="onCardClick(card)"
+      role="button"
+      tabindex="0"
+      (keydown.enter)="onCardClick(card)"
+      [attr.aria-pressed]="isCardActive(card)"
+      [title]="isCardActive(card) ? 'Click to clear filter' : 'Click to filter project list'"
+    >
       <div class="card-header-row">
         <span class="card-label">{{ card.label }}</span>
         <div class="card-icon-circle">
           <span class="material-symbols-outlined">{{ card.icon }}</span>
         </div>
       </div>
-      <strong class="card-value">{{ card.value }}</strong>
-      @if (card.change) {
-        <span class="card-meta">{{ card.change }}</span>
-      }
+      <div class="card-body">
+        <strong class="card-value">{{ card.value }}</strong>
+        @if (card.change) {
+          <span class="card-meta">{{ card.change }}</span>
+        }
+      </div>
+      <div class="card-action-cue">
+        <span class="cue-pill" [class.active-cue]="isCardActive(card)">
+          <span class="material-symbols-outlined cue-icon">
+            {{ isCardActive(card) ? 'filter_list_off' : 'filter_list' }}
+          </span>
+          <span class="cue-label">{{ isCardActive(card) ? 'Active Filter (Click to Reset)' : 'Click to Filter' }}</span>
+        </span>
+      </div>
     </div>
   }
 </div>

@@ -1,6 +1,9 @@
 <header class="hero-section workspace-card" *ngIf="data">
   <div class="hero-content">
-    <p class="eyebrow">Project Management Overview</p>
+    <div class="eyebrow-badge">
+      <span class="pulse-dot"></span>
+      <span class="eyebrow-text">{{ data.greeting || 'Project Management Overview' }}</span>
+    </div>
     <h1>{{ data.title }}</h1>
     <p class="description">{{ data.description }}</p>
   </div>
@@ -8,9 +11,13 @@
   <div class="hero-stats">
     @for (stat of data.stats; track stat.icon) {
       <div class="stat-box">
-        <span class="material-symbols-outlined">{{ stat.icon }}</span>
-        <strong>{{ stat.value }}</strong>
-        <span>{{ stat.label }}</span>
+        <div class="stat-icon-wrapper">
+          <span class="material-symbols-outlined">{{ stat.icon }}</span>
+        </div>
+        <div class="stat-text">
+          <strong>{{ stat.value }}</strong>
+          <span>{{ stat.label }}</span>
+        </div>
       </div>
     }
   </div>

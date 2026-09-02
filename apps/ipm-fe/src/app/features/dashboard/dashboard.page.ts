@@ -1,6 +1,6 @@
-import { Component, inject, ChangeDetectionStrategy } from '@angular/core';
+import { Component, inject, OnInit, signal, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Observable } from 'rxjs';
+import { Observable, tap, catchError, of } from 'rxjs';
 import { DashboardService } from './services/dashboard.service';
 import { DashboardHeroComponent } from './sections/hero/dashboard-hero.component';
 import { DashboardSummaryCardsComponent } from './sections/summary-cards/dashboard-summary-cards.component';
@@ -9,6 +9,7 @@ import type {
   HeroData,
   SummaryCard,
   ProjectHealthMatrix,
+  DashboardData,
 } from './services/dashboard.service';
 
 @Component({
@@ -24,12 +25,58 @@ import type {
   styleUrl: './dashboard.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class DashboardPageComponent {
-  private dashboardService = inject(DashboardService);
-  private dashboard = this.dashboardService.getDashboardData();
+export class DashboardPageComponent implements OnInit {
+  private readonly dashboardService = inject(DashboardService);
 
-  // Observable streams from services
-  hero$: Observable<HeroData | null> = this.dashboard.hero$;
-  summaryCards$: Observable<SummaryCard[] | null> = this.dashboard.summaryCards$;
-  projectHealthMatrix$: Observable<ProjectHealthMatrix[] | null> = this.dashboard.projectHealthMatrix$;
+  readonly isLoading = signal(true);
+  readonly errorMessage = signal('');
+  readonly activeCardFilter = signal<string | null>(null);
+
+  hero$!: Observable<HeroData | null>;
+  summaryCards$!: Observable<SummaryCard[] | null>;
+  projectHealthMatrix$!: Observable<ProjectHealthMatrix[] | null>;
+
+  ngOnInit(): void {
+    this.loadData();
+  }
+
+  loadData(): void {
+    this.isLoading.set(true);
+    this.errorMessage.set('');
+
+    const data: DashboardData = this.dashboardService.getDashboardData();
+
+    this.hero$ = data.hero$.pipe(
+      tap((val) => {
+        if (val) this.isLoading.set(false);
+      }),
+      catchError((err) => {
+        console.error('Dashboard load error:', err);
+        this.isLoading.set(false);
+        this.errorMessage.set('Failed to load dashboard data. Please try again.');
+        return of(null);
+      })
+    );
+
+    this.summaryCards$ = data.summaryCards$.pipe(
+      catchError(() => of(null))
+    );
+
+    this.projectHealthMatrix$ = data.projectHealthMatrix$.pipe(
+      tap(() => this.isLoading.set(false)),
+      catchError(() => of(null))
+    );
+  }
+
+  onCardFilterSelected(filterKey: string): void {
+    if (this.activeCardFilter() === filterKey) {
+      this.activeCardFilter.set(null);
+    } else {
+      this.activeCardFilter.set(filterKey);
+    }
+  }
+
+  clearCardFilter(): void {
+    this.activeCardFilter.set(null);
+  }
 }

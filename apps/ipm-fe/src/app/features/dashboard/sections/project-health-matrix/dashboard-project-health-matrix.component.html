@@ -1,92 +1,284 @@
 <div class="health-matrix-container">
+  <!-- Matrix Header & Filter Controls -->
   <div class="matrix-header">
-    <h2>Project Health & Status Matrix</h2>
-    <p class="subtitle">Overview of all active projects with key performance indicators</p>
+    <div class="header-titles">
+      <h2>Project Health & Status Matrix</h2>
+      <p class="subtitle">Real-time delivery progress, performance indicators, and risk monitoring</p>
+    </div>
+
+    <!-- Search & Status Filter Bar -->
+    <div class="matrix-controls">
+      <div class="search-box">
+        <span class="material-symbols-outlined search-icon" aria-hidden="true">search</span>
+        <input
+          type="text"
+          placeholder="Filter projects..."
+          [value]="searchQuery()"
+          (input)="onSearch($event)"
+          aria-label="Filter projects by name"
+        />
+        @if (searchQuery()) {
+          <button type="button" class="clear-btn" (click)="searchQuery.set('')" aria-label="Clear search">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        }
+      </div>
+
+      <div class="filter-pills" role="tablist">
+        @for (tab of statusTabs; track tab.value) {
+          <button
+            type="button"
+            class="filter-pill"
+            [class.active]="selectedStatusFilter() === tab.value"
+            (click)="setFilter(tab.value)"
+            role="tab"
+          >
+            {{ tab.label }}
+          </button>
+        }
+      </div>
+    </div>
   </div>
 
-  <div *ngIf="projectHealthMatrix && projectHealthMatrix.length > 0" class="matrix-table-wrapper">
-    <table class="health-matrix-table">
-      <thead>
-        <tr>
-          <th class="col-project">Project Name</th>
-          <th class="col-health">Health Status</th>
-          <th class="col-budget">Budget</th>
-          <th class="col-timeline">Timeline</th>
-          <th class="col-resources">Resources</th>
-          <th class="col-risks">Risks</th>
-          <th class="col-completion">Completion</th>
-          <th class="col-team">Team</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr *ngFor="let project of projectHealthMatrix; trackBy: trackByProjectName" class="health-row">
-          <td class="col-project">
-            <span class="project-name">{{ project.projectName }}</span>
-          </td>
-          <td class="col-health">
+  <!-- Active Card Filter Banner (When drilled-down from Top Summary Cards) -->
+  @if (activeCardFilter) {
+    <div class="active-card-filter-chip">
+      <div class="chip-content">
+        <span class="material-symbols-outlined chip-icon">filter_alt</span>
+        <span class="chip-text">{{ getCardFilterDescription() }}</span>
+        <span class="chip-count">({{ filteredProjects().length }} matching)</span>
+      </div>
+      <button type="button" class="chip-dismiss-btn" (click)="onClearCardFilter()" title="Clear card filter" aria-label="Clear card filter">
+        <span class="material-symbols-outlined">close</span>
+        <span>Clear Filter</span>
+      </button>
+    </div>
+  }
+
+  @if (filteredProjects().length > 0) {
+    <!-- 1. Desktop Table View (>= 800px) with Interactive Column Sorting -->
+    <div class="matrix-table-wrapper desktop-view">
+      <table class="health-matrix-table">
+        <thead>
+          <tr>
+            <th class="col-project sortable" (click)="toggleSort('projectName')" title="Sort by project name">
+              <div class="th-content">
+                <span>Project</span>
+                <span class="material-symbols-outlined sort-icon" [class.is-sorted]="sortField() === 'projectName'">
+                  {{ sortField() === 'projectName' ? (sortDirection() === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'unfold_more' }}
+                </span>
+              </div>
+            </th>
+            <th class="col-status sortable" (click)="toggleSort('status')" title="Sort by status">
+              <div class="th-content">
+                <span>Status</span>
+                <span class="material-symbols-outlined sort-icon" [class.is-sorted]="sortField() === 'status'">
+                  {{ sortField() === 'status' ? (sortDirection() === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'unfold_more' }}
+                </span>
+              </div>
+            </th>
+            <th class="col-health sortable" (click)="toggleSort('healthStatus')" title="Sort by health status">
+              <div class="th-content">
+                <span>Health</span>
+                <span class="material-symbols-outlined sort-icon" [class.is-sorted]="sortField() === 'healthStatus'">
+                  {{ sortField() === 'healthStatus' ? (sortDirection() === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'unfold_more' }}
+                </span>
+              </div>
+            </th>
+            <th class="col-completion sortable" (click)="toggleSort('completionPercentage')" title="Sort by completion percentage">
+              <div class="th-content">
+                <span>Completion</span>
+                <span class="material-symbols-outlined sort-icon" [class.is-sorted]="sortField() === 'completionPercentage'">
+                  {{ sortField() === 'completionPercentage' ? (sortDirection() === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'unfold_more' }}
+                </span>
+              </div>
+            </th>
+            <th class="col-timeline sortable" (click)="toggleSort('timeline')" title="Sort by timeline elapsed">
+              <div class="th-content">
+                <span>Timeline</span>
+                <span class="material-symbols-outlined sort-icon" [class.is-sorted]="sortField() === 'timeline'">
+                  {{ sortField() === 'timeline' ? (sortDirection() === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'unfold_more' }}
+                </span>
+              </div>
+            </th>
+            <th class="col-risks sortable" (click)="toggleSort('risks')" title="Sort by risks count">
+              <div class="th-content">
+                <span>Risks</span>
+                <span class="material-symbols-outlined sort-icon" [class.is-sorted]="sortField() === 'risks'">
+                  {{ sortField() === 'risks' ? (sortDirection() === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'unfold_more' }}
+                </span>
+              </div>
+            </th>
+            <th class="col-team">Team</th>
+            <th class="col-action"><span class="sr-only">Open</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (project of filteredProjects(); track trackByProjectName($index, project)) {
+            <tr class="health-row clickable-row" (click)="navigateToProject(project)" tabindex="0" (keydown.enter)="navigateToProject(project)">
+              <td class="col-project">
+                <div class="project-title-group">
+                  <span class="project-color-dot" [style.background-color]="project.color || 'var(--brand-primary)'"></span>
+                  <span class="project-name">{{ project.projectName }}</span>
+                </div>
+              </td>
+              <td class="col-status">
+                <span class="status-badge" [ngClass]="'status-' + (project.status ? project.status.toLowerCase() : 'active')">
+                  {{ getStatusLabel(project.status) }}
+                </span>
+              </td>
+              <td class="col-health">
+                <span class="health-badge" [ngClass]="'health-' + project.healthStatus">
+                  <span class="badge-dot"></span>
+                  {{ project.health }}
+                </span>
+              </td>
+              <td class="col-completion">
+                <div class="progress-block">
+                  <div class="metric-bar">
+                    <div class="bar-fill" [style.width.%]="project.completionPercentage"></div>
+                  </div>
+                  <span class="metric-value">{{ project.completionPercentage }}% ({{ project.completedTasks || 0 }}/{{ project.totalTasks || 0 }})</span>
+                </div>
+              </td>
+              <td class="col-timeline">
+                <div class="progress-block">
+                  <div class="metric-bar timeline-bar">
+                    <div class="bar-fill timeline-fill" [style.width.%]="project.timeline"></div>
+                  </div>
+                  <span class="metric-value">{{ project.timeline }}% elapsed</span>
+                </div>
+              </td>
+              <td class="col-risks">
+                <span class="risk-badge" [ngClass]="'risk-' + (project.risks > 0 ? (project.risks <= 2 ? 'low' : 'high') : 'none')">
+                  <span class="badge-dot"></span>
+                  {{ project.risks }} {{ project.risks === 1 ? 'risk' : 'risks' }}
+                </span>
+              </td>
+              <td class="col-team">
+                <div class="team-members">
+                  @for (member of project.team.slice(0, 3); track member) {
+                    <span class="member-avatar" [title]="member">
+                      {{ member.charAt(0).toUpperCase() }}
+                    </span>
+                  }
+                  @if (project.team.length > 3) {
+                    <span class="member-more">+{{ project.team.length - 3 }}</span>
+                  }
+                  @if (project.team.length === 0) {
+                    <span class="no-members">—</span>
+                  }
+                </div>
+              </td>
+              <td class="col-action">
+                <span class="material-symbols-outlined action-chevron" aria-hidden="true">chevron_right</span>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 2. Mobile & Tablet Card View (< 800px) -->
+    <div class="matrix-cards-wrapper mobile-view">
+      <div class="mobile-sort-bar">
+        <span class="result-count">{{ filteredProjects().length }} projects</span>
+        <button type="button" class="mobile-sort-btn" (click)="cycleMobileSort()" title="Tap to switch sort order">
+          <span class="material-symbols-outlined">swap_vert</span>
+          <span>Sort: {{ getSortLabel() }}</span>
+        </button>
+      </div>
+
+      @for (project of filteredProjects(); track trackByProjectName($index, project)) {
+        <div class="mobile-project-card" (click)="navigateToProject(project)" tabindex="0" (keydown.enter)="navigateToProject(project)">
+          <div class="card-top">
+            <div class="card-project-info">
+              <span class="project-color-dot" [style.background-color]="project.color || 'var(--brand-primary)'"></span>
+              <h3 class="card-project-name">{{ project.projectName }}</h3>
+            </div>
+            <div class="card-badges">
+              <span class="status-badge" [ngClass]="'status-' + (project.status ? project.status.toLowerCase() : 'active')">
+                {{ getStatusLabel(project.status) }}
+              </span>
+              <span class="material-symbols-outlined action-chevron" aria-hidden="true">chevron_right</span>
+            </div>
+          </div>
+
+          <div class="card-meta-row">
             <span class="health-badge" [ngClass]="'health-' + project.healthStatus">
               <span class="badge-dot"></span>
               {{ project.health }}
             </span>
-          </td>
-          <td class="col-budget">
-            <div class="metric-bar">
-              <div class="bar-fill" [ngClass]="getMetricClass(project.budget)" [style.width.%]="project.budget"></div>
-            </div>
-            <span class="metric-value">{{ project.budget }}%</span>
-          </td>
-          <td class="col-timeline">
-            <div class="metric-bar">
-              <div class="bar-fill" [ngClass]="getMetricClass(project.timeline)" [style.width.%]="project.timeline"></div>
-            </div>
-            <span class="metric-value">{{ project.timeline }}%</span>
-          </td>
-          <td class="col-resources">
-            <div class="metric-bar">
-              <div class="bar-fill" [ngClass]="getMetricClass(project.resources)" [style.width.%]="project.resources"></div>
-            </div>
-            <span class="metric-value">{{ project.resources }}%</span>
-          </td>
-          <td class="col-risks">
-            <span class="risk-badge" [ngClass]="'risk-' + (project.risks > 0 ? (project.risks <= 3 ? 'low' : (project.risks <= 6 ? 'medium' : 'high')) : 'none')">
+            <span class="risk-badge" [ngClass]="'risk-' + (project.risks > 0 ? (project.risks <= 2 ? 'low' : 'high') : 'none')">
               <span class="badge-dot"></span>
-              {{ project.risks }} {{ project.risks === 1 ? 'issue' : 'issues' }}
+              {{ project.risks }} {{ project.risks === 1 ? 'risk' : 'risks' }}
             </span>
-          </td>
-          <td class="col-completion">
-            <div class="completion-circle" [style.--completion]="project.completionPercentage">
-              <span class="completion-text">{{ project.completionPercentage }}%</span>
+          </div>
+
+          <div class="card-progress-section">
+            <div class="progress-label-row">
+              <span class="label">Task Completion</span>
+              <span class="value">{{ project.completionPercentage }}% ({{ project.completedTasks || 0 }}/{{ project.totalTasks || 0 }})</span>
             </div>
-          </td>
-          <td class="col-team">
+            <div class="metric-bar">
+              <div class="bar-fill" [style.width.%]="project.completionPercentage"></div>
+            </div>
+          </div>
+
+          <div class="card-footer-row">
+            <span class="timeline-info">
+              <span class="material-symbols-outlined">schedule</span>
+              {{ project.timeline }}% elapsed
+            </span>
             <div class="team-members">
-              <span *ngFor="let member of project.team.slice(0, 2)" class="member-avatar">
-                {{ member.split(' ')[0].charAt(0) }}{{ member.split(' ')[1].charAt(0) }}
-              </span>
-              <span *ngIf="project.team.length > 2" class="member-more">+{{ project.team.length - 2 }}</span>
+              @for (member of project.team.slice(0, 3); track member) {
+                <span class="member-avatar" [title]="member">
+                  {{ member.charAt(0).toUpperCase() }}
+                </span>
+              }
+              @if (project.team.length > 3) {
+                <span class="member-more">+{{ project.team.length - 3 }}</span>
+              }
             </div>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
+          </div>
+        </div>
+      }
+    </div>
+  } @else {
+    <!-- Clean Empty State -->
+    <div class="empty-state">
+      <div class="empty-icon-wrapper">
+        <span class="material-symbols-outlined">folder_open</span>
+      </div>
+      <h3>No projects found</h3>
+      <p>
+        @if (searchQuery() || selectedStatusFilter() !== 'ALL' || activeCardFilter) {
+          No projects match your current filters. Try resetting your search, status, or card filter.
+        } @else {
+          There are currently no active projects assigned to your account.
+        }
+      </p>
+      @if (searchQuery() || selectedStatusFilter() !== 'ALL' || activeCardFilter) {
+        <button type="button" class="btn-secondary reset-btn" (click)="resetAllFilters()">
+          Reset All Filters
+        </button>
+      }
+    </div>
+  }
 
-  <div *ngIf="!projectHealthMatrix || projectHealthMatrix.length === 0" class="empty-state">
-    <p>No projects found</p>
-  </div>
-
+  <!-- Footer Legend -->
   <div class="matrix-legend">
     <div class="legend-item">
-      <span class="legend-box success"></span>
-      <span>On Track (80%+)</span>
+      <span class="legend-dot success"></span>
+      <span>On Track</span>
     </div>
     <div class="legend-item">
-      <span class="legend-box warning"></span>
-      <span>At Risk (60-79%)</span>
+      <span class="legend-dot warning"></span>
+      <span>At Risk</span>
     </div>
     <div class="legend-item">
-      <span class="legend-box danger"></span>
-      <span>Critical (&lt;60%)</span>
+      <span class="legend-dot danger"></span>
+      <span>Critical</span>
     </div>
   </div>
 </div>

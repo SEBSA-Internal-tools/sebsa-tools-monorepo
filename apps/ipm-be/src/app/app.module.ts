@@ -20,6 +20,7 @@ import { CaseModule } from './cases/case.module';
 import { SubtaskModule } from './subtasks/subtask.module';
 import { SprintsModule } from './sprints/sprints.module';
 import { JiraModule } from './jira/jira.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { JiraModule } from './jira/jira.module';
     PrivilegeGroupsModule,
     CustomersModule,
     JiraModule,
+    DashboardModule,
   ],
   controllers: [AppController],
   providers: [AppService],

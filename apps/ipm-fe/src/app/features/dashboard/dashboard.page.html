@@ -1,12 +1,33 @@
 <section class="workspace-page dashboard-page">
   <div class="dashboard-container">
+    @if (errorMessage()) {
+      <div class="dashboard-error-banner" role="alert">
+        <div class="error-content">
+          <span class="material-symbols-outlined error-icon">error</span>
+          <span>{{ errorMessage() }}</span>
+        </div>
+        <button type="button" class="btn-retry" (click)="loadData()">
+          <span class="material-symbols-outlined">refresh</span>
+          Retry
+        </button>
+      </div>
+    }
+
     <!-- Hero Section -->
     <dashboard-hero [data]="(hero$ | async)"></dashboard-hero>
 
     <!-- Summary Cards -->
-    <dashboard-summary-cards [cards]="(summaryCards$ | async)"></dashboard-summary-cards>
+    <dashboard-summary-cards
+      [cards]="(summaryCards$ | async)"
+      [activeFilter]="activeCardFilter()"
+      (cardClick)="onCardFilterSelected($event)"
+    ></dashboard-summary-cards>
 
     <!-- Project Health & Status Matrix -->
-    <app-dashboard-project-health-matrix [projectHealthMatrix]="(projectHealthMatrix$ | async)"></app-dashboard-project-health-matrix>
+    <app-dashboard-project-health-matrix
+      [projectHealthMatrix]="(projectHealthMatrix$ | async)"
+      [activeCardFilter]="activeCardFilter()"
+      (clearCardFilter)="clearCardFilter()"
+    ></app-dashboard-project-health-matrix>
   </div>
 </section>

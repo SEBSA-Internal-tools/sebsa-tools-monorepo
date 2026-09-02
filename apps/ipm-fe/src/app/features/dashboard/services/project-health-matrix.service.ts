@@ -7,6 +7,7 @@ export class ProjectHealthMatrixService {
   private mockProjectHealthMatrix: ProjectHealthMatrix[] = [
     {
       projectName: 'Website Revamp',
+      status: 'ACTIVE',
       health: 'On Track',
       healthStatus: 'success',
       budget: 85,
@@ -18,6 +19,7 @@ export class ProjectHealthMatrixService {
     },
     {
       projectName: 'Mobile App Release',
+      status: 'ACTIVE',
       health: 'At Risk',
       healthStatus: 'warning',
       budget: 45,
@@ -29,6 +31,7 @@ export class ProjectHealthMatrixService {
     },
     {
       projectName: 'Client Onboarding',
+      status: 'ACTIVE',
       health: 'On Track',
       healthStatus: 'success',
       budget: 88,
@@ -40,6 +43,7 @@ export class ProjectHealthMatrixService {
     },
     {
       projectName: 'AI Integration',
+      status: 'ACTIVE',
       health: 'Critical',
       healthStatus: 'danger',
       budget: 25,
@@ -51,6 +55,7 @@ export class ProjectHealthMatrixService {
     },
     {
       projectName: 'Infrastructure Upgrade',
+      status: 'COMPLETED',
       health: 'On Track',
       healthStatus: 'success',
       budget: 92,
@@ -62,6 +67,7 @@ export class ProjectHealthMatrixService {
     },
     {
       projectName: 'Security Enhancement',
+      status: 'ACTIVE',
       health: 'At Risk',
       healthStatus: 'warning',
       budget: 70,
