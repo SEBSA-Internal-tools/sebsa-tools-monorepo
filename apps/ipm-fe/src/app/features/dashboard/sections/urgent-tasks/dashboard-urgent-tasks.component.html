@@ -1,0 +1,141 @@
+<div class="urgent-tasks-widget workspace-card" [class.is-collapsed]="isCollapsed()">
+  <!-- Header Bar -->
+  <div class="widget-header" (click)="toggleCollapse()" role="button" tabindex="0" (keydown.enter)="toggleCollapse()">
+    <div class="header-left">
+      <div class="header-icon-wrapper">
+        <span class="material-symbols-outlined">notification_important</span>
+      </div>
+      <div class="header-titles">
+        <h3>Action Items & Due Next</h3>
+        <p class="subtitle">High priority deliverables, overdue deadlines, and active blockers</p>
+      </div>
+      @if (tasks && tasks.length > 0) {
+        <span class="count-badge" [class.has-overdue]="tasks.length > 0">
+          {{ tasks.length }} {{ tasks.length === 1 ? 'task' : 'tasks' }}
+        </span>
+      }
+    </div>
+
+    <div class="header-right">
+      <button
+        type="button"
+        class="collapse-btn"
+        (click)="toggleCollapse(); $event.stopPropagation()"
+        [attr.aria-expanded]="!isCollapsed()"
+        [title]="isCollapsed() ? 'Expand action items' : 'Collapse action items'"
+      >
+        <span class="material-symbols-outlined">{{ isCollapsed() ? 'expand_more' : 'expand_less' }}</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Body Content -->
+  @if (!isCollapsed()) {
+    <div class="widget-body">
+      @if (loading) {
+        <!-- Skeleton Shimmer Task Items -->
+        <div class="task-items-list skeleton-list" aria-hidden="true">
+          @for (sk of skeletonRows; track sk) {
+            <div class="urgent-task-item skeleton-item">
+              <div class="skeleton-circle skeleton-shimmer" style="width: 22px; height: 22px; border-radius: 50%;"></div>
+              <div class="task-info">
+                <div class="skeleton-pill skeleton-shimmer" style="width: 65%; height: 16px;"></div>
+                <div class="skeleton-pill skeleton-shimmer" style="width: 35%; height: 12px; margin-top: 4px;"></div>
+              </div>
+              <div class="task-meta">
+                <div class="skeleton-pill skeleton-shimmer" style="width: 80px; height: 20px; border-radius: 9999px;"></div>
+              </div>
+            </div>
+          }
+        </div>
+      } @else if (tasks && tasks.length > 0) {
+        <div class="task-items-list">
+          @for (task of tasks; track trackByTaskId($index, task)) {
+            <div
+              class="urgent-task-item"
+              [class.is-done]="isTaskDone(task.id)"
+              [class.is-completing]="isTaskCompleting(task.id)"
+              (click)="navigateToTask(task, $event)"
+              tabindex="0"
+              role="button"
+              (keydown.enter)="navigateToTask(task, $event)"
+            >
+              <!-- 1-Click Quick Complete Button -->
+              <button
+                type="button"
+                class="complete-checkbox"
+                [class.checked]="isTaskDone(task.id)"
+                [class.completing]="isTaskCompleting(task.id)"
+                (click)="onCompleteClick(task, $event)"
+                [disabled]="isTaskDone(task.id) || isTaskCompleting(task.id)"
+                [title]="isTaskDone(task.id) ? 'Completed' : 'Mark task as done'"
+                aria-label="Mark task as complete"
+              >
+                @if (isTaskCompleting(task.id)) {
+                  <span class="material-symbols-outlined spin-icon">sync</span>
+                } @else if (isTaskDone(task.id)) {
+                  <span class="material-symbols-outlined">check</span>
+                }
+              </button>
+
+              <!-- Task Core Details -->
+              <div class="task-info">
+                <h4 class="task-title" [class.strikethrough]="isTaskDone(task.id)">
+                  {{ task.title }}
+                </h4>
+                <div class="task-breadcrumbs">
+                  <span
+                    class="project-tag"
+                    (click)="navigateToProject(task.projectId, $event)"
+                    title="View project"
+                  >
+                    <span class="material-symbols-outlined tag-icon">folder</span>
+                    {{ task.projectName }}
+                  </span>
+                  @if (task.priorityName) {
+                    <span class="priority-pill" [style.color]="task.priorityColor || 'var(--text-secondary)'">
+                      {{ task.priorityName }}
+                    </span>
+                  }
+                </div>
+              </div>
+
+              <!-- Badges & Status Tags -->
+              <div class="task-meta">
+                @if (task.isBlocked) {
+                  <span class="meta-badge badge-blocked">
+                    <span class="material-symbols-outlined badge-icon">block</span>
+                    Blocked
+                  </span>
+                }
+                @if (task.dueDate) {
+                  <span
+                    class="meta-badge"
+                    [ngClass]="task.isOverdue ? 'badge-overdue' : 'badge-due'"
+                  >
+                    <span class="material-symbols-outlined badge-icon">
+                      {{ task.isOverdue ? 'error' : 'schedule' }}
+                    </span>
+                    {{ formatDueDate(task.dueDate, task.isOverdue) }}
+                  </span>
+                }
+                <span class="material-symbols-outlined row-chevron" aria-hidden="true">chevron_right</span>
+              </div>
+            </div>
+          }
+        </div>
+      } @else {
+        <!-- Empty All Caught Up State -->
+        <div class="all-clear-state">
+          <div class="clear-icon-wrapper">
+            <span class="material-symbols-outlined">check_circle</span>
+          </div>
+          <div class="clear-text">
+            <strong>All caught up!</strong>
+            <p>No urgent deadlines, overdue tasks, or blocked dependencies on your plate.</p>
+          </div>
+        </div>
+      }
+    </div>
+  }
+</div>
