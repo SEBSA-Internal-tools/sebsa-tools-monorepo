@@ -334,17 +334,27 @@
 }
 
 .stepper {
+  // Driven from here so the connector below can be centred on the dots without
+  // the two definitions drifting apart.
+  --stepper-dot-size: 28px;
+  --stepper-padding-block: 16px;
+
   display: flex;
-  align-items: center;
+  // flex-start, not center: each step is a dot stacked above a label, so
+  // centring the steps pushes the dot row off the container's midpoint (and a
+  // label that wraps to two lines would knock its dot out of line with the rest).
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
   position: relative;
-  padding: 16px 0;
+  padding: var(--stepper-padding-block) 0;
 
   &::before {
     content: '';
     position: absolute;
-    top: 50%;
+    // Centre of the dot row, not of the whole step.
+    top: calc(var(--stepper-padding-block) + var(--stepper-dot-size) / 2);
+    transform: translateY(-50%);
     left: 20px;
     right: 20px;
     height: 2px;
@@ -366,8 +376,8 @@
   padding: 0;
 
   .stepper-dot {
-    width: 28px;
-    height: 28px;
+    width: var(--stepper-dot-size);
+    height: var(--stepper-dot-size);
     border-radius: 50%;
     background: #ffffff;
     border: 2px solid var(--border-strong);

@@ -119,13 +119,7 @@
               <td>{{ entry.description }}</td>
               <td>
                 @if (entry.metadata?.changes?.length) {
-                  <ul class="change-list">
-                    @for (change of entry.metadata?.changes ?? []; track change.field) {
-                      <li>
-                        <strong>{{ change.field }}</strong>: {{ change.from ?? '—' }} → {{ change.to ?? '—' }}
-                      </li>
-                    }
-                  </ul>
+                  <app-change-list [changes]="entry.metadata?.changes ?? []"></app-change-list>
                 } @else {
                   <span class="muted">—</span>
                 }

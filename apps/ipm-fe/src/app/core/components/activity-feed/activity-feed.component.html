@@ -30,16 +30,9 @@
           </p>
 
           @if (entry.metadata?.changes?.length) {
-            <ul class="feed-changes">
-              @for (change of entry.metadata?.changes ?? []; track change.field) {
-                <li>
-                  <span class="change-field">{{ humanizeField(change.field) }}</span>
-                  <span class="change-from">{{ displayValue(change.from) }}</span>
-                  <span class="material-symbols-outlined change-arrow">arrow_forward</span>
-                  <span class="change-to">{{ displayValue(change.to) }}</span>
-                </li>
-              }
-            </ul>
+            <div class="feed-changes">
+              <app-change-list [changes]="entry.metadata?.changes ?? []"></app-change-list>
+            </div>
           }
         </div>
       </li>
@@ -52,7 +45,7 @@
 
   @if (hasMore && !isLoading()) {
     <button type="button" class="feed-load-more" (click)="loadNextPage()">
-      Load more
+      Show more
       <span class="feed-count">({{ entries().length }} of {{ total() }})</span>
     </button>
   }

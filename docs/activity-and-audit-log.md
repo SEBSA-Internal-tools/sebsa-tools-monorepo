@@ -54,6 +54,19 @@ changes, producing `{ field, from, to }` triples stored under
 an explicit `null` counts as a real change. This is what turns an opaque
 "updated" entry into `dueDate: 2026-09-12 → 2026-09-19`.
 
+### Assignee changes
+
+`buildAssigneeChange(before, after)` expresses an assignee move as one more
+field change, so it renders identically to a status move —
+`Assignees: Unassigned → Alice Perera`. It returns an empty array when the set
+is unchanged, so callers can spread it in without a branch, and it sorts names
+so a reordered-but-identical set doesn't read as a change.
+
+Assignee changes are recorded on all three paths that can move them: `update()`
+with `assigneeIds`, `assignUsers()`, and `unassignUser()`. Because
+`createMany` skips duplicates, the "after" set on `assignUsers()` is the union
+of the existing and added names, not the added names alone.
+
 ### Status changes
 
 `CaseStatusHistory` and `TaskStatusHistory` remain the authoritative
@@ -72,6 +85,9 @@ row.
 | Case    | `CREATED`, `UPDATED`, `STATUS_CHANGED`, `DELETED`, `ASSIGNED`, `UNASSIGNED` |
 | Task    | `CREATED`, `UPDATED`, `STATUS_CHANGED`, `DELETED`, `ASSIGNED`, `UNASSIGNED` |
 | Subtask | `CREATED`, `UPDATED`, `STATUS_CHANGED`, `DELETED`, `ASSIGNED`, `UNASSIGNED` |
+
+Assignee moves additionally carry an `assignees` field change, whichever path
+triggered them.
 
 Sprints, comments, attachments and label attach/detach are not instrumented
 yet. The `ActivityAction` enum already carries values for them.
@@ -101,7 +117,18 @@ these. It takes `entityType` and `entityId` and pages in on demand:
 ```
 
 It is mounted on the project detail Activity tab, the case detail page, and the
-task detail page.
+task detail page. `pageSize` defaults to **5** — enough to see what just
+happened without burying the rest of the page — and each "Show more" click adds
+another five. The project Activity tab overrides it to 20, since that tab is
+the whole view rather than one section of it.
+
+### Collapsing long values
+
+Both readers render `metadata.changes` through the shared
+`ChangeListComponent` (`core/components/change-list/`). Values longer than
+`maxLength` (60 by default) collapse behind a per-row "Show more" toggle, which
+keeps a rewritten description from flooding a feed item or a table cell. One
+toggle expands both sides of a row so the before/after pair stays comparable.
 
 ---
 
@@ -122,8 +149,9 @@ Filters (all optional, combinable): `entityType`, `entityId`, `action`,
 appear in the log, along with the full entity-type and action lists, so the UI
 populates its dropdowns from real data instead of hard-coding them.
 
-The screen lives at `/admin/audit-logs` and appears in the sidebar for Super
-Admins only.
+The screen lives at `/admin/audit-logs`, under the sidebar's **System** group
+alongside Admin and Privilege Groups. That group renders only the children the
+current role may see, and disappears entirely when none of them apply.
 
 ---
 
@@ -133,7 +161,9 @@ Admins only.
    `prisma/schema.prisma`; add it there first if not.
 2. Call `activityLogs.record()` inside the mutation's transaction, following the
    three rules above.
-3. If it needs a new icon or colour in the feed, add it to `ACTION_ICONS` and
+3. If it moves assignees, include `buildAssigneeChange()` in the entry's
+   `changes` so it renders like every other before/after pair.
+4. If it needs a new icon or colour in the feed, add it to `ACTION_ICONS` and
    `ACTION_TONES` in `activity-feed.component.ts` — both are exhaustive
    `Record<ActivityAction, string>` maps, so a missing entry is a compile error
    rather than a silent fallback.

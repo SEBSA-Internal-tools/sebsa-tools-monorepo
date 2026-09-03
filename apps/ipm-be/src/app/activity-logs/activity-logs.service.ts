@@ -107,6 +107,24 @@ export class ActivityLogsService {
     return result;
   }
 
+  /**
+   * Expresses an assignee-set change as a single field change, so "Unassigned →
+   * Alice Perera" renders exactly the way a status move does. Returns null when
+   * the set is unchanged, so callers can spread it away without a branch.
+   */
+  buildAssigneeChange(before: string[], after: string[]): ActivityFieldChange[] {
+    const from = this.formatAssignees(before);
+    const to = this.formatAssignees(after);
+    if (from === to) return [];
+
+    return [{ field: 'assignees', from, to }];
+  }
+
+  /** Sorted so a reordered-but-identical set doesn't read as a change. */
+  private formatAssignees(names: string[]): string {
+    return names.length > 0 ? [...names].sort().join(', ') : 'Unassigned';
+  }
+
   private stringifyValue(value: unknown): string | null {
     if (value === null || value === undefined) return null;
     if (value instanceof Date) return value.toISOString();

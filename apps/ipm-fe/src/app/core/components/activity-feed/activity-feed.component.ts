@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, Input, OnChanges, inject, signal } 
 import { CommonModule } from '@angular/common';
 import { ActivityLogEntry, ActivityAction, ActivityEntityType } from '@sebsa-pm-tool/shared-models';
 import { ActivityLogsService } from '../../services/activity-logs.service';
+import { ChangeListComponent } from '../change-list/change-list.component';
 
 /** Material Symbols glyph per action, so a feed is scannable without reading. */
 const ACTION_ICONS: Record<ActivityAction, string> = {
@@ -49,7 +50,7 @@ const ACTION_TONES: Record<ActivityAction, string> = {
 @Component({
   standalone: true,
   selector: 'app-activity-feed',
-  imports: [CommonModule],
+  imports: [CommonModule, ChangeListComponent],
   templateUrl: './activity-feed.component.html',
   styleUrl: './activity-feed.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -57,8 +58,8 @@ const ACTION_TONES: Record<ActivityAction, string> = {
 export class ActivityFeedComponent implements OnChanges {
   @Input({ required: true }) entityType!: ActivityEntityType;
   @Input({ required: true }) entityId!: string;
-  /** Entries fetched per request, and per "Load more" click. */
-  @Input() pageSize = 20;
+  /** Entries shown before the first "Show more" click, and added by each one. */
+  @Input() pageSize = 5;
 
   private readonly activityLogs = inject(ActivityLogsService);
 
@@ -127,18 +128,6 @@ export class ActivityFeedComponent implements OnChanges {
 
   protected absoluteTime(isoDate: string): string {
     return new Date(isoDate).toLocaleString();
-  }
-
-  /** Field names are stored as they appear on the model; render them as words. */
-  protected humanizeField(field: string): string {
-    return field
-      .replace(/([A-Z])/g, ' $1')
-      .replace(/^./, (char) => char.toUpperCase())
-      .trim();
-  }
-
-  protected displayValue(value: string | null): string {
-    return value === null || value === '' ? '—' : value;
   }
 
   protected trackById(_index: number, entry: ActivityLogEntry): string {

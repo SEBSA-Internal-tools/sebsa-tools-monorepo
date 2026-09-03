@@ -203,7 +203,15 @@ export class CaseService {
 
     const { assigneeIds, labelIds, ...restDto } = dto;
     const isStatusChange = !!dto.status && dto.status !== existing.status;
-    const changes = this.activityLogs.buildFieldChanges(existing, restDto);
+    const changes = [
+      ...this.activityLogs.buildFieldChanges(existing, restDto),
+      ...(assigneeIds
+        ? this.activityLogs.buildAssigneeChange(
+            await this.getAssigneeNames(id),
+            await this.getUserNames(assigneeIds),
+          )
+        : []),
+    ];
 
     const oldPrimaryAssignee = await this.prisma.caseAssignee.findFirst({
       where: { caseId: id },
@@ -311,10 +319,8 @@ export class CaseService {
     await this.assertCanEdit(kase.projectId, user);
     await this.assertAssigneesValid(assigneeIds, kase.projectId);
 
-    const assignees = await this.prisma.user.findMany({
-      where: { id: { in: assigneeIds } },
-      select: { name: true },
-    });
+    const addedNames = await this.getUserNames(assigneeIds);
+    const previousAssignees = await this.getAssigneeNames(caseId);
 
     await this.prisma.$transaction(async (tx) => {
       await tx.caseAssignee.createMany({
@@ -330,7 +336,12 @@ export class CaseService {
           entityLabel: kase.title,
           action: ActivityAction.ASSIGNED,
           actorId: user.id,
-          description: `Assigned ${assignees.map((a) => a.name).join(', ')} to case "${kase.title}"`,
+          description: `Assigned ${addedNames.join(', ')} to case "${kase.title}"`,
+          changes: this.activityLogs.buildAssigneeChange(
+            previousAssignees,
+            // createMany skips duplicates, so the resulting set is the union.
+            Array.from(new Set([...previousAssignees, ...addedNames])),
+          ),
         },
         tx,
       );
@@ -348,6 +359,7 @@ export class CaseService {
       where: { id: userId },
       select: { name: true },
     });
+    const previousAssignees = await this.getAssigneeNames(caseId);
 
     await this.prisma.$transaction(async (tx) => {
       await tx.caseAssignee.deleteMany({ where: { caseId, userId } });
@@ -361,6 +373,10 @@ export class CaseService {
           action: ActivityAction.UNASSIGNED,
           actorId: user.id,
           description: `Unassigned ${removed?.name ?? 'a user'} from case "${kase.title}"`,
+          changes: this.activityLogs.buildAssigneeChange(
+            previousAssignees,
+            previousAssignees.filter((name) => name !== removed?.name),
+          ),
         },
         tx,
       );
@@ -368,6 +384,26 @@ export class CaseService {
 
     await this.recordCategoryAssignmentIfChanged(caseId, kase.category, user.id);
     return this.findOne(caseId, user);
+  }
+
+  /** Current assignee names on a case, for rendering an assignee change. */
+  private async getAssigneeNames(caseId: string): Promise<string[]> {
+    const rows = await this.prisma.caseAssignee.findMany({
+      where: { caseId },
+      select: { user: { select: { name: true } } },
+    });
+    return rows.map((row) => row.user.name);
+  }
+
+  /** Names for a set of user ids, for rendering an assignee change. */
+  private async getUserNames(userIds: string[]): Promise<string[]> {
+    if (userIds.length === 0) return [];
+
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: { name: true },
+    });
+    return users.map((u) => u.name);
   }
 
   private async recordCategoryAssignmentIfChanged(

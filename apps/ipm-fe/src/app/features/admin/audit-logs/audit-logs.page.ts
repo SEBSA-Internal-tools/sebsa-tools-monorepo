@@ -6,6 +6,7 @@ import {
   AuditLogFilterOptions,
 } from '@sebsa-pm-tool/shared-models';
 import { ActivityLogsService, AuditLogQuery } from '../../../core/services/activity-logs.service';
+import { ChangeListComponent } from '../../../core/components/change-list/change-list.component';
 
 /** Blank strings rather than undefined so they bind straight to `<select>` and
  * `<input>` without a null-vs-empty mismatch on reset. */
@@ -36,7 +37,7 @@ const EMPTY_FILTERS: AuditFilterForm = {
 @Component({
   standalone: true,
   selector: 'app-audit-logs-page',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ChangeListComponent],
   templateUrl: './audit-logs.page.html',
   styleUrl: './audit-logs.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

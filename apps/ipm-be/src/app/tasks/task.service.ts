@@ -209,7 +209,15 @@ export class TaskService {
 
     const { assigneeIds, labelIds, ...restDto } = dto;
     const isStatusChange = !!dto.status && dto.status !== existing.status;
-    const changes = this.activityLogs.buildFieldChanges(existing, restDto);
+    const changes = [
+      ...this.activityLogs.buildFieldChanges(existing, restDto),
+      ...(assigneeIds
+        ? this.activityLogs.buildAssigneeChange(
+            await this.getAssigneeNames(id),
+            await this.getUserNames(assigneeIds),
+          )
+        : []),
+    ];
 
     await this.prisma.$transaction(async (tx) => {
       await tx.task.update({
@@ -300,10 +308,8 @@ export class TaskService {
     await this.assertCanEdit(task.case.projectId, user);
     await this.assertAssigneesValid(assigneeIds, task.case.projectId);
 
-    const assignees = await this.prisma.user.findMany({
-      where: { id: { in: assigneeIds } },
-      select: { name: true },
-    });
+    const addedNames = await this.getUserNames(assigneeIds);
+    const previousAssignees = await this.getAssigneeNames(taskId);
 
     await this.prisma.$transaction(async (tx) => {
       await tx.taskAssignee.createMany({
@@ -319,7 +325,12 @@ export class TaskService {
           entityLabel: task.title,
           action: ActivityAction.ASSIGNED,
           actorId: user.id,
-          description: `Assigned ${assignees.map((a) => a.name).join(', ')} to task "${task.title}"`,
+          description: `Assigned ${addedNames.join(', ')} to task "${task.title}"`,
+          changes: this.activityLogs.buildAssigneeChange(
+            previousAssignees,
+            // createMany skips duplicates, so the resulting set is the union.
+            Array.from(new Set([...previousAssignees, ...addedNames])),
+          ),
         },
         tx,
       );
@@ -336,6 +347,7 @@ export class TaskService {
       where: { id: userId },
       select: { name: true },
     });
+    const previousAssignees = await this.getAssigneeNames(taskId);
 
     await this.prisma.$transaction(async (tx) => {
       await tx.taskAssignee.deleteMany({ where: { taskId, userId } });
@@ -349,6 +361,10 @@ export class TaskService {
           action: ActivityAction.UNASSIGNED,
           actorId: user.id,
           description: `Unassigned ${removed?.name ?? 'a user'} from task "${task.title}"`,
+          changes: this.activityLogs.buildAssigneeChange(
+            previousAssignees,
+            previousAssignees.filter((name) => name !== removed?.name),
+          ),
         },
         tx,
       );
@@ -536,6 +552,26 @@ export class TaskService {
   // ---------------------------------------------------------------------------
   // Authorization
   // ---------------------------------------------------------------------------
+
+  /** Current assignee names on a task, for rendering an assignee change. */
+  private async getAssigneeNames(taskId: string): Promise<string[]> {
+    const rows = await this.prisma.taskAssignee.findMany({
+      where: { taskId },
+      select: { user: { select: { name: true } } },
+    });
+    return rows.map((row) => row.user.name);
+  }
+
+  /** Names for a set of user ids, for rendering an assignee change. */
+  private async getUserNames(userIds: string[]): Promise<string[]> {
+    if (userIds.length === 0) return [];
+
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: { name: true },
+    });
+    return users.map((u) => u.name);
+  }
 
   private async getMembershipWithGroup(projectId: string, userId: string) {
     return this.prisma.projectMember.findFirst({

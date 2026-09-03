@@ -11,42 +11,56 @@
     </button>
 
     <nav class="nav-list">
-      <a
-        *ngFor="let item of visibleNavigationItems"
-        class="nav-item"
-        [routerLink]="item.path"
-        routerLinkActive="active"
-        [routerLinkActiveOptions]="{ exact: true }"
-      >
-        <span class="nav-icon" aria-hidden="true">
-          <span class="material-symbols-outlined">{{ item.icon }}</span>
-        </span>
-        <span class="nav-label">{{ item.label }}</span>
-      </a>
+      @for (item of visibleNavigationItems; track item.path) {
+        <a
+          class="nav-item"
+          [routerLink]="item.path"
+          routerLinkActive="active"
+          [routerLinkActiveOptions]="{ exact: true }"
+        >
+          <span class="nav-icon" aria-hidden="true">
+            <span class="material-symbols-outlined">{{ item.icon }}</span>
+          </span>
+          <span class="nav-label">{{ item.label }}</span>
+        </a>
+      }
 
-      <a
-        *ngIf="['ADMIN', 'SUPER_ADMIN'].includes(authService.currentUser()?.systemRole ?? '')"
-        class="nav-item"
-        routerLink="/admin/users"
-        routerLinkActive="active"
-      >
-        <span class="nav-icon" aria-hidden="true">
-          <span class="material-symbols-outlined">admin_panel_settings</span>
-        </span>
-        <span class="nav-label">Admin</span>
-      </a>
+      @for (group of visibleNavigationGroups; track group.label) {
+        <div class="nav-group">
+          <button
+            type="button"
+            class="nav-item nav-group-toggle"
+            [class.active]="isGroupActive(group)"
+            [attr.aria-expanded]="isGroupExpanded(group)"
+            (click)="toggleGroup(group)"
+          >
+            <span class="nav-icon" aria-hidden="true">
+              <span class="material-symbols-outlined">{{ group.icon }}</span>
+            </span>
+            <span class="nav-label">{{ group.label }}</span>
+            <span class="material-symbols-outlined nav-chevron" aria-hidden="true">
+              {{ isGroupExpanded(group) ? 'expand_less' : 'expand_more' }}
+            </span>
+          </button>
 
-      <a
-        *ngIf="authService.currentUser()?.systemRole === 'SUPER_ADMIN'"
-        class="nav-item"
-        routerLink="/admin/privilege-groups"
-        routerLinkActive="active"
-      >
-        <span class="nav-icon" aria-hidden="true">
-          <span class="material-symbols-outlined">shield_person</span>
-        </span>
-        <span class="nav-label">Privilege Groups</span>
-      </a>
+          @if (isGroupExpanded(group)) {
+            <div class="nav-submenu">
+              @for (child of group.children; track child.path) {
+                <a
+                  class="nav-item nav-subitem"
+                  [routerLink]="child.path"
+                  routerLinkActive="active"
+                >
+                  <span class="nav-icon" aria-hidden="true">
+                    <span class="material-symbols-outlined">{{ child.icon }}</span>
+                  </span>
+                  <span class="nav-label">{{ child.label }}</span>
+                </a>
+              }
+            </div>
+          }
+        </div>
+      }
     </nav>
 
     <div class="sidebar-footer">
