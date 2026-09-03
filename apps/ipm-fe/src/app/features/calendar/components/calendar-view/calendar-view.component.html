@@ -84,47 +84,6 @@
         </div>
       </div>
 
-      <!-- Color By Selector -->
-      <div class="filter-dimension-selector">
-        <span class="selector-label">Color:</span>
-        <div class="btn-segmented">
-          @for (opt of colorByOptions; track opt.id) {
-            <button
-              type="button"
-              class="segment-btn"
-              [class.active]="colorBy() === opt.id"
-              (click)="setColorBy(opt.id)"
-              [title]="'Color cases by ' + opt.label"
-            >
-              <span class="material-symbols-outlined icon-xs">{{ opt.icon }}</span>
-              <span>{{ opt.label }}</span>
-            </button>
-          }
-        </div>
-      </div>
-
-      <!-- Density Switcher -->
-      <div class="density-switcher">
-        <button
-          type="button"
-          class="density-btn"
-          [class.active]="density() === 'comfortable'"
-          (click)="setDensity('comfortable')"
-          title="Comfortable Density"
-        >
-          <span class="material-symbols-outlined">density_medium</span>
-        </button>
-        <button
-          type="button"
-          class="density-btn"
-          [class.active]="density() === 'compact'"
-          (click)="setDensity('compact')"
-          title="Compact Density"
-        >
-          <span class="material-symbols-outlined">density_small</span>
-        </button>
-      </div>
-
       <!-- View Switcher -->
       <div class="view-switcher" role="group" aria-label="Calendar View Mode">
         <button
@@ -180,17 +139,6 @@
         <span class="material-symbols-outlined icon-sm">person</span>
         <span>My Cases</span>
         <span class="preset-badge">{{ presetCounts().myCases }}</span>
-      </button>
-
-      <button
-        type="button"
-        class="preset-chip chip-critical"
-        [class.active]="quickPreset() === 'critical'"
-        (click)="setQuickPreset('critical')"
-      >
-        <span class="material-symbols-outlined icon-sm">local_fire_department</span>
-        <span>Critical</span>
-        <span class="preset-badge">{{ presetCounts().critical }}</span>
       </button>
 
       <button
@@ -550,8 +498,6 @@
                   [ngClass]="[getItemColorClass(item)]"
                   [class.is-overdue-card]="item.isOverdue"
                   (click)="onItemClick(item, $event)"
-                  (mouseenter)="onItemMouseEnter(item, $event)"
-                  (mouseleave)="onItemMouseLeave()"
                 >
                   <div class="agenda-card-left">
                     <span class="agenda-type-icon-wrapper" [ngClass]="getTypeClass(item.type)">
@@ -671,7 +617,8 @@
     </div>
   }
 
-  <!-- 4. Zero-Click Hover Micro-Preview Card -->
+
+  <!-- 4. Zero-Click Hover Micro-Preview Popover (Month & Week Only) -->
   @if (hoveredItem(); as hovered) {
     <div
       class="hover-preview-popover"
@@ -679,38 +626,63 @@
       [style.top.px]="hovered.y"
     >
       <div class="hover-card-header">
-        <span class="badge-type" [ngClass]="getTypeClass(hovered.item.type)">
-          {{ hovered.item.type || 'CASE' }}
-        </span>
-        @if (hovered.item.caseNumber) {
-          <span class="hover-case-id font-mono">{{ hovered.item.caseNumber }}</span>
-        }
+        <div class="hover-badges-left">
+          @if (hovered.item.caseNumber) {
+            <span class="hover-case-id font-mono">{{ hovered.item.caseNumber }}</span>
+          }
+          <span class="badge-type" [ngClass]="getTypeClass(hovered.item.type)">
+            {{ hovered.item.type || 'CASE' }}
+          </span>
+        </div>
         @if (hovered.item.isOverdue) {
-          <span class="overdue-tag">⚠️ OVERDUE</span>
+          <span class="hover-overdue-tag">OVERDUE</span>
         }
       </div>
 
-      <h5 class="hover-title">{{ hovered.item.title }}</h5>
+      <h5 class="hover-title" [title]="hovered.item.title">{{ hovered.item.title }}</h5>
 
-      <div class="hover-details-grid">
-        <div class="hover-detail">
-          <span class="detail-label">Project</span>
-          <span class="detail-val">{{ hovered.item.projectName || 'General' }}</span>
+      <div class="hover-meta-list">
+        <div class="hover-meta-row">
+          <span class="meta-label">
+            <span class="material-symbols-outlined icon-xs">calendar_month</span>
+            {{ getDateModeLabel(dateMode()) }}:
+          </span>
+          <span class="meta-value">{{ getItemActiveDate(hovered.item, dateMode()) || 'None' }}</span>
         </div>
-        <div class="hover-detail">
-          <span class="detail-label">Priority</span>
-          <span class="detail-val" [ngClass]="getPriorityClass(hovered.item.priority)">
-            {{ hovered.item.priority }}
+
+        <div class="hover-meta-row">
+          <span class="meta-label">
+            <span class="material-symbols-outlined icon-xs">flag</span>
+            Priority:
+          </span>
+          <span class="badge-priority" [ngClass]="getPriorityClass(hovered.item.priority)">
+            {{ hovered.item.priority || 'Normal' }}
           </span>
         </div>
-        <div class="hover-detail">
-          <span class="detail-label">Assignee</span>
-          <span class="detail-val">{{ hovered.item.assignee || 'Unassigned' }}</span>
-        </div>
-        <div class="hover-detail">
-          <span class="detail-label">{{ getDateModeLabel(dateMode()) }}</span>
-          <span class="detail-val">{{ getItemActiveDate(hovered.item, dateMode()) }}</span>
-        </div>
+
+        @if (hovered.item.projectName) {
+          <div class="hover-meta-row">
+            <span class="meta-label">
+              <span class="material-symbols-outlined icon-xs">folder</span>
+              Project:
+            </span>
+            <span class="meta-value text-truncate" [title]="hovered.item.projectName">
+              {{ hovered.item.projectName }}
+            </span>
+          </div>
+        }
+
+        @if (hovered.item.assignee) {
+          <div class="hover-meta-row">
+            <span class="meta-label">
+              <span class="material-symbols-outlined icon-xs">person</span>
+              Assignee:
+            </span>
+            <span class="meta-value text-truncate" [title]="hovered.item.assignee">
+              {{ hovered.item.assignee }}
+            </span>
+          </div>
+        }
       </div>
     </div>
   }

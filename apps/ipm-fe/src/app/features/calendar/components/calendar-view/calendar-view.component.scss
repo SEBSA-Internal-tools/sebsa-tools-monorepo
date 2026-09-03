@@ -236,10 +236,6 @@
     .preset-badge { background-color: var(--brand-primary); color: #fff; }
   }
 
-  &.chip-critical.active {
-    background-color: #fee2e2; border-color: #dc2626; color: #b91c1c;
-    .preset-badge { background-color: #dc2626; color: #fff; }
-  }
   &.chip-overdue.active {
     background-color: #fff7ed; border-color: #ea580c; color: #c2410c;
     .preset-badge { background-color: #ea580c; color: #fff; }
@@ -645,36 +641,6 @@
 
   &.is-overdue-pill { border-color: #ef4444 !important; animation: alertPulse 2.5s infinite; }
   &.is-blocked-pill { border-color: #b91c1c !important; }
-
-  // Types
-  &.type-bug { background-color: var(--status-error-bg); color: var(--status-error-fg); border-color: rgba(220, 38, 38, 0.2); }
-  &.type-story { background-color: var(--status-info-bg); color: var(--status-info-fg); border-color: rgba(37, 99, 235, 0.2); }
-  &.type-epic { background-color: var(--status-purple-bg); color: var(--status-purple-fg); border-color: rgba(124, 58, 237, 0.2); }
-  &.type-improvement { background-color: var(--status-warning-bg); color: var(--status-warning-fg); border-color: rgba(217, 119, 6, 0.2); }
-  &.type-test { background-color: var(--status-success-bg); color: var(--status-success-fg); border-color: rgba(5, 150, 105, 0.2); }
-  &.type-general { background-color: var(--status-neutral-bg); color: var(--status-neutral-fg); border-color: var(--border-default); }
-
-  // Priorities
-  &.priority-urgent { background-color: #fee2e2; color: #991b1b; border-color: #fca5a5; }
-  &.priority-high { background-color: #ffedd5; color: #9a3412; border-color: #fdba74; }
-  &.priority-medium { background-color: #e0f2fe; color: #075985; border-color: #7dd3fc; }
-  &.priority-low { background-color: #f1f5f9; color: #475569; border-color: #cbd5e1; }
-
-  // Statuses
-  &.status-to-do { background-color: #f1f5f9; color: #475569; border-color: #cbd5e1; }
-  &.status-in-progress { background-color: #eff6ff; color: #1d4ed8; border-color: #93c5fd; }
-  &.status-in-review { background-color: #f3e8ff; color: #6b21a8; border-color: #d8b4fe; }
-  &.status-blocked { background-color: #fef2f2; color: #991b1b; border-color: #f87171; }
-  &.status-done { background-color: #ecfdf5; color: #047857; border-color: #6ee7b7; }
-  &.status-cancelled { background-color: #f8fafc; color: #94a3b8; border-color: #e2e8f0; }
-
-  // Projects
-  &.color-project-0 { background-color: #eff6ff; color: #1e40af; border-color: #bfdbfe; }
-  &.color-project-1 { background-color: #faf5ff; color: #581c87; border-color: #e9d5ff; }
-  &.color-project-2 { background-color: #f0fdf4; color: #166534; border-color: #bbf7d0; }
-  &.color-project-3 { background-color: #fff7ed; color: #9a3412; border-color: #fed7aa; }
-  &.color-project-4 { background-color: #fdf2f8; color: #831843; border-color: #fbcfe8; }
-  &.color-project-5 { background-color: #f0fdfa; color: #115e59; border-color: #99f6e4; }
 }
 
 .more-items-pill {
@@ -911,12 +877,6 @@
       justify-content: center;
       flex-shrink: 0;
       .material-symbols-outlined { font-size: 18px; }
-      &.type-bug { background-color: var(--status-error-bg); color: var(--status-error-fg); }
-      &.type-story { background-color: var(--status-info-bg); color: var(--status-info-fg); }
-      &.type-epic { background-color: var(--status-purple-bg); color: var(--status-purple-fg); }
-      &.type-improvement { background-color: var(--status-warning-bg); color: var(--status-warning-fg); }
-      &.type-test { background-color: var(--status-success-bg); color: var(--status-success-fg); }
-      &.type-general { background-color: var(--status-neutral-bg); color: var(--status-neutral-fg); }
     }
 
     .agenda-details {
@@ -1063,48 +1023,6 @@
   }
 }
 
-.hover-preview-popover {
-  position: fixed;
-  z-index: 1060;
-  width: 260px;
-  background-color: var(--surface-card);
-  border: 1px solid var(--border-strong);
-  border-radius: 10px;
-  padding: 10px 12px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-  pointer-events: none;
-  animation: fadeIn 0.12s ease;
-
-  .hover-card-header {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    margin-bottom: 5px;
-    .hover-case-id { font-size: 10px; font-weight: 700; color: var(--brand-primary); }
-  }
-
-  .hover-title {
-    margin: 0 0 8px 0; font-size: 12px; font-weight: 600; color: var(--text-heading); line-height: 1.35;
-    overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
-  }
-
-  .hover-details-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 5px;
-    background-color: var(--surface-muted);
-    border-radius: 7px;
-    padding: 6px 8px;
-
-    .hover-detail {
-      display: flex;
-      flex-direction: column;
-      .detail-label { font-size: 8px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; }
-      .detail-val { font-size: 10px; font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    }
-  }
-}
-
 // Sleek Focused Side Panel
 .drawer-panel {
   background-color: var(--surface-card);
@@ -1196,7 +1114,7 @@
 }
 
 // -----------------------------------------------------------------------------
-// 8. Shared Badges & Keyframes
+// 8. Shared Badges & Utilities
 // -----------------------------------------------------------------------------
 .badge-type {
   display: inline-flex;
@@ -1210,6 +1128,13 @@
   .type-icon-sm { font-size: 11px; }
 }
 
+.type-bug { background-color: var(--status-error-bg); color: var(--status-error-fg); border-color: rgba(220, 38, 38, 0.25); }
+.type-story { background-color: var(--status-info-bg); color: var(--status-info-fg); border-color: rgba(37, 99, 235, 0.25); }
+.type-epic { background-color: var(--status-purple-bg); color: var(--status-purple-fg); border-color: rgba(124, 58, 237, 0.25); }
+.type-improvement { background-color: var(--status-warning-bg); color: var(--status-warning-fg); border-color: rgba(217, 119, 6, 0.25); }
+.type-test { background-color: var(--status-success-bg); color: var(--status-success-fg); border-color: rgba(5, 150, 105, 0.25); }
+.type-general { background-color: var(--status-neutral-bg); color: var(--status-neutral-fg); border-color: var(--border-default); }
+
 .badge-priority,
 .badge-overdue-pill {
   font-size: 9px;
@@ -1220,23 +1145,31 @@
 
 .badge-overdue-pill { background-color: #fee2e2; color: #b91c1c; font-weight: 700; }
 
-.priority-urgent { background: #fee2e2; color: #991b1b; }
-.priority-high { background: #ffedd5; color: #9a3412; }
-.priority-medium { background: #e0f2fe; color: #075985; }
-.priority-low { background: #f1f5f9; color: #475569; }
+.priority-urgent { background-color: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+.priority-high { background-color: #ffedd5; color: #9a3412; border-color: #fdba74; }
+.priority-medium { background-color: #e0f2fe; color: #075985; border-color: #7dd3fc; }
+.priority-low { background-color: #f1f5f9; color: #475569; border-color: #cbd5e1; }
 
 .status-pill {
   font-size: 10px;
   font-weight: 600;
   padding: 2px 7px;
   border-radius: 10px;
-  &.status-to-do { background: var(--status-neutral-bg); color: var(--status-neutral-fg); }
-  &.status-in-progress { background: var(--status-info-bg); color: var(--status-info-fg); }
-  &.status-in-review { background: var(--status-purple-bg); color: var(--status-purple-fg); }
-  &.status-blocked { background: var(--status-error-bg); color: var(--status-error-fg); }
-  &.status-done { background: var(--status-success-bg); color: var(--status-success-fg); }
-  &.status-cancelled { background: var(--border-subtle); color: var(--text-muted); }
 }
+
+.status-to-do { background-color: var(--status-neutral-bg); color: var(--status-neutral-fg); border-color: #cbd5e1; }
+.status-in-progress { background-color: var(--status-info-bg); color: var(--status-info-fg); border-color: #93c5fd; }
+.status-in-review { background-color: var(--status-purple-bg); color: var(--status-purple-fg); border-color: #d8b4fe; }
+.status-blocked { background-color: var(--status-error-bg); color: var(--status-error-fg); border-color: #f87171; }
+.status-done { background-color: var(--status-success-bg); color: var(--status-success-fg); border-color: #6ee7b7; }
+.status-cancelled { background-color: var(--border-subtle); color: var(--text-muted); border-color: #e2e8f0; }
+
+.color-project-0 { background-color: #eff6ff; color: #1e40af; border-color: #bfdbfe; }
+.color-project-1 { background-color: #faf5ff; color: #581c87; border-color: #e9d5ff; }
+.color-project-2 { background-color: #f0fdf4; color: #166534; border-color: #bbf7d0; }
+.color-project-3 { background-color: #fff7ed; color: #9a3412; border-color: #fed7aa; }
+.color-project-4 { background-color: #fdf2f8; color: #831843; border-color: #fbcfe8; }
+.color-project-5 { background-color: #f0fdfa; color: #115e59; border-color: #99f6e4; }
 
 .overdue-tag {
   background-color: #fee2e2;
@@ -1255,4 +1188,111 @@
 @keyframes alertPulse {
   0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
   50% { box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.35); }
+}
+
+// -----------------------------------------------------------------------------
+// Hover Micro-Preview Popover (Constrained, Non-overflowing)
+// -----------------------------------------------------------------------------
+.hover-preview-popover {
+  position: fixed;
+  z-index: 1000;
+  width: 260px;
+  max-width: 260px;
+  background-color: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.18), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  padding: 10px 12px;
+  pointer-events: none;
+  overflow: hidden;
+  box-sizing: border-box;
+  animation: hoverFadeIn 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+
+  .hover-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+    gap: 6px;
+  }
+
+  .hover-badges-left {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+  }
+
+  .hover-case-id {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--brand-primary);
+  }
+
+  .hover-overdue-tag {
+    font-size: 9px;
+    font-weight: 800;
+    color: #b91c1c;
+    background-color: #fee2e2;
+    padding: 1px 5px;
+    border-radius: 4px;
+    letter-spacing: 0.03em;
+    flex-shrink: 0;
+  }
+
+  .hover-title {
+    margin: 0 0 8px 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-heading);
+    line-height: 1.35;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    word-break: break-word;
+  }
+
+  .hover-meta-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    border-top: 1px dashed var(--border-subtle);
+    padding-top: 6px;
+  }
+
+  .hover-meta-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+    gap: 8px;
+    min-width: 0;
+
+    .meta-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      color: var(--text-secondary);
+      font-weight: 500;
+      flex-shrink: 0;
+      .material-symbols-outlined { font-size: 12px; color: var(--text-muted); }
+    }
+
+    .meta-value {
+      font-weight: 600;
+      color: var(--text-primary);
+      text-align: right;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+}
+
+@keyframes hoverFadeIn {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: translateY(0); }
 }
