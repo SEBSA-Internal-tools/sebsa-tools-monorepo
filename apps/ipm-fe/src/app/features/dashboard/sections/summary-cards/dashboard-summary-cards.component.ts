@@ -4,7 +4,7 @@ import { SummaryCard } from '../../services/dashboard.service';
 
 @Component({
   standalone: true,
-  selector: 'dashboard-summary-cards',
+  selector: 'app-dashboard-summary-cards',
   imports: [CommonModule],
   templateUrl: './dashboard-summary-cards.component.html',
   styleUrl: './dashboard-summary-cards.component.scss',

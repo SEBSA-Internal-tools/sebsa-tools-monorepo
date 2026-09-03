@@ -17,12 +17,12 @@
     <dashboard-hero [data]="(hero$ | async)"></dashboard-hero>
 
     <!-- Summary Cards -->
-    <dashboard-summary-cards
+    <app-dashboard-summary-cards
       [cards]="(summaryCards$ | async)"
       [activeFilter]="activeCardFilter()"
       [loading]="isLoading()"
       (cardClick)="onCardFilterSelected($event)"
-    ></dashboard-summary-cards>
+    ></app-dashboard-summary-cards>
 
     <!-- Action Items & Urgent Tasks Widget -->
     <app-dashboard-urgent-tasks
