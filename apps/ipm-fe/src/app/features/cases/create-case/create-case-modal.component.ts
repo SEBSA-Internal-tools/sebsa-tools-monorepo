@@ -59,6 +59,7 @@ export class CreateCaseModalComponent implements OnChanges {
    *  point), the category picker is hidden and every case is created with
    *  this fixed tag instead of letting the user choose. */
   @Input() lockedCategory: TaskCategory | '' = '';
+  @Input() initialDueDate = '';
   @Output() closed = new EventEmitter<void>();
   @Output() submitted = new EventEmitter<CaseFormData>();
 
@@ -101,6 +102,9 @@ export class CreateCaseModalComponent implements OnChanges {
 
   ngOnChanges(): void {
     if (this.isOpen) {
+      if (this.initialDueDate) {
+        this.dueDate = this.initialDueDate;
+      }
       if (this.projectId) {
         this.selectedProjectId = this.projectId;
         this.selectedProjectName = this.projectName;
