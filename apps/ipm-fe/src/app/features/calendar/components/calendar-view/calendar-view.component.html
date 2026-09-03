@@ -39,14 +39,14 @@
       <h2 class="calendar-title">{{ headerTitle() }}</h2>
     </div>
 
-    <!-- Center/Right: View Switcher, Density & Color-By -->
+    <!-- Center/Right: Date Mode, Color By, Density & View Switcher -->
     <div class="toolbar-right">
       <!-- Search Input -->
       <div class="calendar-search">
         <span class="material-symbols-outlined search-icon">search</span>
         <input
           type="text"
-          placeholder="Filter by title, ID, project, person..."
+          placeholder="Filter cases..."
           [(ngModel)]="searchQuery"
           class="search-input"
         />
@@ -57,8 +57,27 @@
         }
       </div>
 
+      <!-- Date Field Selector (Due Date [default] | Start Date | Created Date) -->
+      <div class="filter-dimension-selector">
+        <span class="selector-label">Date:</span>
+        <div class="btn-segmented">
+          @for (dm of dateModeOptions; track dm.id) {
+            <button
+              type="button"
+              class="segment-btn"
+              [class.active]="dateMode() === dm.id"
+              (click)="setDateMode(dm.id)"
+              [title]="'Filter & arrange by ' + dm.label"
+            >
+              <span class="material-symbols-outlined icon-xs">{{ dm.icon }}</span>
+              <span>{{ dm.label }}</span>
+            </button>
+          }
+        </div>
+      </div>
+
       <!-- Color By Selector -->
-      <div class="color-by-selector">
+      <div class="filter-dimension-selector">
         <span class="selector-label">Color:</span>
         <div class="btn-segmented">
           @for (opt of colorByOptions; track opt.id) {
@@ -92,7 +111,7 @@
           class="density-btn"
           [class.active]="density() === 'compact'"
           (click)="setDensity('compact')"
-          title="Compact Density (Fits more cases)"
+          title="Compact Density"
         >
           <span class="material-symbols-outlined">density_small</span>
         </button>
@@ -217,7 +236,7 @@
         </select>
       </div>
 
-      @if (selectedType() !== 'ALL' || selectedStatus() !== 'ALL' || searchQuery() || quickPreset() !== 'all') {
+      @if (selectedType() !== 'ALL' || selectedStatus() !== 'ALL' || searchQuery() || quickPreset() !== 'all' || dateMode() !== 'dueDate') {
         <button type="button" class="reset-filters-btn" (click)="resetFilters()">
           <span class="material-symbols-outlined">restart_alt</span>
           <span>Reset</span>
@@ -234,7 +253,7 @@
     </div>
   }
 
-  <!-- View 1: Month Grid View -->
+  <!-- View 1: Month Grid View (Strict Fixed 7-Column Width & Cropped Ellipsis Titles) -->
   @if (currentView() === 'month') {
     <div class="month-view-container">
       <!-- Weekday Headers -->
@@ -293,7 +312,7 @@
                 <button
                   type="button"
                   class="add-quick-btn"
-                  title="Add case on this date"
+                  title="Add case on this cell"
                   (click)="triggerCreateForDate(day.date, $event)"
                 >
                   <span class="material-symbols-outlined">add</span>
@@ -301,7 +320,7 @@
               </div>
             </div>
 
-            <!-- Event Pills List -->
+            <!-- Event Pills List (Fixed Width & Cropped Ellipsis) -->
             <div class="day-events-list">
               @for (item of day.items.slice(0, density() === 'compact' ? 5 : 3); track item.id) {
                 <div
@@ -329,8 +348,8 @@
                     <span class="material-symbols-outlined pill-icon">{{ getTypeIcon(item.type) }}</span>
                   }
 
-                  <!-- Title -->
-                  <span class="pill-title">{{ item.title }}</span>
+                  <!-- Cropped Title with Ellipsis -->
+                  <span class="pill-title" [title]="item.title">{{ item.title }}</span>
 
                   <!-- Priority indicator -->
                   @if (item.priority && colorBy() !== 'priority') {
@@ -404,7 +423,7 @@
                     }
                   </div>
 
-                  <h4 class="card-case-title">{{ item.title }}</h4>
+                  <h4 class="card-case-title" [title]="item.title">{{ item.title }}</h4>
 
                   @if (item.projectName) {
                     <div class="card-project">
@@ -455,7 +474,7 @@
         <div class="agenda-empty-state">
           <span class="material-symbols-outlined empty-icon">event_busy</span>
           <h3>No Scheduled Cases Found</h3>
-          <p>No cases match your current active filters or preset selection.</p>
+          <p>No cases match your current active filters or date filter.</p>
           <button type="button" class="btn-clear-filters" (click)="resetFilters()">
             Clear Filters
           </button>
@@ -568,7 +587,7 @@
             >
               <div class="flyout-item-left">
                 <span class="pill-case-id font-mono">{{ item.caseNumber || 'CASE' }}</span>
-                <span class="flyout-item-title">{{ item.title }}</span>
+                <span class="flyout-item-title" [title]="item.title">{{ item.title }}</span>
               </div>
               <div class="flyout-item-right">
                 @if (item.isOverdue) {
@@ -592,7 +611,7 @@
             (click)="triggerCreateForDate(day.date, $event); closeDayFlyout()"
           >
             <span class="material-symbols-outlined">add</span>
-            <span>Schedule Another Case</span>
+            <span>Schedule Case on This Day</span>
           </button>
         </footer>
       </div>
@@ -636,33 +655,29 @@
           <span class="detail-val">{{ hovered.item.assignee || 'Unassigned' }}</span>
         </div>
         <div class="hover-detail">
-          <span class="detail-label">Status</span>
-          <span class="detail-val status-val" [ngClass]="getStatusClass(hovered.item.status)">
-            {{ getStatusLabel(hovered.item.status) }}
-          </span>
+          <span class="detail-label">{{ getDateModeLabel(dateMode()) }}</span>
+          <span class="detail-val">{{ getItemActiveDate(hovered.item, dateMode()) }}</span>
         </div>
       </div>
     </div>
   }
 
-  <!-- 5. Case Inspection Slide Drawer / Modal -->
+  <!-- 5. Sleek Focused Side Panel for Case Inspection -->
   @if (selectedItem(); as item) {
     <div class="drawer-backdrop" (click)="closeDrawer()">
       <div class="drawer-panel" (click)="$event.stopPropagation()">
         <header class="drawer-header">
           <div class="drawer-header-left">
+            <span class="drawer-case-id font-mono">{{ item.caseNumber || 'CASE' }}</span>
             <span class="badge-type" [ngClass]="getTypeClass(item.type)">
               <span class="material-symbols-outlined type-icon-sm">{{ getTypeIcon(item.type) }}</span>
               <span>{{ item.type || 'CASE' }}</span>
             </span>
-            @if (item.caseNumber) {
-              <span class="drawer-case-id font-mono">{{ item.caseNumber }}</span>
-            }
             @if (item.isOverdue) {
               <span class="overdue-tag">⚠️ OVERDUE</span>
             }
           </div>
-          <button type="button" class="btn-close-drawer" (click)="closeDrawer()" aria-label="Close details">
+          <button type="button" class="btn-close-drawer" (click)="closeDrawer()" aria-label="Close panel">
             <span class="material-symbols-outlined">close</span>
           </button>
         </header>
@@ -670,11 +685,13 @@
         <div class="drawer-body">
           <h3 class="drawer-title">{{ item.title }}</h3>
 
+          <!-- Essential Key Info Summary Grid -->
           <div class="drawer-meta-grid">
             <div class="meta-item">
-              <span class="meta-label">Status</span>
-              <span class="status-pill" [ngClass]="getStatusClass(item.status)">
-                {{ getStatusLabel(item.status) }}
+              <span class="meta-label">{{ getDateModeLabel(dateMode()) }}</span>
+              <span class="meta-value">
+                <span class="material-symbols-outlined icon-xs">calendar_month</span>
+                {{ getItemActiveDate(item, dateMode()) || 'Not set' }}
               </span>
             </div>
 
@@ -686,18 +703,17 @@
             </div>
 
             <div class="meta-item">
-              <span class="meta-label">Due / Scheduled</span>
-              <span class="meta-value">
-                <span class="material-symbols-outlined icon-xs">event</span>
-                {{ item.date }}
+              <span class="meta-label">Status</span>
+              <span class="status-pill" [ngClass]="getStatusClass(item.status)">
+                {{ getStatusLabel(item.status) }}
               </span>
             </div>
 
             <div class="meta-item">
               <span class="meta-label">Project</span>
-              <span class="meta-value">
+              <span class="meta-value" [title]="item.projectName || 'General'">
                 <span class="material-symbols-outlined icon-xs">folder</span>
-                {{ item.projectName || 'General Project' }}
+                {{ item.projectName || 'General' }}
               </span>
             </div>
 
@@ -705,13 +721,14 @@
               <div class="meta-item full-width">
                 <span class="meta-label">Assignee</span>
                 <span class="meta-value">
-                  <span class="material-symbols-outlined icon-xs">account_circle</span>
+                  <span class="material-symbols-outlined icon-xs">person</span>
                   {{ item.assignee }}
                 </span>
               </div>
             }
           </div>
 
+          <!-- Brief description preview if available -->
           @if (item.description) {
             <div class="drawer-description-section">
               <h4 class="section-heading">Description</h4>
@@ -722,11 +739,11 @@
 
         <footer class="drawer-footer">
           <button type="button" class="btn-secondary" (click)="closeDrawer()">
-            Close
+            Dismiss
           </button>
           <button type="button" class="btn-primary" (click)="navigateToCase(item)">
             <span class="material-symbols-outlined">open_in_new</span>
-            <span>Open Case Detail</span>
+            <span>Open Case Details</span>
           </button>
         </footer>
       </div>

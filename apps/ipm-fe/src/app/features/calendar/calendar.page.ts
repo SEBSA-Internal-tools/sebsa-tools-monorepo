@@ -49,6 +49,7 @@ export class CalendarPageComponent implements OnInit {
 
   // Modal state
   readonly isCreateCaseModalOpen = signal<boolean>(false);
+  readonly initialCaseDueDate = signal<string>('');
 
   readonly selectedProjectName = computed<string>(() => {
     const id = this.selectedProjectId();
@@ -140,15 +141,21 @@ export class CalendarPageComponent implements OnInit {
   }
 
   onCreateForDate(date: Date): void {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    this.initialCaseDueDate.set(`${y}-${m}-${d}`);
     this.isCreateCaseModalOpen.set(true);
   }
 
   onCreateCaseClicked(): void {
+    this.initialCaseDueDate.set('');
     this.isCreateCaseModalOpen.set(true);
   }
 
   onCaseModalClosed(): void {
     this.isCreateCaseModalOpen.set(false);
+    this.initialCaseDueDate.set('');
   }
 
   onCaseFormSubmitted(formData: CaseFormData): void {

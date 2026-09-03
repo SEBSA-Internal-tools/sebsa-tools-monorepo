@@ -14,6 +14,7 @@ import { Router } from '@angular/router';
 import type { CaseType, CaseStatus } from '@sebsa-pm-tool/shared-models';
 import type {
   CalendarColorByMode,
+  CalendarDateMode,
   CalendarDay,
   CalendarDensity,
   CalendarItem,
@@ -58,6 +59,7 @@ export class CalendarViewComponent implements OnInit {
   readonly colorBy = signal<CalendarColorByMode>('type');
   readonly density = signal<CalendarDensity>('comfortable');
   readonly quickPreset = signal<QuickPresetFilter>('all');
+  readonly dateMode = signal<CalendarDateMode>('dueDate'); // default: due date
   readonly hoveredItem = signal<{ item: CalendarItem; x: number; y: number } | null>(null);
   readonly expandedDay = signal<CalendarDay | null>(null);
 
@@ -67,6 +69,12 @@ export class CalendarViewComponent implements OnInit {
   readonly selectedStatus = signal<CaseStatus | 'ALL'>('ALL');
 
   readonly weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+  readonly dateModeOptions: { id: CalendarDateMode; label: string; icon: string }[] = [
+    { id: 'dueDate', label: 'Due Date', icon: 'event_available' },
+    { id: 'startDate', label: 'Start Date', icon: 'play_circle' },
+    { id: 'createdAt', label: 'Created Date', icon: 'schedule' },
+  ];
 
   readonly caseTypes: { id: CaseType | 'ALL'; label: string; icon: string }[] = [
     { id: 'ALL', label: 'All Types', icon: 'apps' },
@@ -87,7 +95,7 @@ export class CalendarViewComponent implements OnInit {
   ];
 
   readonly colorByOptions: { id: CalendarColorByMode; label: string; icon: string }[] = [
-    { id: 'type', label: 'Case Type', icon: 'category' },
+    { id: 'type', label: 'Type', icon: 'category' },
     { id: 'priority', label: 'Priority', icon: 'flag' },
     { id: 'project', label: 'Project', icon: 'folder' },
     { id: 'status', label: 'Status', icon: 'check_circle' },
@@ -205,13 +213,14 @@ export class CalendarViewComponent implements OnInit {
     return curr.toLocaleString('default', { month: 'long', year: 'numeric' });
   });
 
-  // Month Grid Calculation with Workload Pips and Risk Indicators
+  // Month Grid Calculation with Workload Pips, Date-Field mapping, and Priority sorting
   readonly monthDays = computed<CalendarDay[]>(() => {
     const current = this.currentDate();
     const year = current.getFullYear();
     const month = current.getMonth();
     const todayStr = this.formatDateKey(new Date());
     const selStr = this.selectedDate() ? this.formatDateKey(this.selectedDate()!) : null;
+    const mode = this.dateMode();
 
     const firstDayOfMonth = new Date(year, month, 1);
     const lastDayOfMonth = new Date(year, month + 1, 0);
@@ -222,13 +231,16 @@ export class CalendarViewComponent implements OnInit {
     const days: CalendarDay[] = [];
     const items = this.filteredItems();
 
+    // Group items by their active date (according to dateMode: dueDate / startDate / createdAt)
     const itemMap = new Map<string, CalendarItem[]>();
     for (const item of items) {
-      const key = this.normalizeItemDate(item.date);
-      if (!itemMap.has(key)) {
-        itemMap.set(key, []);
+      const key = this.getItemActiveDate(item, mode);
+      if (key) {
+        if (!itemMap.has(key)) {
+          itemMap.set(key, []);
+        }
+        itemMap.get(key)!.push(item);
       }
-      itemMap.get(key)!.push(item);
     }
 
     const buildDay = (d: Date, isCurrentMonth: boolean, dayNum: number): CalendarDay => {
@@ -236,7 +248,10 @@ export class CalendarViewComponent implements OnInit {
       const dayItems = itemMap.get(dStr) || [];
       const isWeekend = d.getDay() === 0 || d.getDay() === 6;
 
-      // Calculate workload pips
+      // Arrange and sort items properly (Priority: Urgent -> High -> Med -> Low, Blocked first, then Title)
+      this.sortDayItems(dayItems);
+
+      // Workload pips
       const pipMap = new Map<CaseType, number>();
       let hasOverdue = false;
       let hasBlocked = false;
@@ -304,15 +319,18 @@ export class CalendarViewComponent implements OnInit {
     const startOfWeek = this.getStartOfWeek(curr);
     const todayStr = this.formatDateKey(new Date());
     const selStr = this.selectedDate() ? this.formatDateKey(this.selectedDate()!) : null;
+    const mode = this.dateMode();
 
     const items = this.filteredItems();
     const itemMap = new Map<string, CalendarItem[]>();
     for (const item of items) {
-      const key = this.normalizeItemDate(item.date);
-      if (!itemMap.has(key)) {
-        itemMap.set(key, []);
+      const key = this.getItemActiveDate(item, mode);
+      if (key) {
+        if (!itemMap.has(key)) {
+          itemMap.set(key, []);
+        }
+        itemMap.get(key)!.push(item);
       }
-      itemMap.get(key)!.push(item);
     }
 
     const days: CalendarDay[] = [];
@@ -322,6 +340,8 @@ export class CalendarViewComponent implements OnInit {
       const dStr = this.formatDateKey(d);
       const isWeekend = d.getDay() === 0 || d.getDay() === 6;
       const dayItems = itemMap.get(dStr) || [];
+
+      this.sortDayItems(dayItems);
 
       let hasOverdue = false;
       let hasBlocked = false;
@@ -353,6 +373,7 @@ export class CalendarViewComponent implements OnInit {
     const items = this.filteredItems();
     const today = new Date();
     const todayStr = this.formatDateKey(today);
+    const mode = this.dateMode();
 
     const tomorrow = new Date(today);
     tomorrow.setDate(today.getDate() + 1);
@@ -360,11 +381,13 @@ export class CalendarViewComponent implements OnInit {
 
     const grouped = new Map<string, CalendarItem[]>();
     for (const item of items) {
-      const key = this.normalizeItemDate(item.date);
-      if (!grouped.has(key)) {
-        grouped.set(key, []);
+      const key = this.getItemActiveDate(item, mode);
+      if (key) {
+        if (!grouped.has(key)) {
+          grouped.set(key, []);
+        }
+        grouped.get(key)!.push(item);
       }
-      grouped.get(key)!.push(item);
     }
 
     const sortedDates = Array.from(grouped.keys()).sort((a, b) => a.localeCompare(b));
@@ -385,11 +408,14 @@ export class CalendarViewComponent implements OnInit {
         label = `Tomorrow, ${label}`;
       }
 
+      const dayItems = grouped.get(dStr) || [];
+      this.sortDayItems(dayItems);
+
       return {
         date: dateObj,
         dateString: dStr,
         label,
-        items: grouped.get(dStr) || [],
+        items: dayItems,
       };
     });
   });
@@ -437,6 +463,37 @@ export class CalendarViewComponent implements OnInit {
 
   setDensity(density: CalendarDensity): void {
     this.density.set(density);
+  }
+
+  setDateMode(mode: CalendarDateMode): void {
+    this.dateMode.set(mode);
+
+    // If the currently viewed month has no cases in this mode, auto-focus on the month containing cases
+    const items = this.filteredItems();
+    const currentYear = this.currentDate().getFullYear();
+    const currentMonth = this.currentDate().getMonth();
+
+    const hasCasesInCurrentMonth = items.some((item) => {
+      const dStr = this.getItemActiveDate(item, mode);
+      if (!dStr) return false;
+      const parts = dStr.split('-').map((p) => parseInt(p, 10));
+      return parts[0] === currentYear && parts[1] - 1 === currentMonth;
+    });
+
+    if (!hasCasesInCurrentMonth && items.length > 0) {
+      for (const item of items) {
+        const dStr = this.getItemActiveDate(item, mode);
+        if (dStr && dStr.length >= 10) {
+          const parts = dStr.split('-').map((p) => parseInt(p, 10));
+          if (!isNaN(parts[0]) && !isNaN(parts[1])) {
+            const targetDate = new Date(parts[0], parts[1] - 1, 1);
+            this.currentDate.set(targetDate);
+            this.dateChange.emit(targetDate);
+            break;
+          }
+        }
+      }
+    }
   }
 
   setQuickPreset(preset: QuickPresetFilter): void {
@@ -523,6 +580,55 @@ export class CalendarViewComponent implements OnInit {
     this.selectedType.set('ALL');
     this.selectedStatus.set('ALL');
     this.quickPreset.set('all');
+    this.dateMode.set('dueDate');
+  }
+
+  getDateModeLabel(mode: CalendarDateMode): string {
+    switch (mode) {
+      case 'dueDate':
+        return 'Due Date';
+      case 'startDate':
+        return 'Start Date';
+      case 'createdAt':
+        return 'Created Date';
+    }
+  }
+
+  getItemActiveDate(item: CalendarItem, mode: CalendarDateMode): string {
+    if (mode === 'dueDate') {
+      return item.dueDate || item.date || item.createdAt || '';
+    }
+    if (mode === 'startDate') {
+      return item.startDate || item.createdAt || item.dueDate || item.date || '';
+    }
+    if (mode === 'createdAt') {
+      return item.createdAt || item.date || item.dueDate || '';
+    }
+    return item.date || '';
+  }
+
+  private sortDayItems(items: CalendarItem[]): void {
+    const getPriorityRank = (p?: string): number => {
+      const s = (p || '').toLowerCase();
+      if (s.includes('urgent') || s.includes('crit')) return 1;
+      if (s.includes('high')) return 2;
+      if (s.includes('med')) return 3;
+      return 4;
+    };
+
+    items.sort((a, b) => {
+      const rA = getPriorityRank(a.priority);
+      const rB = getPriorityRank(b.priority);
+      if (rA !== rB) return rA - rB;
+
+      if (a.status === 'BLOCKED' && b.status !== 'BLOCKED') return -1;
+      if (b.status === 'BLOCKED' && a.status !== 'BLOCKED') return 1;
+
+      if (a.status === 'DONE' && b.status !== 'DONE') return 1;
+      if (b.status === 'DONE' && a.status !== 'DONE') return -1;
+
+      return a.title.localeCompare(b.title);
+    });
   }
 
   // Dynamic Color Resolution based on active colorBy() mode
@@ -537,7 +643,6 @@ export class CalendarViewComponent implements OnInit {
     if (mode === 'project') {
       return this.getProjectColorClass(item.projectName);
     }
-    // Default: 'type'
     return this.getTypeClass(item.type);
   }
 
@@ -660,13 +765,5 @@ export class CalendarViewComponent implements OnInit {
     const m = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     return `${y}-${m}-${day}`;
-  }
-
-  private normalizeItemDate(dateVal: string | Date): string {
-    if (!dateVal) return '';
-    if (typeof dateVal === 'string') {
-      return dateVal.slice(0, 10);
-    }
-    return this.formatDateKey(dateVal);
   }
 }

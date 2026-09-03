@@ -35,6 +35,8 @@ export interface CaseView {
   duration: string;
   assignee?: string;
   dueDate: string;
+  startDate?: string | null;
+  createdAt?: string;
   projectId: string;
   projectName: string;
   sprintId?: string | null;
@@ -175,6 +177,8 @@ export class CasesService {
       duration: kase.dueDate ? `${kase.dueDate.slice(0, 10)}` : 'No due date',
       assignee,
       dueDate: kase.dueDate ?? '',
+      startDate: kase.startDate ?? null,
+      createdAt: kase.createdAt ?? undefined,
       projectId: kase.projectId,
       projectName: kase.project.name,
       sprintId: kase.sprintId,
