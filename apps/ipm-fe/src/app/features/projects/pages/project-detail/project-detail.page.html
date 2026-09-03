@@ -46,6 +46,9 @@
         @case ('team') {
           <project-team [projectId]="project.id"></project-team>
         }
+        @case ('activity') {
+          <app-activity-feed entityType="PROJECT" [entityId]="project.id"></app-activity-feed>
+        }
         @case ('configuration') {
           <project-configuration [project]="project"></project-configuration>
         }

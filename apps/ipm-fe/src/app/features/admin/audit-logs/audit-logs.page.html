@@ -1,0 +1,163 @@
+<div class="page-container">
+  <header class="sebsa-page-header">
+    <span class="sebsa-eyebrow">SYSTEM</span>
+    <h1 class="sebsa-page-title">Audit Log</h1>
+    <p class="sebsa-page-desc">
+      Every recorded action across all projects, cases, tasks and subtasks. Visible to Super Admins only.
+    </p>
+  </header>
+
+  <section class="filters sebsa-card" aria-label="Audit log filters">
+    <div class="filter-grid">
+      <div class="filter-field">
+        <label for="filter-search">Search</label>
+        <input
+          id="filter-search"
+          type="text"
+          [(ngModel)]="filters.search"
+          (keyup.enter)="applyFilters()"
+          placeholder="Match against the entry description"
+        />
+      </div>
+
+      <div class="filter-field">
+        <label for="filter-entity-type">Entity type</label>
+        <select id="filter-entity-type" [(ngModel)]="filters.entityType">
+          <option value="">All types</option>
+          @for (type of filterOptions()?.entityTypes ?? []; track type) {
+            <option [value]="type">{{ humanize(type) }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="filter-field">
+        <label for="filter-action">Action</label>
+        <select id="filter-action" [(ngModel)]="filters.action">
+          <option value="">All actions</option>
+          @for (action of filterOptions()?.actions ?? []; track action) {
+            <option [value]="action">{{ humanize(action) }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="filter-field">
+        <label for="filter-actor">User</label>
+        <select id="filter-actor" [(ngModel)]="filters.actorId">
+          <option value="">All users</option>
+          @for (actor of filterOptions()?.actors ?? []; track actor.id) {
+            <option [value]="actor.id">{{ actor.name }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="filter-field">
+        <label for="filter-project">Project</label>
+        <select id="filter-project" [(ngModel)]="filters.projectId">
+          <option value="">All projects</option>
+          @for (project of filterOptions()?.projects ?? []; track project.id) {
+            <option [value]="project.id">{{ project.name }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="filter-field">
+        <label for="filter-date-from">From</label>
+        <input id="filter-date-from" type="date" [(ngModel)]="filters.dateFrom" />
+      </div>
+
+      <div class="filter-field">
+        <label for="filter-date-to">To</label>
+        <input id="filter-date-to" type="date" [(ngModel)]="filters.dateTo" />
+      </div>
+    </div>
+
+    <div class="filter-actions">
+      <button type="button" class="sebsa-btn-primary" (click)="applyFilters()">Apply filters</button>
+      @if (hasActiveFilters) {
+        <button type="button" class="btn-ghost" (click)="clearFilters()">Clear</button>
+      }
+      <span class="filter-summary">{{ total() }} {{ total() === 1 ? 'entry' : 'entries' }}</span>
+    </div>
+  </section>
+
+  @if (errorMessage()) {
+    <p class="page-error">
+      <span class="material-symbols-outlined">error</span>
+      {{ errorMessage() }}
+    </p>
+  }
+
+  <section class="sebsa-card table-card">
+    <div class="table-scroll">
+      <table class="sebsa-table">
+        <thead>
+          <tr>
+            <th scope="col">When</th>
+            <th scope="col">User</th>
+            <th scope="col">Action</th>
+            <th scope="col">Entity</th>
+            <th scope="col">Description</th>
+            <th scope="col">Changes</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (entry of entries(); track trackById($index, entry)) {
+            <tr>
+              <td class="cell-when">{{ formatTimestamp(entry.createdAt) }}</td>
+              <td>{{ entry.actor?.name ?? 'System' }}</td>
+              <td>
+                <span class="action-badge" [attr.data-action]="entry.action">
+                  {{ humanize(entry.action) }}
+                </span>
+              </td>
+              <td>
+                <span class="entity-type">{{ humanize(entry.entityType) }}</span>
+                @if (entry.entityLabel) {
+                  <span class="entity-label">{{ entry.entityLabel }}</span>
+                }
+              </td>
+              <td>{{ entry.description }}</td>
+              <td>
+                @if (entry.metadata?.changes?.length) {
+                  <ul class="change-list">
+                    @for (change of entry.metadata?.changes ?? []; track change.field) {
+                      <li>
+                        <strong>{{ change.field }}</strong>: {{ change.from ?? '—' }} → {{ change.to ?? '—' }}
+                      </li>
+                    }
+                  </ul>
+                } @else {
+                  <span class="muted">—</span>
+                }
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="6" class="empty-cell">
+                @if (isLoading()) {
+                  Loading audit trail…
+                } @else {
+                  No entries match these filters.
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  @if (totalPages() > 1) {
+    <nav class="pagination" aria-label="Audit log pages">
+      <button type="button" (click)="goToPage(page() - 1)" [disabled]="page() === 1">
+        <span class="material-symbols-outlined">chevron_left</span>
+        Previous
+      </button>
+      <span class="page-indicator">Page {{ page() }} of {{ totalPages() }}</span>
+      <button type="button" (click)="goToPage(page() + 1)" [disabled]="page() === totalPages()">
+        Next
+        <span class="material-symbols-outlined">chevron_right</span>
+      </button>
+    </nav>
+  }
+</div>

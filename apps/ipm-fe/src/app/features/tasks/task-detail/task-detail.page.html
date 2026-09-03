@@ -306,9 +306,19 @@
           </button>
         </div>
       </div>
+
+      <!-- Activity -->
+      <div class="section-block">
+        <h3 class="section-heading">
+          <span class="material-symbols-outlined">history</span>
+          Activity
+        </h3>
+        <app-activity-feed entityType="TASK" [entityId]="task.id"></app-activity-feed>
+      </div>
     </div>
     <!-- Right: Metadata Sidebar -->
     <div class="task-sidebar">
+
       <!-- Dates -->
       <div class="meta-card">
         <h4 class="meta-heading">

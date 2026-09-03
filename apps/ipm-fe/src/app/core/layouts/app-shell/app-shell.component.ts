@@ -22,18 +22,33 @@ export class AppShellComponent implements OnInit {
   private readonly casesService = inject(CasesService);
   private readonly notificationService = inject(NotificationService);
 
-  private readonly navigationItems: { label: string; icon: string; path: string; hiddenForRoles?: SystemRole[] }[] = [
+  private readonly navigationItems: {
+    label: string;
+    icon: string;
+    path: string;
+    hiddenForRoles?: SystemRole[];
+    onlyForRoles?: SystemRole[];
+  }[] = [
     { label: 'Dashboard', icon: 'home', path: '/dashboard' },
     { label: 'Assigned Tasks', icon: 'search', path: '/tasks' },
     { label: 'Projects', icon: 'favorite', path: '/projects' },
     { label: 'Customers', icon: 'domain', path: '/customers', hiddenForRoles: ['REGULAR_USER'] },
     { label: 'CSO', icon: 'groups', path: '/cso' },
     { label: 'Calendar', icon: 'calendar_month', path: '/calendar' },
+    { label: 'Audit Log', icon: 'shield_person', path: '/admin/audit-logs', onlyForRoles: ['SUPER_ADMIN'] },
   ];
 
   protected get visibleNavigationItems() {
     const role = this.authService.currentUser()?.systemRole;
-    return this.navigationItems.filter((item) => !item.hiddenForRoles || !role || !item.hiddenForRoles.includes(role));
+
+    return this.navigationItems.filter((item) => {
+      // Without a resolved role yet, an `onlyForRoles` item stays hidden rather
+      // than flashing into the sidebar before the session rehydrates.
+      if (item.onlyForRoles) {
+        return !!role && item.onlyForRoles.includes(role);
+      }
+      return !item.hiddenForRoles || !role || !item.hiddenForRoles.includes(role);
+    });
   }
 
   protected isTaskModalOpen = false;

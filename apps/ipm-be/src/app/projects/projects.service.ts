@@ -14,7 +14,7 @@ import {
   ProjectSummary,
   UpdateProjectPriorityRequest,
 } from '@sebsa-pm-tool/shared-models';
-import { Prisma } from '@prisma/client';
+import { ActivityAction, EntityType, Prisma } from '@prisma/client';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { AddMemberDto } from './dto/add-member.dto';
@@ -25,6 +25,7 @@ import {
   DEFAULT_PROJECT_ROLES,
   PROJECT_OWNER_ROLE_NAME,
 } from './constants';
+import { ActivityLogsService } from '../activity-logs/activity-logs.service';
 
 const ADMIN_SYSTEM_ROLES: AuthUser['systemRole'][] = ['ADMIN', 'SUPER_ADMIN'];
 
@@ -59,7 +60,10 @@ type ProjectWithDetail = Prisma.ProjectGetPayload<{ include: typeof projectDetai
 
 @Injectable()
 export class ProjectsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly activityLogs: ActivityLogsService,
+  ) {}
 
   async create(dto: CreateProjectDto, creator: AuthUser): Promise<Project> {
     this.assertCanCreateProject(creator);
@@ -146,6 +150,19 @@ export class ProjectsService {
         data: { projectId: project.id, userId: creator.id, roleId: ownerRole.id },
       });
 
+      await this.activityLogs.record(
+        {
+          projectId: project.id,
+          entityType: EntityType.PROJECT,
+          entityId: project.id,
+          entityLabel: project.name,
+          action: ActivityAction.CREATED,
+          actorId: creator.id,
+          description: `Created project "${project.name}"`,
+        },
+        tx,
+      );
+
       return project;
     });
 
@@ -191,20 +208,43 @@ export class ProjectsService {
       await this.assertCustomerExists(dto.customerId);
     }
 
-    await this.prisma.project.update({
-      where: { id },
-      data: {
-        name: dto.name,
-        description: dto.description,
-        type: dto.type,
-        customType: dto.customType,
-        status: dto.status,
-        startDate: dto.startDate ? new Date(dto.startDate) : undefined,
-        targetEndDate: dto.targetEndDate ? new Date(dto.targetEndDate) : undefined,
-        color: dto.color,
-        isCsoProject: dto.isCsoProject,
-        customerId: dto.customerId,
-      },
+    const isStatusChange = !!dto.status && dto.status !== project.status;
+    const changes = this.activityLogs.buildFieldChanges(project, dto);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.project.update({
+        where: { id },
+        data: {
+          name: dto.name,
+          description: dto.description,
+          type: dto.type,
+          customType: dto.customType,
+          status: dto.status,
+          startDate: dto.startDate ? new Date(dto.startDate) : undefined,
+          targetEndDate: dto.targetEndDate ? new Date(dto.targetEndDate) : undefined,
+          color: dto.color,
+          isCsoProject: dto.isCsoProject,
+          customerId: dto.customerId,
+        },
+      });
+
+      if (changes.length > 0) {
+        await this.activityLogs.record(
+          {
+            projectId: id,
+            entityType: EntityType.PROJECT,
+            entityId: id,
+            entityLabel: dto.name ?? project.name,
+            action: isStatusChange ? ActivityAction.STATUS_CHANGED : ActivityAction.UPDATED,
+            actorId: user.id,
+            description: isStatusChange
+              ? `Moved project "${project.name}" from ${project.status} to ${dto.status}`
+              : `Updated project "${project.name}"`,
+            changes,
+          },
+          tx,
+        );
+      }
     });
 
     return this.findOne(id, user);
@@ -214,9 +254,24 @@ export class ProjectsService {
     const project = await this.loadProjectWithMembership(id);
     this.assertCanManageMembers(project, user);
 
-    await this.prisma.project.update({
-      where: { id },
-      data: { deletedAt: new Date() },
+    await this.prisma.$transaction(async (tx) => {
+      await tx.project.update({
+        where: { id },
+        data: { deletedAt: new Date() },
+      });
+
+      await this.activityLogs.record(
+        {
+          projectId: id,
+          entityType: EntityType.PROJECT,
+          entityId: id,
+          entityLabel: project.name,
+          action: ActivityAction.DELETED,
+          actorId: user.id,
+          description: `Deleted project "${project.name}"`,
+        },
+        tx,
+      );
     });
   }
 
@@ -298,25 +353,45 @@ export class ProjectsService {
     await this.assertRoleBelongsToProject(id, dto.roleId);
     await this.assertUserExists(dto.userId);
 
+    const member = await this.upsertMembership(id, dto);
+
+    await this.activityLogs.record({
+      projectId: id,
+      entityType: EntityType.PROJECT_MEMBER,
+      entityId: member.id,
+      entityLabel: member.user.name,
+      action: ActivityAction.MEMBER_ADDED,
+      actorId: user.id,
+      description: `Added ${member.user.name} to "${project.name}" as ${member.role.name}`,
+    });
+
+    return this.toProjectMemberSummary(member);
+  }
+
+  /** Adds the membership, reviving a previously removed row rather than
+   * inserting a duplicate. Split out of addMember so its three success paths
+   * converge on one row for the caller to log. */
+  private async upsertMembership(
+    projectId: string,
+    dto: AddMemberDto,
+  ): Promise<MemberWithRelations> {
     const existing = await this.prisma.projectMember.findFirst({
-      where: { projectId: id, userId: dto.userId },
+      where: { projectId, userId: dto.userId },
     });
 
     if (existing) {
-      const reactivated = await this.prisma.projectMember.update({
+      return this.prisma.projectMember.update({
         where: { id: existing.id },
         data: { roleId: dto.roleId, deletedAt: null, joinedAt: new Date() },
         include: memberInclude,
       });
-      return this.toProjectMemberSummary(reactivated);
     }
 
     try {
-      const created = await this.prisma.projectMember.create({
-        data: { projectId: id, userId: dto.userId, roleId: dto.roleId },
+      return await this.prisma.projectMember.create({
+        data: { projectId, userId: dto.userId, roleId: dto.roleId },
         include: memberInclude,
       });
-      return this.toProjectMemberSummary(created);
     } catch (error) {
       // Race: another request inserted the same (projectId, userId) pair between our
       // findFirst and this create. The DB's hand-written partial unique index (see
@@ -324,14 +399,13 @@ export class ProjectsService {
       // which Prisma surfaces as P2002 even though the index isn't in the Prisma DMMF.
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         const raceRow = await this.prisma.projectMember.findFirstOrThrow({
-          where: { projectId: id, userId: dto.userId },
+          where: { projectId, userId: dto.userId },
         });
-        const reactivated = await this.prisma.projectMember.update({
+        return this.prisma.projectMember.update({
           where: { id: raceRow.id },
           data: { roleId: dto.roleId, deletedAt: null, joinedAt: new Date() },
           include: memberInclude,
         });
-        return this.toProjectMemberSummary(reactivated);
       }
       throw error;
     }
@@ -353,17 +427,43 @@ export class ProjectsService {
       data: { roleId: dto.roleId },
       include: memberInclude,
     });
+
+    await this.activityLogs.record({
+      projectId: id,
+      entityType: EntityType.PROJECT_MEMBER,
+      entityId: memberId,
+      entityLabel: updated.user.name,
+      action: ActivityAction.ROLE_CHANGED,
+      actorId: user.id,
+      description: `Changed ${updated.user.name}'s role on "${project.name}" to ${updated.role.name}`,
+    });
+
     return this.toProjectMemberSummary(updated);
   }
 
   async removeMember(id: string, memberId: string, user: AuthUser): Promise<void> {
     const project = await this.loadProjectWithMembership(id);
     this.assertCanManageMembers(project, user);
-    await this.getActiveMemberOrThrow(id, memberId);
+    const member = await this.getActiveMemberOrThrow(id, memberId);
 
-    await this.prisma.projectMember.update({
-      where: { id: memberId },
-      data: { deletedAt: new Date() },
+    await this.prisma.$transaction(async (tx) => {
+      await tx.projectMember.update({
+        where: { id: memberId },
+        data: { deletedAt: new Date() },
+      });
+
+      await this.activityLogs.record(
+        {
+          projectId: id,
+          entityType: EntityType.PROJECT_MEMBER,
+          entityId: memberId,
+          entityLabel: member.user.name,
+          action: ActivityAction.MEMBER_REMOVED,
+          actorId: user.id,
+          description: `Removed ${member.user.name} from "${project.name}"`,
+        },
+        tx,
+      );
     });
   }
 
@@ -492,6 +592,7 @@ export class ProjectsService {
   private async getActiveMemberOrThrow(projectId: string, memberId: string) {
     const member = await this.prisma.projectMember.findFirst({
       where: { id: memberId, projectId, deletedAt: null },
+      include: memberInclude,
     });
     if (!member) {
       throw new NotFoundException('Membership not found.');

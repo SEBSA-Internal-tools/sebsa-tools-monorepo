@@ -15,11 +15,12 @@ import {
   TaskListSummary,
   UpdateTaskResponse,
 } from '@sebsa-pm-tool/shared-models';
-import { Prisma } from '@prisma/client';
+import { ActivityAction, EntityType, Prisma } from '@prisma/client';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { FilterTaskDto } from './dto/filter-task.dto';
 import { CreateTaskDependencyDto } from './dto/create-task-dependency.dto';
+import { ActivityLogsService } from '../activity-logs/activity-logs.service';
 
 const ADMIN_SYSTEM_ROLES: AuthUser['systemRole'][] = ['ADMIN', 'SUPER_ADMIN'];
 
@@ -55,7 +56,10 @@ type TaskWithDetail = Prisma.TaskGetPayload<{ include: typeof taskDetailInclude 
 
 @Injectable()
 export class TaskService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly activityLogs: ActivityLogsService,
+  ) {}
 
   async create(dto: CreateTaskDto, user: AuthUser): Promise<Task> {
     const kase = await this.getCaseOrThrow(dto.caseId);
@@ -98,6 +102,19 @@ export class TaskService {
           changedById: user.id,
         },
       });
+
+      await this.activityLogs.record(
+        {
+          projectId: kase.projectId,
+          entityType: EntityType.TASK,
+          entityId: task.id,
+          entityLabel: task.title,
+          action: ActivityAction.CREATED,
+          actorId: user.id,
+          description: `Created task "${task.title}"`,
+        },
+        tx,
+      );
 
       return task;
     });
@@ -192,6 +209,7 @@ export class TaskService {
 
     const { assigneeIds, labelIds, ...restDto } = dto;
     const isStatusChange = !!dto.status && dto.status !== existing.status;
+    const changes = this.activityLogs.buildFieldChanges(existing, restDto);
 
     await this.prisma.$transaction(async (tx) => {
       await tx.task.update({
@@ -219,6 +237,27 @@ export class TaskService {
           },
         });
       }
+
+      // TaskStatusHistory stays the authoritative status timeline; this adds
+      // the same move to the cross-entity feed, plus any non-status edits in
+      // the request, as a single entry.
+      if (changes.length > 0 || assigneeIds || labelIds) {
+        await this.activityLogs.record(
+          {
+            projectId: existing.case.projectId,
+            entityType: EntityType.TASK,
+            entityId: id,
+            entityLabel: dto.title ?? existing.title,
+            action: isStatusChange ? ActivityAction.STATUS_CHANGED : ActivityAction.UPDATED,
+            actorId: user.id,
+            description: isStatusChange
+              ? `Moved task "${existing.title}" from ${existing.status} to ${dto.status}`
+              : `Updated task "${existing.title}"`,
+            changes,
+          },
+          tx,
+        );
+      }
     });
 
     const warnings = isStatusChange
@@ -232,7 +271,23 @@ export class TaskService {
     const task = await this.getTaskWithProjectOrThrow(id);
     await this.assertCanDelete(task.case.projectId, user);
 
-    await this.prisma.task.update({ where: { id }, data: { deletedAt: new Date() } });
+    await this.prisma.$transaction(async (tx) => {
+      await tx.task.update({ where: { id }, data: { deletedAt: new Date() } });
+
+      await this.activityLogs.record(
+        {
+          projectId: task.case.projectId,
+          entityType: EntityType.TASK,
+          entityId: id,
+          entityLabel: task.title,
+          action: ActivityAction.DELETED,
+          actorId: user.id,
+          description: `Deleted task "${task.title}"`,
+        },
+        tx,
+      );
+    });
+
     return { message: 'Task deleted successfully.' };
   }
 
@@ -245,10 +300,31 @@ export class TaskService {
     await this.assertCanEdit(task.case.projectId, user);
     await this.assertAssigneesValid(assigneeIds, task.case.projectId);
 
-    await this.prisma.taskAssignee.createMany({
-      data: assigneeIds.map((userId) => ({ taskId, userId })),
-      skipDuplicates: true,
+    const assignees = await this.prisma.user.findMany({
+      where: { id: { in: assigneeIds } },
+      select: { name: true },
     });
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.taskAssignee.createMany({
+        data: assigneeIds.map((userId) => ({ taskId, userId })),
+        skipDuplicates: true,
+      });
+
+      await this.activityLogs.record(
+        {
+          projectId: task.case.projectId,
+          entityType: EntityType.TASK,
+          entityId: taskId,
+          entityLabel: task.title,
+          action: ActivityAction.ASSIGNED,
+          actorId: user.id,
+          description: `Assigned ${assignees.map((a) => a.name).join(', ')} to task "${task.title}"`,
+        },
+        tx,
+      );
+    });
+
     return this.findOne(taskId, user);
   }
 
@@ -256,7 +332,28 @@ export class TaskService {
     const task = await this.getTaskWithProjectOrThrow(taskId);
     await this.assertCanEdit(task.case.projectId, user);
 
-    await this.prisma.taskAssignee.deleteMany({ where: { taskId, userId } });
+    const removed = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true },
+    });
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.taskAssignee.deleteMany({ where: { taskId, userId } });
+
+      await this.activityLogs.record(
+        {
+          projectId: task.case.projectId,
+          entityType: EntityType.TASK,
+          entityId: taskId,
+          entityLabel: task.title,
+          action: ActivityAction.UNASSIGNED,
+          actorId: user.id,
+          description: `Unassigned ${removed?.name ?? 'a user'} from task "${task.title}"`,
+        },
+        tx,
+      );
+    });
+
     return this.findOne(taskId, user);
   }
 

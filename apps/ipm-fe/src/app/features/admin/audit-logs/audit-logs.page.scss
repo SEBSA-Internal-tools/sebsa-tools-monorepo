@@ -1,0 +1,248 @@
+:host {
+  display: block;
+  width: 100%;
+  background-color: var(--surface-page);
+}
+
+.page-container {
+  padding: 32px 40px;
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.filters {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  label {
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+
+  input,
+  select {
+    padding: 8px 10px;
+    border: 1px solid var(--border-default);
+    border-radius: 8px;
+    background-color: var(--surface-card);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: 13px;
+
+    &:focus {
+      outline: none;
+      border-color: var(--brand-primary);
+      box-shadow: var(--shadow-glow-focus);
+    }
+  }
+}
+
+.filter-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.btn-ghost {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border-default);
+  background-color: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+
+  &:hover {
+    background-color: var(--surface-muted);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-glow-focus);
+  }
+}
+
+.filter-summary {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.table-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+// The trail is wide by nature; it scrolls inside the card rather than pushing
+// the page into a horizontal scroll.
+.table-scroll {
+  overflow-x: auto;
+}
+
+.cell-when {
+  white-space: nowrap;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.action-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background-color: var(--status-neutral-bg);
+  color: var(--status-neutral-fg);
+  white-space: nowrap;
+
+  &[data-action='CREATED'],
+  &[data-action='MEMBER_ADDED'],
+  &[data-action='RESTORED'],
+  &[data-action='SPRINT_COMPLETED'] {
+    background-color: var(--status-success-bg);
+    color: var(--status-success-fg);
+  }
+
+  &[data-action='DELETED'],
+  &[data-action='UNASSIGNED'] {
+    background-color: var(--status-error-bg);
+    color: var(--status-error-fg);
+  }
+
+  &[data-action='STATUS_CHANGED'],
+  &[data-action='MILESTONE_REACHED'] {
+    background-color: var(--status-purple-bg);
+    color: var(--status-purple-fg);
+  }
+
+  &[data-action='UPDATED'],
+  &[data-action='ASSIGNED'],
+  &[data-action='SPRINT_STARTED'] {
+    background-color: var(--status-info-bg);
+    color: var(--status-info-fg);
+  }
+
+  &[data-action='ROLE_CHANGED'],
+  &[data-action='MEMBER_REMOVED'] {
+    background-color: var(--status-warning-bg);
+    color: var(--status-warning-fg);
+  }
+}
+
+.entity-type {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-heading);
+}
+
+.entity-label {
+  display: block;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.change-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.empty-cell {
+  text-align: center;
+  padding: 32px 16px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.page-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background-color: var(--status-error-bg);
+  color: var(--status-error-fg);
+  font-size: 13px;
+
+  .material-symbols-outlined {
+    font-size: 18px;
+  }
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+
+  button {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--border-default);
+    background-color: var(--surface-card);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      background-color: var(--surface-muted);
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: var(--shadow-glow-focus);
+    }
+
+    .material-symbols-outlined {
+      font-size: 18px;
+    }
+  }
+}
+
+.page-indicator {
+  font-size: 13px;
+  color: var(--text-secondary);
+}

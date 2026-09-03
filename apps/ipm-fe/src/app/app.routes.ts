@@ -24,7 +24,7 @@ export const appRoutes: Route[] = [
 			{
 				path: '',
 				pathMatch: 'full',
-				redirectTo: '/login',
+				redirectTo: '/dashboard',
 			},
 			{
 				path: 'dashboard',
@@ -85,6 +85,12 @@ export const appRoutes: Route[] = [
 				canActivate: [adminGuard],
 				loadComponent: () =>
 					import('./features/admin/users/admin-users.page').then((m) => m.AdminUsersPageComponent),
+			},
+			{
+				path: 'admin/audit-logs',
+				canActivate: [superAdminGuard],
+				loadComponent: () =>
+					import('./features/admin/audit-logs/audit-logs.page').then((m) => m.AuditLogsPageComponent),
 			},
 			{
 				path: 'admin/privilege-groups',

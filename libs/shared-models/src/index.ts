@@ -16,3 +16,4 @@ export * from './lib/sprints/sprint.models';
 export * from './lib/customers/customer.models';
 export * from './lib/cases/case.models';
 export * from './lib/cases/support-case.models';
+export * from './lib/activity/activity-log.models';
