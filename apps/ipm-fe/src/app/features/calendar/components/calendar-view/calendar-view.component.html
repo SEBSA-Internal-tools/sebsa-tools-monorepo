@@ -35,8 +35,16 @@
         </button>
       </div>
 
-      <!-- Current Period Title -->
-      <h2 class="calendar-title">{{ headerTitle() }}</h2>
+      <!-- Current Period Title & Date Range Indicator -->
+      <div class="calendar-title-wrap">
+        <h2 class="calendar-title">{{ headerTitle() }}</h2>
+        @if (currentView() === 'month') {
+          <span class="calendar-range-tag">
+            <span class="material-symbols-outlined icon-xs">date_range</span>
+            <span>{{ headerMonthRange() }}</span>
+          </span>
+        }
+      </div>
     </div>
 
     <!-- Center/Right: Date Mode, Color By, Density & View Switcher -->
@@ -255,7 +263,10 @@
 
   <!-- View 1: Month Grid View (Strict Fixed 7-Column Width & Cropped Ellipsis Titles) -->
   @if (currentView() === 'month') {
-    <div class="month-view-container">
+    <div
+      class="month-view-container"
+      title="Scroll down on the calendar to advance to next month, scroll up to go back"
+    >
       <!-- Weekday Headers -->
       <div class="weekday-header-row">
         @for (dayName of weekdays; track dayName) {
@@ -271,18 +282,44 @@
           <div
             class="day-cell"
             [class.outside-month]="!day.isCurrentMonth"
+            [class.is-next-month]="day.isNextMonth"
+            [class.is-prev-month]="day.isPrevMonth"
+            [class.is-month-start]="day.isMonthStart"
+            [class.is-month-end]="day.isMonthEnd"
             [class.is-today]="day.isToday"
             [class.is-selected]="day.isSelected"
             [class.is-weekend]="day.isWeekend"
             [class.has-overdue]="day.hasOverdue"
             (click)="onDayClick(day)"
+            [title]="!day.isCurrentMonth ? 'Belongs to ' + day.monthName + ' (Click to jump to ' + day.monthName + ')' : ''"
           >
             <!-- Cell Header -->
             <div class="day-cell-header">
               <div class="header-left-meta">
-                <span class="day-number" [class.today-badge]="day.isToday">
-                  {{ day.dayNumber }}
-                </span>
+                <!-- Distinguish Month Start, Month End, Next Month & Normal Days -->
+                @if (day.isMonthStart) {
+                  <span class="month-boundary-pill start-pill" [title]="'Start of ' + day.monthName">
+                    {{ day.monthName }} 1
+                  </span>
+                } @else if (day.isMonthEnd) {
+                  <span class="month-boundary-pill end-pill" [title]="'End of ' + day.monthName">
+                    {{ day.dayNumber }} (End)
+                  </span>
+                } @else if (day.isNextMonth) {
+                  <div class="outside-day-indicator next-month-indicator" [title]="day.monthName + ' ' + day.dayNumber + ' (Next Month)'">
+                    <span class="day-number outside-number">{{ day.dayNumber }}</span>
+                    <span class="outside-month-tiny">{{ day.monthName }}</span>
+                  </div>
+                } @else if (day.isPrevMonth) {
+                  <div class="outside-day-indicator prev-month-indicator" [title]="day.monthName + ' ' + day.dayNumber + ' (Previous Month)'">
+                    <span class="day-number outside-number">{{ day.dayNumber }}</span>
+                    <span class="outside-month-tiny">{{ day.monthName }}</span>
+                  </div>
+                } @else {
+                  <span class="day-number" [class.today-badge]="day.isToday">
+                    {{ day.dayNumber }}
+                  </span>
+                }
 
                 <!-- Workload Pips (Mini Heatmap / Workload dots) -->
                 @if (day.workloadPips.length > 0) {
@@ -299,6 +336,11 @@
               </div>
 
               <div class="header-right-meta">
+                @if (day.isNextMonth) {
+                  <span class="next-month-chip" title="Belongs to next month (click cell to jump)">
+                    {{ day.monthName }}
+                  </span>
+                }
                 @if (day.hasOverdue) {
                   <span class="overdue-alert-dot" title="Overdue case on this date">
                     <span class="material-symbols-outlined">warning</span>
@@ -372,6 +414,17 @@
           </div>
         }
       </div>
+
+      <!-- Subtle Month Grid Footer with Scroll Navigation Guide -->
+      <footer class="month-grid-footer">
+        <div class="scroll-hint-bar">
+          <span class="material-symbols-outlined icon-xs">unfold_more</span>
+          <span>Scroll down on calendar to move to next month</span>
+        </div>
+        <div class="month-range-summary">
+          <span>Active Month: <strong>{{ headerTitle() }} ({{ headerMonthRange() }})</strong></span>
+        </div>
+      </footer>
     </div>
   }
 

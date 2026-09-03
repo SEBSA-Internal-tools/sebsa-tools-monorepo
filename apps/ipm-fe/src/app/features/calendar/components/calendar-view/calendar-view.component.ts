@@ -6,7 +6,10 @@ import {
   input,
   output,
   signal,
+  ElementRef,
   type OnInit,
+  type AfterViewInit,
+  type OnDestroy,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -31,8 +34,11 @@ import type {
   styleUrls: ['./calendar-view.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class CalendarViewComponent implements OnInit {
+export class CalendarViewComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly router = inject(Router);
+  private readonly elementRef = inject(ElementRef);
+  private removeWheelListener?: () => void;
+  private wheelCooldown = false;
 
   // Inputs
   readonly items = input<CalendarItem[]>([]);
@@ -110,6 +116,48 @@ export class CalendarViewComponent implements OnInit {
     if (this.initialView()) {
       this.currentView.set(this.initialView());
     }
+  }
+
+  ngAfterViewInit(): void {
+    const hostEl = this.elementRef.nativeElement as HTMLElement;
+    const wheelHandler = (event: WheelEvent) => {
+      // Only handle wheel navigation in Month View
+      if (this.currentView() !== 'month') return;
+      // Do not hijack scroll if inspection drawer or day flyout is open
+      if (this.selectedItem() || this.expandedDay()) return;
+
+      const target = event.target as HTMLElement | null;
+      const isOverGrid = target?.closest('.month-view-container') !== null;
+      if (!isOverGrid) return;
+
+      // CRUCIAL: With { passive: false }, preventDefault stops the entire browser page from scrolling!
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (Math.abs(event.deltaY) < 18) return;
+
+      if (this.wheelCooldown) return;
+      this.wheelCooldown = true;
+
+      setTimeout(() => {
+        this.wheelCooldown = false;
+      }, 260);
+
+      if (event.deltaY > 0) {
+        this.next();
+      } else {
+        this.previous();
+      }
+    };
+
+    hostEl.addEventListener('wheel', wheelHandler, { passive: false });
+    this.removeWheelListener = () => {
+      hostEl.removeEventListener('wheel', wheelHandler);
+    };
+  }
+
+  ngOnDestroy(): void {
+    this.removeWheelListener?.();
   }
 
   // Quick Preset Counts for Badges
@@ -213,6 +261,16 @@ export class CalendarViewComponent implements OnInit {
     return curr.toLocaleString('default', { month: 'long', year: 'numeric' });
   });
 
+  // Active Month Range (Start to End date)
+  readonly headerMonthRange = computed<string>(() => {
+    const curr = this.currentDate();
+    const year = curr.getFullYear();
+    const month = curr.getMonth();
+    const lastDay = new Date(year, month + 1, 0).getDate();
+    const monthShort = curr.toLocaleString('default', { month: 'short' });
+    return `${monthShort} 1 – ${monthShort} ${lastDay}`;
+  });
+
   // Month Grid Calculation with Workload Pips, Date-Field mapping, and Priority sorting
   readonly monthDays = computed<CalendarDay[]>(() => {
     const current = this.currentDate();
@@ -224,9 +282,14 @@ export class CalendarViewComponent implements OnInit {
 
     const firstDayOfMonth = new Date(year, month, 1);
     const lastDayOfMonth = new Date(year, month + 1, 0);
+    const lastDayNum = lastDayOfMonth.getDate();
 
     let startDayOfWeek = firstDayOfMonth.getDay() - 1;
     if (startDayOfWeek === -1) startDayOfWeek = 6;
+
+    const currentMonthName = current.toLocaleString('default', { month: 'short' });
+    const prevMonthName = new Date(year, month - 1, 1).toLocaleString('default', { month: 'short' });
+    const nextMonthName = new Date(year, month + 1, 1).toLocaleString('default', { month: 'short' });
 
     const days: CalendarDay[] = [];
     const items = this.filteredItems();
@@ -243,7 +306,14 @@ export class CalendarViewComponent implements OnInit {
       }
     }
 
-    const buildDay = (d: Date, isCurrentMonth: boolean, dayNum: number): CalendarDay => {
+    const buildDay = (
+      d: Date,
+      isCurrentMonth: boolean,
+      dayNum: number,
+      isNextMonth: boolean,
+      isPrevMonth: boolean,
+      monthName: string
+    ): CalendarDay => {
       const dStr = this.formatDateKey(d);
       const dayItems = itemMap.get(dStr) || [];
       const isWeekend = d.getDay() === 0 || d.getDay() === 6;
@@ -276,7 +346,12 @@ export class CalendarViewComponent implements OnInit {
         date: d,
         dateString: dStr,
         dayNumber: dayNum,
+        monthName,
         isCurrentMonth,
+        isNextMonth,
+        isPrevMonth,
+        isMonthStart: isCurrentMonth && dayNum === 1,
+        isMonthEnd: isCurrentMonth && dayNum === lastDayNum,
         isToday: dStr === todayStr,
         isSelected: dStr === selStr,
         isWeekend,
@@ -292,13 +367,13 @@ export class CalendarViewComponent implements OnInit {
     for (let i = startDayOfWeek - 1; i >= 0; i--) {
       const dayNum = prevMonthLastDay - i;
       const d = new Date(year, month - 1, dayNum);
-      days.push(buildDay(d, false, dayNum));
+      days.push(buildDay(d, false, dayNum, false, true, prevMonthName));
     }
 
     // Current month days
     for (let d = 1; d <= lastDayOfMonth.getDate(); d++) {
       const dateObj = new Date(year, month, d);
-      days.push(buildDay(dateObj, true, d));
+      days.push(buildDay(dateObj, true, d, false, false, currentMonthName));
     }
 
     // Next month filler days (fill up to 35 or 42 grid cells)
@@ -306,7 +381,7 @@ export class CalendarViewComponent implements OnInit {
     let nextMonthDay = 1;
     while (days.length < targetLength) {
       const dateObj = new Date(year, month + 1, nextMonthDay);
-      days.push(buildDay(dateObj, false, nextMonthDay));
+      days.push(buildDay(dateObj, false, nextMonthDay, true, false, nextMonthName));
       nextMonthDay++;
     }
 
@@ -354,7 +429,12 @@ export class CalendarViewComponent implements OnInit {
         date: d,
         dateString: dStr,
         dayNumber: d.getDate(),
+        monthName: d.toLocaleString('default', { month: 'short' }),
         isCurrentMonth: d.getMonth() === curr.getMonth(),
+        isNextMonth: d.getMonth() > curr.getMonth() || d.getFullYear() > curr.getFullYear(),
+        isPrevMonth: d.getMonth() < curr.getMonth() || d.getFullYear() < curr.getFullYear(),
+        isMonthStart: d.getDate() === 1,
+        isMonthEnd: false,
         isToday: dStr === todayStr,
         isSelected: dStr === selStr,
         isWeekend,
@@ -506,6 +586,12 @@ export class CalendarViewComponent implements OnInit {
 
   onDayClick(day: CalendarDay): void {
     this.selectedDate.set(day.date);
+    if (!day.isCurrentMonth) {
+      // Clicking on a day from next or previous month automatically navigates into that month!
+      const target = new Date(day.date.getFullYear(), day.date.getMonth(), 1);
+      this.currentDate.set(target);
+      this.dateChange.emit(target);
+    }
     this.dayClick.emit(day.date);
   }
 

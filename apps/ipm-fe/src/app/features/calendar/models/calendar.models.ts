@@ -41,7 +41,12 @@ export interface CalendarDay {
   date: Date;
   dateString: string; // YYYY-MM-DD
   dayNumber: number;
+  monthName: string;
   isCurrentMonth: boolean;
+  isNextMonth: boolean;
+  isPrevMonth: boolean;
+  isMonthStart: boolean;
+  isMonthEnd: boolean;
   isToday: boolean;
   isSelected: boolean;
   isWeekend: boolean;
