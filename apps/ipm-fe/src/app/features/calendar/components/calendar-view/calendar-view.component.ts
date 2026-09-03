@@ -45,7 +45,7 @@ export class CalendarViewComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly initialDate = input<Date>(new Date());
   readonly initialView = input<CalendarViewMode>('month');
   readonly currentUserId = input<string | undefined>();
-  readonly currentUserName = input<string | undefined>('Janukshan S.');
+  readonly currentUserName = input<string | undefined>();
   readonly loading = input<boolean>(false);
 
   // Outputs
@@ -163,34 +163,29 @@ export class CalendarViewComponent implements OnInit, AfterViewInit, OnDestroy {
   // Quick Preset Counts for Badges
   readonly presetCounts = computed(() => {
     const list = this.items() || [];
-    const myName = (this.currentUserName() || '').toLowerCase();
+    const myName = (this.currentUserName() || '').toLowerCase().trim();
     const myId = this.currentUserId();
 
     let myCases = 0;
-    let critical = 0;
     let overdue = 0;
     let blocked = 0;
 
     for (const item of list) {
-      if (
-        (myId && item.assigneeId === myId) ||
-        (myName && item.assignee?.toLowerCase().includes(myName))
-      ) {
+      const matchesId = myId && (item.assigneeId === myId || item.assigneeIds?.includes(myId));
+      const matchesName = myName && item.assignee?.toLowerCase().includes(myName);
+      if (matchesId || matchesName) {
         myCases++;
-      }
-      const p = (item.priority || '').toLowerCase();
-      if (p.includes('urgent') || p.includes('crit') || p.includes('high')) {
-        critical++;
       }
       if (item.isOverdue) {
         overdue++;
       }
-      if (item.status === 'BLOCKED' || item.isBlocked) {
+      const statusUpper = (item.status || '').toUpperCase();
+      if (statusUpper === 'BLOCKED' || item.isBlocked) {
         blocked++;
       }
     }
 
-    return { myCases, critical, overdue, blocked, total: list.length };
+    return { myCases, overdue, blocked, total: list.length };
   });
 
   // Filtered items incorporating search, types, statuses, and quick presets
@@ -200,24 +195,20 @@ export class CalendarViewComponent implements OnInit, AfterViewInit, OnDestroy {
     const type = this.selectedType();
     const status = this.selectedStatus();
     const preset = this.quickPreset();
-    const myName = (this.currentUserName() || '').toLowerCase();
+    const myName = (this.currentUserName() || '').toLowerCase().trim();
     const myId = this.currentUserId();
 
     return list.filter((item) => {
       // 1. Preset filter
       if (preset === 'my-cases') {
+        const matchesId = myId && (item.assigneeId === myId || item.assigneeIds?.includes(myId));
         const matchesName = myName && item.assignee?.toLowerCase().includes(myName);
-        const matchesId = myId && item.assigneeId === myId;
-        if (!matchesName && !matchesId) return false;
-      } else if (preset === 'critical') {
-        const p = (item.priority || '').toLowerCase();
-        if (!p.includes('urgent') && !p.includes('crit') && !p.includes('high')) {
-          return false;
-        }
+        if (!matchesId && !matchesName) return false;
       } else if (preset === 'overdue') {
         if (!item.isOverdue) return false;
       } else if (preset === 'blocked') {
-        if (item.status !== 'BLOCKED' && !item.isBlocked) return false;
+        const statusUpper = (item.status || '').toUpperCase();
+        if (statusUpper !== 'BLOCKED' && !item.isBlocked) return false;
       }
 
       // 2. Type and status filters
@@ -605,17 +596,35 @@ export class CalendarViewComponent implements OnInit, AfterViewInit, OnDestroy {
     this.itemClick.emit(item);
   }
 
-  // Hover Popover (Zero-Click Preview)
+  // Hover Popover (Zero-Click Preview - Active in Month and Week, Disabled in Agenda)
   onItemMouseEnter(item: CalendarItem, event: MouseEvent): void {
+    if (this.currentView() === 'agenda') return;
+    if (this.selectedItem()) return;
+
     if (this.hoverTimeout) clearTimeout(this.hoverTimeout);
-    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+
+    const targetEl = event.currentTarget as HTMLElement | null;
+    if (!targetEl) return;
+
+    const rect = targetEl.getBoundingClientRect();
     this.hoverTimeout = setTimeout(() => {
-      this.hoveredItem.set({
-        item,
-        x: Math.min(rect.left + rect.width / 2, window.innerWidth - 280),
-        y: rect.bottom + 8,
-      });
-    }, 160);
+      const popoverWidth = 260;
+      const popoverHeight = 140;
+
+      // Center horizontally relative to hovered target
+      let x = rect.left + rect.width / 2 - popoverWidth / 2;
+      // Clamp x inside viewport so it never overflows screen edge
+      x = Math.max(16, Math.min(x, window.innerWidth - popoverWidth - 16));
+
+      // Position below target by default
+      let y = rect.bottom + 6;
+      // If overflowing viewport bottom, flip above target
+      if (y + popoverHeight > window.innerHeight - 16) {
+        y = Math.max(16, rect.top - popoverHeight - 6);
+      }
+
+      this.hoveredItem.set({ item, x, y });
+    }, 140);
   }
 
   onItemMouseLeave(): void {
@@ -682,13 +691,13 @@ export class CalendarViewComponent implements OnInit, AfterViewInit, OnDestroy {
 
   getItemActiveDate(item: CalendarItem, mode: CalendarDateMode): string {
     if (mode === 'dueDate') {
-      return item.dueDate || item.date || item.createdAt || '';
+      return item.dueDate || '';
     }
     if (mode === 'startDate') {
-      return item.startDate || item.createdAt || item.dueDate || item.date || '';
+      return item.startDate || '';
     }
     if (mode === 'createdAt') {
-      return item.createdAt || item.date || item.dueDate || '';
+      return item.createdAt || '';
     }
     return item.date || '';
   }

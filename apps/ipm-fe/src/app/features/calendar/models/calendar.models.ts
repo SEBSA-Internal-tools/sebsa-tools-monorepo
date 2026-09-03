@@ -4,7 +4,7 @@ import type { CaseView } from '../../../core/services/cases.service';
 export type CalendarViewMode = 'month' | 'week' | 'agenda';
 export type CalendarColorByMode = 'type' | 'priority' | 'project' | 'status';
 export type CalendarDensity = 'compact' | 'comfortable';
-export type QuickPresetFilter = 'all' | 'my-cases' | 'critical' | 'overdue' | 'blocked';
+export type QuickPresetFilter = 'all' | 'my-cases' | 'overdue' | 'blocked';
 export type CalendarDateMode = 'dueDate' | 'startDate' | 'createdAt';
 
 export interface CalendarItem {
@@ -23,6 +23,7 @@ export interface CalendarItem {
   projectName?: string;
   assignee?: string;
   assigneeId?: string;
+  assigneeIds?: string[];
   description?: string;
   caseNumber?: string;
   storyPoints?: number | null;
@@ -121,12 +122,16 @@ export function caseToCalendarItem(c: CaseSummary | CaseView): CalendarItem {
 
   let assigneeName: string | undefined;
   let assigneeId: string | undefined;
+  let assigneeIds: string[] = [];
   if (isCaseView) {
     assigneeName = c.assignee;
+    assigneeIds = (c as CaseView).assigneeIds || [];
+    assigneeId = assigneeIds[0];
   } else {
     const assignees = (c as CaseSummary).assignees;
     if (assignees && assignees.length > 0) {
       assigneeName = assignees.map((a) => a.name).join(', ');
+      assigneeIds = assignees.map((a) => a.id);
       assigneeId = assignees[0]?.id;
     }
   }
@@ -138,13 +143,14 @@ export function caseToCalendarItem(c: CaseSummary | CaseView): CalendarItem {
     c.createdAt || ('updatedAt' in c && c.updatedAt ? c.updatedAt : undefined)
   );
 
-  // Default primary date (defaults to due date, falling back to created date or start date or today)
-  const defaultDate = dueDateStr || createdAtStr || startDateStr || normalizeDateToKey(new Date())!;
+  // Default primary date: accurately use existing case dates without dumping dateless cases onto today
+  const defaultDate = dueDateStr || startDateStr || createdAtStr || '';
 
   const todayStr = normalizeDateToKey(new Date())!;
-  const isDone = c.status === 'DONE' || c.status === 'CANCELLED';
+  const statusUpper = (c.status || '').toUpperCase();
+  const isDone = statusUpper === 'DONE' || statusUpper === 'CANCELLED';
   const isOverdue = !!dueDateStr && !isDone && dueDateStr < todayStr;
-  const isBlocked = c.status === 'BLOCKED';
+  const isBlocked = statusUpper === 'BLOCKED';
 
   return {
     id: c.id,
@@ -161,6 +167,7 @@ export function caseToCalendarItem(c: CaseSummary | CaseView): CalendarItem {
     projectName,
     assignee: assigneeName,
     assigneeId,
+    assigneeIds,
     description: c.description ?? '',
     caseNumber: c.id.length > 8 ? `CASE-${c.id.slice(0, 4).toUpperCase()}` : c.id,
     isOverdue,

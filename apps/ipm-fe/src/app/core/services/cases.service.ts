@@ -34,6 +34,7 @@ export interface CaseView {
   priorityColor: string | null;
   duration: string;
   assignee?: string;
+  assigneeIds?: string[];
   dueDate: string;
   startDate?: string | null;
   createdAt?: string;
@@ -166,6 +167,7 @@ export class CasesService {
 
   private toCaseView(kase: BackendCase | BackendCaseSummary): CaseView {
     const assignee = kase.assignees?.map((a) => a.name).join(', ') || undefined;
+    const assigneeIds = kase.assignees?.map((a) => a.id) || [];
     return {
       id: kase.id,
       title: kase.title,
@@ -176,6 +178,7 @@ export class CasesService {
       priorityColor: kase.priority?.color ?? null,
       duration: kase.dueDate ? `${kase.dueDate.slice(0, 10)}` : 'No due date',
       assignee,
+      assigneeIds,
       dueDate: kase.dueDate ?? '',
       startDate: kase.startDate ?? null,
       createdAt: kase.createdAt ?? undefined,
