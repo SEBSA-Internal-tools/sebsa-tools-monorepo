@@ -17,3 +17,4 @@ export * from './lib/customers/customer.models';
 export * from './lib/cases/case.models';
 export * from './lib/cases/support-case.models';
 export * from './lib/activity/activity-log.models';
+export * from './lib/dashboard/dashboard.models';

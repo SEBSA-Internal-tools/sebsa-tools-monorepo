@@ -21,6 +21,7 @@ import { SubtaskModule } from './subtasks/subtask.module';
 import { SprintsModule } from './sprints/sprints.module';
 import { JiraModule } from './jira/jira.module';
 import { ActivityLogsModule } from './activity-logs/activity-logs.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { ActivityLogsModule } from './activity-logs/activity-logs.module';
     CustomersModule,
     JiraModule,
     ActivityLogsModule,
+    DashboardModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -79,11 +79,25 @@ export class CasesService {
       .subscribe({ next: (cases) => this.setState(cases) });
   }
 
+  loadAllCases(projectId?: string): Observable<CaseView[]> {
+    let params = new HttpParams();
+    if (projectId) {
+      this.currentProjectId = projectId;
+      params = params.set('projectId', projectId);
+    }
+    return this.http
+      .get<BackendCaseSummary[]>('/api/cases', { params })
+      .pipe(
+        map((cases) => cases.map((c) => this.toCaseView(c))),
+        tap((cases) => this.setState(cases))
+      );
+  }
+
   createCase(dto: CreateCaseRequest): Observable<CaseView> {
     return this.http.post<BackendCase>('/api/cases', dto).pipe(
       map((c) => this.toCaseView(c)),
       tap((newCase) => {
-        if (dto.projectId === this.currentProjectId) {
+        if (!this.currentProjectId || dto.projectId === this.currentProjectId) {
           this.setState([...this._cases(), newCase]);
         }
       }),
