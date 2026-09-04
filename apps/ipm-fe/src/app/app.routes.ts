@@ -95,6 +95,22 @@ export const appRoutes: Route[] = [
 					),
 			},
 			{
+				path: 'admin/task-types',
+				canActivate: [superAdminGuard],
+				loadComponent: () =>
+					import('./features/admin/task-types/task-types.page').then(
+						(m) => m.TaskTypesPageComponent
+					),
+			},
+			{
+				path: 'admin/subtask-types',
+				canActivate: [superAdminGuard],
+				loadComponent: () =>
+					import('./features/admin/subtask-types/subtask-types.page').then(
+						(m) => m.SubtaskTypesPageComponent
+					),
+			},
+			{
 				path: 'cso',
 				loadComponent: () =>
 					import('./features/cso/cso.page').then(

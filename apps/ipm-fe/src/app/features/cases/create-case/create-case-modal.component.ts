@@ -7,9 +7,6 @@ import {
   OnChanges,
   inject,
   signal,
-  ViewChild,
-  ElementRef,
-  HostListener,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -32,6 +29,8 @@ export interface CaseFormData {
   dueDate: string;
   description: string;
   sprintId?: string;
+  /** Always derived from the target project's own CSO flag — a case can
+   *  never be CSO-labeled independently of its project. */
   isCsoLabeled: boolean;
   category?: TaskCategory;
 }
@@ -49,11 +48,12 @@ export class CreateCaseModalComponent implements OnChanges {
   @Input() projectId = '';
   @Input() projectName = '';
   /** Whether the fixed `projectId` above is a CSO project — only meaningful
-   *  when `projectId` is set. Hides the CSO checkbox and forces the case
-   *  CSO-labeled, since all cases in a CSO project sync automatically. */
+   *  when `projectId` is set. A case is CSO-labeled if and only if its
+   *  project is, since all cases in a CSO project sync automatically. */
   @Input() isProjectCso = false;
-  /** Always treats the case as CSO-labeled and hides the checkbox,
-   *  regardless of which project ends up selected. */
+  /** Restricts the project picker to CSO projects only and always treats the
+   *  case as CSO-labeled, for entry points (CSO Queue/Overview) that only
+   *  ever create CSO cases. */
   @Input() forceCsoLabeled = false;
   /** When set (the CSO Functional/Technical queue's "Create Case" entry
    *  point), the category picker is hidden and every case is created with
@@ -65,13 +65,9 @@ export class CreateCaseModalComponent implements OnChanges {
 
   private readonly sprintService = inject(SprintService);
   private readonly projectsService = inject(ProjectsService);
-  private readonly elementRef = inject(ElementRef);
-
-  @ViewChild('assigneeDropdownRef') assigneeDropdownRef?: ElementRef<HTMLElement>;
 
   caseTitle = '';
-  selectedAssigneeIds: string[] = [];
-  assigneeSearch = '';
+  selectedAssigneeId = '';
   priorityId?: string;
   priority = '';
   readonly availablePriorities = signal<Array<{ id: string; name: string; color: string | null; order: number }>>([]);
@@ -87,7 +83,6 @@ export class CreateCaseModalComponent implements OnChanges {
   selectedSprintId = '';
   selectedProjectId = '';
   selectedProjectName = '';
-  isCsoLabeled = false;
   selectedCategory: TaskCategory | '' = '';
 
   readonly availableProjects = signal<Array<{ id: string; name: string; isCsoProject: boolean }>>([]);
@@ -97,7 +92,6 @@ export class CreateCaseModalComponent implements OnChanges {
   readonly isLoadingUsers = signal(false);
   readonly sprintError = signal('');
   readonly userError = signal('');
-  readonly isAssigneeDropdownOpen = signal(false);
   readonly isPriorityModalOpen = signal(false);
 
   ngOnChanges(): void {
@@ -117,21 +111,10 @@ export class CreateCaseModalComponent implements OnChanges {
     }
   }
 
-  @HostListener('document:click', ['$event'])
-  onDocumentClick(event: MouseEvent): void {
-    if (!this.isAssigneeDropdownOpen()) return;
-    const target = event.target as Node;
-    const isInsideDropdown = this.assigneeDropdownRef?.nativeElement?.contains(target);
-    if (!isInsideDropdown) {
-      this.isAssigneeDropdownOpen.set(false);
-      this.assigneeSearch = '';
-    }
-  }
-
   private loadAssignees(projectId: string): void {
     this.isLoadingUsers.set(true);
     this.userError.set('');
-    this.selectedAssigneeIds = [];
+    this.selectedAssigneeId = '';
     this.projectsService.getMembers(projectId).subscribe({
       next: (members) => {
         this.availableAssignees.set(members.map((m) => m.user));
@@ -165,7 +148,14 @@ export class CreateCaseModalComponent implements OnChanges {
   private loadAvailableProjects(): void {
     this.projectsService.getProjects().subscribe({
       next: (projects) => {
-        const mapped = projects.map((p) => ({ id: p.id, name: p.name, isCsoProject: p.isCsoProject }));
+        let mapped = projects.map((p) => ({ id: p.id, name: p.name, isCsoProject: p.isCsoProject }));
+        // Forced-CSO entry points (CSO Queue/Overview "Create Case") may only
+        // target CSO projects — otherwise the created case would be tagged
+        // CSO while its project is not, which is the contradiction this
+        // component must never allow.
+        if (this.forceCsoLabeled) {
+          mapped = mapped.filter((p) => p.isCsoProject);
+        }
         this.availableProjects.set(mapped);
         if (mapped.length > 0 && !this.selectedProjectId) {
           this.onProjectSelect(mapped[0].id);
@@ -266,7 +256,7 @@ export class CreateCaseModalComponent implements OnChanges {
       return;
     }
 
-    const finalIsCsoLabeled = this.isTargetProjectCso() || this.isCsoLabeled;
+    const finalIsCsoLabeled = this.isTargetProjectCso();
     if (finalIsCsoLabeled && !this.lockedCategory && !this.selectedCategory) {
       alert('Please tag this CSO case as Functional or Technical');
       return;
@@ -275,7 +265,7 @@ export class CreateCaseModalComponent implements OnChanges {
     const formData: CaseFormData = {
       title: this.caseTitle,
       projectId: finalProjectId,
-      assigneeIds: this.selectedAssigneeIds,
+      assigneeIds: this.selectedAssigneeId ? [this.selectedAssigneeId] : [],
       priorityId: this.priorityId,
       type: this.selectedType,
       dueDate: this.dueDate,
@@ -292,16 +282,13 @@ export class CreateCaseModalComponent implements OnChanges {
 
   private resetForm(): void {
     this.caseTitle = '';
-    this.selectedAssigneeIds = [];
-    this.assigneeSearch = '';
-    this.isAssigneeDropdownOpen.set(false);
+    this.selectedAssigneeId = '';
 
     this.priorityId = undefined;
     this.selectedType = 'STORY';
     this.dueDate = '';
     this.description = '';
     this.selectedSprintId = '';
-    this.isCsoLabeled = false;
     this.selectedCategory = '';
 
     this.availableSprints.set([]);
@@ -310,61 +297,5 @@ export class CreateCaseModalComponent implements OnChanges {
 
   onBackdropClick(): void {
     this.onCancel();
-  }
-
-  toggleAssigneeDropdown(event?: Event): void {
-    event?.stopPropagation();
-    this.isAssigneeDropdownOpen.update((isOpen) => !isOpen);
-  }
-
-  openAssigneeDropdown(): void {
-    this.isAssigneeDropdownOpen.set(true);
-  }
-
-  onAssigneeSearch(): void {
-    if (!this.isAssigneeDropdownOpen()) this.isAssigneeDropdownOpen.set(true);
-  }
-
-  getFilteredAssignees(): AssigneeCandidate[] {
-    const term = this.assigneeSearch.trim().toLowerCase();
-    if (!term) return this.availableAssignees();
-    return this.availableAssignees().filter(
-      (user) => user.name.toLowerCase().includes(term) || user.email?.toLowerCase().includes(term),
-    );
-  }
-
-  isAssigneeSelected(userId: string): boolean {
-    return this.selectedAssigneeIds.includes(userId);
-  }
-
-  toggleAssignee(userId: string): void {
-    if (this.isAssigneeSelected(userId)) {
-      this.selectedAssigneeIds = this.selectedAssigneeIds.filter((id) => id !== userId);
-    } else {
-      this.selectedAssigneeIds = [...this.selectedAssigneeIds, userId];
-    }
-  }
-
-  removeAssignee(userId: string, event: Event): void {
-    event.stopPropagation();
-    this.selectedAssigneeIds = this.selectedAssigneeIds.filter((id) => id !== userId);
-  }
-
-  clearAssignees(event: Event): void {
-    event.stopPropagation();
-    this.selectedAssigneeIds = [];
-  }
-
-  selectedAssignees(): AssigneeCandidate[] {
-    return this.availableAssignees().filter((user) => this.selectedAssigneeIds.includes(user.id));
-  }
-
-  getUserInitials(name: string): string {
-    return name
-      .trim()
-      .split(/\s+/)
-      .slice(0, 2)
-      .map((part) => part.charAt(0).toUpperCase())
-      .join('');
   }
 }

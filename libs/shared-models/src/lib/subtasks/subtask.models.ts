@@ -15,6 +15,8 @@ export interface Subtask {
   status: SubtaskStatus;
   dueDate: string | null;
   jiraStatusLabel: string | null;
+  subtaskTypeId: string | null;
+  subtaskType: { id: string; name: string } | null;
   assignees: Pick<UserSummary, 'id' | 'name' | 'email'>[];
   createdBy: Pick<UserSummary, 'id' | 'name'>;
   createdAt: string;
@@ -28,6 +30,7 @@ export interface CreateSubtaskRequest {
   dueDate?: string;
   assigneeIds?: string[];
   jiraStatusLabel?: string;
+  subtaskTypeId?: string;
 }
 
 export type UpdateSubtaskRequest = Partial<CreateSubtaskRequest>;

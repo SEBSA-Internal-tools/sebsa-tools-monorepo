@@ -104,6 +104,16 @@
           <label for="dueDate" class="form-label">Due Date</label>
           <input id="dueDate" type="date" [(ngModel)]="dueDate" class="form-input" />
         </div>
+
+        <div class="form-group">
+          <label for="subtaskType" class="form-label">Subtask Type</label>
+          <select id="subtaskType" [(ngModel)]="selectedSubtaskTypeId" class="form-select">
+            <option value="">None</option>
+            @for (type of availableSubtaskTypes(); track type.id) {
+              <option [value]="type.id">{{ type.name }}</option>
+            }
+          </select>
+        </div>
       </div>
 
       <div class="form-group full-width">

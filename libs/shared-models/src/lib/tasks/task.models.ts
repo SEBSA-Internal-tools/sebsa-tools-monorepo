@@ -1,4 +1,5 @@
 import { UserSummary } from '../users/user-summary.model';
+import { TaskCategory } from '../cases/case.models';
 
 export type TaskDependencyType = 'BLOCKS' | 'RELATES_TO' | 'DUPLICATE_OF';
 
@@ -24,7 +25,17 @@ export interface TaskSummary {
   dueDate: string | null;
   description: string | null;
   jiraStatusLabel: string | null;
-  case: { id: string; title: string; type: string; projectId: string };
+  /** Functional/Technical tag, independent of the parent Case's own
+   *  category — this is what routes the task into the Functional or
+   *  Technical CSO queue. Null for tasks whose case isn't CSO. */
+  category: TaskCategory | null;
+  taskTypeId: string | null;
+  taskType: { id: string; name: string } | null;
+  complexityLevelId: string | null;
+  complexityLevel: { id: string; name: string; color: string | null } | null;
+  /** `isCsoLabeled` included here (unlike Case's other fields) so the FE can
+   *  gate the category/type/complexity pickers without a second lookup. */
+  case: { id: string; title: string; type: string; projectId: string; isCsoLabeled: boolean };
   priority: { id: string; name: string; color: string | null };
   assignees: Pick<UserSummary, 'id' | 'name' | 'email'>[];
   startDate?: string | null;
@@ -71,6 +82,11 @@ export interface CreateTaskRequest {
   assigneeIds?: string[];
   labelIds?: string[];
   jiraStatusLabel?: string;
+  /** Required when the parent Case is CSO. */
+  category?: TaskCategory;
+  taskTypeId?: string;
+  /** Must belong to `taskTypeId`'s own complexity scale. */
+  complexityLevelId?: string;
 }
 
 export type UpdateTaskRequest = Partial<Omit<CreateTaskRequest, 'caseId'>>;

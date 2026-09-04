@@ -2,18 +2,22 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, Input, OnChanges, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import type { CreateCaseRequest, ProjectSummary, TaskCategory, UserAdminSummary } from '@sebsa-pm-tool/shared-models';
-import { CsoOverviewService, CsoTaskView } from '../../../../core/services/cso-overview.service';
+import type { CreateCaseRequest, ProjectSummary, TaskCategory } from '@sebsa-pm-tool/shared-models';
+import { CsoTaskQueueService, CsoQueueTaskView } from '../../../../core/services/cso-task-queue.service';
 import { ProjectsService } from '../../../projects/services/projects.service';
-import { UserAdminService } from '../../../../core/services/user-admin.service';
 import { CasesService } from '../../../../core/services/cases.service';
 import { CreateCaseModalComponent, type CaseFormData } from '../../../cases/create-case/create-case-modal.component';
 
 type StatusFilter = '' | 'new' | 'todo' | 'inprogress' | 'done';
 
-/** Renders one CSO queue (Functional or Technical) — a category-locked view
- *  of the same cross-project case list the Overview tab shows, so PMs can
- *  work each queue separately without re-filtering every time. */
+/** Renders one CSO queue (Functional or Technical) — every unassigned Task
+ *  whose own `category` tag matches this queue, across all CSO projects. A
+ *  task's category (not its parent Case's) is what routes it here; see
+ *  CsoTaskQueueService. A task drops out of the queue the moment someone is
+ *  assigned to it — the queue is unclaimed work only. New support issues
+ *  still start as a Case (the "Create Case" action below) — tasks are added
+ *  to it afterwards from the Case detail page, where each one picks its own
+ *  Functional/Technical tag. */
 @Component({
   standalone: true,
   selector: 'cso-queue-tab',
@@ -26,17 +30,15 @@ export class CsoQueueTabComponent implements OnChanges {
   /** Which queue this instance renders — fixed for the lifetime of the tab. */
   @Input({ required: true }) category!: TaskCategory;
 
-  private readonly csoOverviewService = inject(CsoOverviewService);
+  private readonly csoTaskQueueService = inject(CsoTaskQueueService);
   private readonly projectsService = inject(ProjectsService);
-  private readonly userAdminService = inject(UserAdminService);
   private readonly casesService = inject(CasesService);
   private readonly router = inject(Router);
 
-  protected readonly tasks = this.csoOverviewService.tasks;
-  protected readonly isLoading = this.csoOverviewService.isLoading;
+  protected readonly tasks = this.csoTaskQueueService.tasks;
+  protected readonly isLoading = this.csoTaskQueueService.isLoading;
 
   protected readonly availableProjects = signal<ProjectSummary[]>([]);
-  protected readonly availableAssignees = signal<UserAdminSummary[]>([]);
 
   protected readonly csoProjects = computed(() =>
     this.availableProjects().filter((p) => p.isCsoProject),
@@ -54,14 +56,12 @@ export class CsoQueueTabComponent implements OnChanges {
 
   protected selectedProjectId = '';
   protected selectedCustomerId = '';
-  protected selectedPriority: '' | 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' = '';
-  protected selectedAssigneeId = '';
   protected selectedStatus: StatusFilter = '';
 
   protected isCaseModalOpen = false;
   protected errorMessage = '';
 
-  protected readonly filteredTasks = computed<CsoTaskView[]>(() => {
+  protected readonly filteredTasks = computed<CsoQueueTaskView[]>(() => {
     const status = this.selectedStatus;
     if (!status) return this.tasks();
     return this.tasks().filter((task) => task.statusLabel === status);
@@ -69,9 +69,6 @@ export class CsoQueueTabComponent implements OnChanges {
 
   ngOnChanges(): void {
     this.projectsService.getProjects().subscribe({ next: (p) => this.availableProjects.set(p) });
-    this.userAdminService.listAll().subscribe({
-      next: (users) => this.availableAssignees.set(users.filter((u) => u.isActive)),
-    });
     this.applyFilters();
   }
 
@@ -80,12 +77,10 @@ export class CsoQueueTabComponent implements OnChanges {
   }
 
   applyFilters(): void {
-    this.csoOverviewService.load({
+    this.csoTaskQueueService.load({
       category: this.category,
       projectId: this.selectedProjectId || undefined,
       customerId: this.selectedCustomerId || undefined,
-      priority: this.selectedPriority || undefined,
-      assigneeId: this.selectedAssigneeId || undefined,
     });
   }
 
@@ -97,8 +92,8 @@ export class CsoQueueTabComponent implements OnChanges {
     this.isCaseModalOpen = false;
   }
 
-  onTaskClick(caseId: string): void {
-    this.router.navigate(['/cases', caseId]);
+  onTaskClick(taskId: string): void {
+    this.router.navigate(['/tasks', taskId]);
   }
 
   onCreateTask(formData: CaseFormData): void {
@@ -111,8 +106,10 @@ export class CsoQueueTabComponent implements OnChanges {
       dueDate: formData.dueDate || undefined,
       sprintId: formData.sprintId || undefined,
       assigneeIds: formData.assigneeIds.length > 0 ? formData.assigneeIds : undefined,
-      // Always CSO-labeled and locked to this queue's category, regardless
-      // of the modal's own checkbox/category picker.
+      // Always CSO-labeled here regardless of the modal's own checkbox —
+      // this is the CSO queue's dedicated "create case" entry point. The
+      // case's own category is locked to this queue only as a starting
+      // point; individual tasks created inside it pick their own tag.
       isCsoLabeled: true,
       category: this.category,
     };
@@ -128,7 +125,7 @@ export class CsoQueueTabComponent implements OnChanges {
     });
   }
 
-  statusLabelText(status: CsoTaskView['statusLabel']): string {
+  statusLabelText(status: CsoQueueTaskView['statusLabel']): string {
     switch (status) {
       case 'new':
         return 'New';
@@ -139,9 +136,5 @@ export class CsoQueueTabComponent implements OnChanges {
       case 'done':
         return 'Done';
     }
-  }
-
-  priorityClass(priority: CsoTaskView['priority']): string {
-    return priority.toLowerCase();
   }
 }

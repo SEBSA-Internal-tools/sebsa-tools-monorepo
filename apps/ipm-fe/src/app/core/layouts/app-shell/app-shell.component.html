@@ -47,6 +47,30 @@
         </span>
         <span class="nav-label">Privilege Groups</span>
       </a>
+
+      <a
+        *ngIf="authService.currentUser()?.systemRole === 'SUPER_ADMIN'"
+        class="nav-item"
+        routerLink="/admin/task-types"
+        routerLinkActive="active"
+      >
+        <span class="nav-icon" aria-hidden="true">
+          <span class="material-symbols-outlined">category</span>
+        </span>
+        <span class="nav-label">Task Types</span>
+      </a>
+
+      <a
+        *ngIf="authService.currentUser()?.systemRole === 'SUPER_ADMIN'"
+        class="nav-item"
+        routerLink="/admin/subtask-types"
+        routerLinkActive="active"
+      >
+        <span class="nav-icon" aria-hidden="true">
+          <span class="material-symbols-outlined">subdirectory_arrow_right</span>
+        </span>
+        <span class="nav-label">Subtask Types</span>
+      </a>
     </nav>
 
     <div class="sidebar-footer">
