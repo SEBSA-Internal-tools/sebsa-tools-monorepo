@@ -57,10 +57,8 @@
               <option [value]="prio.id">{{ prio.name }}</option>
             }
           </select>
-          <button type="button" class="cso-pill" [class.active]="draft.isCsoLabeled" (click)="draft.isCsoLabeled = !draft.isCsoLabeled; markDirty()">
-            CSO
-          </button>
-          @if (draft.isCsoLabeled) {
+          @if (kase.project.isCsoProject) {
+            <span class="cso-pill active" title="Every case in a CSO project is CSO-labeled automatically">CSO</span>
             <select class="category-pill-select" [(ngModel)]="draft.category" (ngModelChange)="markDirty()" [class.technical]="draft.category === 'TECHNICAL'">
               <option value="" disabled>Select…</option>
               <option value="FUNCTIONAL">Functional</option>
@@ -267,6 +265,7 @@
       [isOpen]="isAddTaskModalOpen()"
       [projectId]="k.projectId"
       [caseTitle]="k.title"
+      [isCsoCase]="k.isCsoLabeled"
       (closed)="closeAddTaskModal()"
       (submitted)="onCreateTask($event)"
     ></app-create-task-modal>

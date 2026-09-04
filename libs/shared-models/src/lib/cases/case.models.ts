@@ -35,7 +35,7 @@ export interface CaseSummary {
   isCsoLabeled: boolean;
   category: CaseCategory | null;
   jiraStatusLabel: string | null;
-  project: { id: string; name: string };
+  project: { id: string; name: string; isCsoProject: boolean };
   priority: { id: string; name: string; color: string | null };
   assignees: Pick<UserSummary, 'id' | 'name' | 'email'>[];
   startDate?: string | null;

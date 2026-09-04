@@ -37,7 +37,7 @@ const caseSummarySelect = {
   isCsoLabeled: true,
   category: true,
   jiraStatusLabel: true,
-  project: { select: { id: true, name: true } },
+  project: { select: { id: true, name: true, isCsoProject: true } },
   priority: { select: { id: true, name: true, color: true } },
   assignees: { include: { user: { select: { id: true, name: true, email: true } } } },
 } satisfies Prisma.CaseSelect;
@@ -52,7 +52,7 @@ const caseDetailInclude = {
     where: { deletedAt: null },
     select: { id: true, title: true, status: true },
   },
-  project: { select: { id: true, name: true } },
+  project: { select: { id: true, name: true, isCsoProject: true } },
   priority: { select: { id: true, name: true, color: true } },
   sprint: { select: { id: true, name: true } },
   milestone: { select: { id: true, name: true } },
@@ -74,7 +74,12 @@ export class CaseService {
     await this.assertAssigneesValid(dto.assigneeIds, dto.projectId);
     await this.assertLabelsValid(dto.labelIds, dto.projectId);
     this.assertDatesValid(dto.startDate, dto.dueDate);
-    this.assertCsoCategoryRequirement(dto.isCsoLabeled ?? false, dto.category);
+
+    // A case is CSO-labeled if and only if its project is — never
+    // independently settable by the client, so a normal-project case can
+    // never carry the CSO tag and a CSO-project case can never drop it.
+    const isCsoLabeled = await this.getProjectIsCso(dto.projectId);
+    this.assertCsoCategoryRequirement(isCsoLabeled, dto.category);
 
     const created = await this.prisma.$transaction(async (tx) => {
       const kase = await tx.case.create({
@@ -86,7 +91,7 @@ export class CaseService {
           startDate: dto.startDate ? new Date(dto.startDate) : undefined,
           dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
           storyPoints: dto.storyPoints,
-          isCsoLabeled: dto.isCsoLabeled ?? false,
+          isCsoLabeled,
           category: dto.category,
           jiraStatusLabel: dto.jiraStatusLabel,
           project: { connect: { id: dto.projectId } },
@@ -183,11 +188,13 @@ export class CaseService {
       );
     }
 
-    const mergedIsCsoLabeled = dto.isCsoLabeled ?? existing.isCsoLabeled;
+    // isCsoLabeled always mirrors the case's (fixed) project, never the
+    // client — see the identical rule in create().
+    const isCsoLabeled = await this.getProjectIsCso(existing.projectId);
     const mergedCategory = dto.category !== undefined ? dto.category : existing.category;
-    this.assertCsoCategoryRequirement(mergedIsCsoLabeled, mergedCategory);
+    this.assertCsoCategoryRequirement(isCsoLabeled, mergedCategory);
 
-    const { assigneeIds, labelIds, ...restDto } = dto;
+    const { assigneeIds, labelIds, isCsoLabeled: _ignoredIsCsoLabeled, ...restDto } = dto;
     const isStatusChange = !!dto.status && dto.status !== existing.status;
 
     const oldPrimaryAssignee = await this.prisma.caseAssignee.findFirst({
@@ -259,10 +266,14 @@ export class CaseService {
     await this.assertCanEdit(kase.projectId, user);
     await this.assertAssigneesValid(assigneeIds, kase.projectId);
 
-    await this.prisma.caseAssignee.createMany({
-      data: assigneeIds.map((userId) => ({ caseId, userId })),
-      skipDuplicates: true,
-    });
+    // Replaces rather than adds to the existing assignee set — a case can
+    // only ever have one owner.
+    await this.prisma.$transaction([
+      this.prisma.caseAssignee.deleteMany({ where: { caseId } }),
+      this.prisma.caseAssignee.createMany({
+        data: assigneeIds.map((userId) => ({ caseId, userId })),
+      }),
+    ]);
     await this.recordCategoryAssignmentIfChanged(caseId, kase.category, user.id);
     return this.findOne(caseId, user);
   }
@@ -609,6 +620,17 @@ export class CaseService {
     if (isCsoLabeled && !category) {
       throw new BadRequestException('A CSO case must be tagged Functional or Technical.');
     }
+  }
+
+  private async getProjectIsCso(projectId: string): Promise<boolean> {
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      select: { isCsoProject: true },
+    });
+    if (!project) {
+      throw new BadRequestException('Project does not exist.');
+    }
+    return project.isCsoProject;
   }
 
   // ---------------------------------------------------------------------------

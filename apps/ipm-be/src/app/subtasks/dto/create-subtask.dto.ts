@@ -49,4 +49,9 @@ export class CreateSubtaskDto {
   @IsString()
   @MaxLength(100)
   jiraStatusLabel?: string;
+
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
+  subtaskTypeId?: string;
 }

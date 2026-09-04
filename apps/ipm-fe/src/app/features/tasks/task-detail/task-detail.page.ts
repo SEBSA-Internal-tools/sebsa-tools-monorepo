@@ -5,13 +5,16 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { TasksService, TASK_STATUSES } from '../../../core/services/tasks.service';
 import { SubtasksService } from '../../../core/services/subtasks.service';
 import { ProjectsService } from '../../projects/services/projects.service';
+import { TaskTypesService } from '../../../core/services/task-types.service';
 import type {
   CreateSubtaskRequest,
   Task,
+  TaskCategory,
   TaskDependenciesView,
   TaskDependencyType,
   TaskStatus,
   TaskStatusHistoryEntry,
+  TaskType,
   Subtask,
   UpdateTaskRequest,
 } from '@sebsa-pm-tool/shared-models';
@@ -28,6 +31,9 @@ interface TaskEditDraft {
   dueDate: string;
   storyPoints: number | null;
   assigneeId: string;
+  category: TaskCategory | '';
+  taskTypeId: string;
+  complexityLevelId: string;
 }
 
 @Component({
@@ -45,6 +51,7 @@ export class TaskDetailPageComponent implements OnInit {
   private tasksService = inject(TasksService);
   private subtasksService = inject(SubtasksService);
   private projectsService = inject(ProjectsService);
+  private taskTypesService = inject(TaskTypesService);
 
   task = signal<Task | null>(null);
   isLoading = signal(false);
@@ -61,9 +68,13 @@ export class TaskDetailPageComponent implements OnInit {
     dueDate: '',
     storyPoints: null,
     assigneeId: '',
+    category: '',
+    taskTypeId: '',
+    complexityLevelId: '',
   };
   availablePriorities = signal<Array<{ id: string; name: string; color: string | null; order: number }>>([]);
   availableAssignees = signal<Array<{ id: string; name: string }>>([]);
+  availableTaskTypes = signal<TaskType[]>([]);
 
   readonly statuses = TASK_STATUSES;
   statusHistory = signal<TaskStatusHistoryEntry[]>([]);
@@ -106,6 +117,7 @@ export class TaskDetailPageComponent implements OnInit {
         this.loadDependencyTaskCandidates(task.caseId, taskId);
         this.loadPriorities(task.case.projectId);
         this.loadAssignees(task.case.projectId);
+        this.loadTaskTypes();
       },
       error: (err) => {
         console.error('Failed to load task:', err);
@@ -127,6 +139,24 @@ export class TaskDetailPageComponent implements OnInit {
       next: (members) => this.availableAssignees.set(members.map((m) => m.user)),
       error: () => this.availableAssignees.set([]),
     });
+  }
+
+  private loadTaskTypes(): void {
+    this.taskTypesService.list().subscribe({
+      next: (types) => this.availableTaskTypes.set(types.filter((t) => t.isActive)),
+      error: () => this.availableTaskTypes.set([]),
+    });
+  }
+
+  onTaskTypeSelect(taskTypeId: string): void {
+    this.draft.taskTypeId = taskTypeId;
+    this.draft.complexityLevelId = '';
+    this.markDirty();
+  }
+
+  availableComplexityLevels() {
+    const type = this.availableTaskTypes().find((t) => t.id === this.draft.taskTypeId);
+    return type?.complexityLevels ?? [];
   }
 
   private loadStatusHistory(taskId: string): void {
@@ -177,6 +207,9 @@ export class TaskDetailPageComponent implements OnInit {
       dueDate: task.dueDate ? task.dueDate.split('T')[0] : '',
       storyPoints: null,
       assigneeId: task.assignees[0]?.id ?? '',
+      category: task.category ?? '',
+      taskTypeId: task.taskTypeId ?? '',
+      complexityLevelId: task.complexityLevelId ?? '',
     };
     this.isDirty.set(false);
   }
@@ -215,6 +248,10 @@ export class TaskDetailPageComponent implements OnInit {
       this.errorMessage.set('Task title cannot be empty.');
       return;
     }
+    if (current.case.isCsoLabeled && !this.draft.category) {
+      this.errorMessage.set('Please tag this CSO task as Functional or Technical.');
+      return;
+    }
 
     this.isSaving.set(true);
     this.errorMessage.set('');
@@ -225,6 +262,9 @@ export class TaskDetailPageComponent implements OnInit {
       priorityId: this.draft.priorityId || undefined,
       dueDate: this.draft.dueDate || undefined,
       assigneeIds: this.draft.assigneeId ? [this.draft.assigneeId] : [],
+      category: this.draft.category || undefined,
+      taskTypeId: this.draft.taskTypeId || undefined,
+      complexityLevelId: this.draft.complexityLevelId || undefined,
     };
 
     this.tasksService.updateTaskDetails(current.id, dto).subscribe({
@@ -324,6 +364,7 @@ export class TaskDetailPageComponent implements OnInit {
       description: formData.description || undefined,
       dueDate: formData.dueDate || undefined,
       assigneeIds: formData.assigneeIds.length > 0 ? formData.assigneeIds : undefined,
+      subtaskTypeId: formData.subtaskTypeId,
     };
 
     this.isLoading.set(true);

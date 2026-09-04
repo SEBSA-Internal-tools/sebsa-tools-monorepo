@@ -1,6 +1,7 @@
 import { CaseType, CaseStatus, TaskCategory } from '@prisma/client';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  ArrayMaxSize,
   IsArray,
   IsBoolean,
   IsDateString,
@@ -73,9 +74,15 @@ export class CreateCaseDto {
   @Max(100)
   storyPoints?: number;
 
-  @ApiPropertyOptional({ type: [String], format: 'uuid' })
+  @ApiPropertyOptional({
+    type: [String],
+    format: 'uuid',
+    maxItems: 1,
+    description: 'A case has at most one owner.',
+  })
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(1, { message: 'A case can only have one case owner.' })
   @IsUUID('4', { each: true })
   assigneeIds?: string[];
 
@@ -87,7 +94,8 @@ export class CreateCaseDto {
 
   @ApiPropertyOptional({
     default: false,
-    description: 'Surfaces this case on the CSO Overview page.',
+    description:
+      'Ignored — derived server-side from the target project\'s own CSO flag. A case is CSO-labeled if and only if its project is.',
   })
   @IsOptional()
   @IsBoolean()
