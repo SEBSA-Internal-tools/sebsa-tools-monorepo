@@ -5,13 +5,15 @@ import {
   computed,
   inject,
   type OnInit,
+  type OnDestroy,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
+import { Subscription } from 'rxjs';
 import { CalendarViewComponent } from './components/calendar-view/calendar-view.component';
 import { AuthService } from '../../core/services/auth.service';
-import { CasesService } from '../../core/services/cases.service';
+import { CasesService, type CaseView } from '../../core/services/cases.service';
 import { ProjectsService } from '../projects/services/projects.service';
 import { NotificationService } from '../../core/services/notification.service';
 import {
@@ -33,15 +35,18 @@ import type { CreateCaseRequest, ProjectSummary } from '@sebsa-pm-tool/shared-mo
   templateUrl: './calendar.page.html',
   styleUrl: './calendar.page.scss',
 })
-export class CalendarPageComponent implements OnInit {
+export class CalendarPageComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   protected readonly authService = inject(AuthService);
   private readonly casesService = inject(CasesService);
   private readonly projectsService = inject(ProjectsService);
   private readonly notificationService = inject(NotificationService);
 
+  private casesSub?: Subscription;
+  private projectsSub?: Subscription;
+
   // Real backend data states
-  readonly calendarCases = signal<CalendarItem[]>([]);
+  readonly rawCases = signal<CaseView[]>([]);
   readonly availableProjects = signal<ProjectSummary[]>([]);
   readonly selectedProjectId = signal<string>('');
   readonly isLoading = signal<boolean>(false);
@@ -56,6 +61,15 @@ export class CalendarPageComponent implements OnInit {
     if (!id) return '';
     const found = this.availableProjects().find((p) => p.id === id);
     return found ? found.name : '';
+  });
+
+  // Client-side instant filtering based on selected project
+  // Avoids firing heavy duplicate backend API calls when user switches project dropdown
+  readonly calendarCases = computed<CalendarItem[]>(() => {
+    const selectedId = this.selectedProjectId();
+    const cases = this.rawCases();
+    const filtered = selectedId ? cases.filter((c) => c.projectId === selectedId) : cases;
+    return filtered.map((c) => caseToCalendarItem(c));
   });
 
   readonly kpiMetrics = computed<CalendarKPI[]>(() => {
@@ -100,8 +114,15 @@ export class CalendarPageComponent implements OnInit {
     this.loadCases();
   }
 
+  ngOnDestroy(): void {
+    this.casesSub?.unsubscribe();
+    this.projectsSub?.unsubscribe();
+  }
+
   loadProjects(): void {
-    this.projectsService.getProjects().subscribe({
+    if (this.availableProjects().length > 0) return;
+    this.projectsSub?.unsubscribe();
+    this.projectsSub = this.projectsService.getProjects().subscribe({
       next: (projects) => {
         this.availableProjects.set(projects);
       },
@@ -111,16 +132,14 @@ export class CalendarPageComponent implements OnInit {
     });
   }
 
-  loadCases(): void {
+  loadCases(force = false): void {
     this.isLoading.set(true);
     this.errorMessage.set('');
 
-    const projectId = this.selectedProjectId() || undefined;
-
-    this.casesService.loadAllCases(projectId).subscribe({
+    this.casesSub?.unsubscribe();
+    this.casesSub = this.casesService.loadAllCases(undefined, force).subscribe({
       next: (cases) => {
-        const calendarItems = cases.map((c) => caseToCalendarItem(c));
-        this.calendarCases.set(calendarItems);
+        this.rawCases.set(cases);
         this.isLoading.set(false);
       },
       error: (err) => {
@@ -133,7 +152,6 @@ export class CalendarPageComponent implements OnInit {
 
   onProjectFilterChanged(projectId: string): void {
     this.selectedProjectId.set(projectId);
-    this.loadCases();
   }
 
   onCaseClicked(item: CalendarItem): void {
@@ -182,7 +200,7 @@ export class CalendarPageComponent implements OnInit {
         this.notificationService.success(`Case "${formData.title}" created successfully!`);
         this.isCreateCaseModalOpen.set(false);
         // Reload to sync with calendar items
-        this.loadCases();
+        this.loadCases(true);
       },
       error: (err) => {
         console.error('Failed to create case:', err);
