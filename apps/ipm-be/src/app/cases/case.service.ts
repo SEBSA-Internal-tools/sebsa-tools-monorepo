@@ -39,7 +39,7 @@ const caseSummarySelect = {
   jiraStatusLabel: true,
   project: { select: { id: true, name: true, isCsoProject: true } },
   priority: { select: { id: true, name: true, color: true } },
-  assignees: { include: { user: { select: { id: true, name: true, email: true } } } },
+  assignees: { select: { user: { select: { id: true, name: true, email: true } } } },
 } satisfies Prisma.CaseSelect;
 
 type CaseWithSummary = Prisma.CaseGetPayload<{ select: typeof caseSummarySelect }>;
@@ -137,10 +137,15 @@ export class CaseService {
   async findAll(filter: FilterCaseDto, user: AuthUser): Promise<CaseSummary[]> {
     const where = await this.buildScopedWhere(filter, user);
 
+    let orderBy: Prisma.CaseOrderByWithRelationInput = { createdAt: 'desc' };
+    if (filter.sortBy) {
+      orderBy = { [filter.sortBy]: filter.sortOrder ?? 'desc' };
+    }
+
     const cases = await this.prisma.case.findMany({
       where,
       select: caseSummarySelect,
-      orderBy: { createdAt: 'desc' },
+      orderBy,
     });
 
     return cases.map((kase) => this.toCaseSummary(kase));
@@ -195,7 +200,6 @@ export class CaseService {
     this.assertCsoCategoryRequirement(isCsoLabeled, mergedCategory);
 
     const { assigneeIds, labelIds, isCsoLabeled: _ignoredIsCsoLabeled, ...restDto } = dto;
-    const isStatusChange = !!dto.status && dto.status !== existing.status;
 
     const oldPrimaryAssignee = await this.prisma.caseAssignee.findFirst({
       where: { caseId: id },
@@ -223,7 +227,7 @@ export class CaseService {
         },
       });
 
-      if (isStatusChange) {
+      if (dto.status && dto.status !== existing.status) {
         await tx.caseStatusHistory.create({
           data: {
             caseId: id,

@@ -133,12 +133,10 @@ export class ProjectDetailPageComponent implements OnInit {
 
   onTabChange(tab: typeof this.activeTab): void {
     this.activeTab = tab;
-    if (tab === 'calendar') {
-      const p = this.project();
-      if (p) {
-        this.casesService.loadCases(p.id);
-      }
-    }
+  }
+
+  onCaseClicked(item: CalendarItem): void {
+    this.router.navigate(['/cases', item.id]);
   }
 
   onAddTaskClick(): void {

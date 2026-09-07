@@ -579,25 +579,30 @@
     </div>
   }
 
-  <!-- 3. Interactive "+N more" Inline Day Flyout -->
+  <!-- 3. Interactive "+N more" Inline Day Flyout Modal -->
   @if (expandedDay(); as day) {
     <div
       class="day-flyout-backdrop"
       role="button"
       tabindex="0"
       (click)="onFlyoutBackdropClick($event)"
-      (keydown.escape)="closeDayFlyout()"
+      (keydown)="onFlyoutBackdropKeydown($event)"
     >
-      <div class="day-flyout-card">
+      <div class="day-flyout-card" role="document">
         <header class="flyout-header">
           <div class="flyout-header-left">
             <span class="flyout-day-num font-mono">{{ day.dayNumber }}</span>
-            <div>
-              <h4 class="flyout-title">{{ day.date.toLocaleDateString('default', { month: 'long', day: 'numeric', year: 'numeric' }) }}</h4>
-              <span class="flyout-subtitle">{{ day.items.length }} cases scheduled</span>
+            <div class="flyout-date-meta">
+              <h4 class="flyout-title">
+                {{ day.date.toLocaleDateString('default', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) }}
+              </h4>
+              <span class="flyout-subtitle">
+                <span class="count-badge">{{ day.items.length }}</span>
+                <span>{{ day.items.length === 1 ? 'case scheduled' : 'cases scheduled' }}</span>
+              </span>
             </div>
           </div>
-          <button type="button" class="btn-close-flyout" (click)="closeDayFlyout()" aria-label="Close">
+          <button type="button" class="btn-close-flyout" (click)="closeDayFlyout()" aria-label="Close day view">
             <span class="material-symbols-outlined">close</span>
           </button>
         </header>
@@ -614,21 +619,73 @@
               (keydown.enter)="onItemClick(item, $event)"
               (keydown.space)="onItemClick(item, $event); $event.preventDefault()"
             >
-              <div class="flyout-item-left">
-                <span class="pill-case-id font-mono">{{ item.caseNumber || 'CASE' }}</span>
-                <span class="flyout-item-title" [title]="item.title">{{ item.title }}</span>
+              <!-- Card Top Row: Type, Case Number, Project & Status Badges -->
+              <div class="flyout-card-header-row">
+                <div class="badge-group-left">
+                  <span class="badge-type" [ngClass]="getTypeClass(item.type)">
+                    <span class="material-symbols-outlined icon-xs">{{ getTypeIcon(item.type) }}</span>
+                    <span>{{ item.type || 'CASE' }}</span>
+                  </span>
+                  @if (item.caseNumber) {
+                    <span class="pill-case-id font-mono">{{ item.caseNumber }}</span>
+                  }
+                  @if (item.projectName) {
+                    <span class="pill-project" [title]="'Project: ' + item.projectName">
+                      <span class="material-symbols-outlined icon-xs">folder</span>
+                      <span>{{ item.projectName }}</span>
+                    </span>
+                  }
+                </div>
+
+                <div class="badge-group-right">
+                  @if (item.isOverdue) {
+                    <span class="overdue-tag">⚠️ OVERDUE</span>
+                  }
+                  @if (item.priority) {
+                    <span class="badge-priority" [ngClass]="getPriorityClass(item.priority)">
+                      {{ item.priority }}
+                    </span>
+                  }
+                  <span class="status-pill" [ngClass]="getStatusClass(item.status)">
+                    {{ getStatusLabel(item.status) }}
+                  </span>
+                </div>
               </div>
-              <div class="flyout-item-right">
-                @if (item.isOverdue) {
-                  <span class="overdue-tag">OVERDUE</span>
-                }
-                <span class="badge-priority" [ngClass]="getPriorityClass(item.priority)">
-                  {{ item.priority }}
-                </span>
-                <span class="status-pill" [ngClass]="getStatusClass(item.status)">
-                  {{ getStatusLabel(item.status) }}
-                </span>
+
+              <!-- Card Middle: Full Title -->
+              <div class="flyout-card-title-row">
+                <h5 class="flyout-item-title" [title]="item.title">{{ item.title }}</h5>
               </div>
+
+              <!-- Card Bottom: Assignee, Active Date Mode, & Action Hint -->
+              <div class="flyout-card-footer-row">
+                <div class="footer-meta-left">
+                  @if (item.assignee) {
+                    <span class="card-meta-assignee" [title]="'Assignee: ' + item.assignee">
+                      <span class="material-symbols-outlined icon-xs">person</span>
+                      <span>{{ item.assignee }}</span>
+                    </span>
+                  }
+                  <span class="card-meta-date" [title]="getDateModeLabel(dateMode())">
+                    <span class="material-symbols-outlined icon-xs">schedule</span>
+                    <span>{{ getDateModeLabel(dateMode()) }}: {{ getItemActiveDate(item, dateMode()) || 'None' }}</span>
+                  </span>
+                </div>
+
+                <div class="footer-meta-right">
+                  <span class="action-hint-link">
+                    <span>Details</span>
+                    <span class="material-symbols-outlined icon-xs">arrow_forward</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          }
+
+          @if (day.items.length === 0) {
+            <div class="flyout-empty-state">
+              <span class="material-symbols-outlined icon-lg">event_available</span>
+              <p>No cases scheduled for this date.</p>
             </div>
           }
         </div>
@@ -724,9 +781,9 @@
       role="button"
       tabindex="0"
       (click)="onDrawerBackdropClick($event)"
-      (keydown.escape)="closeDrawer()"
+      (keydown)="onDrawerBackdropKeydown($event)"
     >
-      <div class="drawer-panel">
+      <div class="drawer-panel" role="document">
         <header class="drawer-header">
           <div class="drawer-header-left">
             <span class="drawer-case-id font-mono">{{ item.caseNumber || 'CASE' }}</span>

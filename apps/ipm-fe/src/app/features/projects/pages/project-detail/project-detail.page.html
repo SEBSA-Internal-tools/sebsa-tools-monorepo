@@ -57,6 +57,7 @@
               [currentUserId]="authService.currentUser()?.id"
               [currentUserName]="authService.currentUser()?.name"
               (createClick)="onCreateForDate($event)"
+              (itemClick)="onCaseClicked($event)"
             ></app-calendar-view>
           </div>
         }

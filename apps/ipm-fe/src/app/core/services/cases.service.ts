@@ -1,6 +1,6 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
-import { BehaviorSubject, Observable, tap, map } from 'rxjs';
+import { BehaviorSubject, Observable, tap, map, of, finalize, shareReplay } from 'rxjs';
 import {
   CreateCaseRequest,
   Case as BackendCase,
@@ -59,6 +59,7 @@ export class CasesService {
   private readonly _casesSubject = new BehaviorSubject<CaseView[]>([]);
 
   private currentProjectId?: string;
+  private readonly inFlightLoads = new Map<string, Observable<CaseView[]>>();
 
   constructor() {
     this.cases$ = this._casesSubject.asObservable();
@@ -73,27 +74,58 @@ export class CasesService {
     return this._cases();
   }
 
-  loadCases(projectId: string): void {
+  loadCases(projectId: string, force = false): Observable<CaseView[]> {
+    if (!force && this.currentProjectId === projectId && this._cases().length > 0) {
+      return of(this._cases());
+    }
+
+    const cacheKey = projectId;
+    const existing$ = this.inFlightLoads.get(cacheKey);
+    if (existing$) {
+      return existing$;
+    }
+
     this.currentProjectId = projectId;
     const params = new HttpParams().set('projectId', projectId);
-    this.http
+    const req$ = this.http
       .get<BackendCaseSummary[]>('/api/cases', { params })
-      .pipe(map((cases) => cases.map((c) => this.toCaseView(c))))
-      .subscribe({ next: (cases) => this.setState(cases) });
+      .pipe(
+        map((cases) => cases.map((c) => this.toCaseView(c))),
+        tap((cases) => this.setState(cases)),
+        finalize(() => this.inFlightLoads.delete(cacheKey)),
+        shareReplay(1)
+      );
+
+    this.inFlightLoads.set(cacheKey, req$);
+    req$.subscribe({ error: (err) => console.error('Failed to load cases:', err) });
+    return req$;
   }
 
-  loadAllCases(projectId?: string): Observable<CaseView[]> {
+  loadAllCases(projectId?: string, force = false): Observable<CaseView[]> {
+    const cacheKey = projectId ?? '__ALL__';
+    if (!force && this.inFlightLoads.has(cacheKey)) {
+      return this.inFlightLoads.get(cacheKey)!;
+    }
+
     let params = new HttpParams();
     if (projectId) {
       this.currentProjectId = projectId;
       params = params.set('projectId', projectId);
+    } else {
+      this.currentProjectId = undefined;
     }
-    return this.http
+
+    const req$ = this.http
       .get<BackendCaseSummary[]>('/api/cases', { params })
       .pipe(
         map((cases) => cases.map((c) => this.toCaseView(c))),
-        tap((cases) => this.setState(cases))
+        tap((cases) => this.setState(cases)),
+        finalize(() => this.inFlightLoads.delete(cacheKey)),
+        shareReplay(1)
       );
+
+    this.inFlightLoads.set(cacheKey, req$);
+    return req$;
   }
 
   createCase(dto: CreateCaseRequest): Observable<CaseView> {
