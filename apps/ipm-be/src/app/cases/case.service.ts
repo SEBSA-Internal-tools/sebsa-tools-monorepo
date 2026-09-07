@@ -200,7 +200,6 @@ export class CaseService {
     this.assertCsoCategoryRequirement(isCsoLabeled, mergedCategory);
 
     const { assigneeIds, labelIds, isCsoLabeled: _ignoredIsCsoLabeled, ...restDto } = dto;
-    const isStatusChange = !!dto.status && dto.status !== existing.status;
 
     const oldPrimaryAssignee = await this.prisma.caseAssignee.findFirst({
       where: { caseId: id },
@@ -228,7 +227,7 @@ export class CaseService {
         },
       });
 
-      if (isStatusChange) {
+      if (dto.status && dto.status !== existing.status) {
         await tx.caseStatusHistory.create({
           data: {
             caseId: id,

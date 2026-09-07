@@ -654,6 +654,14 @@ export class CalendarViewComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
+  onFlyoutBackdropKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Escape' || event.key === 'Enter' || event.key === ' ') {
+      if (event.target === event.currentTarget) {
+        this.closeDayFlyout();
+      }
+    }
+  }
+
   closeDrawer(): void {
     this.selectedItem.set(null);
   }
@@ -661,6 +669,14 @@ export class CalendarViewComponent implements OnInit, AfterViewInit, OnDestroy {
   onDrawerBackdropClick(event: MouseEvent): void {
     if (event.target === event.currentTarget) {
       this.closeDrawer();
+    }
+  }
+
+  onDrawerBackdropKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Escape' || event.key === 'Enter' || event.key === ' ') {
+      if (event.target === event.currentTarget) {
+        this.closeDrawer();
+      }
     }
   }
 
