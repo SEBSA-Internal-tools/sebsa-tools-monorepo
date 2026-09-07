@@ -586,7 +586,7 @@ export class CalendarViewComponent implements OnInit, AfterViewInit, OnDestroy {
     this.dayClick.emit(day.date);
   }
 
-  onItemClick(item: CalendarItem, event?: MouseEvent): void {
+  onItemClick(item: CalendarItem, event?: Event): void {
     if (event) {
       event.stopPropagation();
     }
@@ -636,8 +636,10 @@ export class CalendarViewComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   // Interactive "+N more" Inline Day Popover
-  openDayFlyout(day: CalendarDay, event: MouseEvent): void {
-    event.stopPropagation();
+  openDayFlyout(day: CalendarDay, event?: Event): void {
+    if (event) {
+      event.stopPropagation();
+    }
     this.hoveredItem.set(null);
     this.expandedDay.set(day);
   }
@@ -646,8 +648,20 @@ export class CalendarViewComponent implements OnInit, AfterViewInit, OnDestroy {
     this.expandedDay.set(null);
   }
 
+  onFlyoutBackdropClick(event: MouseEvent): void {
+    if (event.target === event.currentTarget) {
+      this.closeDayFlyout();
+    }
+  }
+
   closeDrawer(): void {
     this.selectedItem.set(null);
+  }
+
+  onDrawerBackdropClick(event: MouseEvent): void {
+    if (event.target === event.currentTarget) {
+      this.closeDrawer();
+    }
   }
 
   triggerCreateForDate(date: Date, event?: MouseEvent): void {
