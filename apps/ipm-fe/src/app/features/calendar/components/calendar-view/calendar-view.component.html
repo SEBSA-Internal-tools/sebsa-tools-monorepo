@@ -229,6 +229,8 @@
         @for (day of monthDays(); track day.dateString) {
           <div
             class="day-cell"
+            role="button"
+            tabindex="0"
             [class.outside-month]="!day.isCurrentMonth"
             [class.is-next-month]="day.isNextMonth"
             [class.is-prev-month]="day.isPrevMonth"
@@ -239,6 +241,8 @@
             [class.is-weekend]="day.isWeekend"
             [class.has-overdue]="day.hasOverdue"
             (click)="onDayClick(day)"
+            (keydown.enter)="onDayClick(day)"
+            (keydown.space)="onDayClick(day); $event.preventDefault()"
             [title]="!day.isCurrentMonth ? 'Belongs to ' + day.monthName + ' (Click to jump to ' + day.monthName + ')' : ''"
           >
             <!-- Cell Header -->
@@ -315,10 +319,14 @@
               @for (item of day.items.slice(0, density() === 'compact' ? 5 : 3); track item.id) {
                 <div
                   class="event-pill"
+                  role="button"
+                  tabindex="0"
                   [ngClass]="[getItemColorClass(item)]"
                   [class.is-overdue-pill]="item.isOverdue"
                   [class.is-blocked-pill]="item.isBlocked || item.status === 'BLOCKED'"
                   (click)="onItemClick(item, $event)"
+                  (keydown.enter)="onItemClick(item, $event)"
+                  (keydown.space)="onItemClick(item, $event); $event.preventDefault()"
                   (mouseenter)="onItemMouseEnter(item, $event)"
                   (mouseleave)="onItemMouseLeave()"
                 >
@@ -354,9 +362,13 @@
 
               <!-- Overflow Badge if items exceed limit -->
               @if (day.items.length > (density() === 'compact' ? 5 : 3)) {
-                <div class="more-items-pill" (click)="openDayFlyout(day, $event)">
+                <button
+                  type="button"
+                  class="more-items-pill"
+                  (click)="openDayFlyout(day, $event)"
+                >
                   +{{ day.items.length - (density() === 'compact' ? 5 : 3) }} more...
-                </div>
+                </button>
               }
             </div>
           </div>
@@ -399,9 +411,13 @@
               @for (item of day.items; track item.id) {
                 <div
                   class="week-event-card"
+                  role="button"
+                  tabindex="0"
                   [ngClass]="[getItemColorClass(item)]"
                   [class.is-overdue-card]="item.isOverdue"
                   (click)="onItemClick(item, $event)"
+                  (keydown.enter)="onItemClick(item, $event)"
+                  (keydown.space)="onItemClick(item, $event); $event.preventDefault()"
                   (mouseenter)="onItemMouseEnter(item, $event)"
                   (mouseleave)="onItemMouseLeave()"
                 >
@@ -495,9 +511,13 @@
               @for (item of group.items; track item.id) {
                 <div
                   class="agenda-card"
+                  role="button"
+                  tabindex="0"
                   [ngClass]="[getItemColorClass(item)]"
                   [class.is-overdue-card]="item.isOverdue"
                   (click)="onItemClick(item, $event)"
+                  (keydown.enter)="onItemClick(item, $event)"
+                  (keydown.space)="onItemClick(item, $event); $event.preventDefault()"
                 >
                   <div class="agenda-card-left">
                     <span class="agenda-type-icon-wrapper" [ngClass]="getTypeClass(item.type)">
@@ -561,8 +581,14 @@
 
   <!-- 3. Interactive "+N more" Inline Day Flyout -->
   @if (expandedDay(); as day) {
-    <div class="day-flyout-backdrop" (click)="closeDayFlyout()">
-      <div class="day-flyout-card" (click)="$event.stopPropagation()">
+    <div
+      class="day-flyout-backdrop"
+      role="button"
+      tabindex="0"
+      (click)="onFlyoutBackdropClick($event)"
+      (keydown.escape)="closeDayFlyout()"
+    >
+      <div class="day-flyout-card">
         <header class="flyout-header">
           <div class="flyout-header-left">
             <span class="flyout-day-num font-mono">{{ day.dayNumber }}</span>
@@ -580,9 +606,13 @@
           @for (item of day.items; track item.id) {
             <div
               class="flyout-item-card"
+              role="button"
+              tabindex="0"
               [ngClass]="[getItemColorClass(item)]"
               [class.is-overdue-pill]="item.isOverdue"
               (click)="onItemClick(item, $event)"
+              (keydown.enter)="onItemClick(item, $event)"
+              (keydown.space)="onItemClick(item, $event); $event.preventDefault()"
             >
               <div class="flyout-item-left">
                 <span class="pill-case-id font-mono">{{ item.caseNumber || 'CASE' }}</span>
@@ -689,8 +719,14 @@
 
   <!-- 5. Sleek Focused Side Panel for Case Inspection -->
   @if (selectedItem(); as item) {
-    <div class="drawer-backdrop" (click)="closeDrawer()">
-      <div class="drawer-panel" (click)="$event.stopPropagation()">
+    <div
+      class="drawer-backdrop"
+      role="button"
+      tabindex="0"
+      (click)="onDrawerBackdropClick($event)"
+      (keydown.escape)="closeDrawer()"
+    >
+      <div class="drawer-panel">
         <header class="drawer-header">
           <div class="drawer-header-left">
             <span class="drawer-case-id font-mono">{{ item.caseNumber || 'CASE' }}</span>

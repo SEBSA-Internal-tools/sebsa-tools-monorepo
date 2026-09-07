@@ -1,8 +1,9 @@
-import { Component, inject, OnInit, signal, ChangeDetectionStrategy } from '@angular/core';
+import { Component, inject, OnInit, signal, computed, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ProjectsService } from '../../services/projects.service';
 import { CasesService } from '../../../../core/services/cases.service';
+import { AuthService } from '../../../../core/services/auth.service';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { ProjectDetailHeaderComponent } from './components/header/project-detail-header.component';
 import { ProjectNavTabsComponent } from './components/nav-tabs/project-nav-tabs.component';
@@ -12,6 +13,12 @@ import { ProjectTeamComponent } from './components/team/project-team.component';
 import { ProjectSprintComponent } from './components/sprint/project-sprint.component';
 import { ProjectOverviewComponent } from './components/overview/project-overview.component';
 import { ProjectConfigurationComponent } from './components/configuration/project-configuration.component';
+import { CalendarViewComponent } from '../../../calendar/components/calendar-view/calendar-view.component';
+import {
+  caseToCalendarItem,
+  type CalendarItem,
+  type CalendarKPI,
+} from '../../../calendar/models/calendar.models';
 import { CreateCaseModalComponent, type CaseFormData } from '../../../cases/create-case/create-case-modal.component';
 import {
   CreateProjectModalComponent,
@@ -31,6 +38,7 @@ import type { CreateCaseRequest, Project } from '@sebsa-pm-tool/shared-models';
     ProjectTeamComponent,
     ProjectSprintComponent,
     ProjectOverviewComponent,
+    CalendarViewComponent,
     CreateCaseModalComponent,
     CreateProjectModalComponent,
     ProjectConfigurationComponent,
@@ -42,6 +50,7 @@ import type { CreateCaseRequest, Project } from '@sebsa-pm-tool/shared-models';
 export class ProjectDetailPageComponent implements OnInit {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
+  protected readonly authService = inject(AuthService);
   private projectsService = inject(ProjectsService);
   private casesService = inject(CasesService);
   private notificationService = inject(NotificationService);
@@ -49,10 +58,53 @@ export class ProjectDetailPageComponent implements OnInit {
   readonly project = signal<Project | null>(null);
   readonly isLoading = signal(false);
   readonly errorMessage = signal('');
+  readonly initialCaseDueDate = signal<string>('');
 
   activeTab: 'overview' | 'kanban' | 'tasklist' | 'calendar' | 'sprint' | 'team' | 'configuration' = 'kanban';
   isTaskModalOpen = false;
   isEditModalOpen = false;
+
+  readonly projectCalendarItems = computed<CalendarItem[]>(() => {
+    const cases = this.casesService.cases();
+    return cases.map((c) => caseToCalendarItem(c));
+  });
+
+  readonly calendarKpis = computed<CalendarKPI[]>(() => {
+    const items = this.projectCalendarItems();
+    const total = items.length;
+    const inProgress = items.filter((c) => c.status === 'IN_PROGRESS').length;
+    const urgentOrHigh = items.filter(
+      (c) => c.priority === 'Urgent' || c.priority === 'High'
+    ).length;
+    const overdue = items.filter((c) => c.isOverdue).length;
+
+    return [
+      {
+        label: 'Total Scheduled',
+        value: total,
+        icon: 'calendar_month',
+        colorVariant: 'primary',
+      },
+      {
+        label: 'High & Urgent Priority',
+        value: urgentOrHigh,
+        icon: 'warning',
+        colorVariant: 'warning',
+      },
+      {
+        label: 'In Progress Cases',
+        value: inProgress,
+        icon: 'pending_actions',
+        colorVariant: 'purple',
+      },
+      {
+        label: 'Overdue Commitments',
+        value: overdue,
+        icon: 'error',
+        colorVariant: 'error',
+      },
+    ];
+  });
 
   ngOnInit(): void {
     const projectId = this.route.snapshot.paramMap.get('id');
@@ -81,14 +133,30 @@ export class ProjectDetailPageComponent implements OnInit {
 
   onTabChange(tab: typeof this.activeTab): void {
     this.activeTab = tab;
+    if (tab === 'calendar') {
+      const p = this.project();
+      if (p) {
+        this.casesService.loadCases(p.id);
+      }
+    }
   }
 
   onAddTaskClick(): void {
+    this.initialCaseDueDate.set('');
     this.isTaskModalOpen = true;
   }
 
   closeTaskModal(): void {
     this.isTaskModalOpen = false;
+    this.initialCaseDueDate.set('');
+  }
+
+  onCreateForDate(date: Date): void {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    this.initialCaseDueDate.set(`${y}-${m}-${d}`);
+    this.isTaskModalOpen = true;
   }
 
   onCreateTask(formData: CaseFormData): void {
