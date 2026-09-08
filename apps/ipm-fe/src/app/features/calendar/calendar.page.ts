@@ -15,7 +15,7 @@ import { CalendarViewComponent } from './components/calendar-view/calendar-view.
 import { AuthService } from '../../core/services/auth.service';
 import { CasesService, type CaseView } from '../../core/services/cases.service';
 import { ProjectsService } from '../projects/services/projects.service';
-import { NotificationService } from '../../core/services/notification.service';
+import { ToastService } from '../../core/services/toast.service';
 import {
   CreateCaseModalComponent,
   type CaseFormData,
@@ -40,7 +40,7 @@ export class CalendarPageComponent implements OnInit, OnDestroy {
   protected readonly authService = inject(AuthService);
   private readonly casesService = inject(CasesService);
   private readonly projectsService = inject(ProjectsService);
-  private readonly notificationService = inject(NotificationService);
+  private readonly toastService = inject(ToastService);
 
   private casesSub?: Subscription;
   private projectsSub?: Subscription;
@@ -178,7 +178,7 @@ export class CalendarPageComponent implements OnInit, OnDestroy {
 
   onCaseFormSubmitted(formData: CaseFormData): void {
     if (!formData.projectId) {
-      this.notificationService.error('Please select a project for the case.');
+      this.toastService.error('Please select a project for the case.');
       return;
     }
 
@@ -197,14 +197,14 @@ export class CalendarPageComponent implements OnInit, OnDestroy {
 
     this.casesService.createCase(dto).subscribe({
       next: (created) => {
-        this.notificationService.success(`Case "${formData.title}" created successfully!`);
+        this.toastService.success(`Case "${formData.title}" created successfully!`);
         this.isCreateCaseModalOpen.set(false);
         // Reload to sync with calendar items
         this.loadCases(true);
       },
       error: (err) => {
         console.error('Failed to create case:', err);
-        this.notificationService.error('Failed to create case. Please try again.');
+        this.toastService.error('Failed to create case. Please try again.');
       },
     });
   }

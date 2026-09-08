@@ -19,3 +19,4 @@ export * from './lib/customers/customer.models';
 export * from './lib/cases/case.models';
 export * from './lib/cases/support-case.models';
 export * from './lib/dashboard/dashboard.models';
+export * from './lib/notifications/notification.models';

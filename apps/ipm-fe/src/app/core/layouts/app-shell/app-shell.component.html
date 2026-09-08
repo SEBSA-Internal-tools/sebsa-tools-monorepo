@@ -11,66 +11,67 @@
     </button>
 
     <nav class="nav-list">
-      <a
-        *ngFor="let item of visibleNavigationItems"
-        class="nav-item"
-        [routerLink]="item.path"
-        routerLinkActive="active"
-        [routerLinkActiveOptions]="{ exact: true }"
-      >
-        <span class="nav-icon" aria-hidden="true">
-          <span class="material-symbols-outlined">{{ item.icon }}</span>
-        </span>
-        <span class="nav-label">{{ item.label }}</span>
-      </a>
+      @for (item of visibleNavigationItems; track item.path) {
+        <a
+          class="nav-item"
+          [routerLink]="item.path"
+          routerLinkActive="active"
+          [routerLinkActiveOptions]="{ exact: true }"
+        >
+          <span class="nav-icon" aria-hidden="true">
+            <span class="material-symbols-outlined">{{ item.icon }}</span>
+          </span>
+          <span class="nav-label">{{ item.label }}</span>
+        </a>
+      }
 
-      <a
-        *ngIf="['ADMIN', 'SUPER_ADMIN'].includes(authService.currentUser()?.systemRole ?? '')"
-        class="nav-item"
-        routerLink="/admin/users"
-        routerLinkActive="active"
-      >
-        <span class="nav-icon" aria-hidden="true">
-          <span class="material-symbols-outlined">admin_panel_settings</span>
-        </span>
-        <span class="nav-label">Admin</span>
-      </a>
+      @if (['ADMIN', 'SUPER_ADMIN'].includes(authService.currentUser()?.systemRole ?? '')) {
+        <a
+          class="nav-item"
+          routerLink="/admin/users"
+          routerLinkActive="active"
+        >
+          <span class="nav-icon" aria-hidden="true">
+            <span class="material-symbols-outlined">admin_panel_settings</span>
+          </span>
+          <span class="nav-label">Admin</span>
+        </a>
+      }
 
-      <a
-        *ngIf="authService.currentUser()?.systemRole === 'SUPER_ADMIN'"
-        class="nav-item"
-        routerLink="/admin/privilege-groups"
-        routerLinkActive="active"
-      >
-        <span class="nav-icon" aria-hidden="true">
-          <span class="material-symbols-outlined">shield_person</span>
-        </span>
-        <span class="nav-label">Privilege Groups</span>
-      </a>
+      @if (authService.currentUser()?.systemRole === 'SUPER_ADMIN') {
+        <a
+          class="nav-item"
+          routerLink="/admin/privilege-groups"
+          routerLinkActive="active"
+        >
+          <span class="nav-icon" aria-hidden="true">
+            <span class="material-symbols-outlined">shield_person</span>
+          </span>
+          <span class="nav-label">Privilege Groups</span>
+        </a>
 
-      <a
-        *ngIf="authService.currentUser()?.systemRole === 'SUPER_ADMIN'"
-        class="nav-item"
-        routerLink="/admin/task-types"
-        routerLinkActive="active"
-      >
-        <span class="nav-icon" aria-hidden="true">
-          <span class="material-symbols-outlined">category</span>
-        </span>
-        <span class="nav-label">Task Types</span>
-      </a>
+        <a
+          class="nav-item"
+          routerLink="/admin/task-types"
+          routerLinkActive="active"
+        >
+          <span class="nav-icon" aria-hidden="true">
+            <span class="material-symbols-outlined">category</span>
+          </span>
+          <span class="nav-label">Task Types</span>
+        </a>
 
-      <a
-        *ngIf="authService.currentUser()?.systemRole === 'SUPER_ADMIN'"
-        class="nav-item"
-        routerLink="/admin/subtask-types"
-        routerLinkActive="active"
-      >
-        <span class="nav-icon" aria-hidden="true">
-          <span class="material-symbols-outlined">subdirectory_arrow_right</span>
-        </span>
-        <span class="nav-label">Subtask Types</span>
-      </a>
+        <a
+          class="nav-item"
+          routerLink="/admin/subtask-types"
+          routerLinkActive="active"
+        >
+          <span class="nav-icon" aria-hidden="true">
+            <span class="material-symbols-outlined">subdirectory_arrow_right</span>
+          </span>
+          <span class="nav-label">Subtask Types</span>
+        </a>
+      }
     </nav>
 
     <div class="sidebar-footer">
@@ -125,45 +126,73 @@
             (click)="toggleNotificationMenu()"
           >
             <span class="material-symbols-outlined" aria-hidden="true">notifications</span>
-            <span class="notification-badge" *ngIf="notificationPreview.length">{{ notificationPreview.length }}</span>
+            @if (notificationService.unreadCount() > 0) {
+              <span class="notification-badge">
+                {{ notificationService.unreadCount() > 99 ? '99+' : notificationService.unreadCount() }}
+              </span>
+            }
           </button>
 
           <!-- Notification Dropdown Panel -->
-          <div class="notification-menu" role="dialog" aria-label="Notifications" *ngIf="isNotificationMenuOpen">
-            <div class="notification-menu-header">
-              <span class="notification-menu-title">Notifications</span>
-              <span class="notification-menu-count" *ngIf="notificationPreview.length">{{ notificationPreview.length }} new</span>
-            </div>
-
-            <div class="notification-menu-list" *ngIf="notificationPreview.length; else noNotifications">
-              <div
-                *ngFor="let item of notificationPreview"
-                class="notification-menu-item"
-                [class.unread]="!item.read"
-              >
-                <span class="notification-item-icon material-symbols-outlined" aria-hidden="true">{{ item.icon }}</span>
-                <div class="notification-item-body">
-                  <span class="notification-item-title">{{ item.title }}</span>
-                  <span class="notification-item-detail">{{ item.detail }}</span>
-                  <span class="notification-item-time">{{ item.time }}</span>
+          @if (isNotificationMenuOpen) {
+            <div class="notification-menu" role="dialog" aria-label="Notifications">
+              <div class="notification-menu-header">
+                <div class="notification-menu-header-left">
+                  <span class="notification-menu-title">Notifications</span>
+                  @if (notificationService.unreadCount() > 0) {
+                    <span class="notification-menu-count">
+                      {{ notificationService.unreadCount() }} new
+                    </span>
+                  }
                 </div>
-                <span class="notification-item-dot" *ngIf="!item.read" aria-hidden="true"></span>
+                @if (notificationService.unreadCount() > 0) {
+                  <button
+                    type="button"
+                    class="notification-mark-all-btn"
+                    (click)="markAllNotificationsRead($event)"
+                  >
+                    Mark all read
+                  </button>
+                }
+              </div>
+
+              @if (notificationService.notifications().length > 0) {
+                <div class="notification-menu-list">
+                  @for (item of notificationService.notifications(); track item.id) {
+                    <button
+                      type="button"
+                      class="notification-menu-item"
+                      [class.unread]="!item.isRead"
+                      (click)="handleNotificationClick(item)"
+                    >
+                      <span class="notification-item-icon material-symbols-outlined" aria-hidden="true">
+                        {{ getNotificationIcon(item.type) }}
+                      </span>
+                      <div class="notification-item-body">
+                        <span class="notification-item-title">{{ item.title }}</span>
+                        <span class="notification-item-detail">{{ item.message }}</span>
+                        <span class="notification-item-time">{{ formatRelativeTime(item.createdAt) }}</span>
+                      </div>
+                      @if (!item.isRead) {
+                        <span class="notification-item-dot" aria-hidden="true"></span>
+                      }
+                    </button>
+                  }
+                </div>
+              } @else {
+                <div class="notification-menu-empty">
+                  <span class="material-symbols-outlined" aria-hidden="true">notifications_off</span>
+                  <span>You're all caught up</span>
+                </div>
+              }
+
+              <div class="notification-menu-footer">
+                <button type="button" class="notification-view-all-btn" (click)="goToAllNotifications()">
+                  View all notifications
+                </button>
               </div>
             </div>
-
-            <ng-template #noNotifications>
-              <div class="notification-menu-empty">
-                <span class="material-symbols-outlined" aria-hidden="true">notifications_off</span>
-                <span>You're all caught up</span>
-              </div>
-            </ng-template>
-
-            <div class="notification-menu-footer">
-              <button type="button" class="notification-view-all-btn" (click)="goToAllNotifications()">
-                View all
-              </button>
-            </div>
-          </div>
+          }
         </div>
 
         <!-- User Profile Chip Pill -->
@@ -180,22 +209,23 @@
             </div>
             <div class="user-meta">
               <span class="user-name">{{ authService.currentUser()?.name || 'Hiruni Wijethilaka' }}</span>
-              <!-- <span class="user-role-subtitle">Developer • Reviewer • Admin</span> -->
             </div>
             <span class="material-symbols-outlined dropdown-chevron" aria-hidden="true">expand_more</span>
           </button>
 
           <!-- User Profile Dropdown Menu -->
-          <div class="profile-menu" *ngIf="isProfileMenuOpen">
-            <div class="profile-menu-header">
-              <span class="profile-menu-name">{{ authService.currentUser()?.name || 'Hiruni Wijethilaka' }}</span>
-              <span class="profile-menu-email">{{ authService.currentUser()?.email || 'hiruni@sebsa.com' }}</span>
+          @if (isProfileMenuOpen) {
+            <div class="profile-menu">
+              <div class="profile-menu-header">
+                <span class="profile-menu-name">{{ authService.currentUser()?.name || 'Hiruni Wijethilaka' }}</span>
+                <span class="profile-menu-email">{{ authService.currentUser()?.email || 'hiruni@sebsa.com' }}</span>
+              </div>
+              <button type="button" class="profile-menu-item" (click)="logout()">
+                <span class="material-symbols-outlined" aria-hidden="true">logout</span>
+                <span>Logout</span>
+              </button>
             </div>
-            <button type="button" class="profile-menu-item" (click)="logout()">
-              <span class="material-symbols-outlined" aria-hidden="true">logout</span>
-              <span>Logout</span>
-            </button>
-          </div>
+          }
         </div>
       </div>
     </header>
