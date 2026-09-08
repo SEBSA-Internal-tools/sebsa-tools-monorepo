@@ -4,7 +4,7 @@ import { Router } from '@angular/router';
 import { InAppNotificationService } from '../../core/services/in-app-notification.service';
 import type { NotificationDto, NotificationType } from '@sebsa-pm-tool/shared-models';
 
-type FilterTab = 'ALL' | 'UNREAD' | 'ASSIGNMENTS' | 'STATUS_CHANGE';
+type FilterTab = 'ALL' | 'UNREAD' | 'ASSIGNMENTS' | 'STATUS_CHANGE' | 'DEADLINES';
 
 @Component({
   standalone: true,
@@ -36,6 +36,8 @@ export class NotificationsPageComponent implements OnInit {
       this.inAppNotificationService.loadNotifications({ type: 'TASK_ASSIGNED', limit: 50 }).subscribe();
     } else if (tab === 'STATUS_CHANGE') {
       this.inAppNotificationService.loadNotifications({ type: 'STATUS_CHANGE', limit: 50 }).subscribe();
+    } else if (tab === 'DEADLINES') {
+      this.inAppNotificationService.loadNotifications({ type: 'DUE_DATE_REMINDER', limit: 50 }).subscribe();
     } else {
       this.inAppNotificationService.loadNotifications({ limit: 50 }).subscribe();
     }
@@ -62,14 +64,14 @@ export class NotificationsPageComponent implements OnInit {
       this.inAppNotificationService.markAsRead(item.id).subscribe();
     }
 
-    if (item.relatedEntityType === 'TASK' || item.relatedEntityType === 'CASE' || item.relatedEntityType === 'SUBTASK') {
+    if (item.relatedEntityType === 'TASK' && item.relatedEntityId) {
+      this.router.navigate(['/tasks', item.relatedEntityId]);
+    } else if (item.relatedEntityType === 'CASE' && item.relatedEntityId) {
+      this.router.navigate(['/cases', item.relatedEntityId]);
+    } else if (item.relatedEntityType === 'PROJECT' && item.relatedEntityId) {
+      this.router.navigate(['/projects', item.relatedEntityId]);
+    } else if (item.relatedEntityType === 'SUBTASK') {
       this.router.navigate(['/tasks']);
-    } else if (item.relatedEntityType === 'PROJECT') {
-      if (item.relatedEntityId) {
-        this.router.navigate(['/projects', item.relatedEntityId]);
-      } else {
-        this.router.navigate(['/projects']);
-      }
     }
   }
 

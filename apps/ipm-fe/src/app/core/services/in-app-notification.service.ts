@@ -42,12 +42,29 @@ export class InAppNotificationService {
       this.refreshRecent();
     }
 
-    // Start background light polling every 60 seconds
-    this.pollSubscription = interval(60000).subscribe(() => {
+    // Fast responsive polling every 15 seconds
+    this.pollSubscription = interval(15000).subscribe(() => {
       if (this.authService.currentUser()) {
         this.fetchUnreadCount().subscribe();
       }
     });
+
+    // Instantly refresh when the user switches back to this browser tab/window
+    const onFocusOrVisible = () => {
+      if (!document.hidden && this.authService.currentUser()) {
+        this.refreshRecent();
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('focus', onFocusOrVisible);
+      document.addEventListener('visibilitychange', onFocusOrVisible);
+
+      this.destroyRef.onDestroy(() => {
+        window.removeEventListener('focus', onFocusOrVisible);
+        document.removeEventListener('visibilitychange', onFocusOrVisible);
+      });
+    }
   }
 
   stopPolling(): void {
@@ -98,12 +115,16 @@ export class InAppNotificationService {
   }
 
   /**
-   * Lightweight poll for navbar badge count.
+   * Lightweight poll for navbar badge count. Automatically syncs notifications if count changes.
    */
   fetchUnreadCount(): Observable<UnreadCountResponse> {
     return this.http.get<UnreadCountResponse>(`${this.apiUrl}/unread-count`).pipe(
       tap((res) => {
+        const prev = this.unreadCount();
         this.unreadCount.set(res.count);
+        if (res.count !== prev) {
+          this.loadNotifications({ limit: 6, offset: 0 }).subscribe();
+        }
       }),
       catchError(() => of({ count: 0 })),
     );

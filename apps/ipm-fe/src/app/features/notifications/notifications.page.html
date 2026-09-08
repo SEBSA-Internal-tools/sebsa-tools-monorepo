@@ -4,16 +4,14 @@
       <span class="sebsa-eyebrow">UPDATES & INBOX</span>
       <div class="title-wrapper">
         <h1 class="sebsa-page-title" style="margin: 0">Notifications</h1>
-        <span
-          class="unread-pill"
-          *ngIf="inAppNotificationService.unreadCount() > 0"
-        >
-          {{ inAppNotificationService.unreadCount() }} unread
-        </span>
+        @if (inAppNotificationService.unreadCount() > 0) {
+          <span class="unread-pill">
+            {{ inAppNotificationService.unreadCount() }} unread
+          </span>
+        }
       </div>
       <p class="sebsa-page-desc" style="margin-top: 4px">
-        Stay up to date with task assignments, status changes, mentions, and
-        project alerts.
+        Stay up to date with task assignments, status changes, mentions, and project alerts.
       </p>
     </div>
 
@@ -49,9 +47,9 @@
       (click)="setTab('UNREAD')"
     >
       <span>Unread</span>
-      <span class="tab-badge" *ngIf="inAppNotificationService.unreadCount() > 0"
-        >{{ inAppNotificationService.unreadCount() }}</span
-      >
+      @if (inAppNotificationService.unreadCount() > 0) {
+        <span class="tab-badge">{{ inAppNotificationService.unreadCount() }}</span>
+      }
     </button>
 
     <button
@@ -71,88 +69,91 @@
     >
       <span>Status Updates</span>
     </button>
+
+    <button
+      type="button"
+      class="tab-btn"
+      [class.active]="activeTab() === 'DEADLINES'"
+      (click)="setTab('DEADLINES')"
+    >
+      <span>Deadlines & Reminders</span>
+    </button>
   </div>
 
   <!-- Notifications List -->
-  <div
-    class="notifications-list"
-    *ngIf="filteredNotifications().length; else emptyView"
-  >
-    <div
-      *ngFor="let item of filteredNotifications()"
-      class="notification-card"
-      [class.unread]="!item.isRead"
-    >
-      <div class="card-icon-container" [ngClass]="getIconClass(item.type)">
-        <span class="material-symbols-outlined"
-          >{{ getNotificationIcon(item.type) }}</span
+  @if (filteredNotifications().length > 0) {
+    <div class="notifications-list">
+      @for (item of filteredNotifications(); track item.id) {
+        <div
+          class="notification-card"
+          [class.unread]="!item.isRead"
         >
-      </div>
-
-      <div class="card-content">
-        <div class="card-header">
-          <div class="card-title-row">
-            <span class="card-title">{{ item.title }}</span>
-            <span
-              class="unread-indicator"
-              *ngIf="!item.isRead"
-              title="Unread"
-            ></span>
+          <div class="card-icon-container" [ngClass]="getIconClass(item.type)">
+            <span class="material-symbols-outlined">
+              {{ getNotificationIcon(item.type) }}
+            </span>
           </div>
-          <span class="card-time">{{ formatTime(item.createdAt) }}</span>
+
+          <div class="card-content">
+            <div class="card-header">
+              <div class="card-title-row">
+                <span class="card-title">{{ item.title }}</span>
+                @if (!item.isRead) {
+                  <span class="unread-indicator" title="Unread"></span>
+                }
+              </div>
+              <span class="card-time">{{ formatTime(item.createdAt) }}</span>
+            </div>
+
+            <p class="card-message">{{ item.message }}</p>
+
+            <div class="card-actions">
+              @if (item.relatedEntityType) {
+                <button
+                  type="button"
+                  class="card-action-btn navigate-btn"
+                  (click)="navigateToEntity(item)"
+                >
+                  <span class="material-symbols-outlined">open_in_new</span>
+                  <span>View {{ item.relatedEntityType | lowercase }}</span>
+                </button>
+              }
+
+              @if (!item.isRead) {
+                <button
+                  type="button"
+                  class="card-action-btn"
+                  (click)="markAsRead(item.id)"
+                >
+                  <span class="material-symbols-outlined">check</span>
+                  <span>Mark as read</span>
+                </button>
+              }
+
+              <button
+                type="button"
+                class="card-action-btn delete-btn"
+                (click)="deleteNotification(item.id)"
+              >
+                <span class="material-symbols-outlined">delete_outline</span>
+                <span>Dismiss</span>
+              </button>
+            </div>
+          </div>
         </div>
-
-        <p class="card-message">{{ item.message }}</p>
-
-        <div class="card-actions">
-          <button
-            type="button"
-            class="card-action-btn navigate-btn"
-            *ngIf="item.relatedEntityType"
-            (click)="navigateToEntity(item)"
-          >
-            <span class="material-symbols-outlined">open_in_new</span>
-            <span>View {{ item.relatedEntityType | lowercase }}</span>
-          </button>
-
-          <button
-            type="button"
-            class="card-action-btn"
-            *ngIf="!item.isRead"
-            (click)="markAsRead(item.id)"
-          >
-            <span class="material-symbols-outlined">check</span>
-            <span>Mark as read</span>
-          </button>
-
-          <button
-            type="button"
-            class="card-action-btn delete-btn"
-            (click)="deleteNotification(item.id)"
-          >
-            <span class="material-symbols-outlined">delete_outline</span>
-            <span>Dismiss</span>
-          </button>
-        </div>
-      </div>
+      }
     </div>
-  </div>
-
-  <!-- Empty State -->
-  <ng-template #emptyView>
+  } @else {
     <div class="empty-state">
       <div class="empty-icon-circle">
         <span class="material-symbols-outlined">notifications_none</span>
       </div>
       <h3 class="empty-title">
-        {{ activeTab() === 'UNREAD' ? 'No unread notifications' : 'No
-        notifications found' }}
+        {{ activeTab() === 'UNREAD' ? 'No unread notifications' : 'No notifications found' }}
       </h3>
       <p class="empty-desc">
-        {{ activeTab() === 'UNREAD' ? 'You have caught up with all your
-        notifications!' : 'When assignments or updates occur, they will show up
-        right here.' }}
+        {{ activeTab() === 'UNREAD' ? 'You have caught up with all your notifications!' : 'When assignments or updates occur, they will show up right here.' }}
       </p>
     </div>
-  </ng-template>
+  }
 </div>

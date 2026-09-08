@@ -105,14 +105,17 @@ export class AppShellComponent implements OnInit {
     }
     this.isNotificationMenuOpen = false;
 
-    if (item.relatedEntityType === 'TASK' || item.relatedEntityType === 'CASE' || item.relatedEntityType === 'SUBTASK') {
+    if (item.relatedEntityType === 'TASK' && item.relatedEntityId) {
+      this.router.navigate(['/tasks', item.relatedEntityId]);
+    } else if (item.relatedEntityType === 'CASE' && item.relatedEntityId) {
+      this.router.navigate(['/cases', item.relatedEntityId]);
+    } else if (item.relatedEntityType === 'PROJECT' && item.relatedEntityId) {
+      this.router.navigate(['/projects', item.relatedEntityId]);
+    } else if (item.relatedEntityType === 'SUBTASK') {
       this.router.navigate(['/tasks']);
-    } else if (item.relatedEntityType === 'PROJECT') {
-      if (item.relatedEntityId) {
-        this.router.navigate(['/projects', item.relatedEntityId]);
-      } else {
-        this.router.navigate(['/projects']);
-      }
+    } else {
+      // Generic or untracked notifications: open the notifications page as reference
+      this.router.navigate(['/notifications']);
     }
   }
 
