@@ -5,9 +5,10 @@ import { LabelsController } from './labels.controller';
 import { LabelsService } from './labels.service';
 import { AuthModule } from '../auth/auth.module';
 import { JiraModule } from '../jira/jira.module';
+import { NotificationModule } from '../notifications/notification.module';
 
 @Module({
-  imports: [AuthModule, JiraModule],
+  imports: [AuthModule, JiraModule, NotificationModule],
   controllers: [TaskController, LabelsController],
   providers: [TaskService, LabelsService],
 })

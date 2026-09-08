@@ -11,12 +11,12 @@ import {
   CaseCategoryAssignmentEntry,
   CaseStatusHistoryEntry,
   CaseSummary,
-  TaskLabelSummary,
 } from '@sebsa-pm-tool/shared-models';
 import { Prisma, TaskCategory } from '@prisma/client';
 import { CreateCaseDto } from './dto/create-case.dto';
 import { UpdateCaseDto } from './dto/update-case.dto';
 import { FilterCaseDto } from './dto/filter-case.dto';
+import { NotificationService } from '../notifications/notification.service';
 
 const ADMIN_SYSTEM_ROLES: AuthUser['systemRole'][] = ['ADMIN', 'SUPER_ADMIN'];
 
@@ -62,7 +62,10 @@ type CaseWithDetail = Prisma.CaseGetPayload<{ include: typeof caseDetailInclude 
 
 @Injectable()
 export class CaseService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationService: NotificationService,
+  ) {}
 
   async create(dto: CreateCaseDto, user: AuthUser): Promise<Case> {
     await this.assertCanCreate(dto.projectId, user);
@@ -130,6 +133,17 @@ export class CaseService {
 
       return kase;
     });
+
+    if (dto.assigneeIds?.length) {
+      this.notificationService.notifyAssignees({
+        assigneeUserIds: dto.assigneeIds,
+        actorId: user.id,
+        actorName: user.name,
+        entityType: 'CASE',
+        entityId: created.id,
+        entityTitle: dto.title,
+      }).catch(() => {});
+    }
 
     return this.findOne(created.id, user);
   }
@@ -250,6 +264,42 @@ export class CaseService {
       }
     });
 
+    if (dto.assigneeIds?.length) {
+      this.notificationService.notifyAssignees({
+        assigneeUserIds: dto.assigneeIds,
+        actorId: user.id,
+        actorName: user.name,
+        entityType: 'CASE',
+        entityId: id,
+        entityTitle: existing.title,
+      }).catch(() => {});
+    }
+
+    if (dto.status && dto.status !== existing.status) {
+      this.prisma.caseAssignee
+        .findMany({
+          where: { caseId: id },
+          select: { userId: true },
+        })
+        .then((caseAssignees) => {
+          const recipientIds = [
+            ...caseAssignees.map((a) => a.userId),
+            existing.createdById,
+          ].filter(Boolean);
+
+          return this.notificationService.notifyStatusChange({
+            recipientUserIds: Array.from(new Set(recipientIds)),
+            actorId: user.id,
+            actorName: user.name,
+            entityType: 'CASE',
+            entityId: id,
+            entityTitle: existing.title,
+            newStatus: dto.status as string,
+          });
+        })
+        .catch(() => {});
+    }
+
     return this.findOne(id, user);
   }
 
@@ -279,6 +329,16 @@ export class CaseService {
       }),
     ]);
     await this.recordCategoryAssignmentIfChanged(caseId, kase.category, user.id);
+
+    this.notificationService.notifyAssignees({
+      assigneeUserIds: assigneeIds,
+      actorId: user.id,
+      actorName: user.name,
+      entityType: 'CASE',
+      entityId: caseId,
+      entityTitle: kase.title,
+    }).catch(() => {});
+
     return this.findOne(caseId, user);
   }
 

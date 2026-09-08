@@ -20,6 +20,7 @@ import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { FilterTaskDto } from './dto/filter-task.dto';
 import { CreateTaskDependencyDto } from './dto/create-task-dependency.dto';
+import { NotificationService } from '../notifications/notification.service';
 
 const ADMIN_SYSTEM_ROLES: AuthUser['systemRole'][] = ['ADMIN', 'SUPER_ADMIN'];
 
@@ -62,7 +63,10 @@ type TaskWithDetail = Prisma.TaskGetPayload<{ include: typeof taskDetailInclude 
 
 @Injectable()
 export class TaskService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationService: NotificationService,
+  ) {}
 
   async create(dto: CreateTaskDto, user: AuthUser): Promise<Task> {
     const kase = await this.getCaseOrThrow(dto.caseId);
@@ -113,6 +117,17 @@ export class TaskService {
 
       return task;
     });
+
+    if (dto.assigneeIds?.length) {
+      this.notificationService.notifyAssignees({
+        assigneeUserIds: dto.assigneeIds,
+        actorId: user.id,
+        actorName: user.name,
+        entityType: 'TASK',
+        entityId: created.id,
+        entityTitle: dto.title,
+      }).catch(() => { /* error swallowed by notification service */ });
+    }
 
     return this.findOne(created.id, user);
   }
@@ -245,6 +260,42 @@ export class TaskService {
       ? await this.checkDependencyWarnings(id, dto.status as string)
       : [];
 
+    if (dto.assigneeIds?.length) {
+      this.notificationService.notifyAssignees({
+        assigneeUserIds: dto.assigneeIds,
+        actorId: user.id,
+        actorName: user.name,
+        entityType: 'TASK',
+        entityId: id,
+        entityTitle: existing.title,
+      }).catch(() => {});
+    }
+
+    if (isStatusChange && dto.status) {
+      this.prisma.taskAssignee
+        .findMany({
+          where: { taskId: id },
+          select: { userId: true },
+        })
+        .then((taskAssignees) => {
+          const recipientIds = [
+            ...taskAssignees.map((a) => a.userId),
+            existing.createdById,
+          ].filter(Boolean);
+
+          return this.notificationService.notifyStatusChange({
+            recipientUserIds: Array.from(new Set(recipientIds)),
+            actorId: user.id,
+            actorName: user.name,
+            entityType: 'TASK',
+            entityId: id,
+            entityTitle: existing.title,
+            newStatus: dto.status as string,
+          });
+        })
+        .catch(() => {});
+    }
+
     return { task: await this.findOne(id, user), warnings };
   }
 
@@ -269,6 +320,16 @@ export class TaskService {
       data: assigneeIds.map((userId) => ({ taskId, userId })),
       skipDuplicates: true,
     });
+
+    this.notificationService.notifyAssignees({
+      assigneeUserIds: assigneeIds,
+      actorId: user.id,
+      actorName: user.name,
+      entityType: 'TASK',
+      entityId: taskId,
+      entityTitle: task.title,
+    }).catch(() => {});
+
     return this.findOne(taskId, user);
   }
 

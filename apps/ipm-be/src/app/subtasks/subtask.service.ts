@@ -4,6 +4,7 @@ import { AuthUser, Subtask } from '@sebsa-pm-tool/shared-models';
 import { Prisma } from '@prisma/client';
 import { CreateSubtaskDto } from './dto/create-subtask.dto';
 import { UpdateSubtaskDto } from './dto/update-subtask.dto';
+import { NotificationService } from '../notifications/notification.service';
 
 const ADMIN_SYSTEM_ROLES: AuthUser['systemRole'][] = ['ADMIN', 'SUPER_ADMIN'];
 
@@ -17,7 +18,10 @@ type SubtaskWithDetail = Prisma.SubtaskGetPayload<{ include: typeof subtaskInclu
 
 @Injectable()
 export class SubtaskService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationService: NotificationService,
+  ) {}
 
   async findAllByTask(taskId: string, user: AuthUser): Promise<Subtask[]> {
     const task = await this.getTaskOrThrow(taskId);
@@ -54,6 +58,17 @@ export class SubtaskService {
       include: subtaskInclude,
     });
 
+    if (dto.assigneeIds?.length) {
+      this.notificationService.notifyAssignees({
+        assigneeUserIds: dto.assigneeIds,
+        actorId: user.id,
+        actorName: user.name,
+        entityType: 'SUBTASK',
+        entityId: created.id,
+        entityTitle: dto.title,
+      }).catch(() => {});
+    }
+
     return this.toSubtask(created);
   }
 
@@ -88,6 +103,17 @@ export class SubtaskService {
       include: subtaskInclude,
     });
 
+    if (assigneeIds?.length) {
+      this.notificationService.notifyAssignees({
+        assigneeUserIds: assigneeIds,
+        actorId: user.id,
+        actorName: user.name,
+        entityType: 'SUBTASK',
+        entityId: id,
+        entityTitle: existing.title,
+      }).catch(() => {});
+    }
+
     return this.toSubtask(updated);
   }
 
@@ -108,6 +134,16 @@ export class SubtaskService {
       data: assigneeIds.map((userId) => ({ subtaskId: id, userId })),
       skipDuplicates: true,
     });
+
+    this.notificationService.notifyAssignees({
+      assigneeUserIds: assigneeIds,
+      actorId: user.id,
+      actorName: user.name,
+      entityType: 'SUBTASK',
+      entityId: id,
+      entityTitle: existing.title,
+    }).catch(() => {});
+
     return this.findOne(id, user);
   }
 

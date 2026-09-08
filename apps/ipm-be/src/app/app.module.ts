@@ -23,6 +23,7 @@ import { SubtaskTypesModule } from './subtask-types/subtask-types.module';
 import { SprintsModule } from './sprints/sprints.module';
 import { JiraModule } from './jira/jira.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { NotificationModule } from './notifications/notification.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
     CustomersModule,
     JiraModule,
     DashboardModule,
+    NotificationModule,
   ],
   controllers: [AppController],
   providers: [AppService],

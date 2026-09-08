@@ -125,29 +125,46 @@
             (click)="toggleNotificationMenu()"
           >
             <span class="material-symbols-outlined" aria-hidden="true">notifications</span>
-            <span class="notification-badge" *ngIf="notificationPreview.length">{{ notificationPreview.length }}</span>
+            <span class="notification-badge" *ngIf="inAppNotificationService.unreadCount() > 0">
+              {{ inAppNotificationService.unreadCount() > 99 ? '99+' : inAppNotificationService.unreadCount() }}
+            </span>
           </button>
 
           <!-- Notification Dropdown Panel -->
           <div class="notification-menu" role="dialog" aria-label="Notifications" *ngIf="isNotificationMenuOpen">
             <div class="notification-menu-header">
-              <span class="notification-menu-title">Notifications</span>
-              <span class="notification-menu-count" *ngIf="notificationPreview.length">{{ notificationPreview.length }} new</span>
+              <div class="notification-menu-header-left">
+                <span class="notification-menu-title">Notifications</span>
+                <span class="notification-menu-count" *ngIf="inAppNotificationService.unreadCount() > 0">
+                  {{ inAppNotificationService.unreadCount() }} new
+                </span>
+              </div>
+              <button
+                type="button"
+                class="notification-mark-all-btn"
+                *ngIf="inAppNotificationService.unreadCount() > 0"
+                (click)="markAllNotificationsRead($event)"
+              >
+                Mark all read
+              </button>
             </div>
 
-            <div class="notification-menu-list" *ngIf="notificationPreview.length; else noNotifications">
+            <div class="notification-menu-list" *ngIf="inAppNotificationService.notifications().length; else noNotifications">
               <div
-                *ngFor="let item of notificationPreview"
+                *ngFor="let item of inAppNotificationService.notifications()"
                 class="notification-menu-item"
-                [class.unread]="!item.read"
+                [class.unread]="!item.isRead"
+                (click)="handleNotificationClick(item)"
               >
-                <span class="notification-item-icon material-symbols-outlined" aria-hidden="true">{{ item.icon }}</span>
+                <span class="notification-item-icon material-symbols-outlined" aria-hidden="true">
+                  {{ getNotificationIcon(item.type) }}
+                </span>
                 <div class="notification-item-body">
                   <span class="notification-item-title">{{ item.title }}</span>
-                  <span class="notification-item-detail">{{ item.detail }}</span>
-                  <span class="notification-item-time">{{ item.time }}</span>
+                  <span class="notification-item-detail">{{ item.message }}</span>
+                  <span class="notification-item-time">{{ formatRelativeTime(item.createdAt) }}</span>
                 </div>
-                <span class="notification-item-dot" *ngIf="!item.read" aria-hidden="true"></span>
+                <span class="notification-item-dot" *ngIf="!item.isRead" aria-hidden="true"></span>
               </div>
             </div>
 
@@ -160,7 +177,7 @@
 
             <div class="notification-menu-footer">
               <button type="button" class="notification-view-all-btn" (click)="goToAllNotifications()">
-                View all
+                View all notifications
               </button>
             </div>
           </div>

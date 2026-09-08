@@ -7,7 +7,8 @@ import { ToastComponent } from '../../components/toast/toast.component';
 import { CreateCaseModalComponent, type CaseFormData } from '../../../features/cases/create-case/create-case-modal.component';
 import { CasesService } from '../../services/cases.service';
 import { NotificationService } from '../../services/notification.service';
-import type { CreateCaseRequest, SystemRole } from '@sebsa-pm-tool/shared-models';
+import { InAppNotificationService } from '../../services/in-app-notification.service';
+import type { CreateCaseRequest, NotificationDto, NotificationType, SystemRole } from '@sebsa-pm-tool/shared-models';
 
 @Component({
   imports: [CommonModule, RouterLink, RouterLinkActive, RouterOutlet, ToastComponent, CreateCaseModalComponent],
@@ -21,6 +22,7 @@ export class AppShellComponent implements OnInit {
   protected readonly themeService = inject(ThemeService);
   private readonly casesService = inject(CasesService);
   private readonly notificationService = inject(NotificationService);
+  protected readonly inAppNotificationService = inject(InAppNotificationService);
 
   private readonly navigationItems: { label: string; icon: string; path: string; hiddenForRoles?: SystemRole[] }[] = [
     { label: 'Dashboard', icon: 'home', path: '/dashboard' },
@@ -41,15 +43,11 @@ export class AppShellComponent implements OnInit {
   protected isProfileMenuOpen = false;
   protected isNotificationMenuOpen = false;
 
-  protected readonly notificationPreview = [
-    { id: '1', icon: 'assignment_ind', title: 'New task assigned to you', detail: '"Fix login redirect bug" was assigned by Hiruni Wijethilaka', time: '5m ago', read: false },
-    { id: '2', icon: 'chat_bubble', title: 'New comment on your task', detail: 'Nadeesha commented on "Update API docs"', time: '1h ago', read: false },
-    { id: '3', icon: 'alternate_email', title: 'You were mentioned', detail: 'Kasun mentioned you in "Sprint 12 Planning"', time: '3h ago', read: false },
-    { id: '4', icon: 'campaign', title: 'Project status updated', detail: '"Customer Portal Revamp" moved to In Review', time: 'Yesterday', read: true },
-  ] as const;
-
   ngOnInit(): void {
-    // Theme service auto-initializes data-theme on document.documentElement from localStorage or system preference
+    // Initial fetch if user is logged in
+    if (this.authService.currentUser()) {
+      this.inAppNotificationService.refreshRecent();
+    }
   }
 
   protected toggleProfileMenu(): void {
@@ -60,6 +58,67 @@ export class AppShellComponent implements OnInit {
   protected toggleNotificationMenu(): void {
     this.isNotificationMenuOpen = !this.isNotificationMenuOpen;
     this.isProfileMenuOpen = false;
+    if (this.isNotificationMenuOpen) {
+      this.inAppNotificationService.refreshRecent();
+    }
+  }
+
+  protected getNotificationIcon(type: NotificationType): string {
+    switch (type) {
+      case 'TASK_ASSIGNED':
+        return 'assignment_ind';
+      case 'STATUS_CHANGE':
+        return 'swap_horiz';
+      case 'MENTION':
+        return 'alternate_email';
+      case 'DUE_DATE_REMINDER':
+        return 'schedule';
+      case 'OVERDUE_ALERT':
+        return 'warning';
+      case 'SPRINT_EVENT':
+        return 'flag';
+      default:
+        return 'notifications';
+    }
+  }
+
+  protected formatRelativeTime(dateString?: string | null): string {
+    if (!dateString) return '';
+    const now = new Date();
+    const date = new Date(dateString);
+    const diffSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+    if (diffSeconds < 60) return 'Just now';
+    const diffMinutes = Math.floor(diffSeconds / 60);
+    if (diffMinutes < 60) return `${diffMinutes}m ago`;
+    const diffHours = Math.floor(diffMinutes / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  }
+
+  protected handleNotificationClick(item: NotificationDto): void {
+    if (!item.isRead) {
+      this.inAppNotificationService.markAsRead(item.id).subscribe();
+    }
+    this.isNotificationMenuOpen = false;
+
+    if (item.relatedEntityType === 'TASK' || item.relatedEntityType === 'CASE' || item.relatedEntityType === 'SUBTASK') {
+      this.router.navigate(['/tasks']);
+    } else if (item.relatedEntityType === 'PROJECT') {
+      if (item.relatedEntityId) {
+        this.router.navigate(['/projects', item.relatedEntityId]);
+      } else {
+        this.router.navigate(['/projects']);
+      }
+    }
+  }
+
+  protected markAllNotificationsRead(event: MouseEvent): void {
+    event.stopPropagation();
+    this.inAppNotificationService.markAllAsRead().subscribe();
   }
 
   protected goToAllNotifications(): void {
