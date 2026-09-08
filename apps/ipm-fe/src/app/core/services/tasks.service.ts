@@ -195,6 +195,12 @@ export class TasksService {
       );
   }
 
+  getTasksByProject(projectId: string): Observable<TaskView[]> {
+    return this.http
+      .get<BackendTaskSummary[]>(`/api/tasks/project/${projectId}`)
+      .pipe(map((tasks) => tasks.map((task) => this.toTaskView(task))));
+  }
+
   private toTaskView(task: BackendTask | BackendTaskSummary): TaskView {
     const assignee = task.assignees?.map((a) => a.name).join(', ') || undefined;
     return {

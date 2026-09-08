@@ -1,74 +1,132 @@
-<div class="kanban-container">
-  @for (status of statuses; track status.id) {
-    <div class="kanban-column">
-
-      <div class="column-header">
-        <div class="column-title">
-          <span class="title-text">{{ status.name }}</span>
-          <span class="task-count">{{ cases()[status.id]?.length || 0 }}</span>
-        </div>
-      </div>
-
-      <div
-        class="drop-zone"
-        [id]="status.id"
-        (dragover)="onDragOver($event)"
-        (drop)="onDrop($event, status.id)"
-      >
-        @if ((cases()[status.id]?.length || 0) > 0) {
-          @for (kase of cases()[status.id]; track kase.id) {
-            <div
-              class="task-card"
-              [style.--task-priority-color]="kase.priorityColor || '#f59e0b'"
-              draggable="true"
-              (dragstart)="onDragStart(kase)"
-              (dragend)="onDragEnd()"
-              [class.dragging]="draggedCase?.id === kase.id"
-            >
-
-              <div class="task-title-row">
-                <h3 class="task-title" (click)="openCaseDetail(kase.id)">{{ kase.title }}</h3>
-                <span class="type-badge" [class]="getTypeClass(kase.type)">
-                  {{ getTypeLabel(kase.type) }}
-                </span>
-              </div>
-
-              <div class="task-meta">
-                <div class="task-header-badges">
-                  <span class="priority-badge" [style.--priority-color]="kase.priorityColor || '#f59e0b'">
-                    {{ kase.priority }}
-                  </span>
-                  @if (kase.isCsoLabeled) {
-                    <span class="cso-badge">CSO</span>
-                  }
-                  @if (kase.tag) {
-                    <span class="tag-badge" [class.technical]="kase.tag === 'TECHNICAL'">
-                      {{ kase.tag === 'TECHNICAL' ? 'Technical' : 'Functional' }}
-                    </span>
-                  }
-                </div>
-              </div>
-
-              <div class="task-footer">
-                <span class="duration">
-                  <span class="material-symbols-outlined">schedule</span>
-                  {{ kase.duration }}
-                </span>
-                @if (kase.assignee) {
-                  <div class="task-assignee" [title]="kase.assignee">
-                    {{ getCaseInitials(kase.assignee) }}
-                  </div>
-                }
-              </div>
-            </div>
-          }
-        } @else {
-          <div class="empty-column">
-            <span class="material-symbols-outlined">inbox</span>
-            <p>No cases</p>
-          </div>
-        }
-      </div>
+<div class="kanban-wrapper">
+  <div class="filter-bar">
+    <div class="segmented-button">
+      @for (option of filterOptions; track option) {
+        <button
+          [class.active]="filter() === option"
+          (click)="filter.set(option)"
+          class="segment-btn"
+        >
+          {{ option }}
+        </button>
+      }
     </div>
-  }
+  </div>
+
+  <div class="kanban-container">
+    @if (filter() === 'Cases') {
+      @for (status of caseStatuses; track status.id) {
+        <div class="kanban-column">
+
+          <div class="column-header">
+            <div class="column-title">
+              <span class="title-text">{{ status.name }}</span>
+              <span class="task-count">{{ cases()[status.id]?.length || 0 }}</span>
+            </div>
+          </div>
+
+          <div
+            class="drop-zone"
+            [id]="status.id"
+            (dragover)="onDragOver($event)"
+            (drop)="onDrop($event, status.id)"
+          >
+            @if ((cases()[status.id]?.length || 0) > 0) {
+              @for (kase of cases()[status.id]; track kase.id) {
+                <div
+                  class="task-card"
+                  [style.--task-priority-color]="kase.priorityColor || '#f59e0b'"
+                  draggable="true"
+                  (dragstart)="onDragStart(kase)"
+                  (dragend)="onDragEnd()"
+                  [class.dragging]="draggedCase?.id === kase.id"
+                >
+
+                  <div class="task-title-row">
+                    <h3 class="task-title" (click)="openCaseDetail(kase.id)">{{ kase.title }}</h3>
+                    <span class="type-badge" [class]="getTypeClass(kase.type)">
+                      {{ getTypeLabel(kase.type) }}
+                    </span>
+                  </div>
+
+                  <div class="task-meta">
+                    <div class="task-header-badges">
+                      <span class="priority-badge" [style.--priority-color]="kase.priorityColor || '#f59e0b'">
+                        {{ kase.priority }}
+                      </span>
+                      @if (kase.isCsoLabeled) {
+                        <span class="cso-badge">CSO</span>
+                      }
+                      @if (kase.tag) {
+                        <span class="tag-badge" [class.technical]="kase.tag === 'TECHNICAL'">
+                          {{ kase.tag === 'TECHNICAL' ? 'Technical' : 'Functional' }}
+                        </span>
+                      }
+                    </div>
+                  </div>
+
+                  <div class="task-footer">
+                    <span class="duration">
+                      <span class="material-symbols-outlined">schedule</span>
+                      {{ kase.duration }}
+                    </span>
+                    @if (kase.assignee) {
+                      <div class="task-assignee" [title]="kase.assignee">
+                        {{ getCaseInitials(kase.assignee) }}
+                      </div>
+                    }
+                  </div>
+                </div>
+              }
+            } @else {
+              <div class="empty-column">
+                <span class="material-symbols-outlined">inbox</span>
+                <p>No cases</p>
+              </div>
+            }
+          </div>
+        </div>
+      }
+    }
+
+    @if (filter() === 'Task') {
+      @for (status of taskStatuses; track status.id) {
+        <div class="kanban-column">
+
+          <div class="column-header">
+            <div class="column-title">
+              <span class="title-text">{{ status.name }}</span>
+              <span class="task-count">{{ tasksByStatus()[status.id]?.length || 0 }}</span>
+            </div>
+          </div>
+
+          <div class="drop-zone task-drop-zone">
+            @if ((tasksByStatus()[status.id]?.length || 0) > 0) {
+              @for (task of tasksByStatus()[status.id]; track task.id) {
+                <div class="task-chip" (click)="openTaskDetail(task.id)">
+                  <div class="chip-content">
+                    <span class="chip-type">Task</span>
+                    <span class="chip-title">{{ task.title }}</span>
+                  </div>
+                  <div class="chip-meta">
+                    <span class="chip-case">{{ task.caseTitle }}</span>
+                    @if (task.assignee) {
+                      <span class="chip-assignee" [title]="task.assignee">
+                        {{ getCaseInitials(task.assignee) }}
+                      </span>
+                    }
+                  </div>
+                </div>
+              }
+            } @else {
+              <div class="empty-column">
+                <span class="material-symbols-outlined">inbox</span>
+                <p>No tasks</p>
+              </div>
+            }
+          </div>
+        </div>
+      }
+    }
+  </div>
 </div>

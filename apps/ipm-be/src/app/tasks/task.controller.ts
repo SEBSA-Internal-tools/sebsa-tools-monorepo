@@ -58,6 +58,14 @@ export class TaskController {
     return this.taskService.getTaskList(filter, user);
   }
 
+  @Get('project/:projectId')
+  async getProjectTasks(
+    @Param('projectId', ParseUUIDPipe) projectId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.taskService.getProjectTasks(projectId, user);
+  }
+
   @Get(':id')
   async findOne(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
     return this.taskService.findOne(id, user);
