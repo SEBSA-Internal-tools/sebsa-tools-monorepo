@@ -6,8 +6,8 @@ import { AuthService } from '../../services/auth.service';
 import { ToastComponent } from '../../components/toast/toast.component';
 import { CreateCaseModalComponent, type CaseFormData } from '../../../features/cases/create-case/create-case-modal.component';
 import { CasesService } from '../../services/cases.service';
+import { ToastService } from '../../services/toast.service';
 import { NotificationService } from '../../services/notification.service';
-import { InAppNotificationService } from '../../services/in-app-notification.service';
 import type { CreateCaseRequest, NotificationDto, NotificationType, SystemRole } from '@sebsa-pm-tool/shared-models';
 
 @Component({
@@ -21,8 +21,8 @@ export class AppShellComponent implements OnInit {
   protected readonly authService = inject(AuthService);
   protected readonly themeService = inject(ThemeService);
   private readonly casesService = inject(CasesService);
-  private readonly notificationService = inject(NotificationService);
-  protected readonly inAppNotificationService = inject(InAppNotificationService);
+  private readonly toastService = inject(ToastService);
+  protected readonly notificationService = inject(NotificationService);
 
   private readonly navigationItems: { label: string; icon: string; path: string; hiddenForRoles?: SystemRole[] }[] = [
     { label: 'Dashboard', icon: 'home', path: '/dashboard' },
@@ -46,7 +46,7 @@ export class AppShellComponent implements OnInit {
   ngOnInit(): void {
     // Initial fetch if user is logged in
     if (this.authService.currentUser()) {
-      this.inAppNotificationService.refreshRecent();
+      this.notificationService.refreshRecent();
     }
   }
 
@@ -59,7 +59,7 @@ export class AppShellComponent implements OnInit {
     this.isNotificationMenuOpen = !this.isNotificationMenuOpen;
     this.isProfileMenuOpen = false;
     if (this.isNotificationMenuOpen) {
-      this.inAppNotificationService.refreshRecent();
+      this.notificationService.refreshRecent();
     }
   }
 
@@ -101,7 +101,7 @@ export class AppShellComponent implements OnInit {
 
   protected handleNotificationClick(item: NotificationDto): void {
     if (!item.isRead) {
-      this.inAppNotificationService.markAsRead(item.id).subscribe();
+      this.notificationService.markAsRead(item.id).subscribe();
     }
     this.isNotificationMenuOpen = false;
 
@@ -121,7 +121,7 @@ export class AppShellComponent implements OnInit {
 
   protected markAllNotificationsRead(event: MouseEvent): void {
     event.stopPropagation();
-    this.inAppNotificationService.markAllAsRead().subscribe();
+    this.notificationService.markAllAsRead().subscribe();
   }
 
   protected goToAllNotifications(): void {
@@ -179,11 +179,11 @@ export class AppShellComponent implements OnInit {
 
     this.casesService.createCase(dto).subscribe({
       next: () => {
-        this.notificationService.success(`Case "${formData.title}" created successfully!`);
+        this.toastService.success(`Case "${formData.title}" created successfully!`);
         this.closeTaskModal();
       },
       error: () => {
-        this.notificationService.error('Failed to create case. Please try again.');
+        this.toastService.error('Failed to create case. Please try again.');
       },
     });
   }

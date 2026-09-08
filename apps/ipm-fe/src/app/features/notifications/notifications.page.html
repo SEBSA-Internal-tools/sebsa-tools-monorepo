@@ -4,9 +4,9 @@
       <span class="sebsa-eyebrow">UPDATES & INBOX</span>
       <div class="title-wrapper">
         <h1 class="sebsa-page-title" style="margin: 0">Notifications</h1>
-        @if (inAppNotificationService.unreadCount() > 0) {
+        @if (notificationService.unreadCount() > 0) {
           <span class="unread-pill">
-            {{ inAppNotificationService.unreadCount() }} unread
+            {{ notificationService.unreadCount() }} unread
           </span>
         }
       </div>
@@ -19,7 +19,7 @@
       <button
         type="button"
         class="btn-action"
-        [disabled]="inAppNotificationService.unreadCount() === 0"
+        [disabled]="notificationService.unreadCount() === 0"
         (click)="markAllAsRead()"
       >
         <span class="material-symbols-outlined">done_all</span>
@@ -37,7 +37,7 @@
       (click)="setTab('ALL')"
     >
       <span>All</span>
-      <span class="tab-badge">{{ inAppNotificationService.totalCount() }}</span>
+      <span class="tab-badge">{{ notificationService.totalCount() }}</span>
     </button>
 
     <button
@@ -47,8 +47,8 @@
       (click)="setTab('UNREAD')"
     >
       <span>Unread</span>
-      @if (inAppNotificationService.unreadCount() > 0) {
-        <span class="tab-badge">{{ inAppNotificationService.unreadCount() }}</span>
+      @if (notificationService.unreadCount() > 0) {
+        <span class="tab-badge">{{ notificationService.unreadCount() }}</span>
       }
     </button>
 

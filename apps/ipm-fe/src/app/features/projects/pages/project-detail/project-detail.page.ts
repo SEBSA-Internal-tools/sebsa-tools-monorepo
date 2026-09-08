@@ -4,7 +4,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { ProjectsService } from '../../services/projects.service';
 import { CasesService } from '../../../../core/services/cases.service';
 import { AuthService } from '../../../../core/services/auth.service';
-import { NotificationService } from '../../../../core/services/notification.service';
+import { ToastService } from '../../../../core/services/toast.service';
 import { ProjectDetailHeaderComponent } from './components/header/project-detail-header.component';
 import { ProjectNavTabsComponent } from './components/nav-tabs/project-nav-tabs.component';
 import { ProjectKanbanComponent } from './components/kanban/project-kanban.component';
@@ -53,7 +53,7 @@ export class ProjectDetailPageComponent implements OnInit {
   protected readonly authService = inject(AuthService);
   private projectsService = inject(ProjectsService);
   private casesService = inject(CasesService);
-  private notificationService = inject(NotificationService);
+  private toastService = inject(ToastService);
 
   readonly project = signal<Project | null>(null);
   readonly isLoading = signal(false);
@@ -181,12 +181,12 @@ export class ProjectDetailPageComponent implements OnInit {
       next: () => {
         this.isLoading.set(false);
         this.closeTaskModal();
-        this.notificationService.success(`Case "${formData.title}" created successfully!`);
+        this.toastService.success(`Case "${formData.title}" created successfully!`);
       },
       error: () => {
         this.isLoading.set(false);
         this.errorMessage.set('Failed to create case. Please try again.');
-        this.notificationService.error('Failed to create case. Please try again.');
+        this.toastService.error('Failed to create case. Please try again.');
       },
     });
   }

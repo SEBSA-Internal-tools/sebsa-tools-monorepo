@@ -59,13 +59,52 @@
       color: #3b82f6;
     }
   }
+
+  &.toast-in-app {
+    background: #ffffff;
+    border: 1px solid var(--border-default, #e2e8f0);
+    border-left: 4px solid var(--brand-primary, #7c3aed);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    border-radius: 12px;
+    padding: 12px 14px;
+    min-width: 320px;
+    max-width: 440px;
+
+    .toast-icon {
+      color: var(--brand-primary, #7c3aed);
+      background: rgba(124, 58, 237, 0.1);
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+  }
 }
 
 .toast-content {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  align-items: flex-start;
+  gap: 12px;
   flex: 1;
+  min-width: 0;
+}
+
+.toast-text-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.toast-title {
+  font-family: var(--font-heading, sans-serif);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-heading, #0f172a);
+  line-height: 1.3;
 }
 
 .toast-icon {
@@ -74,10 +113,44 @@
 }
 
 .toast-message {
-  font-size: 14px;
-  font-weight: 500;
-  color: #333;
+  font-family: var(--font-body, sans-serif);
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--text-secondary, #475569);
   line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.toast-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(124, 58, 237, 0.08);
+  border: 1px solid rgba(124, 58, 237, 0.2);
+  color: var(--brand-primary, #7c3aed);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-family: var(--font-body, sans-serif);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: var(--brand-primary, #7c3aed);
+    color: #ffffff;
+    border-color: var(--brand-primary, #7c3aed);
+  }
+
+  .action-arrow {
+    font-size: 14px;
+  }
 }
 
 .toast-close {
@@ -88,13 +161,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #999;
+  color: #94a3b8;
   transition: color 0.2s ease;
   font-size: 18px;
   flex-shrink: 0;
 
   &:hover {
-    color: #333;
+    color: #334155;
   }
 }
 

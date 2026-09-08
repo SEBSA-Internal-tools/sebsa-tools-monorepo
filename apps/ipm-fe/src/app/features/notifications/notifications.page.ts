@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { InAppNotificationService } from '../../core/services/in-app-notification.service';
+import { NotificationService } from '../../core/services/notification.service';
 import type { NotificationDto, NotificationType } from '@sebsa-pm-tool/shared-models';
 
 type FilterTab = 'ALL' | 'UNREAD' | 'ASSIGNMENTS' | 'STATUS_CHANGE' | 'DEADLINES';
@@ -15,7 +15,7 @@ type FilterTab = 'ALL' | 'UNREAD' | 'ASSIGNMENTS' | 'STATUS_CHANGE' | 'DEADLINES
 })
 export class NotificationsPageComponent implements OnInit {
   private readonly router = inject(Router);
-  protected readonly inAppNotificationService = inject(InAppNotificationService);
+  protected readonly notificationService = inject(NotificationService);
 
   readonly activeTab = signal<FilterTab>('ALL');
 
@@ -31,37 +31,37 @@ export class NotificationsPageComponent implements OnInit {
   loadData(): void {
     const tab = this.activeTab();
     if (tab === 'UNREAD') {
-      this.inAppNotificationService.loadNotifications({ isRead: false, limit: 50 }).subscribe();
+      this.notificationService.loadNotifications({ isRead: false, limit: 50 }).subscribe();
     } else if (tab === 'ASSIGNMENTS') {
-      this.inAppNotificationService.loadNotifications({ type: 'TASK_ASSIGNED', limit: 50 }).subscribe();
+      this.notificationService.loadNotifications({ type: 'TASK_ASSIGNED', limit: 50 }).subscribe();
     } else if (tab === 'STATUS_CHANGE') {
-      this.inAppNotificationService.loadNotifications({ type: 'STATUS_CHANGE', limit: 50 }).subscribe();
+      this.notificationService.loadNotifications({ type: 'STATUS_CHANGE', limit: 50 }).subscribe();
     } else if (tab === 'DEADLINES') {
-      this.inAppNotificationService.loadNotifications({ type: 'DUE_DATE_REMINDER', limit: 50 }).subscribe();
+      this.notificationService.loadNotifications({ type: 'DUE_DATE_REMINDER', limit: 50 }).subscribe();
     } else {
-      this.inAppNotificationService.loadNotifications({ limit: 50 }).subscribe();
+      this.notificationService.loadNotifications({ limit: 50 }).subscribe();
     }
   }
 
   filteredNotifications(): NotificationDto[] {
-    return this.inAppNotificationService.notifications();
+    return this.notificationService.notifications();
   }
 
   markAsRead(id: string): void {
-    this.inAppNotificationService.markAsRead(id).subscribe();
+    this.notificationService.markAsRead(id).subscribe();
   }
 
   markAllAsRead(): void {
-    this.inAppNotificationService.markAllAsRead().subscribe();
+    this.notificationService.markAllAsRead().subscribe();
   }
 
   deleteNotification(id: string): void {
-    this.inAppNotificationService.deleteNotification(id).subscribe();
+    this.notificationService.deleteNotification(id).subscribe();
   }
 
   navigateToEntity(item: NotificationDto): void {
     if (!item.isRead) {
-      this.inAppNotificationService.markAsRead(item.id).subscribe();
+      this.notificationService.markAsRead(item.id).subscribe();
     }
 
     if (item.relatedEntityType === 'TASK' && item.relatedEntityId) {

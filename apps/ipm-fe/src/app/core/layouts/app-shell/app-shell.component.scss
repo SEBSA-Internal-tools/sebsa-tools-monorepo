@@ -454,26 +454,35 @@
   align-items: flex-start;
   gap: 12px;
   padding: 12px 16px;
+  background: transparent;
+  border-top: none;
+  border-right: none;
   border-bottom: 1px solid var(--border-default);
+  border-left: 3px solid transparent;
+  font-family: inherit;
+  color: inherit;
+  font-size: inherit;
   transition: background 0.15s ease;
   cursor: pointer;
   text-align: left;
   width: 100%;
-  border-left: 3px solid transparent;
 
   &:last-child {
     border-bottom: none;
   }
 
-  &:hover {
+  &:hover,
+  &:focus-visible {
     background: var(--surface-muted);
+    outline: none;
   }
 
   &.unread {
     background: rgba(139, 92, 246, 0.05);
     border-left-color: var(--brand-primary);
 
-    &:hover {
+    &:hover,
+    &:focus-visible {
       background: rgba(139, 92, 246, 0.09);
     }
   }

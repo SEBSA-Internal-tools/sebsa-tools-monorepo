@@ -126,9 +126,9 @@
             (click)="toggleNotificationMenu()"
           >
             <span class="material-symbols-outlined" aria-hidden="true">notifications</span>
-            @if (inAppNotificationService.unreadCount() > 0) {
+            @if (notificationService.unreadCount() > 0) {
               <span class="notification-badge">
-                {{ inAppNotificationService.unreadCount() > 99 ? '99+' : inAppNotificationService.unreadCount() }}
+                {{ notificationService.unreadCount() > 99 ? '99+' : notificationService.unreadCount() }}
               </span>
             }
           </button>
@@ -139,13 +139,13 @@
               <div class="notification-menu-header">
                 <div class="notification-menu-header-left">
                   <span class="notification-menu-title">Notifications</span>
-                  @if (inAppNotificationService.unreadCount() > 0) {
+                  @if (notificationService.unreadCount() > 0) {
                     <span class="notification-menu-count">
-                      {{ inAppNotificationService.unreadCount() }} new
+                      {{ notificationService.unreadCount() }} new
                     </span>
                   }
                 </div>
-                @if (inAppNotificationService.unreadCount() > 0) {
+                @if (notificationService.unreadCount() > 0) {
                   <button
                     type="button"
                     class="notification-mark-all-btn"
@@ -156,10 +156,11 @@
                 }
               </div>
 
-              @if (inAppNotificationService.notifications().length > 0) {
+              @if (notificationService.notifications().length > 0) {
                 <div class="notification-menu-list">
-                  @for (item of inAppNotificationService.notifications(); track item.id) {
-                    <div
+                  @for (item of notificationService.notifications(); track item.id) {
+                    <button
+                      type="button"
                       class="notification-menu-item"
                       [class.unread]="!item.isRead"
                       (click)="handleNotificationClick(item)"
@@ -175,7 +176,7 @@
                       @if (!item.isRead) {
                         <span class="notification-item-dot" aria-hidden="true"></span>
                       }
-                    </div>
+                    </button>
                   }
                 </div>
               } @else {
