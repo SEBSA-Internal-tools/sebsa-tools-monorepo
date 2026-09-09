@@ -4,7 +4,7 @@
 
 **The client never decides authorization.**
 
-Route guards, hidden buttons and filtered lists shape the *experience*. They are
+Route guards, hidden buttons and filtered lists shape the _experience_. They are
 not a control. Anyone can open the console, call the endpoint directly, and skip
 every one of them.
 
@@ -12,8 +12,8 @@ This is why the mock API enforces permissions server-side even though there is
 no server yet:
 
 ```ts
-const auth = requireRole("reviewer", "admin");
-if ("response" in auth) return auth.response;
+const auth = requireRole('reviewer', 'admin');
+if ('response' in auth) return auth.response;
 ```
 
 Building it this way means the client's assumptions are already correct when a
@@ -33,7 +33,7 @@ and should survive the swap:
   messages turn a login form into an account enumeration oracle.
 - **The session is one identity.** No impersonation, no user switcher. Testing
   another role means signing in as that account, which is also how a real
-  auditor would want it. See [ADR 0006](./adr/0006-single-identity-no-impersonation.md).
+  auditor would want it. See [ADR 0013](./adr/0013-single-identity-no-impersonation.md).
 - **Sign-out calls `queryClient.clear()`**, not `invalidateQueries`. The next
   user must never see a flash of the previous user's cached data.
 - **Nothing sensitive is in `localStorage`.** It holds a user id and UI
@@ -78,13 +78,13 @@ short.
 
 Configured at the host, not in the app:
 
-| Header | Value |
-| --- | --- |
-| `Content-Security-Policy` | `default-src 'self'` plus what the app genuinely needs |
-| `X-Frame-Options` | `DENY` |
-| `X-Content-Type-Options` | `nosniff` |
-| `Referrer-Policy` | `strict-origin-when-cross-origin` |
-| `Strict-Transport-Security` | `max-age=63072000; includeSubDomains` |
+| Header                      | Value                                                  |
+| --------------------------- | ------------------------------------------------------ |
+| `Content-Security-Policy`   | `default-src 'self'` plus what the app genuinely needs |
+| `X-Frame-Options`           | `DENY`                                                 |
+| `X-Content-Type-Options`    | `nosniff`                                              |
+| `Referrer-Policy`           | `strict-origin-when-cross-origin`                      |
+| `Strict-Transport-Security` | `max-age=63072000; includeSubDomains`                  |
 
 HTTPS everywhere. Session cookies `Secure`, `HttpOnly`, `SameSite=Lax`.
 

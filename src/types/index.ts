@@ -2,4 +2,4 @@
  * Application-facing types.
  */
 
-export type * from "@sdp/types";
+export type * from '@sdp/contracts';

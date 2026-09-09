@@ -13,10 +13,12 @@ contract-shaped 401 / 403 / 404 / 409 / 422 / 500 responses.
 ```ts
 export function requireRole(...roles: Role[]): { user: User } | { response: Response } {
   const result = requireUser();
-  if ("response" in result) return result;
+  if ('response' in result) return result;
   const permitted = roles.some((role) => result.user.roles.includes(role));
   if (!permitted) {
-    return { response: fail("forbidden", `This action requires the ${roles.join(" or ")} role.`) };
+    return {
+      response: fail('forbidden', `This action requires the ${roles.join(' or ')} role.`),
+    };
   }
   return result;
 }
@@ -66,12 +68,12 @@ first load rather than requiring setup.
 
 ## Authentication
 
-| Endpoint | Behaviour |
-| --- | --- |
-| `GET /api/auth/session` | The signed-in user, or 401 |
-| `POST /api/auth/login` | Validates email and the shared demo password against the seeded users |
-| `POST /api/auth/sso` | Signs in as the default user |
-| `POST /api/auth/logout` | Clears the session |
+| Endpoint                | Behaviour                                                             |
+| ----------------------- | --------------------------------------------------------------------- |
+| `GET /api/auth/session` | The signed-in user, or 401                                            |
+| `POST /api/auth/login`  | Validates email and the shared demo password against the seeded users |
+| `POST /api/auth/sso`    | Signs in as the default user                                          |
+| `POST /api/auth/logout` | Clears the session                                                    |
 
 A wrong password and an unknown account return the **identical** message. That
 is not laziness — distinguishing them turns the login form into an account
@@ -83,20 +85,20 @@ have.
 Available in development:
 
 ```js
-window.__resetDb();                     // restore the seeded state
-window.__mockApi.setUser("u-pinsara");  // act as another seeded user
-window.__mockApi.setFailureRate(0.5);   // fail half of all requests
-window.__mockApi.setLatency(2000);      // slow everything down
+window.__resetDb(); // restore the seeded state
+window.__mockApi.setUser('u-pinsara'); // act as another seeded user
+window.__mockApi.setFailureRate(0.5); // fail half of all requests
+window.__mockApi.setLatency(2000); // slow everything down
 ```
 
-The failure-rate control exists so error and retry paths can be *watched*
+The failure-rate control exists so error and retry paths can be _watched_
 rather than assumed. Every handler opens with `await simulateLatency()` (120ms),
 which makes loading states real rather than theoretical — a skeleton nobody ever
 sees is a skeleton nobody ever checks.
 
 ## In tests
 
-**Component tests** import `src/test/server.ts`, an `msw/node` server that is
+**Component tests** import `src/test/mswServer.ts`, an `msw/node` server that is
 exported but **not** auto-started. A test file opts in. That way an unexpected
 network call is an error rather than a silently mocked success.
 

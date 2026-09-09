@@ -1,5 +1,5 @@
-import { clsx, type ClassValue } from "clsx";
-import { extendTailwindMerge } from "tailwind-merge";
+import { clsx, type ClassValue } from 'clsx';
+import { extendTailwindMerge } from 'tailwind-merge';
 
 /**
  * `tailwind-merge` knows Tailwind's built-in scales but not ours. Without
@@ -9,8 +9,8 @@ import { extendTailwindMerge } from "tailwind-merge";
 const twMerge = extendTailwindMerge({
   extend: {
     classGroups: {
-      rounded: [{ rounded: ["control", "card", "panel"] }],
-      shadow: [{ shadow: ["card", "raised", "popover"] }],
+      rounded: [{ rounded: ['control', 'card', 'panel'] }],
+      shadow: [{ shadow: ['card', 'raised', 'popover'] }],
     },
   },
 });

@@ -5,11 +5,11 @@ code that failed.
 
 ## Three layers
 
-| Layer | Catches | User sees |
-| --- | --- | --- |
-| **Error boundary** | A render-time crash | The page is replaced; the shell survives |
-| **Query error state** | A failed fetch | Inline message with a retry |
-| **Mutation error** | A failed write | Inline message; their input is preserved |
+| Layer                 | Catches             | User sees                                |
+| --------------------- | ------------------- | ---------------------------------------- |
+| **Error boundary**    | A render-time crash | The page is replaced; the shell survives |
+| **Query error state** | A failed fetch      | Inline message with a retry              |
+| **Mutation error**    | A failed write      | Inline message; their input is preserved |
 
 ## Error boundaries
 
@@ -57,15 +57,16 @@ Three requirements, in order of how often they are forgotten:
 
 The user's message says what happened and what to do:
 
-| Bad | Good |
-| --- | --- |
-| "Error 500" | "We could not save your task. Try again in a moment." |
-| "Invalid input" | "The description needs at least 20 characters." |
-| "Failed" | "You do not have permission to review this task." |
+| Bad             | Good                                                  |
+| --------------- | ----------------------------------------------------- |
+| "Error 500"     | "We could not save your task. Try again in a moment." |
+| "Invalid input" | "The description needs at least 20 characters."       |
+| "Failed"        | "You do not have permission to review this task."     |
 
-Copy lives in `src/content/errors.json`, grouped by situation (`auth`,
-`notFound`, `server`, `network`, `boundary`), so a message can be changed
-without touching code — and translated later.
+Copy lives in `src/content/common.json` under `errors`, so a message can be
+changed without touching code — and translated later. It is in `common.json`
+rather than a dedicated `errors.json` because every error string so far is one
+the whole application shares; split it out when a feature needs its own.
 
 The developer's detail is separate and complete: status, code, path, and the
 contract-violation path if validation was what failed.
@@ -84,7 +85,11 @@ One boundary: `src/lib/logger.ts`. Nothing else calls `console` in application
 code.
 
 ```ts
-logger.error("task.submit.failed", { taskId, status: error.status, code: error.code });
+logger.error('task.submit.failed', {
+  taskId,
+  status: error.status,
+  code: error.code,
+});
 ```
 
 Structured — an event name plus context — because a formatted string cannot be

@@ -1,0 +1,175 @@
+import { useState } from 'react';
+import { toast } from 'sonner';
+import { ROLES, createUserInputSchema, type Role, type User } from '@sdp/contracts';
+import { Button } from '@/components/ui/Button.tsx';
+import { Checkbox } from '@/components/ui/controls.tsx';
+import { Dialog } from '@/components/ui/Dialog.tsx';
+import { Field, Input } from '@/components/ui/Field.tsx';
+import { ApiError } from '@/lib/apiClient.ts';
+import { interpolate } from '@/lib/formatters.ts';
+import admin from '@/content/admin.json';
+import common from '@/content/common.json';
+import { useCreateUser, useUpdateUser } from '../api/queries.ts';
+
+/**
+ * Add User (screen 02's modal) and Edit User, which is the same three fields.
+ *
+ * One component rather than two: the fields, the validation and the role
+ * checkboxes are identical, and the only difference is which mutation runs and
+ * what the buttons say. Two dialogs would be two places for the role list to
+ * drift.
+ *
+ * Validation is `createUserInputSchema` from `@sdp/types` — the same schema the
+ * handler parses, so a message shown here is the message the server would give.
+ */
+
+interface FormState {
+  name: string;
+  email: string;
+  roles: Role[];
+}
+
+const EMPTY: FormState = { name: '', email: '', roles: [] };
+
+/**
+ * Mounted only while open, and keyed on the subject by the caller.
+ *
+ * That is what lets the form seed itself in `useState` instead of copying props
+ * into state from an effect. Seeding via an effect is the pattern that already
+ * cost this codebase a bug on the review form — a refetch re-ran it and
+ * discarded what the user had typed.
+ */
+export function UserFormDialog({
+  user,
+  onClose,
+}: {
+  /** `null` creates; a user edits that user. */
+  user: User | null;
+  onClose: () => void;
+}) {
+  const createUser = useCreateUser();
+  const updateUser = useUpdateUser();
+
+  const [form, setForm] = useState<FormState>(() =>
+    user === null ? EMPTY : { name: user.name, email: user.email, roles: [...user.roles] },
+  );
+  const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
+
+  const isPending = createUser.isPending || updateUser.isPending;
+
+  function submit() {
+    const parsed = createUserInputSchema.safeParse(form);
+    if (!parsed.success) {
+      const next: Partial<Record<keyof FormState, string>> = {};
+      for (const issue of parsed.error.issues) {
+        const key = issue.path[0];
+        if (key === 'name' || key === 'email' || key === 'roles') next[key] ??= issue.message;
+      }
+      setErrors(next);
+      return;
+    }
+
+    const onError = (cause: unknown) => {
+      toast.error(cause instanceof ApiError ? cause.message : common.errors.generic);
+    };
+
+    if (user === null) {
+      createUser.mutate(parsed.data, {
+        onSuccess: (created) => {
+          toast.success(interpolate(admin.users.created, { name: created.name }));
+          onClose();
+        },
+        onError,
+      });
+    } else {
+      updateUser.mutate(
+        { userId: user.id, input: parsed.data },
+        {
+          onSuccess: (updated) => {
+            toast.success(interpolate(admin.users.updated, { name: updated.name }));
+            onClose();
+          },
+          onError,
+        },
+      );
+    }
+  }
+
+  return (
+    <Dialog
+      open
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
+      title={user === null ? admin.users.addTitle : admin.users.editTitle}
+      description={user === null ? admin.users.addSubtitle : admin.users.editSubtitle}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            {common.actions.cancel}
+          </Button>
+          <Button onClick={submit} isLoading={isPending}>
+            {user === null
+              ? isPending
+                ? admin.users.creating
+                : admin.users.create
+              : isPending
+                ? admin.users.saving
+                : admin.users.save}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <Field label={admin.users.nameLabel} required error={errors.name}>
+          <Input
+            value={form.name}
+            onChange={(event) => {
+              setForm({ ...form, name: event.target.value });
+            }}
+            placeholder={admin.users.namePlaceholder}
+          />
+        </Field>
+
+        <Field label={admin.users.emailLabel} required error={errors.email}>
+          <Input
+            type="email"
+            value={form.email}
+            onChange={(event) => {
+              setForm({ ...form, email: event.target.value });
+            }}
+            placeholder={admin.users.emailPlaceholder}
+          />
+        </Field>
+
+        <fieldset>
+          <legend className="mb-2 text-sm font-medium text-ink-900">
+            {admin.users.rolesLabel}
+          </legend>
+          <div className="flex flex-wrap gap-4">
+            {ROLES.map((role) => (
+              <Checkbox
+                key={role}
+                label={common.role[role]}
+                checked={form.roles.includes(role)}
+                onCheckedChange={(checked) => {
+                  setForm({
+                    ...form,
+                    roles: checked
+                      ? [...form.roles, role]
+                      : form.roles.filter((current) => current !== role),
+                  });
+                }}
+              />
+            ))}
+          </div>
+          {errors.roles === undefined ? null : (
+            <p role="alert" className="mt-2 text-xs font-medium text-danger">
+              {errors.roles}
+            </p>
+          )}
+        </fieldset>
+      </div>
+    </Dialog>
+  );
+}

@@ -37,14 +37,15 @@ The rule that follows from this, and the one most often broken by newcomers:
 
 Two possible homes. Pick with this table:
 
-| Question | Answer | Put it in |
-| --- | --- | --- |
-| Does the screen belong to the *shell* — sign-in, a portal chooser, an error page? | Yes | `src/pages/` |
-| Does it belong to one feature of one portal? | Yes | `src/portals/<portal>/features/<feature>/routes/` |
+| Question                                                                          | Answer | Put it in                                         |
+| --------------------------------------------------------------------------------- | ------ | ------------------------------------------------- |
+| Does the screen belong to the _shell_ — sign-in, a portal chooser, an error page? | Yes    | `src/features/<name>/routes/` (app-wide)          |
+| Does it belong to one feature of one portal?                                      | Yes    | `src/portals/<portal>/features/<feature>/routes/` |
 
-Almost every new screen is the second. `src/pages/` currently holds exactly one
-file, [CodeReviewHomePage.tsx](../src/pages/CodeReviewHomePage.tsx), and that is
-about right — the shell owns very few screens.
+Almost every new screen is the second. The shell owns very few: sign-in and the
+portal chooser live in `src/features/auth` and `src/features/home`, which are
+application-wide features rather than any portal's. `src/pages/` no longer
+exists — it held one unrouted screen and was removed.
 
 The feature folder is created on demand. A feature only grows the sub-folders it
 actually needs:
@@ -67,10 +68,15 @@ second component.
 
 Task: build the **Admin dashboard** at `/crp/admin`.
 
-This is a real gap. [AdminDashboardPage.tsx](../src/portals/code-review/features/admin/routes/AdminDashboardPage.tsx)
-exists as an empty file, the path is already in `routePaths`, and the route is
-not registered — so the "Admin" card on the home page currently points at
-nothing. Follow the six steps and it works.
+> **Read this as a pattern, not as an outstanding task.** When this was
+> written, `AdminDashboardPage.tsx` was an empty placeholder and `/crp/admin`
+> led nowhere. It now resolves to `AdminTasksPage`, and the empty file has been
+> removed. The six steps below are still exactly how a new screen is added —
+> only the example is no longer a gap. To follow along for real, pick a route
+> that genuinely does not exist yet.
+
+The path is already in `routePaths`, the route is registered in
+`codeReviewRoutes.tsx`, and the "Admin" card on the home page reaches it.
 
 ---
 
@@ -88,9 +94,9 @@ larger feature:
     "subtitle": "Manage users, customers, and system-wide reports.",
     "empty": {
       "title": "Nothing to manage yet",
-      "description": "Users and customers will appear here once the API is connected."
-    }
-  }
+      "description": "Users and customers will appear here once the API is connected.",
+    },
+  },
 }
 ```
 
@@ -98,14 +104,14 @@ A new file has to be registered in the catalog —
 [src/content/index.ts](../src/content/index.ts):
 
 ```ts
-import home from "./home.json";
-import a11y from "./a11y.json";
-import admin from "./admin.json";   // ← add
+import home from './home.json';
+import a11y from './a11y.json';
+import admin from './admin.json'; // ← add
 
 export const content = {
   a11y,
   home,
-  admin,                            // ← add
+  admin, // ← add
 } as const;
 ```
 
@@ -120,7 +126,7 @@ a typo a compile error rather than `undefined` on screen.
 ```
 
 ```tsx
-t(content.admin.dashboard.totalUsers, { count: 42 })   // → "42 users"
+t(content.admin.dashboard.totalUsers, { count: 42 }); // → "42 users"
 ```
 
 Never build a sentence by concatenating (`count + " users"`) — word order
@@ -135,11 +141,11 @@ translator can work on the JSON alone.
 in the repo allowed to contain a URL string. It has three exports and each has a
 distinct job:
 
-| Export | Used by | Example value |
-| --- | --- | --- |
-| `SEGMENTS` | the other two, and the router's top level | `"admin"` |
-| `routePaths` | components, for `<Link to={…}>` — **absolute** | `"/crp/admin"` |
-| `relativePaths` | the route tree — **relative to the parent** | `"admin"` |
+| Export          | Used by                                        | Example value  |
+| --------------- | ---------------------------------------------- | -------------- |
+| `SEGMENTS`      | the other two, and the router's top level      | `"admin"`      |
+| `routePaths`    | components, for `<Link to={…}>` — **absolute** | `"/crp/admin"` |
+| `relativePaths` | the route tree — **relative to the parent**    | `"admin"`      |
 
 The split exists because React Router mounts children relative to their parent:
 `codeReviewRoutes` is already nested under `/crp`, so writing `path: "/crp/admin"`
@@ -149,18 +155,18 @@ entry, so they cannot drift apart.
 For our example all three already exist:
 
 ```ts
-export const SEGMENTS = { crp: "crp", admin: "admin", /* … */ } as const;
+export const SEGMENTS = { crp: 'crp', admin: 'admin' /* … */ } as const;
 
 const CRP = `/${SEGMENTS.crp}` as const;
 
 export const routePaths = {
   crp: {
-    admin: { dashboard: `${CRP}/${SEGMENTS.admin}` },   // "/crp/admin"
+    admin: { dashboard: `${CRP}/${SEGMENTS.admin}` }, // "/crp/admin"
   },
 } as const;
 
 export const relativePaths = {
-  crp: { admin: SEGMENTS.admin },                       // "admin"
+  crp: { admin: SEGMENTS.admin }, // "admin"
 } as const;
 ```
 
@@ -171,8 +177,8 @@ call site:
 
 ```ts
 export const SEGMENTS = {
-  tasks: "tasks",
-  taskId: ":taskId",     // the router's placeholder form
+  tasks: 'tasks',
+  taskId: ':taskId', // the router's placeholder form
 } as const;
 
 export const routePaths = {
@@ -201,8 +207,8 @@ The file is named after its export, in PascalCase:
 ```tsx
 // src/portals/code-review/features/admin/routes/AdminDashboardPage.tsx
 
-import { Heading, Text } from "@/components/ui";
-import { content } from "@/content";
+import { Heading, Text } from '@/components/ui';
+import { content } from '@/content';
 
 /**
  * The Code Review Portal's admin workspace — `Figma UI Wireframes/Admin.png`.
@@ -258,10 +264,10 @@ responsibility — pull a section into `components/`, pull logic into a hook in
 [src/routes/codeReviewRoutes.tsx](../src/routes/codeReviewRoutes.tsx):
 
 ```tsx
-import type { RouteObject } from "react-router-dom";
-import { relativePaths } from "@/constants/routePaths";
-import { content } from "@/content";
-import type { RouteHandle } from "./routeHandle";
+import type { RouteObject } from 'react-router-dom';
+import { relativePaths } from '@/constants/routePaths';
+import { content } from '@/content';
+import type { RouteHandle } from './routeHandle';
 
 /** Typed so a typo in a handle key is a compile error, not a silent no-op. */
 const handle = (value: RouteHandle): RouteHandle => value;
@@ -269,12 +275,12 @@ const handle = (value: RouteHandle): RouteHandle => value;
 export const codeReviewRoutes: RouteObject[] = [
   {
     index: true,
-    lazy: () => import("@/pages/CodeReviewHomePage"),
+    element: <HomeRoute />, // the portal chooser, from src/features/home
   },
   {
     path: relativePaths.crp.admin,
     handle: handle({ title: content.admin.dashboard.title }),
-    lazy: () => import("@/portals/code-review/features/admin/routes/AdminDashboardPage"),
+    lazy: () => import('@/portals/code-review/features/admin/routes/AdminDashboardPage'),
   },
 ];
 ```
@@ -302,16 +308,19 @@ Three details:
 Anything that navigates uses `routePaths` — the **absolute** form:
 
 ```tsx
-import { Link } from "react-router-dom";
-import { routePaths } from "@/constants/routePaths";
+import { Link } from 'react-router-dom';
+import { routePaths } from '@/constants/routePaths';
 
-<Link to={routePaths.crp.admin.dashboard}>{content.admin.dashboard.title}</Link>
+<Link to={routePaths.crp.admin.dashboard}>{content.admin.dashboard.title}</Link>;
 ```
 
-If the destination belongs on the home page's workspace grid, it is a data entry
-rather than markup — add it to
-[src/constants/navigation.ts](../src/constants/navigation.ts) and the card
-renders itself:
+If the destination belongs on the home page's workspace grid, add it in
+[HomePage.tsx](../src/features/home/routes/HomePage.tsx), whose cards are
+derived from `permissions.accessibleWorkspaces()` and painted by
+`config/workspaceTheme.ts`. A `constants/navigation.ts` holding the same data
+as a typed list was written but never wired to anything, and has been removed —
+if you reinstate that approach, replace the HomePage implementation rather than
+running both:
 
 ```ts
 {
@@ -356,13 +365,13 @@ choosing wrongly is the most common architectural mistake in this codebase.
 
 ### Which tier does a component belong to?
 
-| | `src/components/ui/` | `src/components/common/` | the feature's `components/` |
-| --- | --- | --- | --- |
-| Knows about | React, Radix, CVA — nothing else | app constants, content, routing, queries | anything its feature knows |
-| May import `@/…` | **No** | Yes | Yes |
-| May import a portal | No | No | Its own only |
-| Gets its data from | props only | may fetch | may fetch |
-| Example | `Button`, `Card`, `DataTable` | `AppBar`, `PageHeader` | `TaskTable` |
+|                     | `src/components/ui/`             | `src/components/common/`                 | the feature's `components/` |
+| ------------------- | -------------------------------- | ---------------------------------------- | --------------------------- |
+| Knows about         | React, Radix, CVA — nothing else | app constants, content, routing, queries | anything its feature knows  |
+| May import `@/…`    | **No**                           | Yes                                      | Yes                         |
+| May import a portal | No                               | No                                       | Its own only                |
+| Gets its data from  | props only                       | may fetch                                | may fetch                   |
+| Example             | `Button`, `Card`, `DataTable`    | `AppBar`, `PageHeader`                   | `TaskTable`                 |
 
 Decide with two questions:
 
@@ -371,7 +380,7 @@ Decide with two questions:
 2. **Does a second consumer exist right now?** If not, it belongs to the feature.
    Promote it the day something else genuinely needs it — not in anticipation.
 
-The `ui/` restriction is the one worth protecting. A design system that *cannot*
+The `ui/` restriction is the one worth protecting. A design system that _cannot_
 import the app is portal-agnostic by construction, which is what will let the
 Delivery and Wiki portals adopt it unchanged instead of forking it. Concretely,
 a `ui/` component takes every string as a prop:
@@ -386,7 +395,7 @@ export function EmptyState() {
 export function EmptyState({ title, description }: EmptyStateProps) {
   return (
     <div>
-      <p className="font-semibold text-heading">{title}</p>
+      <p className="text-heading font-semibold">{title}</p>
       <p className="text-muted">{description}</p>
     </div>
   );
@@ -410,7 +419,7 @@ New `ui/` components are exported from
 from one place:
 
 ```ts
-import { Button, Card, Heading, Text, cn } from "@/components/ui";
+import { Button, Card, Heading, Text, cn } from '@/components/ui';
 ```
 
 ### Styling
@@ -424,7 +433,7 @@ Tailwind utilities in the JSX. Variants through CVA, composed with `cn()` from
 token name:
 
 ```tsx
-<div className="rounded-card border border-border bg-surface p-6">
+<div className="border-border rounded-card border bg-surface p-6">
   <h2 className="text-heading">…</h2>
   <p className="text-muted">…</p>
 </div>
@@ -473,7 +482,9 @@ The compiler is set to `strict` with `noUncheckedIndexedAccess`,
 ```ts
 // `any` is banned. Use `unknown` and narrow.
 function parse(input: unknown) {
-  if (typeof input === "string") { /* input is string here */ }
+  if (typeof input === 'string') {
+    /* input is string here */
+  }
 }
 
 // Indexing gives you `T | undefined`. Handle it — do not reach for `!`.
@@ -481,10 +492,10 @@ const first = items[0];
 if (!first) return null;
 
 // Type-only imports say so. Enforced.
-import type { RouteObject } from "react-router-dom";
+import type { RouteObject } from 'react-router-dom';
 
 // `enum` is not available. Use an `as const` object.
-export const STATUS = { draft: "draft", submitted: "submitted" } as const;
+export const STATUS = { draft: 'draft', submitted: 'submitted' } as const;
 export type Status = (typeof STATUS)[keyof typeof STATUS];
 ```
 
@@ -504,8 +515,8 @@ impossible state unrepresentable:
 Imports are absolute across a boundary and relative within a folder:
 
 ```ts
-import { Button } from "@/components/ui";   // crossing a boundary
-import { TaskRow } from "./TaskRow";        // same feature
+import { Button } from '@/components/ui'; // crossing a boundary
+import { TaskRow } from './TaskRow'; // same feature
 ```
 
 `../../../` means you have crossed a boundary and should be using `@/`.
@@ -515,22 +526,25 @@ import { TaskRow } from "./TaskRow";        // same feature
 ## Phase-one status: what this repo does not have yet
 
 This document describes the standard the project is built to. Some of the
-supporting machinery has not been ported into this repository yet, so do not go
-looking for it:
+supporting machinery is now in place. This table used to list seven gaps; six
+of them have been closed, and it is kept only to say so plainly, because the
+old version told newcomers not to look for things that exist.
 
-| Described in the docs | In this repo today |
-| --- | --- |
-| `routes/guards.tsx` — `RequireAuth`, `RequireRoles` | Not present. Routes are unguarded; add the role wrapper when auth lands |
-| `app/ErrorBoundary.tsx` | File exists but is empty; no `errorElement` is wired |
-| `AppLayout` mounted at `/` | [app/App.tsx](../src/app/App.tsx) exists but nothing imports it, so pages currently render without the shell |
-| `routes/routes.test.ts` — the path regression guard | Not present |
-| `deliveryRoutes.ts`, `wikiRoutes.ts` | Not present; only `codeReviewRoutes` is mounted |
-| A populated `components/ui/` | Mostly empty. `cn()` and the variant helpers are real; most component folders are placeholders |
-| ESLint architectural zones | [eslint.config.js](../eslint.config.js) is the base config. The `ui/` import ban is **convention here, not enforcement** — follow it anyway |
+| Previously listed as missing                        | Today                                                                                                         |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `routes/guards.tsx` — `RequireAuth`, `RequireRoles` | Present as `app/RequireAuth.tsx` and `app/RequireWorkspace.tsx`, and every workspace route is wrapped         |
+| `app/ErrorBoundary.tsx`                             | Real, and `errorElement: <RouteError />` is wired on the authenticated branch                                 |
+| `AppLayout` mounted at `/`                          | `RootLayout` is mounted under `RequireAuth`; it renders `AppBar` and `AppFooter` on every authenticated route |
+| `routes/routes.test.ts` — path regression guard     | Still absent. `LegacyWorkspaceRedirect.test.tsx` and `app/router.test.tsx` cover part of it                   |
+| `deliveryRoutes.ts`, `wikiRoutes.ts`                | `/delivery` and `/wiki` are mounted in `routes/index.tsx`; one lazy route each does not yet earn a file       |
+| A populated `components/ui/`                        | Real: Button, Card, Dialog, Field, Select, Tabs, SegmentedOptions, Alert, controls, the brand mark            |
+| ESLint architectural zones                          | **Enforced.** `eslint-plugin-boundaries` with a verified policy — see below                                   |
 
-The last row matters most for a beginner: nothing will currently stop you
-importing `@/content` into a `ui/` component. The rule still holds, and the day
-the zones are switched on, code that ignored it stops compiling.
+The last row has flipped, and it is the one to internalise. Importing across a
+layer now fails `npm run lint`, not review. The rules were checked with
+deliberate probes rather than assumed working: `common -> portal`,
+`lib -> feature` and `domain -> react` all fail as intended. `ui/` may import
+`content` and `lib` by documented exception, and nothing else from `@/`.
 
 ---
 
@@ -542,7 +556,7 @@ the zones are switched on, code that ignored it stops compiling.
 - [ ] The route uses `lazy:`, `relativePaths`, and a `handle({ title })`
 - [ ] The file is named after its export, in PascalCase, in the right feature's `routes/`
 - [ ] JSDoc on the exported component, saying what it is and where it sits
-- [ ] Comments explain *why*, never restate *what*
+- [ ] Comments explain _why_, never restate _what_
 - [ ] One `<h1>`; heading levels do not skip; icon-only buttons have names
 - [ ] Colours are tokens; no `bg-[#…]`; no inline `style` except dynamic values
 - [ ] `npm run typecheck`, `npm run lint`, and `npm run build` all pass
@@ -555,13 +569,13 @@ in place.
 
 ## Common mistakes
 
-| Symptom | Cause | Fix |
-| --- | --- | --- |
-| `has no properties in common` on the `lazy` line | Page file has no `Component` export | See [22 · Route modules](./22-route-modules.md) |
-| URL becomes `/crp/crp/admin` | Used `routePaths` (absolute) in the route tree | Use `relativePaths` for `path:` |
-| Link 404s onto the error boundary | Path added to `routePaths` but no route registered | Add the entry to `codeReviewRoutes` |
-| `Property 'admin' does not exist on type` | New JSON file not added to `content/index.ts` | Import it and add it to the `content` object |
-| `content.x.y` is `undefined` at runtime, no type error | JSON imported without `as const` on the catalog | The catalog in `content/index.ts` must end `} as const` |
-| `'React' is declared but its value is never read` | Leftover `import React from 'react'` | Delete it — the modern JSX transform injects it, and `noUnusedLocals` makes unused imports errors |
-| Page renders but has no app bar | The layout route is not mounted — see the phase-one table above | Expected today |
-| A `ui/` component "needs" `content` | It is not a `ui/` component | Move it to `common/`, or take the strings as props |
+| Symptom                                                | Cause                                                           | Fix                                                                                               |
+| ------------------------------------------------------ | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `has no properties in common` on the `lazy` line       | Page file has no `Component` export                             | See [22 · Route modules](./22-route-modules.md)                                                   |
+| URL becomes `/crp/crp/admin`                           | Used `routePaths` (absolute) in the route tree                  | Use `relativePaths` for `path:`                                                                   |
+| Link 404s onto the error boundary                      | Path added to `routePaths` but no route registered              | Add the entry to `codeReviewRoutes`                                                               |
+| `Property 'admin' does not exist on type`              | New JSON file not added to `content/index.ts`                   | Import it and add it to the `content` object                                                      |
+| `content.x.y` is `undefined` at runtime, no type error | JSON imported without `as const` on the catalog                 | The catalog in `content/index.ts` must end `} as const`                                           |
+| `'React' is declared but its value is never read`      | Leftover `import React from 'react'`                            | Delete it — the modern JSX transform injects it, and `noUnusedLocals` makes unused imports errors |
+| Page renders but has no app bar                        | The layout route is not mounted — see the phase-one table above | Expected today                                                                                    |
+| A `ui/` component "needs" `content`                    | It is not a `ui/` component                                     | Move it to `common/`, or take the strings as props                                                |

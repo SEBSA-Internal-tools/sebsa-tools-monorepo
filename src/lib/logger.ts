@@ -7,7 +7,7 @@
  * builds stay quiet by default.
  */
 
-type LogLevel = "debug" | "info" | "warn" | "error";
+type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 type LogContext = Record<string, unknown>;
 
@@ -18,7 +18,7 @@ const LEVEL_WEIGHT: Record<LogLevel, number> = {
   error: 40,
 };
 
-const minimumLevel: LogLevel = import.meta.env.DEV ? "debug" : "warn";
+const minimumLevel: LogLevel = import.meta.env.DEV ? 'debug' : 'warn';
 
 function shouldLog(level: LogLevel): boolean {
   return LEVEL_WEIGHT[level] >= LEVEL_WEIGHT[minimumLevel];
@@ -35,14 +35,17 @@ function emit(level: LogLevel, message: string, context?: LogContext): void {
   };
 
   // This module is the app's single console boundary — swap the sink here to
-  // route everything to a real telemetry service.
-  const sink = level === "error" ? console.error : level === "warn" ? console.warn : console.log;
+  // route everything to a real telemetry service. `no-console` is disabled on
+  // this line only: being the one place `console.log` is allowed is the whole
+  // point of the module.
+  // eslint-disable-next-line no-console
+  const sink = level === 'error' ? console.error : level === 'warn' ? console.warn : console.log;
   sink(`[sdp:${level}] ${message}`, payload);
 }
 
 export const logger = {
-  debug: (message: string, context?: LogContext) => emit("debug", message, context),
-  info: (message: string, context?: LogContext) => emit("info", message, context),
-  warn: (message: string, context?: LogContext) => emit("warn", message, context),
-  error: (message: string, context?: LogContext) => emit("error", message, context),
+  debug: (message: string, context?: LogContext) => emit('debug', message, context),
+  info: (message: string, context?: LogContext) => emit('info', message, context),
+  warn: (message: string, context?: LogContext) => emit('warn', message, context),
+  error: (message: string, context?: LogContext) => emit('error', message, context),
 };

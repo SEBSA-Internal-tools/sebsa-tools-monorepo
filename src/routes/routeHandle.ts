@@ -1,4 +1,4 @@
-import type { UIMatch } from "react-router-dom";
+import type { UIMatch } from 'react-router-dom';
 
 /**
  * Extra data a route can attach to itself.
@@ -14,7 +14,7 @@ export interface RouteHandle {
 }
 
 function hasHandle(match: UIMatch): match is UIMatch<unknown, RouteHandle> {
-  return typeof match.handle === "object" && match.handle !== null;
+  return typeof match.handle === 'object' && match.handle !== null;
 }
 
 /**

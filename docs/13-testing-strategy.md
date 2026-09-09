@@ -3,12 +3,12 @@
 Four tiers, each answering a different question. A test that answers a question
 another tier already answers is a maintenance cost with no return.
 
-| Tier | Question | Tool | Where |
-| --- | --- | --- | --- |
-| **Unit** | Is this rule correct? | Vitest, jsdom | beside the source |
-| **Component** | Does this render and respond correctly? | Vitest + Testing Library | beside the component |
-| **Visual & a11y** | Does it look right and is it accessible? | Storybook in Chromium + axe | `*.stories.tsx` |
-| **Regression / e2e** | Does the journey work end to end? | Playwright | `e2e/` |
+| Tier                 | Question                                 | Tool                        | Where                |
+| -------------------- | ---------------------------------------- | --------------------------- | -------------------- |
+| **Unit**             | Is this rule correct?                    | Vitest, jsdom               | beside the source    |
+| **Component**        | Does this render and respond correctly?  | Vitest + Testing Library    | beside the component |
+| **Visual & a11y**    | Does it look right and is it accessible? | Storybook in Chromium + axe | `*.stories.tsx`      |
+| **Regression / e2e** | Does the journey work end to end?        | Playwright                  | `e2e/`               |
 
 ## Running
 
@@ -29,8 +29,8 @@ magnitude.
 Every pure function in a `domain/` folder. No rendering, no mocking, no setup.
 
 ```ts
-it("blocks advancing until every required field is filled", () => {
-  const blockers = taskDetailsBlockers({ customerId: "c-1" });
+it('blocks advancing until every required field is filled', () => {
+  const blockers = taskDetailsBlockers({ customerId: 'c-1' });
   expect(countUnsatisfied(blockers)).toBe(2);
   expect(canAdvance(blockers)).toBe(false);
 });
@@ -50,12 +50,12 @@ is hard to write, the component is probably hard to use.
 
 ```tsx
 render(<TaskTable tasks={tasks} />, { wrapper: renderWithProviders });
-await user.click(screen.getByRole("button", { name: /next page/i }));
-expect(screen.getByText("Showing 11–20 of 24")).toBeInTheDocument();
+await user.click(screen.getByRole('button', { name: /next page/i }));
+expect(screen.getByText('Showing 11–20 of 24')).toBeInTheDocument();
 ```
 
 `src/test/renderWithProviders.tsx` supplies QueryClient, MemoryRouter and the
-tooltip provider. `src/test/server.ts` exports an MSW node server, deliberately
+tooltip provider. `src/test/mswServer.ts` exports an MSW node server, deliberately
 **not** auto-started — a test file opts in, so a network call nobody expected is
 still an error rather than a silently mocked success.
 
@@ -100,13 +100,13 @@ See [Storybook standards](./21-storybook-standards.md).
 
 Real browser, real routing, real MSW.
 
-| Spec | Covers |
-| --- | --- |
-| `smoke.spec.ts` | The app boots, no console errors, no unexpected 4xx |
-| `auth.spec.ts` | Redirect to login, sign in, return to the requested page, session persistence, logout |
-| `navigation.spec.ts` | **Every workspace card reaches a rendered page** |
-| `notifications.spec.ts` | Bell opens the panel, Escape closes it, focus returns |
-| `accessibility.spec.ts` | axe on six routes, including `/login` |
+| Spec                    | Covers                                                                                |
+| ----------------------- | ------------------------------------------------------------------------------------- |
+| `smoke.spec.ts`         | The app boots, no console errors, no unexpected 4xx                                   |
+| `auth.spec.ts`          | Redirect to login, sign in, return to the requested page, session persistence, logout |
+| `navigation.spec.ts`    | **Every workspace card reaches a rendered page**                                      |
+| `notifications.spec.ts` | Bell opens the panel, Escape closes it, focus returns                                 |
+| `accessibility.spec.ts` | axe on six routes, including `/login`                                                 |
 
 `e2e/fixtures/test.ts` provides `gotoFresh` (resets the seeded database and signs
 in, with an optional `userId`), `gotoAnonymous`, and `scanA11y`.

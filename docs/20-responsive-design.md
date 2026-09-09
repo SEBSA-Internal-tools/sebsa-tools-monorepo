@@ -10,13 +10,13 @@ Tailwind's defaults, unchanged. A custom scale would need a reason, and there
 isn't one.
 
 | Prefix | Min width | Typical device |
-| --- | --- | --- |
-| — | 0 | Phone |
-| `sm:` | 640px | Large phone |
-| `md:` | 768px | Tablet |
-| `lg:` | 1024px | Laptop |
-| `xl:` | 1280px | Desktop |
-| `2xl:` | 1536px | Large desktop |
+| ------ | --------- | -------------- |
+| —      | 0         | Phone          |
+| `sm:`  | 640px     | Large phone    |
+| `md:`  | 768px     | Tablet         |
+| `lg:`  | 1024px    | Laptop         |
+| `xl:`  | 1280px    | Desktop        |
+| `2xl:` | 1536px    | Large desktop  |
 
 Write the small layout first and add prefixes upward. `grid gap-4 sm:grid-cols-2 lg:grid-cols-4`
 reads as one idea; `grid-cols-4 max-lg:grid-cols-2 max-sm:grid-cols-1` reads as

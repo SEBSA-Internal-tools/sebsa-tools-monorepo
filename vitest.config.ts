@@ -1,9 +1,9 @@
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { defineConfig, mergeConfig } from "vitest/config";
-import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
-import { playwright } from "@vitest/browser-playwright";
-import viteConfig from "./vite.config.ts";
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { defineConfig, mergeConfig } from 'vitest/config';
+import { storybookTest } from '@storybook/addon-vitest/vitest-plugin';
+import { playwright } from '@vitest/browser-playwright';
+import viteConfig from './vite.config.ts';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -26,43 +26,99 @@ export default mergeConfig(
         {
           extends: true,
           test: {
-            name: "unit",
-            environment: "jsdom",
+            name: 'unit',
+            environment: 'jsdom',
+            /*
+             * Must comfortably exceed Testing Library's `asyncUtilTimeout`
+             * (10s, set in `src/test/setup.ts`). If they are close, a query
+             * that genuinely uses its budget trips the TEST timeout first and
+             * reports "Test timed out" instead of naming the element it could
+             * not find — turning an actionable failure into a guessing game.
+             *
+             * "Comfortably" means a MULTIPLE, not a margin, which is what 20s
+             * got wrong: a single test routinely awaits several queries in
+             * sequence — open a dialog, wait for the grid, assert the toast —
+             * and under `--coverage` the v8 instrumentation stretches each one.
+             * Three successful 6s waits are already an 18s test.
+             */
+            testTimeout: 40_000,
+            /*
+             * Capped rather than left to `cpus - 1`.
+             *
+             * These are not cheap unit tests: the router-level suites mount the
+             * whole app. Saturating every core makes the workers contend for
+             * CPU, which surfaces as `findBy*` queries exceeding their budget —
+             * so the suite fails on machine load rather than on the app, and
+             * fails in a DIFFERENT file each run.
+             *
+             * Measured, not guessed: at the default this suite failed on
+             * `developerAnalytics` on one run and `adminWorkspace` on the next,
+             * both passing in isolation. Three is the value the source project
+             * arrived at the same way.
+             */
+            maxWorkers: 3,
             globals: false,
             css: true,
-            setupFiles: ["./src/test/setup.ts"],
-            include: ["src/**/*.{test,spec}.{ts,tsx}", "packages/*/src/**/*.{test,spec}.{ts,tsx}"],
-            exclude: ["**/node_modules/**", "e2e/**"],
+            setupFiles: ['./src/test/setup.ts'],
+            include: ['src/**/*.{test,spec}.{ts,tsx}', 'packages/*/src/**/*.{test,spec}.{ts,tsx}'],
+            exclude: ['**/node_modules/**', 'e2e/**'],
           },
         },
         {
           extends: true,
-          plugins: [storybookTest({ configDir: path.join(dirname, ".storybook") })],
+          plugins: [storybookTest({ configDir: path.join(dirname, '.storybook') })],
           test: {
-            name: "storybook",
+            name: 'storybook',
             browser: {
               enabled: true,
               headless: true,
               provider: playwright({}),
-              instances: [{ browser: "chromium" }],
+              instances: [{ browser: 'chromium' }],
             },
           },
         },
       ],
       coverage: {
-        provider: "v8",
-        reporter: ["text", "html", "lcov"],
-        include: ["src/**/*.{ts,tsx}", "packages/*/src/**/*.ts"],
-        exclude: ["**/*.stories.tsx", "**/*.d.ts", "src/mocks/**", "src/test/**", "**/index.ts"],
+        provider: 'v8',
+        reporter: ['text', 'html', 'lcov'],
+        include: ['src/**/*.{ts,tsx}', 'packages/*/src/**/*.ts'],
+        exclude: ['**/*.stories.tsx', '**/*.d.ts', 'src/mocks/**', 'src/test/**', '**/index.ts'],
         thresholds: {
+          /*
+           * `npm test` runs with `--coverage` precisely so these thresholds are
+           * part of the gate. Without that flag the whole block is inert, which
+           * is what it was. Use `npm run test:fast` for a quick local loop.
+           *
+           * `perFile` so one thoroughly tested rule module cannot carry an
+           * untested sibling; the point of the gate is that EVERY rule is
+           * covered, not that the average looks acceptable.
+           */
+          perFile: true,
+
           // Business rules must be provably covered. UI is covered by stories
           // and e2e, so a global threshold here would only invite noise.
-          "**/domain/**": {
+          '**/domain/**': {
             statements: 90,
             branches: 85,
             functions: 90,
             lines: 90,
           },
+
+          /*
+           * Rules that outgrew a single feature and moved to `lib/` — the task
+           * status machine, permissions, reading a stored checklist. They are
+           * still domain logic and still portable to a Phase 2 NestJS guard, so
+           * they keep the same bar. Listed explicitly rather than globbing all
+           * of `lib/`, because `apiClient` and `queryClient` are infrastructure
+           * and are covered through the screens that use them.
+           */
+          '**/src/lib/{statusMachine,permissions,storedChecklist,kpiBuckets,checklistOrdering,reviewStats}.ts':
+            {
+              statements: 90,
+              branches: 85,
+              functions: 90,
+              lines: 90,
+            },
         },
       },
     },

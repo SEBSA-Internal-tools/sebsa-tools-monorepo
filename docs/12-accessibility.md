@@ -9,10 +9,10 @@ optional.
 Accessibility is checked automatically in two places, both of which fail the
 build:
 
-| Gate | What it covers |
-| --- | --- |
+| Gate                                                      | What it covers                                   |
+| --------------------------------------------------------- | ------------------------------------------------ |
 | Storybook + `@storybook/addon-a11y`, `test.a11y: "error"` | Every story of every component, in real Chromium |
-| `@axe-core/playwright` in `e2e/accessibility.spec.ts` | Every mounted route, fully composed |
+| `@axe-core/playwright` in `e2e/accessibility.spec.ts`     | Every mounted route, fully composed              |
 
 Component-level and page-level are different problems: a `Button` can pass in
 isolation and still fail on a tinted card, and a page can have two `<nav>`
@@ -55,7 +55,7 @@ separation under deuteranopia.
 ### Never `opacity` for de-emphasis
 
 Dimming tinted text with `opacity` produces a colour nobody chose and no
-contrast tool predicted. Use a lighter *token*, or a smaller size and lighter
+contrast tool predicted. Use a lighter _token_, or a smaller size and lighter
 weight. This caused a real failure during development.
 
 ### Labels
@@ -83,10 +83,25 @@ don't wrap them in another.
 
 ### Tables
 
-`DataTable` sets `aria-sort` on sortable headers. Clickable rows are real
-keyboard targets — `role="button"`, `tabIndex={0}`, Enter and Space, and a
-`rowLabel` so a screen reader announces the row rather than reading eleven
-cells.
+`DataTable` sets `aria-sort` on sortable headers.
+
+**Rows stay rows.** No `role`, no `tabIndex` on a `<tr>` — overriding a row's
+implicit role removes it from the table's structure, and a screen-reader user
+can then no longer navigate the grid as a table at all. `onRowClick` is a mouse
+convenience; the keyboard path is the row's own action control, which every grid
+in the wireframes has. `DataTable.test.tsx` guards this in both directions.
+
+> This section used to say the opposite — that clickable rows should carry
+> `role="button"`, `tabIndex={0}` and a `rowLabel`. That was tried, and it is
+> what removed the rows from the grid. The advice is corrected rather than
+> deleted because it is the plausible-sounding wrong answer, and someone will
+> reach for it again.
+
+**Reordering** ([ADR 0011](./adr/0011-row-reordering.md)) follows the same
+rule: the drag handle is a real `<button>` in its own cell, never attributes on
+the row. Native drag is pointer-only, so the handle also takes ArrowUp/ArrowDown
+— without that the feature would be unusable by keyboard, which the manual pass
+above forbids.
 
 ### Motion
 
@@ -101,12 +116,12 @@ focus movement plus Space, because that is what actually happens.
 
 **Contrast traps, all of them hit at least once:**
 
-| Attempted | Ratio | Use instead |
-| --- | --- | --- |
-| White on `success-solid` | 3.3 | `success-fg` on the tint |
-| White on `warning-solid` | 2.2 | Dark ink |
-| White on `danger-solid` | 4.12 | `danger-fg` |
-| `text-muted` on `surface-subtle` | 4.43 | `text-secondary` |
+| Attempted                        | Ratio | Use instead              |
+| -------------------------------- | ----- | ------------------------ |
+| White on `success-solid`         | 3.3   | `success-fg` on the tint |
+| White on `warning-solid`         | 2.2   | Dark ink                 |
+| White on `danger-solid`          | 4.12  | `danger-fg`              |
+| `text-muted` on `surface-subtle` | 4.43  | `text-secondary`         |
 
 The generalisation: **`text-muted` belongs on `surface` or `page` only**, and
 the `*-solid` tokens are fills, never text colours.
