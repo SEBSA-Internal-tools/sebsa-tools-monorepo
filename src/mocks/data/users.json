@@ -3,7 +3,11 @@
     "id": "u-janith",
     "name": "Janith Hasthanayake",
     "email": "janith.hasthanayake@sebsaworld.com",
-    "roles": ["Developer", "Reviewer", "Admin"],
+    "roles": [
+      "Developer",
+      "Reviewer",
+      "Admin"
+    ],
     "isActive": true,
     "createdAt": "2025-01-14T09:00:00.000Z"
   },
@@ -11,7 +15,11 @@
     "id": "u-hiruni",
     "name": "Hiruni Wijethilaka",
     "email": "hiruni.wijethilaka@sebsaworld.com",
-    "roles": ["Developer", "Reviewer", "Admin"],
+    "roles": [
+      "Developer",
+      "Reviewer",
+      "Admin"
+    ],
     "isActive": true,
     "createdAt": "2025-01-14T09:00:00.000Z"
   },
@@ -19,7 +27,11 @@
     "id": "u-charith",
     "name": "Charith Widanapathirana",
     "email": "charith.widanapathirana@sebsaworld.com",
-    "roles": ["Developer", "Reviewer", "Admin"],
+    "roles": [
+      "Developer",
+      "Reviewer",
+      "Admin"
+    ],
     "isActive": true,
     "createdAt": "2025-01-14T09:00:00.000Z"
   },
@@ -27,7 +39,11 @@
     "id": "u-janukshan",
     "name": "Janukshan Sivakumar",
     "email": "janukshan.sivakumar@sebsaworld.com",
-    "roles": ["Developer", "Reviewer", "Admin"],
+    "roles": [
+      "Developer",
+      "Reviewer",
+      "Admin"
+    ],
     "isActive": true,
     "createdAt": "2025-02-03T09:00:00.000Z"
   },
@@ -35,7 +51,11 @@
     "id": "u-udari",
     "name": "Udari Heshani",
     "email": "udari.heshani@sebsaworld.com",
-    "roles": ["Developer", "Reviewer", "Admin"],
+    "roles": [
+      "Developer",
+      "Reviewer",
+      "Admin"
+    ],
     "isActive": true,
     "createdAt": "2025-02-03T09:00:00.000Z"
   },
@@ -43,7 +63,9 @@
     "id": "u-dheliya",
     "name": "Dheliya Kankanamge",
     "email": "dheliya.kankanamge@sebsaworld.com",
-    "roles": ["Developer"],
+    "roles": [
+      "Developer"
+    ],
     "isActive": true,
     "createdAt": "2025-03-11T09:00:00.000Z"
   },
@@ -51,7 +73,11 @@
     "id": "u-ashan",
     "name": "Ashan De Costa",
     "email": "ashan.decosta@sebsaworld.com",
-    "roles": ["Developer", "Reviewer", "Admin"],
+    "roles": [
+      "Developer",
+      "Reviewer",
+      "Admin"
+    ],
     "isActive": true,
     "createdAt": "2025-01-14T09:00:00.000Z"
   },
@@ -59,7 +85,11 @@
     "id": "u-kavidu",
     "name": "Kavidu Dilshan",
     "email": "kavidu.dilshan@sebsaworld.com",
-    "roles": ["Developer", "Reviewer", "Admin"],
+    "roles": [
+      "Developer",
+      "Reviewer",
+      "Admin"
+    ],
     "isActive": true,
     "createdAt": "2025-01-28T09:00:00.000Z"
   },
@@ -67,7 +97,11 @@
     "id": "u-sanjeewa",
     "name": "Sanjeewa Premarathna",
     "email": "sanjeewa.premarathna@sebsaworld.com",
-    "roles": ["Developer", "Reviewer", "Admin"],
+    "roles": [
+      "Developer",
+      "Reviewer",
+      "Admin"
+    ],
     "isActive": true,
     "createdAt": "2025-02-19T09:00:00.000Z"
   },
@@ -75,7 +109,11 @@
     "id": "u-pinsara",
     "name": "Pinsara Chandika",
     "email": "pinsara.chandika@sebsaworld.com",
-    "roles": ["Developer", "Reviewer", "Admin"],
+    "roles": [
+      "Developer",
+      "Reviewer",
+      "Admin"
+    ],
     "isActive": true,
     "createdAt": "2025-01-28T09:00:00.000Z"
   },
@@ -83,8 +121,34 @@
     "id": "u-nimal",
     "name": "Nimal Perera",
     "email": "nimal.perera@sebsaworld.com",
-    "roles": ["Reviewer"],
+    "roles": [
+      "Reviewer"
+    ],
     "isActive": false,
     "createdAt": "2025-04-02T09:00:00.000Z"
+  },
+  {
+    "id": "u-chalitha",
+    "name": "Chalitha Mallawaarachchi",
+    "email": "chalitha.mallawaarachchi@sebsaworld.com",
+    "roles": [
+      "Developer",
+      "Reviewer",
+      "Admin"
+    ],
+    "isActive": true,
+    "createdAt": "2026-09-09T09:00:00.000Z"
+  },
+  {
+    "id": "u-kaumal",
+    "name": "Kaumal Samarakoon",
+    "email": "kaumal.samarakoon@sebsaworld.com",
+    "roles": [
+      "Developer",
+      "Reviewer",
+      "Admin"
+    ],
+    "isActive": true,
+    "createdAt": "2026-09-09T09:00:00.000Z"
   }
 ]
