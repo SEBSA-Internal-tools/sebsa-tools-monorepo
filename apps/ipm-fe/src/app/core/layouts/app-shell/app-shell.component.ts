@@ -26,7 +26,7 @@ export class AppShellComponent implements OnInit {
 
   private readonly navigationItems: { label: string; icon: string; path: string; hiddenForRoles?: SystemRole[] }[] = [
     { label: 'Dashboard', icon: 'home', path: '/dashboard' },
-    { label: 'Assigned Tasks', icon: 'search', path: '/tasks' },
+    { label: 'Assigned Work', icon: 'assignment_ind', path: '/tasks' },
     { label: 'Projects', icon: 'favorite', path: '/projects' },
     { label: 'Customers', icon: 'domain', path: '/customers', hiddenForRoles: ['REGULAR_USER'] },
     { label: 'CSO', icon: 'groups', path: '/cso' },

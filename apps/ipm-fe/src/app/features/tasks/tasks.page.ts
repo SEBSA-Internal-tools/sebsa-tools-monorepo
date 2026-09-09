@@ -1,9 +1,27 @@
-import { Component, ChangeDetectionStrategy, OnInit, inject, signal, computed } from '@angular/core';
+import {
+  Component,
+  ChangeDetectionStrategy,
+  OnInit,
+  inject,
+  signal,
+  computed,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router, RouterModule } from '@angular/router';
-import { AuthService } from '../../core/services/auth.service';
-import { TasksService, TASK_STATUSES, type TaskView } from '../../core/services/tasks.service';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
+import { AuthService } from '../../core/services/auth.service';
+import {
+  TasksService,
+  TASK_STATUSES,
+  type TaskView,
+} from '../../core/services/tasks.service';
+import {
+  CasesService,
+  CASE_STATUSES,
+  type CaseView,
+} from '../../core/services/cases.service';
+
+export type AssignedSubTab = 'tasks' | 'cases';
 
 @Component({
   standalone: true,
@@ -14,111 +32,245 @@ import { FormsModule } from '@angular/forms';
   styleUrls: ['./task.page.scss'],
 })
 export class TasksPageComponent implements OnInit {
-  private authService = inject(AuthService);
-  private tasksService = inject(TasksService);
-  private router = inject(Router);
+  private readonly authService = inject(AuthService);
+  private readonly tasksService = inject(TasksService);
+  private readonly casesService = inject(CasesService);
+  private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
 
-  tasks = signal<TaskView[]>([]);
-  searchQuery = signal<string>('');
-  isLoading = signal(false);
-  errorMessage = signal('');
+  readonly activeTab = signal<AssignedSubTab>('tasks');
 
-  readonly statuses = TASK_STATUSES;
-  selectedCaseId = signal<string>('');
-  selectedStatus = signal<string>('');
-  selectedPriority = signal<string>('');
+  // Tasks state
+  readonly tasks = signal<TaskView[]>([]);
+  readonly isTasksLoading = signal<boolean>(false);
+  readonly tasksErrorMessage = signal<string>('');
+  readonly taskSearchQuery = signal<string>('');
+  readonly selectedCaseId = signal<string>('');
+  readonly selectedTaskStatus = signal<string>('');
+  readonly selectedTaskPriority = signal<string>('');
+  readonly taskStatuses = TASK_STATUSES;
 
-  /** Distinct cases among the assigned tasks, sorted for the filter dropdown. */
-  availableCases = computed<Array<{ id: string; title: string }>>(() => {
+  // Cases state
+  readonly cases = signal<CaseView[]>([]);
+  readonly isCasesLoading = signal<boolean>(false);
+  readonly casesErrorMessage = signal<string>('');
+  readonly caseSearchQuery = signal<string>('');
+  readonly selectedProjectId = signal<string>('');
+  readonly selectedCaseStatus = signal<string>('');
+  readonly selectedCasePriority = signal<string>('');
+  readonly selectedCaseType = signal<string>('');
+  readonly caseStatuses = CASE_STATUSES;
+
+  // Task Computed Filters
+  readonly availableCases = computed<Array<{ id: string; title: string }>>(() => {
     const byId = new Map<string, string>();
     for (const task of this.tasks()) {
-      byId.set(task.caseId, task.caseTitle);
+      if (task.caseId && task.caseTitle) {
+        byId.set(task.caseId, task.caseTitle);
+      }
     }
     return [...byId.entries()]
       .map(([id, title]) => ({ id, title }))
       .sort((a, b) => a.title.localeCompare(b.title));
   });
 
-  /** Distinct priority names among the assigned tasks. */
-  availablePriorities = computed<string[]>(() => {
-    const names = new Set(this.tasks().map((t) => t.priority));
+  readonly availableTaskPriorities = computed<string[]>(() => {
+    const names = new Set(this.tasks().map((t) => t.priority).filter(Boolean));
     return [...names].sort((a, b) => a.localeCompare(b));
   });
 
-  filteredTasks = computed<TaskView[]>(() => {
-    const query = this.searchQuery().toLowerCase().trim();
+  readonly filteredTasks = computed<TaskView[]>(() => {
+    const query = this.taskSearchQuery().toLowerCase().trim();
     const caseId = this.selectedCaseId();
-    const status = this.selectedStatus();
-    const priority = this.selectedPriority();
+    const status = this.selectedTaskStatus();
+    const priority = this.selectedTaskPriority();
 
     return this.tasks().filter((t) => {
       if (caseId && t.caseId !== caseId) return false;
       if (status && t.status !== status) return false;
       if (priority && t.priority !== priority) return false;
-      if (
-        query &&
-        !t.title.toLowerCase().includes(query) &&
-        !t.caseTitle?.toLowerCase().includes(query) &&
-        !t.priority.toLowerCase().includes(query)
-      ) {
-        return false;
+      if (query) {
+        const matchesTitle = t.title.toLowerCase().includes(query);
+        const matchesCase = t.caseTitle?.toLowerCase().includes(query) ?? false;
+        const matchesProject = t.projectName?.toLowerCase().includes(query) ?? false;
+        const matchesPriority = t.priority?.toLowerCase().includes(query) ?? false;
+        if (!matchesTitle && !matchesCase && !matchesProject && !matchesPriority) {
+          return false;
+        }
       }
       return true;
     });
   });
 
-  clearFilters(): void {
-    this.selectedCaseId.set('');
-    this.selectedStatus.set('');
-    this.selectedPriority.set('');
-    this.searchQuery.set('');
-  }
+  readonly hasActiveTaskFilters = computed<boolean>(
+    () =>
+      !!(
+        this.selectedCaseId() ||
+        this.selectedTaskStatus() ||
+        this.selectedTaskPriority() ||
+        this.taskSearchQuery()
+      )
+  );
 
-  hasActiveFilters = computed<boolean>(
-    () => !!(this.selectedCaseId() || this.selectedStatus() || this.selectedPriority() || this.searchQuery()),
+  // Case Computed Filters
+  readonly availableProjects = computed<Array<{ id: string; name: string }>>(() => {
+    const byId = new Map<string, string>();
+    for (const kase of this.cases()) {
+      if (kase.projectId && kase.projectName) {
+        byId.set(kase.projectId, kase.projectName);
+      }
+    }
+    return [...byId.entries()]
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  });
+
+  readonly availableCasePriorities = computed<string[]>(() => {
+    const names = new Set(this.cases().map((c) => c.priority).filter(Boolean));
+    return [...names].sort((a, b) => a.localeCompare(b));
+  });
+
+  readonly availableCaseTypes = computed<string[]>(() => {
+    const types = new Set(this.cases().map((c) => c.type).filter(Boolean));
+    return [...types].sort((a, b) => a.localeCompare(b));
+  });
+
+  readonly filteredCases = computed<CaseView[]>(() => {
+    const query = this.caseSearchQuery().toLowerCase().trim();
+    const projectId = this.selectedProjectId();
+    const status = this.selectedCaseStatus();
+    const priority = this.selectedCasePriority();
+    const type = this.selectedCaseType();
+
+    return this.cases().filter((c) => {
+      if (projectId && c.projectId !== projectId) return false;
+      if (status && c.status !== status) return false;
+      if (priority && c.priority !== priority) return false;
+      if (type && c.type !== type) return false;
+      if (query) {
+        const matchesTitle = c.title.toLowerCase().includes(query);
+        const matchesProject = c.projectName?.toLowerCase().includes(query) ?? false;
+        const matchesDescription = c.description?.toLowerCase().includes(query) ?? false;
+        if (!matchesTitle && !matchesProject && !matchesDescription) {
+          return false;
+        }
+      }
+      return true;
+    });
+  });
+
+  readonly hasActiveCaseFilters = computed<boolean>(
+    () =>
+      !!(
+        this.selectedProjectId() ||
+        this.selectedCaseStatus() ||
+        this.selectedCasePriority() ||
+        this.selectedCaseType() ||
+        this.caseSearchQuery()
+      )
   );
 
   ngOnInit(): void {
     const user = this.authService.currentUser();
-
     if (!user) {
-      this.errorMessage.set(
-        'You must be logged in to view your assigned tasks.',
-      );
+      this.tasksErrorMessage.set('You must be logged in to view your assigned work.');
+      this.casesErrorMessage.set('You must be logged in to view your assigned work.');
       return;
     }
+
+    // Sync active tab with route query param if provided
+    this.route.queryParams.subscribe((params) => {
+      if (params['tab'] === 'cases') {
+        this.activeTab.set('cases');
+      } else {
+        this.activeTab.set('tasks');
+      }
+    });
+
     this.loadAssignedTasks();
+    this.loadAssignedCases();
   }
 
-  private loadAssignedTasks(): void {
-    this.isLoading.set(true);
+  setTab(tab: AssignedSubTab): void {
+    this.activeTab.set(tab);
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { tab },
+      queryParamsHandling: 'merge',
+    });
+  }
+
+  loadAssignedTasks(): void {
+    this.isTasksLoading.set(true);
+    this.tasksErrorMessage.set('');
+
     this.tasksService.getMyAssignedTasks().subscribe({
       next: (tasks) => {
         this.tasks.set(tasks);
-        this.isLoading.set(false);
+        this.isTasksLoading.set(false);
       },
-
       error: (error) => {
         console.error('Failed to load assigned tasks:', error);
-
-        this.errorMessage.set(
-          'Unable to load assigned tasks. Please try again later.',
-        );
-        this.isLoading.set(false);
+        this.tasksErrorMessage.set('Unable to load assigned tasks. Please check your connection and retry.');
+        this.isTasksLoading.set(false);
       },
     });
+  }
+
+  loadAssignedCases(): void {
+    this.isCasesLoading.set(true);
+    this.casesErrorMessage.set('');
+
+    this.casesService.getMyAssignedCases().subscribe({
+      next: (cases) => {
+        this.cases.set(cases);
+        this.isCasesLoading.set(false);
+      },
+      error: (error) => {
+        console.error('Failed to load assigned cases:', error);
+        this.casesErrorMessage.set('Unable to load assigned cases. Please check your connection and retry.');
+        this.isCasesLoading.set(false);
+      },
+    });
+  }
+
+  clearTaskFilters(): void {
+    this.selectedCaseId.set('');
+    this.selectedTaskStatus.set('');
+    this.selectedTaskPriority.set('');
+    this.taskSearchQuery.set('');
+  }
+
+  clearCaseFilters(): void {
+    this.selectedProjectId.set('');
+    this.selectedCaseStatus.set('');
+    this.selectedCasePriority.set('');
+    this.selectedCaseType.set('');
+    this.caseSearchQuery.set('');
   }
 
   trackByTaskId(_index: number, task: TaskView): string {
     return task.id;
   }
 
+  trackByCaseId(_index: number, kase: CaseView): string {
+    return kase.id;
+  }
+
   navigateToTask(taskId: string): void {
     this.router.navigate(['/tasks', taskId]);
   }
 
-  getStatusLabel(status: string): string {
-    return this.statuses.find((s) => s.id === status)?.name ?? status;
+  navigateToCase(caseId: string): void {
+    this.router.navigate(['/cases', caseId]);
+  }
+
+  getTaskStatusLabel(status: string): string {
+    return this.taskStatuses.find((s) => s.id === status)?.name ?? status;
+  }
+
+  getCaseStatusLabel(status: string): string {
+    return this.caseStatuses.find((s) => s.id === status)?.name ?? status;
   }
 
   getStageBadgeClass(status: string): string {
@@ -136,16 +288,31 @@ export class TasksPageComponent implements OnInit {
     }
   }
 
-  getPriorityClass(priority: string): string {
-    switch (priority) {
-      case 'High':
-        return 'priority-high';
-      case 'Medium':
-        return 'priority-medium';
-      case 'Low':
-        return 'priority-low';
+  getPriorityClass(priority?: string): string {
+    const p = (priority || '').toLowerCase();
+    if (p.includes('urgent') || p.includes('crit')) return 'priority-urgent';
+    if (p.includes('high')) return 'priority-high';
+    if (p.includes('med')) return 'priority-medium';
+    if (p.includes('low')) return 'priority-low';
+    return 'priority-medium';
+  }
+
+  getTypeBadgeClass(type?: string): string {
+    const t = (type || '').toUpperCase();
+    switch (t) {
+      case 'BUG':
+        return 'type-bug';
+      case 'STORY':
+        return 'type-story';
+      case 'EPIC':
+        return 'type-epic';
+      case 'IMPROVEMENT':
+        return 'type-improvement';
+      case 'TEST':
+        return 'type-test';
       default:
-        return 'priority-medium';
+        return 'type-general';
     }
   }
 }
+
