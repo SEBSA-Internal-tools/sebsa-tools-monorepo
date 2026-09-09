@@ -64,12 +64,12 @@
     </nav>
 
     <div class="sidebar-footer">
-      <button type="button" class="nav-item settings-item">
+      <a class="nav-item settings-item" routerLink="/settings" routerLinkActive="active">
         <span class="nav-icon" aria-hidden="true">
           <span class="material-symbols-outlined">settings</span>
         </span>
         <span class="nav-label">Settings</span>
-      </button>
+      </a>
     </div>
   </aside>
 
@@ -209,7 +209,11 @@
                 <span class="profile-menu-name">{{ authService.currentUser()?.name || 'Hiruni Wijethilaka' }}</span>
                 <span class="profile-menu-email">{{ authService.currentUser()?.email || 'hiruni@sebsa.com' }}</span>
               </div>
-              <button type="button" class="profile-menu-item" (click)="logout()">
+              <a class="profile-menu-item" routerLink="/settings" (click)="isProfileMenuOpen = false">
+                <span class="material-symbols-outlined" aria-hidden="true">manage_accounts</span>
+                <span>Account Settings</span>
+              </a>
+              <button type="button" class="profile-menu-item logout" (click)="logout()">
                 <span class="material-symbols-outlined" aria-hidden="true">logout</span>
                 <span>Logout</span>
               </button>
