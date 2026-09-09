@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, Input, OnChanges, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { ActivityLogEntry, ActivityAction, ActivityEntityType } from '@sebsa-pm-tool/shared-models';
 import { ActivityLogsService } from '../../services/activity-logs.service';
 import { ChangeListComponent } from '../change-list/change-list.component';
@@ -50,7 +51,7 @@ const ACTION_TONES: Record<ActivityAction, string> = {
 @Component({
   standalone: true,
   selector: 'app-activity-feed',
-  imports: [CommonModule, ChangeListComponent],
+  imports: [CommonModule, RouterLink, ChangeListComponent],
   templateUrl: './activity-feed.component.html',
   styleUrl: './activity-feed.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -60,6 +61,11 @@ export class ActivityFeedComponent implements OnChanges {
   @Input({ required: true }) entityId!: string;
   /** Entries shown before the first "Show more" click, and added by each one. */
   @Input() pageSize = 5;
+  /** When set, the footer offers a "View all" link to this route instead of
+   * paging in place — for previews too small to browse a long history in. */
+  @Input() viewAllLink: unknown[] | null = null;
+  /** Tighter spacing for use inside a sidebar card. */
+  @Input() compact = false;
 
   private readonly activityLogs = inject(ActivityLogsService);
 

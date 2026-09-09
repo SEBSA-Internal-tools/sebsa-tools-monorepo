@@ -4,7 +4,6 @@ import { BehaviorSubject, Observable, tap, map, of, finalize, shareReplay } from
 import {
   CreateCaseRequest,
   Case as BackendCase,
-  CaseCategoryAssignmentEntry,
   CaseStatus,
   CaseStatusHistoryEntry,
   CaseSummary as BackendCaseSummary,
@@ -185,10 +184,6 @@ export class CasesService {
 
   getStatusHistory(caseId: string): Observable<CaseStatusHistoryEntry[]> {
     return this.http.get<CaseStatusHistoryEntry[]>(`/api/cases/${caseId}/status-history`);
-  }
-
-  getCategoryHistory(caseId: string): Observable<CaseCategoryAssignmentEntry[]> {
-    return this.http.get<CaseCategoryAssignmentEntry[]>(`/api/cases/${caseId}/category-history`);
   }
 
   deleteCase(caseId: string): Observable<{ message: string }> {

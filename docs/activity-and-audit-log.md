@@ -67,6 +67,14 @@ with `assigneeIds`, `assignUsers()`, and `unassignUser()`. Because
 `createMany` skips duplicates, the "after" set on `assignUsers()` is the union
 of the existing and added names, not the added names alone.
 
+### Case category assignments
+
+`CaseCategoryAssignment` still records the Functional/Technical conversion and
+which assignee held the case at each stage; `GET /api/cases/:id/category-history`
+still serves it. The case detail page no longer renders it as a separate
+"Assignment History" card, because assignee moves and category changes both show
+up in the activity feed now.
+
 ### Status changes
 
 `CaseStatusHistory` and `TaskStatusHistory` remain the authoritative
@@ -116,11 +124,26 @@ these. It takes `entityType` and `entityId` and pages in on demand:
 <app-activity-feed entityType="CASE" [entityId]="kase.id"></app-activity-feed>
 ```
 
-It is mounted on the project detail Activity tab, the case detail page, and the
-task detail page. `pageSize` defaults to **5** — enough to see what just
-happened without burying the rest of the page — and each "Show more" click adds
-another five. The project Activity tab overrides it to 20, since that tab is
-the whole view rather than one section of it.
+It is mounted in three places:
+
+| Where | Size | Footer |
+| --- | --- | --- |
+| Case detail sidebar, below Assignee | 3 entries, `compact` | "View all" → `/activity/cases/:id` |
+| Task detail sidebar, below Assignee | 3 entries, `compact` | "View all" → `/activity/tasks/:id` |
+| Project detail Activity tab | 20 entries | "Show more" pages in place |
+
+`compact` tightens the rows so three entries sit alongside the other metadata
+cards without dominating them. Setting `viewAllLink` swaps the in-place "Show
+more" for a link to the full history — the sidebar preview is too small to
+browse a long trail in.
+
+### The full activity page
+
+`/activity/:entityType/:entityId` (`features/activity/`) shows the complete
+history for one entity, filtered by action through the same tab pattern the
+notifications page uses: All, Created, Updated, Status, Assigned, Deleted. The
+route segment is mapped to an entity type through an explicit allow-list, so an
+unrecognised segment is rejected rather than passed through.
 
 ### Collapsing long values
 
