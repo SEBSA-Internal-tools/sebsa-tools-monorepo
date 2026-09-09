@@ -1,10 +1,12 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '@sebsa-pm-tool/core';
-import { AuthUser, CreateUserResponse, UserAdminSummary, UserSummary } from '@sebsa-pm-tool/shared-models';
+import { AuthUser, CreateUserResponse, UserAdminSummary, UserProfileDto, UserSummary } from '@sebsa-pm-tool/shared-models';
 import { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { randomBytes } from 'crypto';
 import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 const SEARCH_RESULT_LIMIT = 20;
 const TEMP_PASSWORD_BYTES = 12;
@@ -12,6 +14,51 @@ const TEMP_PASSWORD_BYTES = 12;
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async getProfile(userId: string): Promise<UserProfileDto> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { department: true },
+    });
+    if (!user || user.deletedAt) {
+      throw new NotFoundException('User profile not found.');
+    }
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      departmentId: user.departmentId,
+      departmentName: user.department?.name,
+      systemRole: user.systemRole as UserProfileDto['systemRole'],
+      isActive: user.isActive,
+      createdAt: user.createdAt.toISOString(),
+    };
+  }
+
+  async updateProfile(userId: string, dto: UpdateProfileDto): Promise<UserProfileDto> {
+    await this.updateOrThrow(userId, { name: dto.name.trim() });
+    return this.getProfile(userId);
+  }
+
+  async changePassword(userId: string, dto: ChangePasswordDto): Promise<{ success: boolean; message: string }> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user || user.deletedAt) {
+      throw new NotFoundException('User not found.');
+    }
+
+    const isMatch = await bcrypt.compare(dto.currentPassword, user.passwordHash);
+    if (!isMatch) {
+      throw new BadRequestException('Current password does not match our records.');
+    }
+
+    const newHash = await bcrypt.hash(dto.newPassword, 10);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash: newHash },
+    });
+
+    return { success: true, message: 'Password changed successfully.' };
+  }
 
   async search(term?: string): Promise<UserSummary[]> {
     return this.prisma.user.findMany({

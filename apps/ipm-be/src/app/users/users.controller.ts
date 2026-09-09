@@ -1,11 +1,13 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { AuthUser, CreateUserResponse, UserAdminSummary, UserSummary } from '@sebsa-pm-tool/shared-models';
+import { AuthUser, CreateUserResponse, UserAdminSummary, UserProfileDto, UserSummary } from '@sebsa-pm-tool/shared-models';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { UsersService } from './users.service';
 
 @ApiTags('users')
@@ -14,6 +16,27 @@ import { UsersService } from './users.service';
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
+
+  @Get('profile')
+  getProfile(@CurrentUser() user: AuthUser): Promise<UserProfileDto> {
+    return this.usersService.getProfile(user.id);
+  }
+
+  @Patch('profile')
+  updateProfile(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: UpdateProfileDto,
+  ): Promise<UserProfileDto> {
+    return this.usersService.updateProfile(user.id, dto);
+  }
+
+  @Post('change-password')
+  changePassword(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: ChangePasswordDto,
+  ): Promise<{ success: boolean; message: string }> {
+    return this.usersService.changePassword(user.id, dto);
+  }
 
   @Get()
   search(@Query('search') search?: string): Promise<UserSummary[]> {

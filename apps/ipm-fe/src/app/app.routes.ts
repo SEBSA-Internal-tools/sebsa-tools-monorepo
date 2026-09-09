@@ -128,6 +128,13 @@ export const appRoutes: Route[] = [
 						(m) => m.CsoPageComponent
 					),
 			},
+			{
+				path: 'settings',
+				loadComponent: () =>
+					import('./features/settings/settings.page').then(
+						(m) => m.SettingsPageComponent
+					),
+			},
 		],
 	},
 ];
