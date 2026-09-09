@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ProjectsService } from '../../services/projects.service';
 import { CasesService } from '../../../../core/services/cases.service';
+import { TasksService } from '../../../../core/services/tasks.service';
 import { AuthService } from '../../../../core/services/auth.service';
 import { ToastService } from '../../../../core/services/toast.service';
 import { ProjectDetailHeaderComponent } from './components/header/project-detail-header.component';
@@ -15,7 +16,7 @@ import { ProjectOverviewComponent } from './components/overview/project-overview
 import { ProjectConfigurationComponent } from './components/configuration/project-configuration.component';
 import { CalendarViewComponent } from '../../../calendar/components/calendar-view/calendar-view.component';
 import {
-  caseToCalendarItem,
+  taskToCalendarItem,
   type CalendarItem,
   type CalendarKPI,
 } from '../../../calendar/models/calendar.models';
@@ -53,6 +54,7 @@ export class ProjectDetailPageComponent implements OnInit {
   protected readonly authService = inject(AuthService);
   private projectsService = inject(ProjectsService);
   private casesService = inject(CasesService);
+  private tasksService = inject(TasksService);
   private toastService = inject(ToastService);
 
   readonly project = signal<Project | null>(null);
@@ -65,8 +67,8 @@ export class ProjectDetailPageComponent implements OnInit {
   isEditModalOpen = false;
 
   readonly projectCalendarItems = computed<CalendarItem[]>(() => {
-    const cases = this.casesService.cases();
-    return cases.map((c) => caseToCalendarItem(c));
+    const tasks = this.tasksService.tasks();
+    return tasks.map((t) => taskToCalendarItem(t));
   });
 
   readonly calendarKpis = computed<CalendarKPI[]>(() => {
@@ -80,7 +82,7 @@ export class ProjectDetailPageComponent implements OnInit {
 
     return [
       {
-        label: 'Total Scheduled',
+        label: 'Total Scheduled Tasks',
         value: total,
         icon: 'calendar_month',
         colorVariant: 'primary',
@@ -92,13 +94,13 @@ export class ProjectDetailPageComponent implements OnInit {
         colorVariant: 'warning',
       },
       {
-        label: 'In Progress Cases',
+        label: 'In Progress Tasks',
         value: inProgress,
         icon: 'pending_actions',
         colorVariant: 'purple',
       },
       {
-        label: 'Overdue Commitments',
+        label: 'Overdue Tasks',
         value: overdue,
         icon: 'error',
         colorVariant: 'error',
@@ -122,6 +124,7 @@ export class ProjectDetailPageComponent implements OnInit {
       next: (project) => {
         this.project.set(project);
         this.casesService.loadCases(project.id);
+        this.tasksService.loadTasksByProject(project.id);
         this.isLoading.set(false);
       },
       error: () => {
@@ -133,10 +136,13 @@ export class ProjectDetailPageComponent implements OnInit {
 
   onTabChange(tab: typeof this.activeTab): void {
     this.activeTab = tab;
+    if (tab === 'calendar' && this.project()) {
+      this.tasksService.loadTasksByProject(this.project()!.id, true);
+    }
   }
 
-  onCaseClicked(item: CalendarItem): void {
-    this.router.navigate(['/cases', item.id]);
+  onTaskClicked(item: CalendarItem): void {
+    this.router.navigate(['/tasks', item.id]);
   }
 
   onAddTaskClick(): void {
@@ -150,11 +156,7 @@ export class ProjectDetailPageComponent implements OnInit {
   }
 
   onCreateForDate(date: Date): void {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    this.initialCaseDueDate.set(`${y}-${m}-${d}`);
-    this.isTaskModalOpen = true;
+    this.activeTab = 'tasklist';
   }
 
   onCreateTask(formData: CaseFormData): void {
@@ -190,7 +192,6 @@ export class ProjectDetailPageComponent implements OnInit {
       },
     });
   }
-
 
   onEditClick(): void {
     this.isEditModalOpen = true;
@@ -230,3 +231,4 @@ export class ProjectDetailPageComponent implements OnInit {
     this.router.navigate(['/projects']);
   }
 }
+
