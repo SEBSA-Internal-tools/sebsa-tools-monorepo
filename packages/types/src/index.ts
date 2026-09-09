@@ -10,15 +10,4 @@
  * long as the exported type name here stays put.
  */
 
-export type {
-  // primitives
-  Id,
-  IsoDate,
-  IsoDateTime,
-  HexColor,
-  // enums
-  Role,
-  PortalId,
-  // user
-  // user
-} from "@sdp/contracts";
+export type * from '@sdp/contracts';

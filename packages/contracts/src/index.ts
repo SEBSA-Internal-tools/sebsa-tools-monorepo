@@ -1,16 +1,16 @@
 /**
- * `@sdp/contracts` — the single source of truth for everything that crosses the
- * network.
+ * @sdp/contracts — the shared domain vocabulary for the Service Delivery Portal.
  *
- * These Zod schemas are consumed from both directions: `lib/apiClient` validates
- * responses against them, and the MSW handlers validate requests against them.
- * Contract drift therefore fails loudly in development rather than shipping.
- *
- * This package must stay app-agnostic. UI-shaped view models belong in
- * `src/types`; form schemas with user-facing messages belong in the owning
- * feature's `domain/` folder, built by `.pick()`/`.extend()` from these.
+ * Zod schemas are the source of truth; TypeScript types are inferred from them.
+ * One definition validates API responses in MSW (Phase 1), validates request
+ * bodies in NestJS (Phase 2), and types every component in between — so a
+ * contract change cannot silently pass through one layer and break another.
  */
-
-export * from "./primitives.ts";
-export * from "./user.ts";
-export * from "./enums.ts";
+export * from './common.js';
+export * from './enums.js';
+export * from './identity.js';
+export * from './task.js';
+export * from './checklist.js';
+export * from './review.js';
+export * from './handover.js';
+export * from './notification.js';

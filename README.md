@@ -40,18 +40,23 @@ No `.env` file is required. Development defaults to mock mode; a production buil
 packages/
   contracts/   @sdp/contracts — Zod schemas for everything crossing the network
   types/       @sdp/types     — the type-only face of contracts (zero runtime)
-  ui/          @sdp/ui        — the portal-agnostic design system
 src/
-  app/         router, providers, root layout, portal registry
+  app/         providers, root layout, app bar, app footer, guards — the shell
+  routes/      the router tree and the /crp subtree
+  components/
+    ui/        tier 1 — React, Radix, CVA and nothing else
+    common/    tier 2 — app-aware, portal-agnostic
+  features/    app-wide features: auth, home, notifications
+  hooks/       hooks no single feature owns (session, media query, reveal)
   portals/
     code-review/
-      domain/          rules used by three or more features (status machine, permissions)
+      components/      this portal's shared, domain-carrying components
+      hooks/           this portal's data hooks
       features/<name>/ api · components · domain · hooks · routes
     delivery/  wiki/   Phase 2 and 3 shells
-  shared/      app-aware cross-portal compositions
-  components/ui/ staging area for primitives whose API is still moving
-  lib/         apiClient, queryClient, queryKeys, formatters, storage, logger, cn
-  config/      routes, statusConfig, constants, featureFlags, env, navConfig
+  lib/         apiClient, queryClient, formatters, session storage, domain rules
+  config/      env, the routes facade, workspaceTheme
+  constants/   routePaths, portals, roles
   content/     every user-facing string, as JSON
   mocks/       MSW handlers, seeded database, fixture data
   services/    mockApiService — demo and test controls for the mock backend
@@ -66,15 +71,19 @@ src/
 The distinction is **what a component is allowed to know**, and it is enforced by ESLint rather
 than by convention.
 
-| Tier            | Lives in            | May import                            | Example                                       |
-| --------------- | ------------------- | ------------------------------------- | --------------------------------------------- |
-| Design system   | `packages/ui`       | react, radix, cva, lucide             | `Button`, `SegmentedRadioGroup`, `DonutChart` |
-| Staging         | `src/components/ui` | tier 1                                | a primitive still finding its API             |
-| App composition | `src/shared`        | tiers 1–2, `config`, `lib`, `content` | `StatusBadge`, `AppBar`, `PageHeader`         |
+| Tier            | Lives in                          | May import                                  | Example                                       |
+| --------------- | --------------------------------- | ------------------------------------------- | --------------------------------------------- |
+| Design system   | `src/components/ui`               | react, radix, cva, lucide                   | `Button`, `Dialog`, `Select`                  |
+| App composition | `src/components/common`           | tier 1, `config`, `content`, `hooks`, `lib` | `DataTable`, `PageHeader`, `Skeleton`         |
+| Portal          | `src/portals/<portal>/components` | tiers 1–2, plus that portal's domain        | `badges`, `taskColumns`, `ReviewCycleHistory` |
 
-`packages/ui` may not import `@/…` or `@sdp/contracts`. That is why `StatusBadge` — which reads
-`config/statusConfig` — lives in `src/shared` and not beside `Badge`. Delivery and Wiki adopt tier 1
-unchanged; they will write their own tier 3.
+The decision is made by the **import list**, not by where a file currently sits. `DataTable` renders
+whatever columns it is given, so it is tier 2; `taskColumns` names Task, Review and Rank, so it is
+not. Tier 2 may not import a portal, and `src/app` may not import a portal at all — that is what
+lets Delivery and Wiki be built without depending on Code Review.
+
+There is no `packages/ui` and no `src/shared`. Both appeared in an earlier draft of this README and
+never existed on disk.
 
 ### `domain/` is React-free, and lint enforces it
 
@@ -107,7 +116,7 @@ tests rather than retyped into JSX — and so adopting i18n later is a change to
 
 ### Colour is computed, not chosen
 
-The categorical chart palette in `src/index.css` was validated for lightness band, chroma floor,
+The categorical chart palette in `src/styles/index.css` was validated for lightness band, chroma floor,
 colourblind separation and contrast. The obvious choice — reusing the violet and blue semantic
 tokens — puts those two hues 0.4 ΔE apart under deuteranopia. Every chart also carries a legend with
 counts and percentages, so colour is never the sole encoding.
@@ -133,11 +142,13 @@ See `.env.example`. Node 22 or newer is required (Vite 8).
 
 ## Working on it
 
-Adding a portal: write a `manifest.ts`, add it to `allManifests` in `src/app/router.tsx`. The shell
-needs no other change.
+Adding a portal: add its segment to `src/constants/routePaths.ts` and mount it in
+`src/routes/index.tsx`. `/delivery` and `/wiki` are already there as one lazy route each — copy
+either. The shell needs no other change.
 
 Adding a feature: create `features/<name>/{api,components,domain,hooks,routes}`. Put the rules in
 `domain/` first and test them there; the components that follow become thin.
 
-Adding a component: start in `src/components/ui`. Promote it to `packages/ui` once a second portal
-needs it, or once it appears in the Figma component sheets.
+Adding a component: pick the tier from its import list, using the table above. Start inside the
+feature that needs it and promote only when a second consumer actually exists — promoting early is
+how a "shared" component ends up carrying one caller's domain.

@@ -8,8 +8,8 @@ to join them. No second pattern.
 ```tsx
 const form = useForm<TaskDetailsStep>({
   resolver: zodResolver(taskDetailsStepSchema),
-  mode: "onBlur",
-  defaultValues: { customerId: "", taskType: undefined, description: "" },
+  mode: 'onBlur',
+  defaultValues: { customerId: '', taskType: undefined, description: '' },
 });
 ```
 
@@ -21,7 +21,7 @@ the behaviour people expect.
 ## Where the rules live
 
 Schemas live in the feature's `domain/` folder, beside the other business rules,
-because a validation rule *is* a business rule.
+because a validation rule _is_ a business rule.
 
 ```ts
 // features/tasks/domain/taskSchemas.ts
@@ -47,7 +47,7 @@ that copy changes are not code changes and the app can be translated.
 Native inputs register directly:
 
 ```tsx
-<Input {...form.register("description")} />
+<Input {...form.register('description')} />
 ```
 
 Controlled components — Select, Checkbox, RadioGroup — go through `Controller`:
@@ -72,7 +72,10 @@ Reading a value with `setValue` during render trips
 **`useWatch`, never `form.watch()`.**
 
 ```tsx
-const [customerId, version] = useWatch({ control: form.control, name: ["customerId", "version"] });
+const [customerId, version] = useWatch({
+  control: form.control,
+  name: ['customerId', 'version'],
+});
 const derivedTitle = buildTaskTitle(customerId, version);
 ```
 
@@ -85,9 +88,13 @@ derivation is cheap.
 `Field` wires the whole set: label, control, description, error.
 
 ```tsx
-<Field label="Description" htmlFor="description" error={errors.description?.message}
-       hint="What changed, and why.">
-  <Textarea id="description" {...form.register("description")} />
+<Field
+  label="Description"
+  htmlFor="description"
+  error={errors.description?.message}
+  hint="What changed, and why."
+>
+  <Textarea id="description" {...form.register('description')} />
 </Field>
 ```
 
@@ -113,9 +120,10 @@ export function countUnsatisfied(blockers: readonly StepBlocker[]): number;
 export function canAdvance(blockers: readonly StepBlocker[]): boolean;
 ```
 
-  The same call drives the "Before you can continue" panel and the Next button's
-  `disabled`, so what the user reads and what the button does cannot disagree.
-  It is unit-tested without rendering a thing.
+The same call drives the "Before you can continue" panel and the Next button's
+`disabled`, so what the user reads and what the button does cannot disagree.
+It is unit-tested without rendering a thing.
+
 - **Validate the current step only**, not the whole schema, so step 4 errors
   never appear on step 1.
 - **Optional steps say so.** Step 3 (screenshots) can be skipped, and the

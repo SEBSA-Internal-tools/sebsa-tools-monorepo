@@ -5,38 +5,38 @@
 These are the standards this codebase is held to. Where a rule can be enforced
 by a tool rather than by review, it is.
 
-| Principle | How it shows up here |
-| --- | --- |
-| **Maintainability** | Another developer can work on this without asking the author. Comments explain *why*, never *what*. |
-| **Consistency** | The same problem gets the same solution. One way to fetch, one way to validate, one way to style. |
+| Principle                  | How it shows up here                                                                                   |
+| -------------------------- | ------------------------------------------------------------------------------------------------------ |
+| **Maintainability**        | Another developer can work on this without asking the author. Comments explain _why_, never _what_.    |
+| **Consistency**            | The same problem gets the same solution. One way to fetch, one way to validate, one way to style.      |
 | **Separation of concerns** | UI, business rules, API, state and validation live in different folders, and ESLint stops them mixing. |
-| **Reusability** | Shared where there is genuine commonality — not shared speculatively. |
-| **Type safety** | `strict` + `noUncheckedIndexedAccess`; `any` is a lint error. Contracts are validated at runtime too. |
-| **Testability** | Business rules are pure functions in `domain/`, testable without rendering. |
-| **Accessibility** | WCAG-conscious from the start, gated by axe in two suites. |
-| **Security** | The client never decides authorization. See [Security](./18-security.md). |
-| **Performance** | Measured, not guessed. Route-level code splitting is the one thing done up front. |
-| **Scalability** | A fourth sub-application is three files, not a refactor. |
-| **Observability** | One logging boundary; errors surface with context. |
-| **Backward compatibility** | Shared components and contracts change deliberately, recorded as ADRs. |
+| **Reusability**            | Shared where there is genuine commonality — not shared speculatively.                                  |
+| **Type safety**            | `strict` + `noUncheckedIndexedAccess`; `any` is a lint error. Contracts are validated at runtime too.  |
+| **Testability**            | Business rules are pure functions in `domain/`, testable without rendering.                            |
+| **Accessibility**          | WCAG-conscious from the start, gated by axe in two suites.                                             |
+| **Security**               | The client never decides authorization. See [Security](./18-security.md).                              |
+| **Performance**            | Measured, not guessed. Route-level code splitting is the one thing done up front.                      |
+| **Scalability**            | A fourth sub-application is three files, not a refactor.                                               |
+| **Observability**          | One logging boundary; errors surface with context.                                                     |
+| **Backward compatibility** | Shared components and contracts change deliberately, recorded as ADRs.                                 |
 
 ## Technology stack
 
-| Layer | Choice |
-| --- | --- |
-| Framework | React 19, TypeScript 6, Vite 8 |
-| Routing | React Router 7 (data router, lazy route modules) |
-| Server state | TanStack Query 5 |
-| Client state | Zustand 5 |
-| Forms | React Hook Form 7 + Zod 4 via `@hookform/resolvers` |
-| Tables | TanStack Table 8 |
-| Primitives | Radix UI |
-| Styling | Tailwind CSS 4 (CSS-first config) + CVA |
-| Icons / charts / dates | Lucide, Recharts, date-fns |
-| Notifications | Sonner |
-| Mocking | MSW 2 |
-| Testing | Vitest 4, Testing Library, Playwright, axe-core |
-| Documentation | Storybook 10 |
+| Layer                  | Choice                                              |
+| ---------------------- | --------------------------------------------------- |
+| Framework              | React 19, TypeScript 6, Vite 8                      |
+| Routing                | React Router 7 (data router, lazy route modules)    |
+| Server state           | TanStack Query 5                                    |
+| Client state           | Zustand 5                                           |
+| Forms                  | React Hook Form 7 + Zod 4 via `@hookform/resolvers` |
+| Tables                 | TanStack Table 8                                    |
+| Primitives             | Radix UI                                            |
+| Styling                | Tailwind CSS 4 (CSS-first config) + CVA             |
+| Icons / charts / dates | Lucide, Recharts, date-fns                          |
+| Notifications          | Sonner                                              |
+| Mocking                | MSW 2                                               |
+| Testing                | Vitest 4, Testing Library, Playwright, axe-core     |
+| Documentation          | Storybook 10                                        |
 
 What each one is responsible for — and what it must **not** be used for — is in
 [Dependency governance](./15-dependency-governance.md).
@@ -86,7 +86,7 @@ Business rules live in `domain/` as pure functions with no React import, no
 data fetching and no UI. That is enforced by ESLint, not convention:
 
 ```js
-files: ["src/**/domain/**/*.ts"]
+files: ['src/**/domain/**/*.ts'];
 // bans react, react-dom, @tanstack/react-query, sonner, and any component import
 ```
 

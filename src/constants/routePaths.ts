@@ -13,21 +13,30 @@
 
 /** Path segments, as the router nests them. */
 export const SEGMENTS = {
-  crp: "crp",
-  delivery: "delivery",
-  wiki: "wiki",
+  crp: 'crp',
+  delivery: 'delivery',
+  wiki: 'wiki',
 
-  developer: "developer",
-  reviewer: "reviewer",
-  admin: "admin",
+  developer: 'developer',
+  reviewer: 'reviewer',
+  admin: 'admin',
 
-  tasks: "tasks",
-  new: "new",
-  login: "login",
+  tasks: 'tasks',
+  new: 'new',
+  edit: 'edit',
+  confirmed: 'confirmed',
+  analytics: 'analytics',
+  myTasks: 'my-tasks',
+  history: 'history',
+  users: 'users',
+  customers: 'customers',
+  checklist: 'checklist',
+  handovers: 'handovers',
+  reports: 'reports',
+  login: 'login',
 } as const;
 
 const CRP = `/${SEGMENTS.crp}` as const;
-
 
 /**
  * Absolute paths. Builder functions take the values a dynamic segment needs, so
@@ -36,42 +45,62 @@ export const routePaths = {
   /**
    * The Service Delivery Portal root.
    */
-  root: "/",
+  root: '/',
 
   /** Unauthenticated entry point. Sits outside the app shell — no app bar. */
   login: `/${SEGMENTS.login}`,
 
   crp: {
     /**
-     * The Code Review Portal's own workspace 
+     * The Code Review Portal's own workspace
      */
     home: CRP,
     root: CRP,
 
     developer: {
       dashboard: `${CRP}/${SEGMENTS.developer}`,
+      analytics: `${CRP}/${SEGMENTS.developer}/${SEGMENTS.analytics}`,
+      newTask: `${CRP}/${SEGMENTS.developer}/${SEGMENTS.tasks}/${SEGMENTS.new}`,
+      newTaskStep: (step: string) =>
+        `${CRP}/${SEGMENTS.developer}/${SEGMENTS.tasks}/${SEGMENTS.new}/${encodeURIComponent(step)}`,
+      task: (taskId: string) =>
+        `${CRP}/${SEGMENTS.developer}/${SEGMENTS.tasks}/${encodeURIComponent(taskId)}`,
+      editTask: (taskId: string) =>
+        `${CRP}/${SEGMENTS.developer}/${SEGMENTS.tasks}/${encodeURIComponent(taskId)}/${SEGMENTS.edit}`,
+      editTaskStep: (taskId: string, step: string) =>
+        `${CRP}/${SEGMENTS.developer}/${SEGMENTS.tasks}/${encodeURIComponent(taskId)}/${SEGMENTS.edit}/${encodeURIComponent(step)}`,
     },
 
     reviewer: {
       dashboard: `${CRP}/${SEGMENTS.reviewer}`,
+      myTasks: `${CRP}/${SEGMENTS.reviewer}/${SEGMENTS.myTasks}`,
+      history: `${CRP}/${SEGMENTS.reviewer}/${SEGMENTS.history}`,
+      analytics: `${CRP}/${SEGMENTS.reviewer}/${SEGMENTS.analytics}`,
+      task: (taskId: string) =>
+        `${CRP}/${SEGMENTS.reviewer}/${SEGMENTS.tasks}/${encodeURIComponent(taskId)}`,
     },
 
     admin: {
       dashboard: `${CRP}/${SEGMENTS.admin}`,
+      users: `${CRP}/${SEGMENTS.admin}/${SEGMENTS.users}`,
+      customers: `${CRP}/${SEGMENTS.admin}/${SEGMENTS.customers}`,
+      checklist: `${CRP}/${SEGMENTS.admin}/${SEGMENTS.checklist}`,
+      handovers: `${CRP}/${SEGMENTS.admin}/${SEGMENTS.handovers}`,
+      reports: `${CRP}/${SEGMENTS.admin}/${SEGMENTS.reports}`,
     },
   },
 
   delivery: {
     /**
      * The Delivery Portal's own workspace - Phase 2
-     */    
+     */
     root: `/${SEGMENTS.delivery}`,
   },
 
   wiki: {
     /**
      * The Wiki Portal's own workspace - Phase 3
-     */       
+     */
     root: `/${SEGMENTS.wiki}`,
   },
 } as const;

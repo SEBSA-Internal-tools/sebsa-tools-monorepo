@@ -1,5 +1,5 @@
-import type { PortalId, Role } from "@sdp/types";
-import { routePaths } from "./routePaths";
+import type { PortalId, Role } from '@sdp/contracts';
+import { routePaths } from './routePaths';
 
 /**
  * The sub-applications the Service Delivery Portal hosts.
@@ -24,27 +24,27 @@ export interface PortalDescriptor {
 
 export const PORTALS: readonly PortalDescriptor[] = [
   {
-    id: "code-review",
-    label: "Code Review Portal",
+    id: 'code-review',
+    label: 'Code Review Portal',
     path: routePaths.crp.root,
-    icon: "GitPullRequest",
-    requiredRoles: ["developer", "reviewer", "admin"],
+    icon: 'GitPullRequest',
+    requiredRoles: ['Developer', 'Reviewer', 'Admin'],
     comingSoon: false,
   },
   {
-    id: "delivery",
-    label: "Delivery Portal",
+    id: 'delivery',
+    label: 'Delivery Portal',
     path: routePaths.delivery.root,
-    icon: "Truck",
-    requiredRoles: ["developer", "reviewer", "admin"],
+    icon: 'Truck',
+    requiredRoles: ['Developer', 'Reviewer', 'Admin'],
     comingSoon: true,
   },
   {
-    id: "wiki",
-    label: "Wiki Portal",
+    id: 'wiki',
+    label: 'Wiki Portal',
     path: routePaths.wiki.root,
-    icon: "BookOpen",
-    requiredRoles: ["developer", "reviewer", "admin"],
+    icon: 'BookOpen',
+    requiredRoles: ['Developer', 'Reviewer', 'Admin'],
     comingSoon: true,
   },
 ];

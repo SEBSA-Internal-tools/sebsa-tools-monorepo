@@ -1,57 +1,15 @@
 /**
- * `@sdp/ui` — the SEBSA design system.
+ * The SEBSA design system — tier 1.
  *
+ * Only the cross-cutting helpers are re-exported here. The components
+ * themselves are imported by path (`@/components/ui/Button.tsx`), which keeps
+ * the module graph explicit and avoids pulling every primitive into a chunk
+ * that needed one of them.
+ *
+ * Note for anyone adding to this file: a `ui` component must NOT import this
+ * barrel to reach `cn` — that is a cycle, because the barrel re-exports the
+ * components. Import `./lib/cn` directly.
  */
 
-
-/* Utilities */
-export { cn } from "./lib/cn";
-export {
-    focusRing,
-    disabledState,
-    toneSurface,
-    toneSolid,
-    toneText,
-    TONES,
-    roleGradient,
-    type Tone,
-    type RoleGradient,
-} from "./lib/variants";
-
-
-/* Actions */
-
-
-
-/* Typography */
-
-
-
-/* Cards */
-
-//export {  } from "./Card/Card"";
-
-
-
-/* App chrome */
-export {
-    AppBar
-} from "./AppBar/AppBar"
-
-
-/* Forms */
-
-
-
-
-/* Primitives */
-
-
-
-/* Notifications */
-
-
-
-
-
-/* Data tables */
+export { cn } from './lib/cn';
+export { SebsaLogo } from './brand/SebsaLogo';

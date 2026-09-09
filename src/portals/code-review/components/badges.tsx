@@ -1,0 +1,211 @@
+import type { ReactNode } from 'react';
+import type { Priority, ReviewRank, Role, TaskStatus } from '@sdp/contracts';
+import { cn } from '@/components/ui';
+import common from '@/content/common.json';
+
+/**
+ * The badge family, from Components sheet "03 · Badges & Tags".
+ *
+ * Every class here resolves to a semantic token in `tailwind.tokens.css` — no
+ * literal colours. That is what lets a status recolour once and change
+ * everywhere, and it is why these are components rather than repeated class
+ * strings in each table.
+ */
+
+const BADGE_BASE =
+  'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap border';
+
+/* -------------------------------------------------------------------------- */
+/* Task status                                                                 */
+/* -------------------------------------------------------------------------- */
+
+const STATUS_CLASSES: Record<TaskStatus, string> = {
+  Draft: 'bg-status-draft-surface text-status-draft border-amber-200/50',
+  Submitted: 'bg-status-submitted-surface text-status-submitted border-blue-200/50',
+  InReview: 'bg-status-in-review-surface text-status-in-review border-indigo-200/50',
+  ChangesRequested:
+    'bg-status-changes-requested-surface text-status-changes-requested border-amber-200/50',
+  ReSubmitted: 'bg-status-re-submitted-surface text-status-re-submitted border-indigo-200/50',
+  Approved: 'bg-status-approved-surface text-status-approved border-emerald-200/50',
+  Delivered: 'bg-status-delivered-surface text-status-delivered border-teal-200/50',
+  Cancelled: 'bg-status-cancelled-surface text-status-cancelled border-rose-200/50',
+};
+
+export function StatusBadge({ status, className }: { status: TaskStatus; className?: string }) {
+  return (
+    <span className={cn(BADGE_BASE, STATUS_CLASSES[status], className)}>
+      {common.status[status]}
+    </span>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Priority                                                                    */
+/* -------------------------------------------------------------------------- */
+
+const PRIORITY_CLASSES: Record<Priority, string> = {
+  Low: 'bg-priority-low-surface text-priority-low border-slate-200/50',
+  Medium: 'bg-priority-medium-surface text-priority-medium border-amber-200/50',
+  High: 'bg-priority-high-surface text-priority-high border-rose-200/50',
+};
+
+export function PriorityPill({ priority, className }: { priority: Priority; className?: string }) {
+  return (
+    <span className={cn(BADGE_BASE, PRIORITY_CLASSES[priority], className)}>
+      {common.priority[priority]}
+    </span>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Customer                                                                    */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Customer identity, in the two forms the sheet shows: a filled pill and a bare
+ * dot + label.
+ *
+ * The colour is per-customer data, not a token, so it is applied inline — this
+ * is the one deliberate exception to the no-literal-colours rule, because the
+ * value comes from the database and an admin picks it.
+ */
+export function CustomerChip({
+  name,
+  color,
+  variant = 'pill',
+  className,
+}: {
+  name: string;
+  color: string;
+  variant?: 'pill' | 'inline';
+  className?: string;
+}) {
+  const dot = (
+    <span
+      className="size-1.5 shrink-0 rounded-full"
+      style={{ backgroundColor: color }}
+      aria-hidden="true"
+    />
+  );
+
+  if (variant === 'inline') {
+    return (
+      <span className={cn('inline-flex items-center gap-1.5 text-sm text-ink-700', className)}>
+        {dot}
+        {name}
+      </span>
+    );
+  }
+
+  return (
+    <span
+      className={cn(BADGE_BASE, className)}
+      // 14% tint of the customer colour keeps the label legible while still
+      // reading as that customer's colour.
+      style={{ backgroundColor: `${color}24`, color }}
+    >
+      {dot}
+      {name}
+    </span>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Roles                                                                       */
+/* -------------------------------------------------------------------------- */
+
+const ROLE_CLASSES: Record<Role, string> = {
+  Developer: 'bg-brand-blue-100 text-brand-blue-700',
+  Reviewer: 'bg-emerald-100 text-emerald-700',
+  Admin: 'bg-violet-100 text-violet-700',
+};
+
+/** Internal: callers want `RoleBadges`, which renders the user's whole set. */
+function RoleBadge({ role, className }: { role: Role; className?: string }) {
+  return <span className={cn(BADGE_BASE, ROLE_CLASSES[role], className)}>{common.role[role]}</span>;
+}
+
+/** The role set as rendered in the Users table — one badge per role. */
+export function RoleBadges({ roles, className }: { roles: readonly Role[]; className?: string }) {
+  return (
+    <span className={cn('inline-flex flex-wrap gap-1', className)}>
+      {roles.map((role) => (
+        <RoleBadge key={role} role={role} />
+      ))}
+    </span>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Cycle, version, active state                                                */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Secondary badge shown beside the status once a task has been round-tripped.
+ * Cycle 1 is the norm and carries no badge — showing it on every row would make
+ * the meaningful cases harder to spot.
+ */
+export function CycleBadge({ cycle, className }: { cycle: number; className?: string }) {
+  if (cycle <= 1) return null;
+  return (
+    <span
+      className={cn(BADGE_BASE, 'border-violet-200/60 bg-violet-100/80 text-violet-700', className)}
+    >
+      {common.badges.cycle} {cycle}
+    </span>
+  );
+}
+
+/** Version tag beside a task title, e.g. `V1`. */
+export function VersionTag({ version, className }: { version: string | null; className?: string }) {
+  if (version === null || version === '') return null;
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center rounded-md border border-violet-200/60 bg-violet-100/80 px-1.5 py-0.5 font-mono text-[0.65rem] font-bold text-violet-700',
+        className,
+      )}
+    >
+      {version}
+    </span>
+  );
+}
+
+export function ActiveBadge({ isActive, className }: { isActive: boolean; className?: string }) {
+  return (
+    <span
+      className={cn(
+        BADGE_BASE,
+        isActive
+          ? 'bg-status-approved-surface text-status-approved'
+          : 'bg-priority-low-surface text-priority-low',
+        className,
+      )}
+    >
+      {isActive ? common.badges.active : common.badges.inactive}
+    </span>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Review rank                                                                 */
+/* -------------------------------------------------------------------------- */
+
+const RANK_CLASSES: Record<ReviewRank, string> = {
+  1: 'bg-rank-1-surface text-rank-1',
+  2: 'bg-rank-2-surface text-rank-2',
+  3: 'bg-rank-3-surface text-rank-3',
+};
+
+export function RankBadge({ rank, className }: { rank: ReviewRank; className?: string }) {
+  return (
+    <span className={cn(BADGE_BASE, RANK_CLASSES[rank], className)}>
+      {common.badges.rank} {rank}
+    </span>
+  );
+}
+
+/** Neutral badge for counts and labels with no semantic colour of their own. */
+export function Tag({ children, className }: { children: ReactNode; className?: string }) {
+  return <span className={cn(BADGE_BASE, 'bg-canvas text-ink-700', className)}>{children}</span>;
+}

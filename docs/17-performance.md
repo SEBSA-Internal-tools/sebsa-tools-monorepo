@@ -84,12 +84,12 @@ imported by routes that draw charts.
 
 Informal, but worth holding:
 
-| Metric | Target |
-| --- | --- |
-| Initial JS (gzipped) | < 250 KB |
-| Route chunk | < 100 KB |
-| Largest Contentful Paint | < 2.5s on a mid-tier laptop |
-| Interaction to Next Paint | < 200ms |
+| Metric                    | Target                      |
+| ------------------------- | --------------------------- |
+| Initial JS (gzipped)      | < 250 KB                    |
+| Route chunk               | < 100 KB                    |
+| Largest Contentful Paint  | < 2.5s on a mid-tier laptop |
+| Interaction to Next Paint | < 200ms                     |
 
 ## What not to do
 

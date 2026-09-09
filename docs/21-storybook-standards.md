@@ -30,7 +30,7 @@ Beside the component, not in a parallel tree — a component and its story move
 together or one gets orphaned.
 
 ```tsx
-const meta = { title: "Chrome/Notifications" } satisfies Meta;
+const meta = { title: 'Chrome/Notifications' } satisfies Meta;
 export default meta;
 type Story = StoryObj<typeof meta>;
 ```
@@ -63,8 +63,8 @@ export const EscapeReturnsFocus: Story = {
   render: () => <Harness />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const bell = canvas.getByRole("button", { name: /notifications/i });
-    await userEvent.keyboard("{Escape}");
+    const bell = canvas.getByRole('button', { name: /notifications/i });
+    await userEvent.keyboard('{Escape}');
     await expect(bell).toHaveFocus();
   },
 };

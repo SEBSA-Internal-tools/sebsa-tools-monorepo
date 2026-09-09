@@ -5,18 +5,18 @@ covers what tooling cannot check.
 
 ## Naming
 
-| Thing | Convention | Example |
-| --- | --- | --- |
-| Component file | PascalCase, matching the export | `TaskTable.tsx` |
-| Hook file | camelCase, `use` prefix | `useTaskFilters.ts` |
-| Domain/util file | camelCase | `stepperRules.ts` |
-| Constants file | camelCase | `routePaths.ts` |
-| Test file | `<subject>.test.ts(x)`, beside the subject | `stepperRules.test.ts` |
-| Story file | `<subject>.stories.tsx` | `DataTable.stories.tsx` |
-| Type / interface | PascalCase, no `I` prefix | `TaskSummary` |
-| Boolean | `is` / `has` / `can` / `should` | `canAdvance`, `isSubmitting` |
-| Event handler prop | `on` + event | `onRowClick` |
-| Handler implementation | `handle` + event | `handleRowClick` |
+| Thing                  | Convention                                 | Example                      |
+| ---------------------- | ------------------------------------------ | ---------------------------- |
+| Component file         | PascalCase, matching the export            | `TaskTable.tsx`              |
+| Hook file              | camelCase, `use` prefix                    | `useTaskFilters.ts`          |
+| Domain/util file       | camelCase                                  | `stepperRules.ts`            |
+| Constants file         | camelCase                                  | `routePaths.ts`              |
+| Test file              | `<subject>.test.ts(x)`, beside the subject | `stepperRules.test.ts`       |
+| Story file             | `<subject>.stories.tsx`                    | `DataTable.stories.tsx`      |
+| Type / interface       | PascalCase, no `I` prefix                  | `TaskSummary`                |
+| Boolean                | `is` / `has` / `can` / `should`            | `canAdvance`, `isSubmitting` |
+| Event handler prop     | `on` + event                               | `onRowClick`                 |
+| Handler implementation | `handle` + event                           | `handleRowClick`             |
 
 Names say what a thing is for, not what it is made of. `taskDetailsBlockers`
 rather than `getValidationArray`.
@@ -106,7 +106,7 @@ The second makes the impossible state unrepresentable.
 ### Two rules learned the hard way
 
 **`Slot` with multiple children needs `Slottable`.** Radix's `Slot` merges props
-onto a single child; a component that renders an icon *and* `children` crashes
+onto a single child; a component that renders an icon _and_ `children` crashes
 under `asChild` unless `children` is wrapped in `<Slottable>`.
 
 **React Hook Form: `useWatch`, not `form.watch()`.** `watch()` subscribes
@@ -120,8 +120,8 @@ RadioGroup) are bound.
 Absolute across a boundary, relative within a folder.
 
 ```ts
-import { Button } from "@/components/ui";   // crossing a boundary
-import { TaskRow } from "./TaskRow";        // same feature
+import { Button } from '@/components/ui'; // crossing a boundary
+import { TaskRow } from './TaskRow'; // same feature
 ```
 
 `../../../` is a lint error — three levels up means you have crossed a boundary

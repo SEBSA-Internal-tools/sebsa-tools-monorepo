@@ -3,13 +3,13 @@
 Four kinds of state, four tools. Choosing the wrong one is the most common
 source of bugs in a React application, so the boundary is written down.
 
-| Kind | Tool | Example |
-| --- | --- | --- |
-| **Server state** — owned by the API | TanStack Query | Tasks, checklists, users, notifications |
-| **Client state** — owned by the app, survives navigation | Zustand | Table page size, density |
-| **Form state** — owned by one form | React Hook Form | New task step 1 |
-| **URL state** — shareable, survives reload and back | Search params | Filters, tab, page number |
-| **Local state** — owned by one component | `useState` | A popover's open flag |
+| Kind                                                     | Tool            | Example                                 |
+| -------------------------------------------------------- | --------------- | --------------------------------------- |
+| **Server state** — owned by the API                      | TanStack Query  | Tasks, checklists, users, notifications |
+| **Client state** — owned by the app, survives navigation | Zustand         | Table page size, density                |
+| **Form state** — owned by one form                       | React Hook Form | New task step 1                         |
+| **URL state** — shareable, survives reload and back      | Search params   | Filters, tab, page number               |
+| **Local state** — owned by one component                 | `useState`      | A popover's open flag                   |
 
 ## The decision
 
@@ -41,20 +41,20 @@ export function useMyTasks() {
 
 ### Query keys
 
-Every key comes from the `qk` factory in `src/lib/queryKeys.ts` and is
+Every key comes from the `qk` factory in each hook module (`taskKeys` in `portals/code-review/hooks/useTasks.ts`, `reviewKeys`, `userKeys`, `homeKeys`, `notificationKeys`) and is
 hierarchical, so one invalidation covers a family:
 
 ```ts
-qk.tasks.all()       // ["tasks"]
-qk.tasks.mine()      // ["tasks", "mine"]
-qk.tasks.mineKpis()  // ["tasks", "mine", "kpis"]
-qk.tasks.detail(id)  // ["tasks", "detail", id]
+qk.tasks.all(); // ["tasks"]
+qk.tasks.mine(); // ["tasks", "mine"]
+qk.tasks.mineKpis(); // ["tasks", "mine", "kpis"]
+qk.tasks.detail(id); // ["tasks", "detail", id]
 ```
 
 After a mutation, invalidate the narrowest key that covers what changed:
 
 ```ts
-onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.tasks.all() })
+onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.tasks.all() });
 ```
 
 ### Defaults
@@ -75,7 +75,7 @@ not see a flash of the previous user's data.
 One store today, and that is deliberate.
 
 ```ts
-// src/stores/uiPreferencesStore.ts
+// the three stores listed above
 {
   pageSizeByTable: Record<string, number>,  // keyed by table id
   density: "comfortable" | "compact",
@@ -103,7 +103,7 @@ Uncontrolled by default, validated by Zod through `zodResolver`.
 ```tsx
 const form = useForm<TaskDetailsStep>({
   resolver: zodResolver(taskDetailsStepSchema),
-  mode: "onBlur",
+  mode: 'onBlur',
 });
 ```
 
@@ -138,7 +138,7 @@ Derive during render rather than storing:
 
 ```tsx
 // Bad
-const [full, setFull] = useState("");
+const [full, setFull] = useState('');
 useEffect(() => setFull(`${first} ${last}`), [first, last]);
 
 // Good

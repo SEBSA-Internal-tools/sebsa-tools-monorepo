@@ -13,31 +13,36 @@ there — just slower and more public.
 ## Checklist
 
 ### Correctness
+
 - [ ] It does what the ticket asked, including the edge cases
 - [ ] Loading, empty, error and success states all exist and were looked at
 - [ ] No `console.log` left behind
 - [ ] No commented-out code
 
 ### Types
+
 - [ ] No `any`. `unknown` plus narrowing where the type is genuinely unknown
 - [ ] Payload types inferred from Zod schemas, not hand-written
 - [ ] `noUncheckedIndexedAccess` handled properly — no `!` outside tests
 
 ### Architecture
+
 - [ ] The file is in the right folder ([folder structure](./03-folder-structure.md))
-- [ ] No layering violation — ESLint will tell you, but understand *why* if it does
+- [ ] No layering violation — ESLint will tell you, but understand _why_ if it does
 - [ ] Business rules are pure functions in `domain/`, not inside a component
 - [ ] Fetching is in `api/` hooks, not in a component
 - [ ] No path literals — everything from `routePaths`
 - [ ] No user-facing string literals — everything from `content/`
 
 ### UI
+
 - [ ] Tokens only, no hardcoded colours
 - [ ] Reused an existing component before adding one
 - [ ] Responsive at 360, 768, 1024 and 1440
 - [ ] Motion inside `prefers-reduced-motion: no-preference`
 
 ### Accessibility
+
 - [ ] Storybook axe passes at `error`
 - [ ] Tabbed through it; focus visible and ordered
 - [ ] Works without a mouse — Enter, Space, Escape
@@ -45,6 +50,7 @@ there — just slower and more public.
 - [ ] Icon-only buttons have an `aria-label` naming the action
 
 ### Tests
+
 - [ ] New domain function has unit tests
 - [ ] New shared component has a story
 - [ ] New user journey has an e2e test
@@ -52,7 +58,8 @@ there — just slower and more public.
 - [ ] A bug fix ships with the test that would have caught it
 
 ### Documentation
-- [ ] Non-obvious decisions have a comment saying *why*
+
+- [ ] Non-obvious decisions have a comment saying _why_
 - [ ] An architectural decision gets an [ADR](./adr/)
 - [ ] A new dependency is justified in [dependency governance](./15-dependency-governance.md)
 - [ ] Docs updated if behaviour they describe changed

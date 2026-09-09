@@ -10,7 +10,9 @@ context.
 
 ```tsx
 <Card>
-  <CardHeader><CardTitle>My Tasks</CardTitle></CardHeader>
+  <CardHeader>
+    <CardTitle>My Tasks</CardTitle>
+  </CardHeader>
   <CardContent>…</CardContent>
 </Card>
 ```
@@ -25,12 +27,12 @@ visual variation.
 Visual variation is data, not branching.
 
 ```ts
-const buttonVariants = cva("inline-flex items-center …", {
+const buttonVariants = cva('inline-flex items-center …', {
   variants: {
-    variant: { primary: "…", outline: "…", danger: "…" },
-    size: { sm: "…", md: "…", lg: "…" },
+    variant: { primary: '…', outline: '…', danger: '…' },
+    size: { sm: '…', md: '…', lg: '…' },
   },
-  defaultVariants: { variant: "primary", size: "md" },
+  defaultVariants: { variant: 'primary', size: 'md' },
 });
 ```
 
@@ -45,7 +47,9 @@ A button that is really a link should render an `<a>` and still look like a
 button.
 
 ```tsx
-<Button asChild><Link to={routePaths.crp.developer.newTask}>New task</Link></Button>
+<Button asChild>
+  <Link to={routePaths.crp.developer.newTask}>New task</Link>
+</Button>
 ```
 
 `Slot` merges the button's props onto the child. **A component that renders more
@@ -77,10 +81,10 @@ into a store.**
 ```ts
 export const qk = {
   tasks: {
-    all: () => ["tasks"] as const,
-    mine: () => [...qk.tasks.all(), "mine"] as const,
-    mineKpis: () => [...qk.tasks.all(), "mine", "kpis"] as const,
-    detail: (id: string) => [...qk.tasks.all(), "detail", id] as const,
+    all: () => ['tasks'] as const,
+    mine: () => [...qk.tasks.all(), 'mine'] as const,
+    mineKpis: () => [...qk.tasks.all(), 'mine', 'kpis'] as const,
+    detail: (id: string) => [...qk.tasks.all(), 'detail', id] as const,
   },
 };
 ```
@@ -149,11 +153,11 @@ connected piece be tested against MSW without a Popover in the way.
 
 ## Anti-patterns
 
-| Don't | Because |
-| --- | --- |
-| Copy server data into Zustand | Two sources of truth; the copy goes stale |
-| `useEffect` to derive state | It is an expression, not a synchronisation |
-| A prop named `type` that switches layout | That is a compound component |
-| Barrel-export everything | Circular imports and slow builds; barrels are for `components/ui` and `content` only |
-| Colour as the only signal | Fails WCAG 1.4.1 and greyscale printing |
-| A `ref` to reach into a child | Lift the state or take a callback |
+| Don't                                    | Because                                                                              |
+| ---------------------------------------- | ------------------------------------------------------------------------------------ |
+| Copy server data into Zustand            | Two sources of truth; the copy goes stale                                            |
+| `useEffect` to derive state              | It is an expression, not a synchronisation                                           |
+| A prop named `type` that switches layout | That is a compound component                                                         |
+| Barrel-export everything                 | Circular imports and slow builds; barrels are for `components/ui` and `content` only |
+| Colour as the only signal                | Fails WCAG 1.4.1 and greyscale printing                                              |
+| A `ref` to reach into a child            | Lift the state or take a callback                                                    |

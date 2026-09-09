@@ -1,6 +1,5 @@
-import home from "./home.json";
-import a11y from "./a11y.json";
-
+import home from './home.json';
+import a11y from './a11y.json';
 
 /**
  * Every user-facing string in one typed catalog.

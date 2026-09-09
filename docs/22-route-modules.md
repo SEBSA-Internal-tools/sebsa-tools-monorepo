@@ -1,7 +1,7 @@
 # 22 · Route modules — how to export a page file correctly
 
 A companion to [11 · Routing and authorization](./11-routing-and-authorization.md).
-That document explains the route *tree*. This one explains the *file* a route
+That document explains the route _tree_. This one explains the _file_ a route
 points at — what it must export, why, and how to read the TypeScript error you
 get when the export is wrong.
 
@@ -39,7 +39,7 @@ Normally when you lazy-load a React component you write
 `React.lazy(() => import("./Page"))`, and React reads the module's **`default`**
 export. React Router 7 does something different.
 
-`lazy` here does not load *a component*. It loads **a bundle of route fields** —
+`lazy` here does not load _a component_. It loads **a bundle of route fields** —
 the component, plus optionally a `loader`, an `ErrorBoundary`, a `handle`, and
 so on. So React Router does not ask "what is the default export?" It asks:
 
@@ -47,19 +47,23 @@ so on. So React Router does not ask "what is the default export?" It asks:
 > `ErrorBoundary`, `action`, `handle`, `shouldRevalidate`… and copy each one it
 > finds onto the route.
 
-An ES module *is* an object: its named exports are its keys. So this file…
+An ES module _is_ an object: its named exports are its keys. So this file…
 
 ```tsx
-export function MyTasksPage() { /* … */ }
+export function MyTasksPage() {
+  /* … */
+}
 export { MyTasksPage as Component };
-export async function loader() { /* … */ }
+export async function loader() {
+  /* … */
+}
 ```
 
 …arrives at the router as `{ MyTasksPage: fn, Component: fn, loader: fn }`, and
 the router picks out `Component` and `loader`. The extra `MyTasksPage` key is
 ignored — harmless.
 
-The payoff is code splitting at the right granularity: the page *and* its data
+The payoff is code splitting at the right granularity: the page _and_ its data
 loader travel in one chunk, downloaded only when the user visits that URL. You
 can see it in the build output — each route module gets its own `.js` file:
 
@@ -88,11 +92,11 @@ TypeScript errors read worst-first. Skip to the **last** line — it is the actu
 complaint, and the lines above it are just the chain of reasoning that led
 there. Translated:
 
-| The error says | It means |
-| --- | --- |
-| `typeof import(".../CodeReviewHomePage")` | "the module's shape — the set of names it exports" |
-| `Omit<BaseRouteObject, …>` | "the set of names a route is allowed to define" |
-| **`has no properties in common`** | **"your file exports nothing the router recognises"** |
+| The error says                            | It means                                              |
+| ----------------------------------------- | ----------------------------------------------------- |
+| `typeof import(".../CodeReviewHomePage")` | "the module's shape — the set of names it exports"    |
+| `Omit<BaseRouteObject, …>`                | "the set of names a route is allowed to define"       |
+| **`has no properties in common`**         | **"your file exports nothing the router recognises"** |
 
 That last phrase is the tell. `has no properties in common` almost always means
 a missing or misspelt `Component` export — not a broken install, not a version
@@ -100,7 +104,7 @@ mismatch, not a path alias problem.
 
 > **Note on where the error appears.** The red squiggle is on
 > `codeReviewRoutes.tsx`, but the mistake is in `CodeReviewHomePage.tsx`.
-> TypeScript reports errors where the type *mismatch* is detected, which is at
+> TypeScript reports errors where the type _mismatch_ is detected, which is at
 > the call site, not where the missing export lives. When a route file errors,
 > open the file it imports.
 
@@ -117,18 +121,18 @@ Never type a URL string anywhere else.
 
 ```ts
 export const SEGMENTS = {
-  crp: "crp",
-  admin: "admin",   // ← the segment
+  crp: 'crp',
+  admin: 'admin', // ← the segment
 } as const;
 
 export const routePaths = {
   crp: {
-    admin: { dashboard: `${CRP}/${SEGMENTS.admin}` },   // ← the absolute path, for <Link to={…}>
+    admin: { dashboard: `${CRP}/${SEGMENTS.admin}` }, // ← the absolute path, for <Link to={…}>
   },
 } as const;
 
 export const relativePaths = {
-  crp: { admin: SEGMENTS.admin },                       // ← the relative path, for the router
+  crp: { admin: SEGMENTS.admin }, // ← the relative path, for the router
 } as const;
 ```
 
@@ -206,11 +210,11 @@ Before you commit a new page:
 
 ## Common mistakes
 
-| Symptom | Cause | Fix |
-| --- | --- | --- |
-| `has no properties in common` | No `Component` export | Add `export { PageName as Component };` |
-| Same error, export looks present | Misspelt — `component`, `Components` | The name is exactly `Component`, capital C |
-| Same error, but `export default` is there | `default` is not a route field | Add the named `Component` export too; keep `default` if you like |
-| `'React' is declared but its value is never read` | Leftover `import React from 'react'` | Delete the line. The project uses the modern JSX transform (`"jsx": "react-jsx"`), so React is injected automatically. Unused imports are errors here, not warnings, because `noUnusedLocals` is on |
-| Page renders but has no app bar or layout | The route is not nested under the layout route | Check the parent entry in [src/routes/index.tsx](../src/routes/index.tsx) has an `element` that renders `<Outlet />` |
-| `Cannot find module '@/pages/…'` | Alias not resolving | `@/` is declared twice and both must agree: `paths` in [tsconfig.app.json](../tsconfig.app.json) and `resolve.alias` in [vite.config.ts](../vite.config.ts) |
+| Symptom                                           | Cause                                          | Fix                                                                                                                                                                                                 |
+| ------------------------------------------------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `has no properties in common`                     | No `Component` export                          | Add `export { PageName as Component };`                                                                                                                                                             |
+| Same error, export looks present                  | Misspelt — `component`, `Components`           | The name is exactly `Component`, capital C                                                                                                                                                          |
+| Same error, but `export default` is there         | `default` is not a route field                 | Add the named `Component` export too; keep `default` if you like                                                                                                                                    |
+| `'React' is declared but its value is never read` | Leftover `import React from 'react'`           | Delete the line. The project uses the modern JSX transform (`"jsx": "react-jsx"`), so React is injected automatically. Unused imports are errors here, not warnings, because `noUnusedLocals` is on |
+| Page renders but has no app bar or layout         | The route is not nested under the layout route | Check the parent entry in [src/routes/index.tsx](../src/routes/index.tsx) has an `element` that renders `<Outlet />`                                                                                |
+| `Cannot find module '@/pages/…'`                  | Alias not resolving                            | `@/` is declared twice and both must agree: `paths` in [tsconfig.app.json](../tsconfig.app.json) and `resolve.alias` in [vite.config.ts](../vite.config.ts)                                         |

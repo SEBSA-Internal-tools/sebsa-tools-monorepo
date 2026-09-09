@@ -1,15 +1,15 @@
-import type { Role } from "@sdp/types";
+import type { Role } from '@sdp/contracts';
 
 /**
  * Role display labels and their canonical order.
  */
 
-export const ROLE_ORDER: readonly Role[] = ["developer", "reviewer", "admin"];
+export const ROLE_ORDER: readonly Role[] = ['Developer', 'Reviewer', 'Admin'];
 
 export const ROLE_LABELS: Record<Role, string> = {
-  developer: "Developer",
-  reviewer: "Reviewer",
-  admin: "Admin",
+  Developer: 'Developer',
+  Reviewer: 'Reviewer',
+  Admin: 'Admin',
 };
 
 export function roleLabel(role: Role): string {

@@ -8,8 +8,6 @@
  *
  */
 
-
-export * from "./navigation";
-export * from "./portals";
-export * from "./roles";
-export * from "./routePaths";
+export * from './portals';
+export * from './roles';
+export * from './routePaths';

@@ -12,13 +12,20 @@ two cannot drift.
 
 ```ts
 export const SEGMENTS = {
-  crp: "crp", delivery: "delivery", wiki: "wiki",
-  developer: "developer", reviewer: "reviewer", admin: "admin",
-  tasks: "tasks", new: "new", taskId: ":taskId", login: "login",
+  crp: 'crp',
+  delivery: 'delivery',
+  wiki: 'wiki',
+  developer: 'developer',
+  reviewer: 'reviewer',
+  admin: 'admin',
+  tasks: 'tasks',
+  new: 'new',
+  taskId: ':taskId',
+  login: 'login',
 } as const;
 
 export const routePaths = {
-  root: "/",
+  root: '/',
   login: `/${SEGMENTS.login}`,
   crp: {
     home: CRP,
@@ -30,8 +37,8 @@ export const routePaths = {
     reviewer: { dashboard: `${CRP}/reviewer` },
     admin: { dashboard: `${CRP}/admin` },
   },
-  delivery: { root: "/delivery" },
-  wiki: { root: "/wiki" },
+  delivery: { root: '/delivery' },
+  wiki: { root: '/wiki' },
 } as const;
 ```
 
@@ -45,10 +52,18 @@ customer id with a slash cannot break the URL.
 
 ```tsx
 export const routeTree: RouteObject[] = [
-  { path: SEGMENTS.login, errorElement: <ErrorBoundary />, lazy: () => import("@/pages/LoginPage") },
   {
-    path: "/",
-    element: <RequireAuth><AppLayout /></RequireAuth>,
+    path: SEGMENTS.login,
+    errorElement: <ErrorBoundary />,
+    lazy: () => import('@/pages/LoginPage'),
+  },
+  {
+    path: '/',
+    element: (
+      <RequireAuth>
+        <AppLayout />
+      </RequireAuth>
+    ),
     errorElement: <ErrorBoundary />,
     children: [
       { index: true, element: <Navigate to={routePaths.crp.home} replace /> },
@@ -110,7 +125,7 @@ returns you to the page you asked for rather than dumping you on the home page.
 ## Typed params
 
 ```ts
-const { taskId } = useTaskParams();  // string, not string | undefined
+const { taskId } = useTaskParams(); // string, not string | undefined
 ```
 
 `routeParams.ts` centralises the narrowing so no component writes `params.taskId!`.
@@ -120,7 +135,7 @@ const { taskId } = useTaskParams();  // string, not string | undefined
 `src/routes/routes.test.ts` walks `routePaths` — calling every builder with a
 sample id — and asserts each leaf resolves through `matchRoutes(routeTree, path)`.
 It also checks every workspace card href and every portal root, plus one path
-that should *not* match, so the test cannot pass vacuously.
+that should _not_ match, so the test cannot pass vacuously.
 
 This exists because three navigation links once pointed at unmounted paths and
 landed users on the error boundary. That defect class cannot come back silently.

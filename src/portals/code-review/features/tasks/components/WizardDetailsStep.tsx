@@ -1,0 +1,274 @@
+import { CalendarDays, FileText, Hash, Info, RefreshCw, User as UserIcon } from 'lucide-react';
+import { PRIORITIES, type Priority } from '@sdp/contracts';
+import { cn } from '@/components/ui';
+import { StatusBadge } from '@/portals/code-review/components/badges.tsx';
+import { Card, CardBody, CardHeader } from '@/components/ui/Card.tsx';
+import { Field, Input } from '@/components/ui/Field.tsx';
+import { SegmentedOptions, type SegmentedOption } from '@/components/ui/SegmentedOptions.tsx';
+import { Select, type SelectOption } from '@/components/ui/Select.tsx';
+import { formatDate } from '@/lib/formatters.ts';
+import { useCurrentUser } from '@/hooks/useCurrentUser.ts';
+import common from '@/content/common.json';
+import tasks from '@/content/tasks.json';
+import { useCustomers } from '../api/queries.ts';
+import { deriveTitle } from '../domain/taskRules.ts';
+import { useTaskDraft } from '../hooks/useTaskDraft.ts';
+
+/**
+ * Wizard step 1 (screen 22) — task identity.
+ *
+ * The System Information panel is screen 15's; the single-page create form was
+ * dropped and its one unique element moved here, so nothing from that design was
+ * lost when the flow was consolidated.
+ */
+
+const PRIORITY_DOT: Record<Priority, string> = {
+  Low: 'bg-priority-low',
+  Medium: 'bg-status-draft',
+  High: 'bg-danger',
+};
+
+const PRIORITY_OPTIONS: SegmentedOption<Priority>[] = PRIORITIES.map((priority) => ({
+  value: priority,
+  label: common.priority[priority],
+  dotClassName: PRIORITY_DOT[priority],
+}));
+
+export function WizardDetailsStep({ showErrors }: { showErrors: boolean }) {
+  const draft = useTaskDraft();
+  const { data: customers } = useCustomers();
+
+  const customerOptions: SelectOption[] = (customers ?? [])
+    .filter((customer) => customer.isActive)
+    .map((customer) => ({
+      value: customer.id,
+      label: customer.name,
+      adornment: (
+        <span
+          className="size-1.5 shrink-0 rounded-full"
+          style={{ backgroundColor: customer.color }}
+          aria-hidden="true"
+        />
+      ),
+    }));
+
+  const customerName = customers?.find((c) => c.id === draft.customerId)?.name ?? '';
+  const previewTitle =
+    draft.customerId === '' || draft.crimId.trim() === ''
+      ? ''
+      : deriveTitle(customerName, draft.crimId, draft.version);
+
+  return (
+    <Card className="flex h-full flex-col">
+      <CardHeader
+        title={tasks.wizard.details.title}
+        description="Enter the core customer and task identity details to begin the review request"
+      />
+      <CardBody className="space-y-6 pt-6 pb-6">
+        <div className="grid gap-5 sm:grid-cols-2">
+          <Field
+            label={tasks.wizard.details.customer}
+            required
+            error={
+              showErrors && draft.customerId === '' ? tasks.wizard.requirements.customer : undefined
+            }
+          >
+            <Select
+              value={draft.customerId}
+              onValueChange={(customerId) => {
+                draft.setDetails({ customerId });
+              }}
+              options={customerOptions}
+              placeholder={tasks.wizard.details.customerPlaceholder}
+            />
+          </Field>
+
+          <Field
+            label={tasks.wizard.details.crimId}
+            required
+            error={
+              showErrors && draft.crimId.trim() === ''
+                ? tasks.wizard.requirements.crimId
+                : undefined
+            }
+          >
+            <Input
+              value={draft.crimId}
+              onChange={(event) => {
+                draft.setDetails({ crimId: event.target.value });
+              }}
+              placeholder={tasks.wizard.details.crimIdPlaceholder}
+            />
+          </Field>
+        </div>
+
+        <Field
+          label={
+            <>
+              {tasks.wizard.details.version}{' '}
+              <span className="font-normal text-ink-500">{tasks.wizard.details.optional}</span>
+            </>
+          }
+          hint={tasks.wizard.details.versionHint}
+        >
+          <Input
+            value={draft.version}
+            onChange={(event) => {
+              draft.setDetails({ version: event.target.value });
+            }}
+            placeholder={tasks.wizard.details.versionPlaceholder}
+          />
+        </Field>
+
+        <SegmentedOptions
+          value={draft.priority}
+          onValueChange={(priority) => {
+            draft.setDetails({ priority });
+          }}
+          options={PRIORITY_OPTIONS}
+          label={tasks.wizard.details.priority}
+          required
+        />
+
+        {/*
+          The title is shown as a disabled input rather than as plain text: it
+          occupies a field's place in the form, and looking like one makes it
+          obvious the value belongs to the record even though it cannot be typed.
+          The rule behind it is `deriveTitle` (FL 2.5-01), previewed live so the
+          user sees it form rather than discovering it after saving.
+        */}
+        <Field
+          label={
+            <>
+              {tasks.wizard.details.derivedTitle}{' '}
+              <span className="font-normal text-ink-500">{tasks.wizard.details.autoGenerated}</span>
+            </>
+          }
+        >
+          <Input
+            value={previewTitle}
+            placeholder={tasks.wizard.details.titlePlaceholder}
+            readOnly
+            disabled
+            className="text-ink-800 bg-canvas/70 font-medium"
+          />
+        </Field>
+      </CardBody>
+    </Card>
+  );
+}
+
+/** The System Information panel, rendered by the wizard shell's right column. */
+export function SystemInformationPanel({ className }: { className?: string } = {}) {
+  const draft = useTaskDraft();
+  const { data: user } = useCurrentUser();
+  const { data: customers } = useCustomers();
+
+  const customerName = customers?.find((c) => c.id === draft.customerId)?.name ?? '';
+  const derivedTitle =
+    draft.customerId === '' || draft.crimId.trim() === ''
+      ? null
+      : deriveTitle(customerName, draft.crimId, draft.version);
+
+  const rows = [
+    {
+      id: 'taskId',
+      icon: <Hash className="size-4 text-violet-600" />,
+      label: tasks.detail.fields.taskId,
+      value:
+        draft.taskId === null ? (
+          <span className="text-xs font-medium text-ink-400">
+            {tasks.wizard.details.taskIdPending}
+          </span>
+        ) : (
+          <span className="text-ink-800 rounded-md border border-line bg-canvas px-2 py-0.5 font-mono text-xs font-semibold">
+            {draft.taskCode ?? draft.taskId}
+          </span>
+        ),
+    },
+    {
+      id: 'title',
+      icon: <FileText className="size-4 text-violet-600" />,
+      label: tasks.detail.fields.title,
+      value: derivedTitle ? (
+        <span
+          className="max-w-[190px] truncate text-right text-xs font-semibold text-ink-900"
+          title={derivedTitle}
+        >
+          {derivedTitle}
+        </span>
+      ) : (
+        <span className="text-xs font-medium text-ink-400">
+          {tasks.wizard.details.autoGenerated}
+        </span>
+      ),
+    },
+    {
+      id: 'status',
+      icon: <Info className="size-4 text-violet-600" />,
+      label: tasks.detail.fields.status,
+      value: <StatusBadge status="Draft" />,
+    },
+    {
+      id: 'cycle',
+      icon: <RefreshCw className="size-4 text-violet-600" />,
+      label: tasks.detail.fields.cycle,
+      value: (
+        <span className="text-ink-800 rounded-md border border-line bg-canvas px-2 py-0.5 font-mono text-xs font-semibold">
+          1
+        </span>
+      ),
+    },
+    {
+      id: 'developer',
+      icon: <UserIcon className="size-4 text-violet-600" />,
+      label: tasks.detail.fields.developer,
+      value: <span className="font-medium text-ink-900">{user?.name ?? '—'}</span>,
+    },
+    {
+      id: 'created',
+      icon: <CalendarDays className="size-4 text-violet-600" />,
+      label: tasks.detail.fields.created,
+      value: (
+        <span className="text-ink-800 text-xs font-semibold">
+          {draft.createdAt ? formatDate(draft.createdAt) : formatDate(new Date().toISOString())}
+        </span>
+      ),
+    },
+    {
+      id: 'submitted',
+      icon: <CalendarDays className="size-4 text-violet-600" />,
+      label: tasks.detail.fields.submitted,
+      value: draft.submittedAt ? (
+        <span className="text-ink-800 text-xs font-semibold">{formatDate(draft.submittedAt)}</span>
+      ) : (
+        <span className="text-xs font-medium text-ink-400">—</span>
+      ),
+    },
+  ];
+
+  return (
+    <Card className={cn('flex flex-col', className)}>
+      <CardHeader
+        title={tasks.wizard.details.systemInfoTitle}
+        icon={<Info className="size-4 text-violet-600" />}
+      />
+      <CardBody className="flex flex-1 flex-col justify-between pt-3">
+        <dl className="divide-y divide-line">
+          {rows.map((row) => (
+            <div
+              key={row.id}
+              className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0"
+            >
+              <dt className="flex items-center gap-2 text-sm font-medium text-ink-500">
+                <span aria-hidden="true">{row.icon}</span>
+                {row.label}
+              </dt>
+              <dd className="flex items-center justify-end text-sm">{row.value}</dd>
+            </div>
+          ))}
+        </dl>
+      </CardBody>
+    </Card>
+  );
+}
