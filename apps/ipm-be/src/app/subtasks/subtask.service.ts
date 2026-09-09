@@ -1,9 +1,10 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '@sebsa-pm-tool/core';
 import { AuthUser, Subtask } from '@sebsa-pm-tool/shared-models';
-import { Prisma } from '@prisma/client';
+import { ActivityAction, EntityType, Prisma } from '@prisma/client';
 import { CreateSubtaskDto } from './dto/create-subtask.dto';
 import { UpdateSubtaskDto } from './dto/update-subtask.dto';
+import { ActivityLogsService } from '../activity-logs/activity-logs.service';
 import { NotificationService } from '../notifications/notification.service';
 
 const ADMIN_SYSTEM_ROLES: AuthUser['systemRole'][] = ['ADMIN', 'SUPER_ADMIN'];
@@ -20,6 +21,7 @@ type SubtaskWithDetail = Prisma.SubtaskGetPayload<{ include: typeof subtaskInclu
 export class SubtaskService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly activityLogs: ActivityLogsService,
     private readonly notificationService: NotificationService,
   ) {}
 
@@ -41,21 +43,38 @@ export class SubtaskService {
     await this.assertAssigneesValid(dto.assigneeIds, task.case.projectId);
     await this.assertSubtaskTypeValid(dto.subtaskTypeId);
 
-    const created = await this.prisma.subtask.create({
-      data: {
-        taskId,
-        title: dto.title,
-        description: dto.description,
-        status: dto.status,
-        dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
-        jiraStatusLabel: dto.jiraStatusLabel,
-        subtaskTypeId: dto.subtaskTypeId,
-        createdById: user.id,
-        ...(dto.assigneeIds?.length && {
-          assignees: { createMany: { data: dto.assigneeIds.map((userId) => ({ userId })) } },
-        }),
-      },
-      include: subtaskInclude,
+    const created = await this.prisma.$transaction(async (tx) => {
+      const subtask = await tx.subtask.create({
+        data: {
+          taskId,
+          title: dto.title,
+          description: dto.description,
+          status: dto.status,
+          dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
+          jiraStatusLabel: dto.jiraStatusLabel,
+          subtaskTypeId: dto.subtaskTypeId,
+          createdById: user.id,
+          ...(dto.assigneeIds?.length && {
+            assignees: { createMany: { data: dto.assigneeIds.map((userId) => ({ userId })) } },
+          }),
+        },
+        include: subtaskInclude,
+      });
+
+      await this.activityLogs.record(
+        {
+          projectId: task.case.projectId,
+          entityType: EntityType.SUBTASK,
+          entityId: subtask.id,
+          entityLabel: subtask.title,
+          action: ActivityAction.CREATED,
+          actorId: user.id,
+          description: `Created subtask "${subtask.title}"`,
+        },
+        tx,
+      );
+
+      return subtask;
     });
 
     if (dto.assigneeIds?.length) {
@@ -90,17 +109,53 @@ export class SubtaskService {
     }
 
     const { assigneeIds, ...restDto } = dto;
+    const isStatusChange = !!dto.status && dto.status !== existing.status;
+    const previousAssignees = existing.assignees.map((a) => a.user.name);
+    const changes = [
+      ...this.activityLogs.buildFieldChanges(existing, restDto),
+      ...(assigneeIds
+        ? this.activityLogs.buildAssigneeChange(
+            previousAssignees,
+            await this.getUserNames(assigneeIds),
+          )
+        : []),
+    ];
 
-    const updated = await this.prisma.subtask.update({
-      where: { id },
-      data: {
-        ...restDto,
-        ...(dto.dueDate && { dueDate: new Date(dto.dueDate) }),
-        ...(assigneeIds && {
-          assignees: { deleteMany: {}, createMany: { data: assigneeIds.map((userId) => ({ userId })) } },
-        }),
-      },
-      include: subtaskInclude,
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const subtask = await tx.subtask.update({
+        where: { id },
+        data: {
+          ...restDto,
+          ...(dto.dueDate && { dueDate: new Date(dto.dueDate) }),
+          ...(assigneeIds && {
+            assignees: { deleteMany: {}, createMany: { data: assigneeIds.map((userId) => ({ userId })) } },
+          }),
+        },
+        include: subtaskInclude,
+      });
+
+      // A status move is logged as STATUS_CHANGED rather than UPDATED so the
+      // feed can single those out; any other edited fields ride along in
+      // `changes` instead of producing a second entry for one request.
+      if (changes.length > 0 || assigneeIds) {
+        await this.activityLogs.record(
+          {
+            projectId: existing.task.case.projectId,
+            entityType: EntityType.SUBTASK,
+            entityId: id,
+            entityLabel: subtask.title,
+            action: isStatusChange ? ActivityAction.STATUS_CHANGED : ActivityAction.UPDATED,
+            actorId: user.id,
+            description: isStatusChange
+              ? `Moved subtask "${subtask.title}" from ${existing.status} to ${subtask.status}`
+              : `Updated subtask "${subtask.title}"`,
+            changes,
+          },
+          tx,
+        );
+      }
+
+      return subtask;
     });
 
     if (assigneeIds?.length) {
@@ -121,7 +176,23 @@ export class SubtaskService {
     const existing = await this.getSubtaskDetailOrThrow(id);
     await this.assertCanEdit(existing.task.case.projectId, user);
 
-    await this.prisma.subtask.update({ where: { id }, data: { deletedAt: new Date() } });
+    await this.prisma.$transaction(async (tx) => {
+      await tx.subtask.update({ where: { id }, data: { deletedAt: new Date() } });
+
+      await this.activityLogs.record(
+        {
+          projectId: existing.task.case.projectId,
+          entityType: EntityType.SUBTASK,
+          entityId: id,
+          entityLabel: existing.title,
+          action: ActivityAction.DELETED,
+          actorId: user.id,
+          description: `Deleted subtask "${existing.title}"`,
+        },
+        tx,
+      );
+    });
+
     return { message: 'Subtask deleted successfully.' };
   }
 
@@ -130,9 +201,32 @@ export class SubtaskService {
     await this.assertCanEdit(existing.task.case.projectId, user);
     await this.assertAssigneesValid(assigneeIds, existing.task.case.projectId);
 
-    await this.prisma.subtaskAssignee.createMany({
-      data: assigneeIds.map((userId) => ({ subtaskId: id, userId })),
-      skipDuplicates: true,
+    const addedNames = await this.getUserNames(assigneeIds);
+    const previousAssignees = existing.assignees.map((a) => a.user.name);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.subtaskAssignee.createMany({
+        data: assigneeIds.map((userId) => ({ subtaskId: id, userId })),
+        skipDuplicates: true,
+      });
+
+      await this.activityLogs.record(
+        {
+          projectId: existing.task.case.projectId,
+          entityType: EntityType.SUBTASK,
+          entityId: id,
+          entityLabel: existing.title,
+          action: ActivityAction.ASSIGNED,
+          actorId: user.id,
+          description: `Assigned ${addedNames.join(', ')} to subtask "${existing.title}"`,
+          changes: this.activityLogs.buildAssigneeChange(
+            previousAssignees,
+            // createMany skips duplicates, so the resulting set is the union.
+            Array.from(new Set([...previousAssignees, ...addedNames])),
+          ),
+        },
+        tx,
+      );
     });
 
     this.notificationService.notifyAssignees({
@@ -151,7 +245,30 @@ export class SubtaskService {
     const existing = await this.getSubtaskDetailOrThrow(id);
     await this.assertCanEdit(existing.task.case.projectId, user);
 
-    await this.prisma.subtaskAssignee.deleteMany({ where: { subtaskId: id, userId } });
+    const removedName = existing.assignees.find((a) => a.user.id === userId)?.user.name;
+    const previousAssignees = existing.assignees.map((a) => a.user.name);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.subtaskAssignee.deleteMany({ where: { subtaskId: id, userId } });
+
+      await this.activityLogs.record(
+        {
+          projectId: existing.task.case.projectId,
+          entityType: EntityType.SUBTASK,
+          entityId: id,
+          entityLabel: existing.title,
+          action: ActivityAction.UNASSIGNED,
+          actorId: user.id,
+          description: `Unassigned ${removedName ?? 'a user'} from subtask "${existing.title}"`,
+          changes: this.activityLogs.buildAssigneeChange(
+            previousAssignees,
+            existing.assignees.filter((a) => a.user.id !== userId).map((a) => a.user.name),
+          ),
+        },
+        tx,
+      );
+    });
+
     return this.findOne(id, user);
   }
 
@@ -181,6 +298,17 @@ export class SubtaskService {
     if (!membership || membership.role.privilegeGroup.isReadOnly) {
       throw new ForbiddenException('You do not have permission to edit subtasks in this project.');
     }
+  }
+
+  /** Names for a set of user ids, for rendering an assignee change. */
+  private async getUserNames(userIds: string[]): Promise<string[]> {
+    if (userIds.length === 0) return [];
+
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: { name: true },
+    });
+    return users.map((u) => u.name);
   }
 
   private async assertAssigneesValid(

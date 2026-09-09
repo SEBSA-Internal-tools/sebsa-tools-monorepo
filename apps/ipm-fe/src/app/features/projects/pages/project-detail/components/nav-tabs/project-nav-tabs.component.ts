@@ -1,7 +1,15 @@
 import { Component, Input, Output, EventEmitter, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
-type TabType = 'overview' | 'kanban' | 'tasklist' | 'calendar' | 'sprint' | 'team' | 'configuration';
+type TabType =
+  | 'overview'
+  | 'kanban'
+  | 'tasklist'
+  | 'calendar'
+  | 'sprint'
+  | 'team'
+  | 'activity'
+  | 'configuration';
 
 interface Tab {
   id: TabType;
@@ -29,6 +37,7 @@ export class ProjectNavTabsComponent {
     { id: 'calendar', label: 'Calendar', icon: 'calendar_month' },
     { id: 'sprint', label: 'Sprint', icon: 'sprint' },
     { id: 'team', label: 'Team', icon: 'groups' },
+    { id: 'activity', label: 'Activity', icon: 'history' },
     { id: 'configuration', label: 'Configuration', icon: 'settings' },
   ];
 

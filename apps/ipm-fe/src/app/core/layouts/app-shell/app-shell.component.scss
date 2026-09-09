@@ -200,6 +200,35 @@
   }
 }
 
+.nav-group {
+  display: flex;
+  flex-direction: column;
+}
+
+// The parent is a button, not a link, so it never carries routerLinkActive.
+// `.active` is applied manually while one of its children is the current route.
+.nav-group-toggle {
+  .nav-chevron {
+    margin-left: auto;
+    font-size: 18px;
+    transition: transform 0.2s ease;
+  }
+}
+
+.nav-submenu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 2px 0 2px 16px;
+  padding-left: 10px;
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.nav-subitem {
+  padding: 8px 12px;
+  font-size: 0.8125rem;
+}
+
 .nav-icon {
   width: 20px;
   height: 20px;

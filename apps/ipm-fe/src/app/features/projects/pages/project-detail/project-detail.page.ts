@@ -14,6 +14,7 @@ import { ProjectTeamComponent } from './components/team/project-team.component';
 import { ProjectSprintComponent } from './components/sprint/project-sprint.component';
 import { ProjectOverviewComponent } from './components/overview/project-overview.component';
 import { ProjectConfigurationComponent } from './components/configuration/project-configuration.component';
+import { ActivityFeedComponent } from '../../../../core/components/activity-feed/activity-feed.component';
 import { CalendarViewComponent } from '../../../calendar/components/calendar-view/calendar-view.component';
 import {
   taskToCalendarItem,
@@ -43,6 +44,7 @@ import type { CreateCaseRequest, Project } from '@sebsa-pm-tool/shared-models';
     CreateCaseModalComponent,
     CreateProjectModalComponent,
     ProjectConfigurationComponent,
+    ActivityFeedComponent,
   ],
   templateUrl: './project-detail.page.html',
   styleUrl: './project-detail.page.scss',
@@ -62,7 +64,15 @@ export class ProjectDetailPageComponent implements OnInit {
   readonly errorMessage = signal('');
   readonly initialCaseDueDate = signal<string>('');
 
-  activeTab: 'overview' | 'kanban' | 'tasklist' | 'calendar' | 'sprint' | 'team' | 'configuration' = 'kanban';
+  activeTab:
+    | 'overview'
+    | 'kanban'
+    | 'tasklist'
+    | 'calendar'
+    | 'sprint'
+    | 'team'
+    | 'activity'
+    | 'configuration' = 'kanban';
   isTaskModalOpen = false;
   isEditModalOpen = false;
 

@@ -17,6 +17,7 @@ import {
   CreateTaskModalComponent,
   type TaskFormData,
 } from '../../tasks/create-task/create-task-modal.component';
+import { ActivityFeedComponent } from '../../../core/components/activity-feed/activity-feed.component';
 
 interface CaseEditDraft {
   title: string;
@@ -32,7 +33,7 @@ interface CaseEditDraft {
 @Component({
   standalone: true,
   selector: 'app-case-detail-page',
-  imports: [CommonModule, FormsModule, RouterLink, CreateTaskModalComponent],
+  imports: [CommonModule, FormsModule, RouterLink, CreateTaskModalComponent, ActivityFeedComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './case-detail.page.html',
   styleUrls: ['./case-detail.page.scss'],
