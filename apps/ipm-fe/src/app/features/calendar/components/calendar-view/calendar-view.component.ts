@@ -14,7 +14,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import type { CaseType, CaseStatus } from '@sebsa-pm-tool/shared-models';
+import type { TaskStatus } from '@sebsa-pm-tool/shared-models';
 import type {
   CalendarColorByMode,
   CalendarDateMode,
@@ -71,8 +71,8 @@ export class CalendarViewComponent implements OnInit, AfterViewInit, OnDestroy {
 
   // Filters
   readonly searchQuery = signal<string>('');
-  readonly selectedType = signal<CaseType | 'ALL'>('ALL');
-  readonly selectedStatus = signal<CaseStatus | 'ALL'>('ALL');
+  readonly selectedType = signal<string>('ALL');
+  readonly selectedStatus = signal<TaskStatus | 'ALL'>('ALL');
 
   readonly weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -82,22 +82,24 @@ export class CalendarViewComponent implements OnInit, AfterViewInit, OnDestroy {
     { id: 'createdAt', label: 'Created Date', icon: 'schedule' },
   ];
 
-  readonly caseTypes: { id: CaseType | 'ALL'; label: string; icon: string }[] = [
+  readonly taskTypes: { id: string; label: string; icon: string }[] = [
     { id: 'ALL', label: 'All Types', icon: 'apps' },
     { id: 'BUG', label: 'Bugs', icon: 'bug_report' },
     { id: 'STORY', label: 'Stories', icon: 'bookmark' },
     { id: 'EPIC', label: 'Epics', icon: 'bolt' },
     { id: 'IMPROVEMENT', label: 'Improvements', icon: 'trending_up' },
     { id: 'TEST', label: 'Tests', icon: 'verified' },
+    { id: 'TASK', label: 'Tasks', icon: 'task' },
   ];
 
-  readonly caseStatuses: { id: CaseStatus | 'ALL'; label: string }[] = [
+  readonly taskStatuses: { id: TaskStatus | 'ALL'; label: string }[] = [
     { id: 'ALL', label: 'All Statuses' },
     { id: 'TO_DO', label: 'To Do' },
     { id: 'IN_PROGRESS', label: 'In Progress' },
     { id: 'IN_REVIEW', label: 'In Review' },
     { id: 'BLOCKED', label: 'Blocked' },
     { id: 'DONE', label: 'Done' },
+    { id: 'CANCELLED', label: 'Cancelled' },
   ];
 
   readonly colorByOptions: { id: CalendarColorByMode; label: string; icon: string }[] = [
@@ -130,7 +132,7 @@ export class CalendarViewComponent implements OnInit, AfterViewInit, OnDestroy {
       const isOverGrid = target?.closest('.month-view-container') !== null;
       if (!isOverGrid) return;
 
-      // CRUCIAL: With { passive: false }, preventDefault stops the entire browser page from scrolling!
+      // With { passive: false }, preventDefault stops the entire browser page from scrolling!
       event.preventDefault();
       event.stopPropagation();
 
@@ -166,7 +168,7 @@ export class CalendarViewComponent implements OnInit, AfterViewInit, OnDestroy {
     const myName = (this.currentUserName() || '').toLowerCase().trim();
     const myId = this.currentUserId();
 
-    let myCases = 0;
+    let myTasks = 0;
     let overdue = 0;
     let blocked = 0;
 
@@ -174,7 +176,7 @@ export class CalendarViewComponent implements OnInit, AfterViewInit, OnDestroy {
       const matchesId = myId && (item.assigneeId === myId || item.assigneeIds?.includes(myId));
       const matchesName = myName && item.assignee?.toLowerCase().includes(myName);
       if (matchesId || matchesName) {
-        myCases++;
+        myTasks++;
       }
       if (item.isOverdue) {
         overdue++;
@@ -185,7 +187,7 @@ export class CalendarViewComponent implements OnInit, AfterViewInit, OnDestroy {
       }
     }
 
-    return { myCases, overdue, blocked, total: list.length };
+    return { myTasks, overdue, blocked, total: list.length };
   });
 
   // Filtered items incorporating search, types, statuses, and quick presets
@@ -200,7 +202,7 @@ export class CalendarViewComponent implements OnInit, AfterViewInit, OnDestroy {
 
     return list.filter((item) => {
       // 1. Preset filter
-      if (preset === 'my-cases') {
+      if (preset === 'my-tasks') {
         const matchesId = myId && (item.assigneeId === myId || item.assigneeIds?.includes(myId));
         const matchesName = myName && item.assignee?.toLowerCase().includes(myName);
         if (!matchesId && !matchesName) return false;
@@ -212,8 +214,13 @@ export class CalendarViewComponent implements OnInit, AfterViewInit, OnDestroy {
       }
 
       // 2. Type and status filters
-      if (type !== 'ALL' && item.type !== type) return false;
-      if (status !== 'ALL' && item.status !== status) return false;
+      if (type !== 'ALL') {
+        const typeUpper = type.toUpperCase();
+        const itemTypeUpper = (item.type || '').toUpperCase();
+        const itemTaskTypeUpper = (item.taskType || '').toUpperCase();
+        if (itemTypeUpper !== typeUpper && itemTaskTypeUpper !== typeUpper) return false;
+      }
+      if (status !== 'ALL' && (item.status || '').toUpperCase() !== status.toUpperCase()) return false;
 
       // 3. Search query
       if (query) {
@@ -313,7 +320,7 @@ export class CalendarViewComponent implements OnInit, AfterViewInit, OnDestroy {
       this.sortDayItems(dayItems);
 
       // Workload pips
-      const pipMap = new Map<CaseType, number>();
+      const pipMap = new Map<string, number>();
       let hasOverdue = false;
       let hasBlocked = false;
 
@@ -689,14 +696,14 @@ export class CalendarViewComponent implements OnInit, AfterViewInit, OnDestroy {
 
   navigateToCase(item: CalendarItem): void {
     this.closeDrawer();
-    this.router.navigate(['/cases', item.id]);
+    this.router.navigate(['/tasks', item.id]);
   }
 
-  setTypeFilter(type: CaseType | 'ALL'): void {
+  setTypeFilter(type: string): void {
     this.selectedType.set(type);
   }
 
-  setStatusFilter(status: CaseStatus | 'ALL'): void {
+  setStatusFilter(status: TaskStatus | 'ALL'): void {
     this.selectedStatus.set(status);
   }
 
@@ -781,8 +788,9 @@ export class CalendarViewComponent implements OnInit, AfterViewInit, OnDestroy {
     return `color-project-${idx}`;
   }
 
-  getTypeClass(type?: CaseType): string {
-    switch (type) {
+  getTypeClass(type?: string): string {
+    const t = (type || '').toUpperCase();
+    switch (t) {
       case 'BUG':
         return 'type-bug';
       case 'STORY':
@@ -798,8 +806,9 @@ export class CalendarViewComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
-  getTypePipColor(type?: CaseType): string {
-    switch (type) {
+  getTypePipColor(type?: string): string {
+    const t = (type || '').toUpperCase();
+    switch (t) {
       case 'BUG':
         return '#ef4444';
       case 'STORY':
@@ -815,8 +824,9 @@ export class CalendarViewComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
-  getTypeIcon(type?: CaseType): string {
-    switch (type) {
+  getTypeIcon(type?: string): string {
+    const t = (type || '').toUpperCase();
+    switch (t) {
       case 'BUG':
         return 'bug_report';
       case 'STORY':
@@ -832,8 +842,9 @@ export class CalendarViewComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
-  getStatusClass(status?: CaseStatus): string {
-    switch (status) {
+  getStatusClass(status?: TaskStatus | string): string {
+    const s = (status || '').toUpperCase();
+    switch (s) {
       case 'IN_PROGRESS':
         return 'status-in-progress';
       case 'IN_REVIEW':
@@ -850,8 +861,9 @@ export class CalendarViewComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
-  getStatusLabel(status?: CaseStatus): string {
-    switch (status) {
+  getStatusLabel(status?: TaskStatus | string): string {
+    const s = (status || '').toUpperCase();
+    switch (s) {
       case 'IN_PROGRESS':
         return 'In Progress';
       case 'IN_REVIEW':

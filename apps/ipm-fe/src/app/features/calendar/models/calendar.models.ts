@@ -1,10 +1,10 @@
-import type { CaseType, CaseStatus, CaseSummary } from '@sebsa-pm-tool/shared-models';
-import type { CaseView } from '../../../core/services/cases.service';
+import type { TaskStatus, TaskSummary, TaskCategory, CaseType } from '@sebsa-pm-tool/shared-models';
+import type { TaskView } from '../../../core/services/tasks.service';
 
 export type CalendarViewMode = 'month' | 'week' | 'agenda';
 export type CalendarColorByMode = 'type' | 'priority' | 'project' | 'status';
 export type CalendarDensity = 'compact' | 'comfortable';
-export type QuickPresetFilter = 'all' | 'my-cases' | 'overdue' | 'blocked';
+export type QuickPresetFilter = 'all' | 'my-tasks' | 'overdue' | 'blocked';
 export type CalendarDateMode = 'dueDate' | 'startDate' | 'createdAt';
 
 export interface CalendarItem {
@@ -15,12 +15,16 @@ export interface CalendarItem {
   startDate?: string;
   createdAt?: string;
   endDate?: string;
-  type: CaseType;
-  status: CaseStatus;
+  type: CaseType | string;
+  taskType?: string;
+  category?: TaskCategory | null;
+  status: TaskStatus;
   priority: string;
   priorityColor?: string | null;
   projectId?: string;
   projectName?: string;
+  caseId?: string;
+  caseTitle?: string;
   assignee?: string;
   assigneeId?: string;
   assigneeIds?: string[];
@@ -34,7 +38,7 @@ export interface CalendarItem {
 
 export interface DayWorkloadPip {
   color: string;
-  type: CaseType;
+  type: string;
   count: number;
 }
 
@@ -59,8 +63,8 @@ export interface CalendarDay {
 
 export interface CalendarFilterState {
   searchQuery: string;
-  status: CaseStatus | 'ALL';
-  type: CaseType | 'ALL';
+  status: TaskStatus | 'ALL';
+  type: string | 'ALL';
   priority: string | 'ALL';
   projectId?: string;
   quickPreset: QuickPresetFilter;
@@ -105,30 +109,35 @@ export function normalizeDateToKey(dateInput?: string | Date | null): string | u
 }
 
 /**
- * Clean adapter function converting backend CaseSummary / CaseView to CalendarItem,
+ * Clean adapter function converting backend TaskSummary / TaskView to CalendarItem,
  * preserving all backend business models, IDs, dates, and relations.
  */
-export function caseToCalendarItem(c: CaseSummary | CaseView): CalendarItem {
-  const isCaseView = 'projectName' in c && typeof c.projectName === 'string';
-  const projectName = isCaseView ? c.projectName : (c as CaseSummary).project?.name;
-  const projectId = isCaseView ? c.projectId : (c as CaseSummary).projectId;
+export function taskToCalendarItem(t: TaskSummary | TaskView): CalendarItem {
+  const isTaskView = 'caseTitle' in t;
+  const projectName = isTaskView
+    ? (t as TaskView).projectName
+    : ('case' in t && t.case && 'project' in t.case && t.case.project ? t.case.project.name : undefined);
+  const projectId = isTaskView ? (t as TaskView).projectId : (t as TaskSummary).case?.projectId;
+  const caseId = isTaskView ? (t as TaskView).caseId : (t as TaskSummary).caseId;
+  const caseTitle = isTaskView ? (t as TaskView).caseTitle : (t as TaskSummary).case?.title;
+  const caseType = isTaskView ? (t as TaskView).caseType : (t as TaskSummary).case?.type;
 
-  const priorityName = isCaseView
-    ? c.priority
-    : (c as CaseSummary).priority?.name ?? 'Medium';
-  const priorityColor = isCaseView
-    ? c.priorityColor
-    : (c as CaseSummary).priority?.color ?? null;
+  const priorityName = isTaskView
+    ? (t as TaskView).priority
+    : ((t as TaskSummary).priority?.name ?? 'Medium');
+  const priorityColor = isTaskView
+    ? (t as TaskView).priorityColor
+    : ((t as TaskSummary).priority?.color ?? null);
 
   let assigneeName: string | undefined;
   let assigneeId: string | undefined;
   let assigneeIds: string[] = [];
-  if (isCaseView) {
-    assigneeName = c.assignee;
-    assigneeIds = (c as CaseView).assigneeIds || [];
+  if (isTaskView) {
+    assigneeName = (t as TaskView).assignee;
+    assigneeIds = (t as TaskView).assigneeIds || [];
     assigneeId = assigneeIds[0];
   } else {
-    const assignees = (c as CaseSummary).assignees;
+    const assignees = (t as TaskSummary).assignees;
     if (assignees && assignees.length > 0) {
       assigneeName = assignees.map((a) => a.name).join(', ');
       assigneeIds = assignees.map((a) => a.id);
@@ -136,42 +145,44 @@ export function caseToCalendarItem(c: CaseSummary | CaseView): CalendarItem {
     }
   }
 
-  // Extract separate dates cleanly using normalizeDateToKey
-  const dueDateStr = normalizeDateToKey(c.dueDate);
-  const startDateStr = normalizeDateToKey(c.startDate);
+  const dueDateStr = normalizeDateToKey(t.dueDate);
+  const startDateStr = normalizeDateToKey(t.startDate);
   const createdAtStr = normalizeDateToKey(
-    c.createdAt || ('updatedAt' in c && c.updatedAt ? c.updatedAt : undefined)
+    t.createdAt || ('updatedAt' in t && t.updatedAt ? t.updatedAt : undefined)
   );
 
-  // Default primary date: accurately use existing case dates without dumping dateless cases onto today
   const defaultDate = dueDateStr || startDateStr || createdAtStr || '';
 
   const todayStr = normalizeDateToKey(new Date())!;
-  const statusUpper = (c.status || '').toUpperCase();
+  const statusUpper = (t.status || '').toUpperCase();
   const isDone = statusUpper === 'DONE' || statusUpper === 'CANCELLED';
   const isOverdue = !!dueDateStr && !isDone && dueDateStr < todayStr;
   const isBlocked = statusUpper === 'BLOCKED';
 
   return {
-    id: c.id,
-    title: c.title,
+    id: t.id,
+    title: t.title,
     date: defaultDate,
     dueDate: dueDateStr,
     startDate: startDateStr,
     createdAt: createdAtStr,
-    type: c.type,
-    status: c.status,
+    type: caseType || 'TASK',
+    taskType: ('taskTypeName' in t ? (t as TaskView).taskTypeName : ('taskType' in t && (t as TaskSummary).taskType ? (t as TaskSummary).taskType!.name : undefined)) || 'TASK',
+    category: t.category ?? null,
+    status: t.status,
     priority: priorityName,
     priorityColor,
     projectId,
     projectName,
+    caseId,
+    caseTitle,
     assignee: assigneeName,
     assigneeId,
     assigneeIds,
-    description: c.description ?? '',
-    caseNumber: c.id.length > 8 ? `CASE-${c.id.slice(0, 4).toUpperCase()}` : c.id,
+    description: t.description ?? '',
+    caseNumber: t.id.length > 8 ? `TASK-${t.id.slice(0, 4).toUpperCase()}` : t.id,
     isOverdue,
     isBlocked,
-    raw: c,
+    raw: t,
   };
 }

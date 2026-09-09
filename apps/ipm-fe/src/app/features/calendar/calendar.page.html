@@ -3,10 +3,10 @@
       <header class="sebsa-page-header">
         <div class="header-content-wrap">
           <div>
-            <span class="sebsa-eyebrow">CASE TRACKING & SCHEDULING</span>
-            <h1 class="sebsa-page-title">Case Calendar</h1>
+            <span class="sebsa-eyebrow">TASK TRACKING & SCHEDULING</span>
+            <h1 class="sebsa-page-title">Task Calendar</h1>
             <p class="sebsa-page-desc">
-              Track deadlines, sprint commitments, and milestone deliverables across all active customer projects.
+              Track deadlines, scheduled execution, and deliverables across all active customer projects.
             </p>
           </div>
 
@@ -29,16 +29,16 @@
               type="button"
               class="btn-refresh"
               [class.spinning]="isLoading()"
-              (click)="loadCases(true)"
-              title="Refresh calendar cases"
+              (click)="loadTasks(true)"
+              title="Refresh calendar tasks"
             >
               <span class="material-symbols-outlined">refresh</span>
             </button>
 
-            <!-- Schedule Case Button -->
-            <button type="button" class="btn-header-primary" (click)="onCreateCaseClicked()">
+            <!-- Schedule Task Button -->
+            <button type="button" class="btn-header-primary" (click)="onCreateTaskClicked()">
               <span class="material-symbols-outlined">add</span>
-              <span>Schedule Case</span>
+              <span>Schedule Task</span>
             </button>
           </div>
         </div>
@@ -51,7 +51,7 @@
             <span class="material-symbols-outlined">error</span>
             <span>{{ errorMessage() }}</span>
           </div>
-          <button type="button" class="btn-retry-banner" (click)="loadCases(true)">
+          <button type="button" class="btn-retry-banner" (click)="loadTasks(true)">
             Retry
           </button>
         </div>
@@ -72,25 +72,15 @@
         }
       </section>
 
-      <!-- Standalone Calendar Component Connected to Real Data -->
+      <!-- Standalone Calendar Component Connected to Real Tasks Data -->
       <main>
         <app-calendar-view
-          [items]="calendarCases()"
+          [items]="calendarTasks()"
           [loading]="isLoading()"
           [currentUserId]="authService.currentUser()?.id"
           [currentUserName]="authService.currentUser()?.name"
-          (itemClick)="onCaseClicked($event)"
+          (itemClick)="onTaskClicked($event)"
           (createClick)="onCreateForDate($event)"
         ></app-calendar-view>
       </main>
-
-      <!-- Create Case Modal -->
-      <app-create-case-modal
-        [isOpen]="isCreateCaseModalOpen()"
-        [initialDueDate]="initialCaseDueDate()"
-        [projectId]="selectedProjectId()"
-        [projectName]="selectedProjectName()"
-        (closed)="onCaseModalClosed()"
-        (submitted)="onCaseFormSubmitted($event)"
-      ></app-create-case-modal>
-</div>
+</div>
