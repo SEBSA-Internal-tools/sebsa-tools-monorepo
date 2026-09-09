@@ -35,18 +35,26 @@
         </button>
       </div>
 
-      <!-- Current Period Title -->
-      <h2 class="calendar-title">{{ headerTitle() }}</h2>
+      <!-- Current Period Title & Date Range Indicator -->
+      <div class="calendar-title-wrap">
+        <h2 class="calendar-title">{{ headerTitle() }}</h2>
+        @if (currentView() === 'month') {
+          <span class="calendar-range-tag">
+            <span class="material-symbols-outlined icon-xs">date_range</span>
+            <span>{{ headerMonthRange() }}</span>
+          </span>
+        }
+      </div>
     </div>
 
-    <!-- Center/Right: View Switcher, Density & Color-By -->
+    <!-- Center/Right: Date Mode, Color By, Density & View Switcher -->
     <div class="toolbar-right">
       <!-- Search Input -->
       <div class="calendar-search">
         <span class="material-symbols-outlined search-icon">search</span>
         <input
           type="text"
-          placeholder="Filter by title, ID, project, person..."
+          placeholder="Filter cases..."
           [(ngModel)]="searchQuery"
           class="search-input"
         />
@@ -57,45 +65,23 @@
         }
       </div>
 
-      <!-- Color By Selector -->
-      <div class="color-by-selector">
-        <span class="selector-label">Color:</span>
+      <!-- Date Field Selector (Due Date [default] | Start Date | Created Date) -->
+      <div class="filter-dimension-selector">
+        <span class="selector-label">Date:</span>
         <div class="btn-segmented">
-          @for (opt of colorByOptions; track opt.id) {
+          @for (dm of dateModeOptions; track dm.id) {
             <button
               type="button"
               class="segment-btn"
-              [class.active]="colorBy() === opt.id"
-              (click)="setColorBy(opt.id)"
-              [title]="'Color cases by ' + opt.label"
+              [class.active]="dateMode() === dm.id"
+              (click)="setDateMode(dm.id)"
+              [title]="'Filter & arrange by ' + dm.label"
             >
-              <span class="material-symbols-outlined icon-xs">{{ opt.icon }}</span>
-              <span>{{ opt.label }}</span>
+              <span class="material-symbols-outlined icon-xs">{{ dm.icon }}</span>
+              <span>{{ dm.label }}</span>
             </button>
           }
         </div>
-      </div>
-
-      <!-- Density Switcher -->
-      <div class="density-switcher">
-        <button
-          type="button"
-          class="density-btn"
-          [class.active]="density() === 'comfortable'"
-          (click)="setDensity('comfortable')"
-          title="Comfortable Density"
-        >
-          <span class="material-symbols-outlined">density_medium</span>
-        </button>
-        <button
-          type="button"
-          class="density-btn"
-          [class.active]="density() === 'compact'"
-          (click)="setDensity('compact')"
-          title="Compact Density (Fits more cases)"
-        >
-          <span class="material-symbols-outlined">density_small</span>
-        </button>
       </div>
 
       <!-- View Switcher -->
@@ -157,17 +143,6 @@
 
       <button
         type="button"
-        class="preset-chip chip-critical"
-        [class.active]="quickPreset() === 'critical'"
-        (click)="setQuickPreset('critical')"
-      >
-        <span class="material-symbols-outlined icon-sm">local_fire_department</span>
-        <span>Critical</span>
-        <span class="preset-badge">{{ presetCounts().critical }}</span>
-      </button>
-
-      <button
-        type="button"
         class="preset-chip chip-overdue"
         [class.active]="quickPreset() === 'overdue'"
         (click)="setQuickPreset('overdue')"
@@ -217,7 +192,7 @@
         </select>
       </div>
 
-      @if (selectedType() !== 'ALL' || selectedStatus() !== 'ALL' || searchQuery() || quickPreset() !== 'all') {
+      @if (selectedType() !== 'ALL' || selectedStatus() !== 'ALL' || searchQuery() || quickPreset() !== 'all' || dateMode() !== 'dueDate') {
         <button type="button" class="reset-filters-btn" (click)="resetFilters()">
           <span class="material-symbols-outlined">restart_alt</span>
           <span>Reset</span>
@@ -234,9 +209,12 @@
     </div>
   }
 
-  <!-- View 1: Month Grid View -->
+  <!-- View 1: Month Grid View (Strict Fixed 7-Column Width & Cropped Ellipsis Titles) -->
   @if (currentView() === 'month') {
-    <div class="month-view-container">
+    <div
+      class="month-view-container"
+      title="Scroll down on the calendar to advance to next month, scroll up to go back"
+    >
       <!-- Weekday Headers -->
       <div class="weekday-header-row">
         @for (dayName of weekdays; track dayName) {
@@ -251,19 +229,49 @@
         @for (day of monthDays(); track day.dateString) {
           <div
             class="day-cell"
+            role="button"
+            tabindex="0"
             [class.outside-month]="!day.isCurrentMonth"
+            [class.is-next-month]="day.isNextMonth"
+            [class.is-prev-month]="day.isPrevMonth"
+            [class.is-month-start]="day.isMonthStart"
+            [class.is-month-end]="day.isMonthEnd"
             [class.is-today]="day.isToday"
             [class.is-selected]="day.isSelected"
             [class.is-weekend]="day.isWeekend"
             [class.has-overdue]="day.hasOverdue"
             (click)="onDayClick(day)"
+            (keydown.enter)="onDayClick(day)"
+            (keydown.space)="onDayClick(day); $event.preventDefault()"
+            [title]="!day.isCurrentMonth ? 'Belongs to ' + day.monthName + ' (Click to jump to ' + day.monthName + ')' : ''"
           >
             <!-- Cell Header -->
             <div class="day-cell-header">
               <div class="header-left-meta">
-                <span class="day-number" [class.today-badge]="day.isToday">
-                  {{ day.dayNumber }}
-                </span>
+                <!-- Distinguish Month Start, Month End, Next Month & Normal Days -->
+                @if (day.isMonthStart) {
+                  <span class="month-boundary-pill start-pill" [title]="'Start of ' + day.monthName">
+                    {{ day.monthName }} 1
+                  </span>
+                } @else if (day.isMonthEnd) {
+                  <span class="month-boundary-pill end-pill" [title]="'End of ' + day.monthName">
+                    {{ day.dayNumber }} (End)
+                  </span>
+                } @else if (day.isNextMonth) {
+                  <div class="outside-day-indicator next-month-indicator" [title]="day.monthName + ' ' + day.dayNumber + ' (Next Month)'">
+                    <span class="day-number outside-number">{{ day.dayNumber }}</span>
+                    <span class="outside-month-tiny">{{ day.monthName }}</span>
+                  </div>
+                } @else if (day.isPrevMonth) {
+                  <div class="outside-day-indicator prev-month-indicator" [title]="day.monthName + ' ' + day.dayNumber + ' (Previous Month)'">
+                    <span class="day-number outside-number">{{ day.dayNumber }}</span>
+                    <span class="outside-month-tiny">{{ day.monthName }}</span>
+                  </div>
+                } @else {
+                  <span class="day-number" [class.today-badge]="day.isToday">
+                    {{ day.dayNumber }}
+                  </span>
+                }
 
                 <!-- Workload Pips (Mini Heatmap / Workload dots) -->
                 @if (day.workloadPips.length > 0) {
@@ -280,6 +288,11 @@
               </div>
 
               <div class="header-right-meta">
+                @if (day.isNextMonth) {
+                  <span class="next-month-chip" title="Belongs to next month (click cell to jump)">
+                    {{ day.monthName }}
+                  </span>
+                }
                 @if (day.hasOverdue) {
                   <span class="overdue-alert-dot" title="Overdue case on this date">
                     <span class="material-symbols-outlined">warning</span>
@@ -293,7 +306,7 @@
                 <button
                   type="button"
                   class="add-quick-btn"
-                  title="Add case on this date"
+                  title="Add case on this cell"
                   (click)="triggerCreateForDate(day.date, $event)"
                 >
                   <span class="material-symbols-outlined">add</span>
@@ -301,15 +314,19 @@
               </div>
             </div>
 
-            <!-- Event Pills List -->
+            <!-- Event Pills List (Fixed Width & Cropped Ellipsis) -->
             <div class="day-events-list">
               @for (item of day.items.slice(0, density() === 'compact' ? 5 : 3); track item.id) {
                 <div
                   class="event-pill"
+                  role="button"
+                  tabindex="0"
                   [ngClass]="[getItemColorClass(item)]"
                   [class.is-overdue-pill]="item.isOverdue"
                   [class.is-blocked-pill]="item.isBlocked || item.status === 'BLOCKED'"
                   (click)="onItemClick(item, $event)"
+                  (keydown.enter)="onItemClick(item, $event)"
+                  (keydown.space)="onItemClick(item, $event); $event.preventDefault()"
                   (mouseenter)="onItemMouseEnter(item, $event)"
                   (mouseleave)="onItemMouseLeave()"
                 >
@@ -329,8 +346,8 @@
                     <span class="material-symbols-outlined pill-icon">{{ getTypeIcon(item.type) }}</span>
                   }
 
-                  <!-- Title -->
-                  <span class="pill-title">{{ item.title }}</span>
+                  <!-- Cropped Title with Ellipsis -->
+                  <span class="pill-title" [title]="item.title">{{ item.title }}</span>
 
                   <!-- Priority indicator -->
                   @if (item.priority && colorBy() !== 'priority') {
@@ -345,14 +362,29 @@
 
               <!-- Overflow Badge if items exceed limit -->
               @if (day.items.length > (density() === 'compact' ? 5 : 3)) {
-                <div class="more-items-pill" (click)="openDayFlyout(day, $event)">
+                <button
+                  type="button"
+                  class="more-items-pill"
+                  (click)="openDayFlyout(day, $event)"
+                >
                   +{{ day.items.length - (density() === 'compact' ? 5 : 3) }} more...
-                </div>
+                </button>
               }
             </div>
           </div>
         }
       </div>
+
+      <!-- Subtle Month Grid Footer with Scroll Navigation Guide -->
+      <footer class="month-grid-footer">
+        <div class="scroll-hint-bar">
+          <span class="material-symbols-outlined icon-xs">unfold_more</span>
+          <span>Scroll down on calendar to move to next month</span>
+        </div>
+        <div class="month-range-summary">
+          <span>Active Month: <strong>{{ headerTitle() }} ({{ headerMonthRange() }})</strong></span>
+        </div>
+      </footer>
     </div>
   }
 
@@ -379,9 +411,13 @@
               @for (item of day.items; track item.id) {
                 <div
                   class="week-event-card"
+                  role="button"
+                  tabindex="0"
                   [ngClass]="[getItemColorClass(item)]"
                   [class.is-overdue-card]="item.isOverdue"
                   (click)="onItemClick(item, $event)"
+                  (keydown.enter)="onItemClick(item, $event)"
+                  (keydown.space)="onItemClick(item, $event); $event.preventDefault()"
                   (mouseenter)="onItemMouseEnter(item, $event)"
                   (mouseleave)="onItemMouseLeave()"
                 >
@@ -404,7 +440,7 @@
                     }
                   </div>
 
-                  <h4 class="card-case-title">{{ item.title }}</h4>
+                  <h4 class="card-case-title" [title]="item.title">{{ item.title }}</h4>
 
                   @if (item.projectName) {
                     <div class="card-project">
@@ -455,7 +491,7 @@
         <div class="agenda-empty-state">
           <span class="material-symbols-outlined empty-icon">event_busy</span>
           <h3>No Scheduled Cases Found</h3>
-          <p>No cases match your current active filters or preset selection.</p>
+          <p>No cases match your current active filters or date filter.</p>
           <button type="button" class="btn-clear-filters" (click)="resetFilters()">
             Clear Filters
           </button>
@@ -475,11 +511,13 @@
               @for (item of group.items; track item.id) {
                 <div
                   class="agenda-card"
+                  role="button"
+                  tabindex="0"
                   [ngClass]="[getItemColorClass(item)]"
                   [class.is-overdue-card]="item.isOverdue"
                   (click)="onItemClick(item, $event)"
-                  (mouseenter)="onItemMouseEnter(item, $event)"
-                  (mouseleave)="onItemMouseLeave()"
+                  (keydown.enter)="onItemClick(item, $event)"
+                  (keydown.space)="onItemClick(item, $event); $event.preventDefault()"
                 >
                   <div class="agenda-card-left">
                     <span class="agenda-type-icon-wrapper" [ngClass]="getTypeClass(item.type)">
@@ -541,19 +579,30 @@
     </div>
   }
 
-  <!-- 3. Interactive "+N more" Inline Day Flyout -->
+  <!-- 3. Interactive "+N more" Inline Day Flyout Modal -->
   @if (expandedDay(); as day) {
-    <div class="day-flyout-backdrop" (click)="closeDayFlyout()">
-      <div class="day-flyout-card" (click)="$event.stopPropagation()">
+    <div
+      class="day-flyout-backdrop"
+      role="button"
+      tabindex="0"
+      (click)="onFlyoutBackdropClick($event)"
+      (keydown)="onFlyoutBackdropKeydown($event)"
+    >
+      <div class="day-flyout-card" role="document">
         <header class="flyout-header">
           <div class="flyout-header-left">
             <span class="flyout-day-num font-mono">{{ day.dayNumber }}</span>
-            <div>
-              <h4 class="flyout-title">{{ day.date.toLocaleDateString('default', { month: 'long', day: 'numeric', year: 'numeric' }) }}</h4>
-              <span class="flyout-subtitle">{{ day.items.length }} cases scheduled</span>
+            <div class="flyout-date-meta">
+              <h4 class="flyout-title">
+                {{ day.date.toLocaleDateString('default', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) }}
+              </h4>
+              <span class="flyout-subtitle">
+                <span class="count-badge">{{ day.items.length }}</span>
+                <span>{{ day.items.length === 1 ? 'case scheduled' : 'cases scheduled' }}</span>
+              </span>
             </div>
           </div>
-          <button type="button" class="btn-close-flyout" (click)="closeDayFlyout()" aria-label="Close">
+          <button type="button" class="btn-close-flyout" (click)="closeDayFlyout()" aria-label="Close day view">
             <span class="material-symbols-outlined">close</span>
           </button>
         </header>
@@ -562,25 +611,81 @@
           @for (item of day.items; track item.id) {
             <div
               class="flyout-item-card"
+              role="button"
+              tabindex="0"
               [ngClass]="[getItemColorClass(item)]"
               [class.is-overdue-pill]="item.isOverdue"
               (click)="onItemClick(item, $event)"
+              (keydown.enter)="onItemClick(item, $event)"
+              (keydown.space)="onItemClick(item, $event); $event.preventDefault()"
             >
-              <div class="flyout-item-left">
-                <span class="pill-case-id font-mono">{{ item.caseNumber || 'CASE' }}</span>
-                <span class="flyout-item-title">{{ item.title }}</span>
+              <!-- Card Top Row: Type, Case Number, Project & Status Badges -->
+              <div class="flyout-card-header-row">
+                <div class="badge-group-left">
+                  <span class="badge-type" [ngClass]="getTypeClass(item.type)">
+                    <span class="material-symbols-outlined icon-xs">{{ getTypeIcon(item.type) }}</span>
+                    <span>{{ item.type || 'CASE' }}</span>
+                  </span>
+                  @if (item.caseNumber) {
+                    <span class="pill-case-id font-mono">{{ item.caseNumber }}</span>
+                  }
+                  @if (item.projectName) {
+                    <span class="pill-project" [title]="'Project: ' + item.projectName">
+                      <span class="material-symbols-outlined icon-xs">folder</span>
+                      <span>{{ item.projectName }}</span>
+                    </span>
+                  }
+                </div>
+
+                <div class="badge-group-right">
+                  @if (item.isOverdue) {
+                    <span class="overdue-tag">⚠️ OVERDUE</span>
+                  }
+                  @if (item.priority) {
+                    <span class="badge-priority" [ngClass]="getPriorityClass(item.priority)">
+                      {{ item.priority }}
+                    </span>
+                  }
+                  <span class="status-pill" [ngClass]="getStatusClass(item.status)">
+                    {{ getStatusLabel(item.status) }}
+                  </span>
+                </div>
               </div>
-              <div class="flyout-item-right">
-                @if (item.isOverdue) {
-                  <span class="overdue-tag">OVERDUE</span>
-                }
-                <span class="badge-priority" [ngClass]="getPriorityClass(item.priority)">
-                  {{ item.priority }}
-                </span>
-                <span class="status-pill" [ngClass]="getStatusClass(item.status)">
-                  {{ getStatusLabel(item.status) }}
-                </span>
+
+              <!-- Card Middle: Full Title -->
+              <div class="flyout-card-title-row">
+                <h5 class="flyout-item-title" [title]="item.title">{{ item.title }}</h5>
               </div>
+
+              <!-- Card Bottom: Assignee, Active Date Mode, & Action Hint -->
+              <div class="flyout-card-footer-row">
+                <div class="footer-meta-left">
+                  @if (item.assignee) {
+                    <span class="card-meta-assignee" [title]="'Assignee: ' + item.assignee">
+                      <span class="material-symbols-outlined icon-xs">person</span>
+                      <span>{{ item.assignee }}</span>
+                    </span>
+                  }
+                  <span class="card-meta-date" [title]="getDateModeLabel(dateMode())">
+                    <span class="material-symbols-outlined icon-xs">schedule</span>
+                    <span>{{ getDateModeLabel(dateMode()) }}: {{ getItemActiveDate(item, dateMode()) || 'None' }}</span>
+                  </span>
+                </div>
+
+                <div class="footer-meta-right">
+                  <span class="action-hint-link">
+                    <span>Details</span>
+                    <span class="material-symbols-outlined icon-xs">arrow_forward</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          }
+
+          @if (day.items.length === 0) {
+            <div class="flyout-empty-state">
+              <span class="material-symbols-outlined icon-lg">event_available</span>
+              <p>No cases scheduled for this date.</p>
             </div>
           }
         </div>
@@ -592,14 +697,15 @@
             (click)="triggerCreateForDate(day.date, $event); closeDayFlyout()"
           >
             <span class="material-symbols-outlined">add</span>
-            <span>Schedule Another Case</span>
+            <span>Schedule Case on This Day</span>
           </button>
         </footer>
       </div>
     </div>
   }
 
-  <!-- 4. Zero-Click Hover Micro-Preview Card -->
+
+  <!-- 4. Zero-Click Hover Micro-Preview Popover (Month & Week Only) -->
   @if (hoveredItem(); as hovered) {
     <div
       class="hover-preview-popover"
@@ -607,62 +713,89 @@
       [style.top.px]="hovered.y"
     >
       <div class="hover-card-header">
-        <span class="badge-type" [ngClass]="getTypeClass(hovered.item.type)">
-          {{ hovered.item.type || 'CASE' }}
-        </span>
-        @if (hovered.item.caseNumber) {
-          <span class="hover-case-id font-mono">{{ hovered.item.caseNumber }}</span>
-        }
+        <div class="hover-badges-left">
+          @if (hovered.item.caseNumber) {
+            <span class="hover-case-id font-mono">{{ hovered.item.caseNumber }}</span>
+          }
+          <span class="badge-type" [ngClass]="getTypeClass(hovered.item.type)">
+            {{ hovered.item.type || 'CASE' }}
+          </span>
+        </div>
         @if (hovered.item.isOverdue) {
-          <span class="overdue-tag">⚠️ OVERDUE</span>
+          <span class="hover-overdue-tag">OVERDUE</span>
         }
       </div>
 
-      <h5 class="hover-title">{{ hovered.item.title }}</h5>
+      <h5 class="hover-title" [title]="hovered.item.title">{{ hovered.item.title }}</h5>
 
-      <div class="hover-details-grid">
-        <div class="hover-detail">
-          <span class="detail-label">Project</span>
-          <span class="detail-val">{{ hovered.item.projectName || 'General' }}</span>
+      <div class="hover-meta-list">
+        <div class="hover-meta-row">
+          <span class="meta-label">
+            <span class="material-symbols-outlined icon-xs">calendar_month</span>
+            {{ getDateModeLabel(dateMode()) }}:
+          </span>
+          <span class="meta-value">{{ getItemActiveDate(hovered.item, dateMode()) || 'None' }}</span>
         </div>
-        <div class="hover-detail">
-          <span class="detail-label">Priority</span>
-          <span class="detail-val" [ngClass]="getPriorityClass(hovered.item.priority)">
-            {{ hovered.item.priority }}
+
+        <div class="hover-meta-row">
+          <span class="meta-label">
+            <span class="material-symbols-outlined icon-xs">flag</span>
+            Priority:
+          </span>
+          <span class="badge-priority" [ngClass]="getPriorityClass(hovered.item.priority)">
+            {{ hovered.item.priority || 'Normal' }}
           </span>
         </div>
-        <div class="hover-detail">
-          <span class="detail-label">Assignee</span>
-          <span class="detail-val">{{ hovered.item.assignee || 'Unassigned' }}</span>
-        </div>
-        <div class="hover-detail">
-          <span class="detail-label">Status</span>
-          <span class="detail-val status-val" [ngClass]="getStatusClass(hovered.item.status)">
-            {{ getStatusLabel(hovered.item.status) }}
-          </span>
-        </div>
+
+        @if (hovered.item.projectName) {
+          <div class="hover-meta-row">
+            <span class="meta-label">
+              <span class="material-symbols-outlined icon-xs">folder</span>
+              Project:
+            </span>
+            <span class="meta-value text-truncate" [title]="hovered.item.projectName">
+              {{ hovered.item.projectName }}
+            </span>
+          </div>
+        }
+
+        @if (hovered.item.assignee) {
+          <div class="hover-meta-row">
+            <span class="meta-label">
+              <span class="material-symbols-outlined icon-xs">person</span>
+              Assignee:
+            </span>
+            <span class="meta-value text-truncate" [title]="hovered.item.assignee">
+              {{ hovered.item.assignee }}
+            </span>
+          </div>
+        }
       </div>
     </div>
   }
 
-  <!-- 5. Case Inspection Slide Drawer / Modal -->
+  <!-- 5. Sleek Focused Side Panel for Case Inspection -->
   @if (selectedItem(); as item) {
-    <div class="drawer-backdrop" (click)="closeDrawer()">
-      <div class="drawer-panel" (click)="$event.stopPropagation()">
+    <div
+      class="drawer-backdrop"
+      role="button"
+      tabindex="0"
+      (click)="onDrawerBackdropClick($event)"
+      (keydown)="onDrawerBackdropKeydown($event)"
+    >
+      <div class="drawer-panel" role="document">
         <header class="drawer-header">
           <div class="drawer-header-left">
+            <span class="drawer-case-id font-mono">{{ item.caseNumber || 'CASE' }}</span>
             <span class="badge-type" [ngClass]="getTypeClass(item.type)">
               <span class="material-symbols-outlined type-icon-sm">{{ getTypeIcon(item.type) }}</span>
               <span>{{ item.type || 'CASE' }}</span>
             </span>
-            @if (item.caseNumber) {
-              <span class="drawer-case-id font-mono">{{ item.caseNumber }}</span>
-            }
             @if (item.isOverdue) {
               <span class="overdue-tag">⚠️ OVERDUE</span>
             }
           </div>
-          <button type="button" class="btn-close-drawer" (click)="closeDrawer()" aria-label="Close details">
+          <button type="button" class="btn-close-drawer" (click)="closeDrawer()" aria-label="Close panel">
             <span class="material-symbols-outlined">close</span>
           </button>
         </header>
@@ -670,11 +803,13 @@
         <div class="drawer-body">
           <h3 class="drawer-title">{{ item.title }}</h3>
 
+          <!-- Essential Key Info Summary Grid -->
           <div class="drawer-meta-grid">
             <div class="meta-item">
-              <span class="meta-label">Status</span>
-              <span class="status-pill" [ngClass]="getStatusClass(item.status)">
-                {{ getStatusLabel(item.status) }}
+              <span class="meta-label">{{ getDateModeLabel(dateMode()) }}</span>
+              <span class="meta-value">
+                <span class="material-symbols-outlined icon-xs">calendar_month</span>
+                {{ getItemActiveDate(item, dateMode()) || 'Not set' }}
               </span>
             </div>
 
@@ -686,18 +821,17 @@
             </div>
 
             <div class="meta-item">
-              <span class="meta-label">Due / Scheduled</span>
-              <span class="meta-value">
-                <span class="material-symbols-outlined icon-xs">event</span>
-                {{ item.date }}
+              <span class="meta-label">Status</span>
+              <span class="status-pill" [ngClass]="getStatusClass(item.status)">
+                {{ getStatusLabel(item.status) }}
               </span>
             </div>
 
             <div class="meta-item">
               <span class="meta-label">Project</span>
-              <span class="meta-value">
+              <span class="meta-value" [title]="item.projectName || 'General'">
                 <span class="material-symbols-outlined icon-xs">folder</span>
-                {{ item.projectName || 'General Project' }}
+                {{ item.projectName || 'General' }}
               </span>
             </div>
 
@@ -705,13 +839,14 @@
               <div class="meta-item full-width">
                 <span class="meta-label">Assignee</span>
                 <span class="meta-value">
-                  <span class="material-symbols-outlined icon-xs">account_circle</span>
+                  <span class="material-symbols-outlined icon-xs">person</span>
                   {{ item.assignee }}
                 </span>
               </div>
             }
           </div>
 
+          <!-- Brief description preview if available -->
           @if (item.description) {
             <div class="drawer-description-section">
               <h4 class="section-heading">Description</h4>
@@ -722,11 +857,11 @@
 
         <footer class="drawer-footer">
           <button type="button" class="btn-secondary" (click)="closeDrawer()">
-            Close
+            Dismiss
           </button>
           <button type="button" class="btn-primary" (click)="navigateToCase(item)">
             <span class="material-symbols-outlined">open_in_new</span>
-            <span>Open Case Detail</span>
+            <span>Open Case Details</span>
           </button>
         </footer>
       </div>

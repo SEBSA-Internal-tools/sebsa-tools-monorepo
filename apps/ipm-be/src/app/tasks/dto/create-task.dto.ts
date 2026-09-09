@@ -1,4 +1,4 @@
-import { TaskStatus } from '@prisma/client';
+import { TaskCategory, TaskStatus } from '@prisma/client';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsArray,
@@ -85,4 +85,23 @@ export class CreateTaskDto {
   @IsString()
   @MaxLength(100)
   jiraStatusLabel?: string;
+
+  @ApiPropertyOptional({
+    enum: TaskCategory,
+    description:
+      'Functional/Technical tag — independent of the parent Case\'s own category. Required when the parent Case is CSO; routes the task into the Functional or Technical queue.',
+  })
+  @IsOptional()
+  @IsEnum(TaskCategory)
+  category?: TaskCategory;
+
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
+  taskTypeId?: string;
+
+  @ApiPropertyOptional({ format: 'uuid', description: 'Must belong to taskTypeId\'s own complexity scale.' })
+  @IsOptional()
+  @IsUUID()
+  complexityLevelId?: string;
 }

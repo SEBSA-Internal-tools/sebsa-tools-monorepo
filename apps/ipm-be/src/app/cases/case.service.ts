@@ -11,13 +11,13 @@ import {
   CaseCategoryAssignmentEntry,
   CaseStatusHistoryEntry,
   CaseSummary,
-  TaskLabelSummary,
 } from '@sebsa-pm-tool/shared-models';
 import { ActivityAction, EntityType, Prisma, TaskCategory } from '@prisma/client';
 import { CreateCaseDto } from './dto/create-case.dto';
 import { UpdateCaseDto } from './dto/update-case.dto';
 import { FilterCaseDto } from './dto/filter-case.dto';
 import { ActivityLogsService } from '../activity-logs/activity-logs.service';
+import { NotificationService } from '../notifications/notification.service';
 
 const ADMIN_SYSTEM_ROLES: AuthUser['systemRole'][] = ['ADMIN', 'SUPER_ADMIN'];
 
@@ -32,12 +32,15 @@ const caseSummarySelect = {
   sprintId: true,
   milestoneId: true,
   dueDate: true,
+  startDate: true,
+  createdAt: true,
+  updatedAt: true,
   isCsoLabeled: true,
   category: true,
   jiraStatusLabel: true,
-  project: { select: { id: true, name: true } },
+  project: { select: { id: true, name: true, isCsoProject: true } },
   priority: { select: { id: true, name: true, color: true } },
-  assignees: { include: { user: { select: { id: true, name: true, email: true } } } },
+  assignees: { select: { user: { select: { id: true, name: true, email: true } } } },
 } satisfies Prisma.CaseSelect;
 
 type CaseWithSummary = Prisma.CaseGetPayload<{ select: typeof caseSummarySelect }>;
@@ -50,7 +53,7 @@ const caseDetailInclude = {
     where: { deletedAt: null },
     select: { id: true, title: true, status: true },
   },
-  project: { select: { id: true, name: true } },
+  project: { select: { id: true, name: true, isCsoProject: true } },
   priority: { select: { id: true, name: true, color: true } },
   sprint: { select: { id: true, name: true } },
   milestone: { select: { id: true, name: true } },
@@ -63,6 +66,7 @@ export class CaseService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly activityLogs: ActivityLogsService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   async create(dto: CreateCaseDto, user: AuthUser): Promise<Case> {
@@ -75,7 +79,12 @@ export class CaseService {
     await this.assertAssigneesValid(dto.assigneeIds, dto.projectId);
     await this.assertLabelsValid(dto.labelIds, dto.projectId);
     this.assertDatesValid(dto.startDate, dto.dueDate);
-    this.assertCsoCategoryRequirement(dto.isCsoLabeled ?? false, dto.category);
+
+    // A case is CSO-labeled if and only if its project is — never
+    // independently settable by the client, so a normal-project case can
+    // never carry the CSO tag and a CSO-project case can never drop it.
+    const isCsoLabeled = await this.getProjectIsCso(dto.projectId);
+    this.assertCsoCategoryRequirement(isCsoLabeled, dto.category);
 
     const created = await this.prisma.$transaction(async (tx) => {
       const kase = await tx.case.create({
@@ -87,7 +96,7 @@ export class CaseService {
           startDate: dto.startDate ? new Date(dto.startDate) : undefined,
           dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
           storyPoints: dto.storyPoints,
-          isCsoLabeled: dto.isCsoLabeled ?? false,
+          isCsoLabeled,
           category: dto.category,
           jiraStatusLabel: dto.jiraStatusLabel,
           project: { connect: { id: dto.projectId } },
@@ -140,16 +149,32 @@ export class CaseService {
       return kase;
     });
 
+    if (dto.assigneeIds?.length) {
+      this.notificationService.notifyAssignees({
+        assigneeUserIds: dto.assigneeIds,
+        actorId: user.id,
+        actorName: user.name,
+        entityType: 'CASE',
+        entityId: created.id,
+        entityTitle: dto.title,
+      }).catch(() => {});
+    }
+
     return this.findOne(created.id, user);
   }
 
   async findAll(filter: FilterCaseDto, user: AuthUser): Promise<CaseSummary[]> {
     const where = await this.buildScopedWhere(filter, user);
 
+    let orderBy: Prisma.CaseOrderByWithRelationInput = { createdAt: 'desc' };
+    if (filter.sortBy) {
+      orderBy = { [filter.sortBy]: filter.sortOrder ?? 'desc' };
+    }
+
     const cases = await this.prisma.case.findMany({
       where,
       select: caseSummarySelect,
-      orderBy: { createdAt: 'desc' },
+      orderBy,
     });
 
     return cases.map((kase) => this.toCaseSummary(kase));
@@ -197,11 +222,13 @@ export class CaseService {
       );
     }
 
-    const mergedIsCsoLabeled = dto.isCsoLabeled ?? existing.isCsoLabeled;
+    // isCsoLabeled always mirrors the case's (fixed) project, never the
+    // client — see the identical rule in create().
+    const isCsoLabeled = await this.getProjectIsCso(existing.projectId);
     const mergedCategory = dto.category !== undefined ? dto.category : existing.category;
-    this.assertCsoCategoryRequirement(mergedIsCsoLabeled, mergedCategory);
+    this.assertCsoCategoryRequirement(isCsoLabeled, mergedCategory);
 
-    const { assigneeIds, labelIds, ...restDto } = dto;
+    const { assigneeIds, labelIds, isCsoLabeled: _ignoredIsCsoLabeled, ...restDto } = dto;
     const isStatusChange = !!dto.status && dto.status !== existing.status;
     const changes = [
       ...this.activityLogs.buildFieldChanges(existing, restDto),
@@ -239,7 +266,7 @@ export class CaseService {
         },
       });
 
-      if (isStatusChange) {
+      if (dto.status && dto.status !== existing.status) {
         await tx.caseStatusHistory.create({
           data: {
             caseId: id,
@@ -283,6 +310,42 @@ export class CaseService {
       }
     });
 
+    if (dto.assigneeIds?.length) {
+      this.notificationService.notifyAssignees({
+        assigneeUserIds: dto.assigneeIds,
+        actorId: user.id,
+        actorName: user.name,
+        entityType: 'CASE',
+        entityId: id,
+        entityTitle: existing.title,
+      }).catch(() => {});
+    }
+
+    if (dto.status && dto.status !== existing.status) {
+      this.prisma.caseAssignee
+        .findMany({
+          where: { caseId: id },
+          select: { userId: true },
+        })
+        .then((caseAssignees) => {
+          const recipientIds = [
+            ...caseAssignees.map((a) => a.userId),
+            existing.createdById,
+          ].filter(Boolean);
+
+          return this.notificationService.notifyStatusChange({
+            recipientUserIds: Array.from(new Set(recipientIds)),
+            actorId: user.id,
+            actorName: user.name,
+            entityType: 'CASE',
+            entityId: id,
+            entityTitle: existing.title,
+            newStatus: dto.status as string,
+          });
+        })
+        .catch(() => {});
+    }
+
     return this.findOne(id, user);
   }
 
@@ -323,9 +386,11 @@ export class CaseService {
     const previousAssignees = await this.getAssigneeNames(caseId);
 
     await this.prisma.$transaction(async (tx) => {
+      // Replaces rather than adds to the existing assignee set — a case can
+      // only ever have one owner.
+      await tx.caseAssignee.deleteMany({ where: { caseId } });
       await tx.caseAssignee.createMany({
         data: assigneeIds.map((userId) => ({ caseId, userId })),
-        skipDuplicates: true,
       });
 
       await this.activityLogs.record(
@@ -337,17 +402,25 @@ export class CaseService {
           action: ActivityAction.ASSIGNED,
           actorId: user.id,
           description: `Assigned ${addedNames.join(', ')} to case "${kase.title}"`,
-          changes: this.activityLogs.buildAssigneeChange(
-            previousAssignees,
-            // createMany skips duplicates, so the resulting set is the union.
-            Array.from(new Set([...previousAssignees, ...addedNames])),
-          ),
+          // The set is replaced outright, so the resulting set is exactly
+          // what was passed in — no union with the previous assignees.
+          changes: this.activityLogs.buildAssigneeChange(previousAssignees, addedNames),
         },
         tx,
       );
     });
 
     await this.recordCategoryAssignmentIfChanged(caseId, kase.category, user.id);
+
+    this.notificationService.notifyAssignees({
+      assigneeUserIds: assigneeIds,
+      actorId: user.id,
+      actorName: user.name,
+      entityType: 'CASE',
+      entityId: caseId,
+      entityTitle: kase.title,
+    }).catch(() => {});
+
     return this.findOne(caseId, user);
   }
 
@@ -741,6 +814,17 @@ export class CaseService {
     }
   }
 
+  private async getProjectIsCso(projectId: string): Promise<boolean> {
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      select: { isCsoProject: true },
+    });
+    if (!project) {
+      throw new BadRequestException('Project does not exist.');
+    }
+    return project.isCsoProject;
+  }
+
   // ---------------------------------------------------------------------------
   // Lookups & mapping
   // ---------------------------------------------------------------------------
@@ -776,6 +860,9 @@ export class CaseService {
       sprintId: kase.sprintId,
       milestoneId: kase.milestoneId,
       dueDate: kase.dueDate ? kase.dueDate.toISOString() : null,
+      startDate: kase.startDate ? kase.startDate.toISOString() : null,
+      createdAt: kase.createdAt ? kase.createdAt.toISOString() : undefined,
+      updatedAt: kase.updatedAt ? kase.updatedAt.toISOString() : undefined,
       isCsoLabeled: kase.isCsoLabeled,
       category: kase.category,
       jiraStatusLabel: kase.jiraStatusLabel,

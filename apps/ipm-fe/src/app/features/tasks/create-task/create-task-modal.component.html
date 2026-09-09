@@ -158,6 +158,30 @@
           <label for="dueDate" class="form-label">Due Date</label>
           <input id="dueDate" type="date" [(ngModel)]="dueDate" class="form-input" />
         </div>
+
+        <!-- Task Type -->
+        <div class="form-group">
+          <label for="taskType" class="form-label">Task Type</label>
+          <select id="taskType" [(ngModel)]="selectedTaskTypeId" (change)="onTaskTypeSelect(selectedTaskTypeId)" class="form-select">
+            <option value="">None</option>
+            @for (type of availableTaskTypes(); track type.id) {
+              <option [value]="type.id">{{ type.name }}</option>
+            }
+          </select>
+        </div>
+
+        <!-- Complexity (depends on the selected Task Type's own scale) -->
+        @if (selectedTaskTypeId) {
+          <div class="form-group">
+            <label for="complexity" class="form-label">Complexity</label>
+            <select id="complexity" [(ngModel)]="selectedComplexityLevelId" class="form-select">
+              <option value="">None</option>
+              @for (level of availableComplexityLevels(); track level.id) {
+                <option [value]="level.id">{{ level.name }}</option>
+              }
+            </select>
+          </div>
+        }
       </div>
 
       <!-- Description -->
@@ -171,6 +195,26 @@
           rows="6"
         ></textarea>
       </div>
+
+      <!-- Functional/Technical tag (only for CSO cases — routes this task into the queue) -->
+      @if (isCsoCase) {
+        <div class="form-group full-width">
+          <div class="form-label" id="task-category-label">
+            Category
+            <span class="required">*</span>
+          </div>
+          <div class="category-group" role="group" aria-labelledby="task-category-label">
+            <button type="button" class="category-btn functional" [class.active]="selectedCategory === 'FUNCTIONAL'" (click)="selectedCategory = 'FUNCTIONAL'">
+              <span class="material-symbols-outlined">psychology</span>
+              Functional
+            </button>
+            <button type="button" class="category-btn technical" [class.active]="selectedCategory === 'TECHNICAL'" (click)="selectedCategory = 'TECHNICAL'">
+              <span class="material-symbols-outlined">terminal</span>
+              Technical
+            </button>
+          </div>
+        </div>
+      }
     </div>
 
     <!-- Modal Footer -->

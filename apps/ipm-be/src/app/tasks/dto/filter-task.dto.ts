@@ -11,7 +11,7 @@ import {
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { TaskStatus } from '@prisma/client';
+import { TaskCategory, TaskStatus } from '@prisma/client';
 
 export type TaskSortField = 'title' | 'priority' | 'createdAt' | 'updatedAt' | 'dueDate' | 'storyPoints';
 
@@ -46,10 +46,33 @@ export class FilterTaskDto {
   @IsUUID()
   labelId?: string;
 
+  @ApiPropertyOptional({ format: 'uuid', description: "Matches against the parent Case's project.customerId." })
+  @IsOptional()
+  @IsUUID()
+  customerId?: string;
+
   @ApiPropertyOptional({ format: 'uuid' })
   @IsOptional()
   @IsUUID()
   priorityId?: string;
+
+  @ApiPropertyOptional({ enum: TaskCategory, description: 'Functional/Technical CSO queue.' })
+  @IsOptional()
+  @IsEnum(TaskCategory)
+  category?: TaskCategory;
+
+  @ApiPropertyOptional({ description: 'Filters to tasks whose parent Case is CSO-labeled when true.' })
+  @IsOptional()
+  @Transform(({ value }) => value === 'true')
+  isCsoLabeled?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Filters to tasks with no assignee when true. Used by the CSO queue: a task drops out of the queue the moment someone is assigned to it.',
+  })
+  @IsOptional()
+  @Transform(({ value }) => value === 'true')
+  unassigned?: boolean;
 
   @ApiPropertyOptional({ description: 'Matches against title or description.' })
   @IsOptional()

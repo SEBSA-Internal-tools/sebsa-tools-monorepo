@@ -29,7 +29,7 @@
               type="button"
               class="btn-refresh"
               [class.spinning]="isLoading()"
-              (click)="loadCases()"
+              (click)="loadCases(true)"
               title="Refresh calendar cases"
             >
               <span class="material-symbols-outlined">refresh</span>
@@ -51,7 +51,7 @@
             <span class="material-symbols-outlined">error</span>
             <span>{{ errorMessage() }}</span>
           </div>
-          <button type="button" class="btn-retry-banner" (click)="loadCases()">
+          <button type="button" class="btn-retry-banner" (click)="loadCases(true)">
             Retry
           </button>
         </div>
@@ -87,6 +87,7 @@
       <!-- Create Case Modal -->
       <app-create-case-modal
         [isOpen]="isCreateCaseModalOpen()"
+        [initialDueDate]="initialCaseDueDate()"
         [projectId]="selectedProjectId()"
         [projectName]="selectedProjectName()"
         (closed)="onCaseModalClosed()"

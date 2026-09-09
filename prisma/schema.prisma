@@ -495,6 +495,66 @@ model Label {
   @@map("labels")
 }
 
+/// Global, Super-Admin-managed list of Task Types (e.g. "Support Task",
+/// "Development Task", "Bug") — unlike ProjectPriority/Label this is not
+/// scoped per project, matching how PrivilegeGroup is a single system-wide
+/// library every project draws from. Each type owns its own complexity
+/// scale (see TaskComplexityLevel) since "Support Task" and "Development
+/// Task" complexity are scored independently, on the same 1-5 structure.
+model TaskType {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  order       Int
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  complexityLevels TaskComplexityLevel[]
+  tasks            Task[]
+
+  @@map("task_types")
+}
+
+/// A single rung (1-5, Basic..Very High by default, but Super-Admin
+/// editable — name/color/order can all be changed) on one TaskType's own
+/// complexity scale. Mirrors ProjectPriority's shape (name/color/order)
+/// but is scoped to a TaskType instead of a Project.
+model TaskComplexityLevel {
+  id         String   @id @default(uuid())
+  taskTypeId String
+  name       String
+  color      String?
+  order      Int
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  taskType TaskType @relation(fields: [taskTypeId], references: [id], onDelete: Cascade)
+  tasks    Task[]
+
+  @@unique([taskTypeId, name])
+  @@unique([taskTypeId, order])
+  @@index([taskTypeId])
+  @@map("task_complexity_levels")
+}
+
+/// Global, Super-Admin-managed list of Subtask Types — separate from
+/// TaskType (a Subtask is a different level of the hierarchy with its own
+/// vocabulary), same "single system-wide library" pattern.
+model SubtaskType {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  order       Int
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  subtasks Subtask[]
+
+  @@map("subtask_types")
+}
+
 // ---------------------------------------------------------------------------
 // Cases
 // ---------------------------------------------------------------------------
@@ -636,16 +696,26 @@ model CaseCategoryAssignment {
 /// (see TaskStatus doc comment) replaced the old per-project WorkflowStage
 /// FK; sprint/milestone/CSO-labeling/category all moved up to Case.
 model Task {
-  id                  String     @id @default(uuid())
+  id                  String        @id @default(uuid())
   caseId              String
   title               String
   description         String?
-  status              TaskStatus @default(TO_DO)
+  status              TaskStatus    @default(TO_DO)
   priorityId          String
   startDate           DateTime?
   dueDate             DateTime?
   storyPoints         Float?
   reminderLeadMinutes Int?
+  /// Functional/Technical tag, independent of the parent Case's own
+  /// category — a Task under a Functional case can still be a Technical
+  /// task. This is what routes a CSO task into the Functional or Technical
+  /// queue. Nullable for ordinary tasks; the application layer requires it
+  /// whenever the parent Case is CSO (same rule Case enforces for itself).
+  category            TaskCategory?
+  taskTypeId          String?
+  /// Must belong to `taskTypeId`'s own complexity scale — enforced at the
+  /// application layer since Prisma can't express a same-row cross-column FK.
+  complexityLevelId   String?
   /// Jira 2-way sync (see JiraModule). Null for tasks never linked to a Jira
   /// issue — most tasks, since sync is opt-in per project via Integration
   /// (type: JIRA). jiraSyncedAt is the loop-prevention guard: when we push a
@@ -661,13 +731,15 @@ model Task {
   /// configured. No sync/integration — purely a manual reference field.
   jiraStatusLabel     String?
   createdById         String
-  createdAt           DateTime   @default(now())
-  updatedAt           DateTime   @updatedAt
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
   deletedAt           DateTime?
 
-  case      Case            @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  priority  ProjectPriority @relation(fields: [priorityId], references: [id], onDelete: Restrict)
-  createdBy User            @relation("TaskCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  case            Case                 @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  priority        ProjectPriority      @relation(fields: [priorityId], references: [id], onDelete: Restrict)
+  taskType        TaskType?            @relation(fields: [taskTypeId], references: [id], onDelete: SetNull)
+  complexityLevel TaskComplexityLevel? @relation(fields: [complexityLevelId], references: [id], onDelete: SetNull)
+  createdBy       User                 @relation("TaskCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
 
   subtasks      Subtask[]
   assignees     TaskAssignee[]
@@ -682,6 +754,8 @@ model Task {
   @@index([caseId])
   @@index([priorityId])
   @@index([dueDate])
+  @@index([taskTypeId])
+  @@index([complexityLevelId])
   @@map("tasks")
 }
 
@@ -783,6 +857,7 @@ model Subtask {
   description     String?
   status          SubtaskStatus @default(TO_DO)
   dueDate         DateTime?
+  subtaskTypeId   String?
   /// Optional, free-text, manually-entered status label mirroring whatever a
   /// customer's own Jira board calls this item. No live sync/integration —
   /// purely a manual reference field.
@@ -792,13 +867,15 @@ model Subtask {
   updatedAt       DateTime      @updatedAt
   deletedAt       DateTime?
 
-  task      Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  createdBy User @relation("SubtaskCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  task        Task         @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  subtaskType SubtaskType? @relation(fields: [subtaskTypeId], references: [id], onDelete: SetNull)
+  createdBy   User         @relation("SubtaskCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
 
   assignees SubtaskAssignee[]
 
   @@index([taskId])
   @@index([dueDate])
+  @@index([subtaskTypeId])
   @@map("subtasks")
 }
 

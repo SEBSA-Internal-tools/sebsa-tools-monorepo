@@ -15,12 +15,13 @@ import {
   TaskListSummary,
   UpdateTaskResponse,
 } from '@sebsa-pm-tool/shared-models';
-import { ActivityAction, EntityType, Prisma } from '@prisma/client';
+import { ActivityAction, EntityType, Prisma, TaskCategory } from '@prisma/client';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { FilterTaskDto } from './dto/filter-task.dto';
 import { CreateTaskDependencyDto } from './dto/create-task-dependency.dto';
 import { ActivityLogsService } from '../activity-logs/activity-logs.service';
+import { NotificationService } from '../notifications/notification.service';
 
 const ADMIN_SYSTEM_ROLES: AuthUser['systemRole'][] = ['ADMIN', 'SUPER_ADMIN'];
 
@@ -33,8 +34,13 @@ const taskSummarySelect = {
   priorityId: true,
   dueDate: true,
   jiraStatusLabel: true,
-  case: { select: { id: true, title: true, type: true, projectId: true } },
+  category: true,
+  taskTypeId: true,
+  complexityLevelId: true,
+  case: { select: { id: true, title: true, type: true, projectId: true, isCsoLabeled: true } },
   priority: { select: { id: true, name: true, color: true } },
+  taskType: { select: { id: true, name: true } },
+  complexityLevel: { select: { id: true, name: true, color: true } },
   assignees: { include: { user: { select: { id: true, name: true, email: true } } } },
 } satisfies Prisma.TaskSelect;
 
@@ -48,8 +54,10 @@ const taskDetailInclude = {
     where: { deletedAt: null },
     select: { id: true, title: true, status: true },
   },
-  case: { select: { id: true, title: true, type: true, projectId: true } },
+  case: { select: { id: true, title: true, type: true, projectId: true, isCsoLabeled: true } },
   priority: { select: { id: true, name: true, color: true } },
+  taskType: { select: { id: true, name: true } },
+  complexityLevel: { select: { id: true, name: true, color: true } },
 } satisfies Prisma.TaskInclude;
 
 type TaskWithDetail = Prisma.TaskGetPayload<{ include: typeof taskDetailInclude }>;
@@ -59,6 +67,7 @@ export class TaskService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly activityLogs: ActivityLogsService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   async create(dto: CreateTaskDto, user: AuthUser): Promise<Task> {
@@ -70,6 +79,8 @@ export class TaskService {
     await this.assertAssigneesValid(dto.assigneeIds, kase.projectId);
     await this.assertLabelsValid(dto.labelIds, kase.projectId);
     this.assertDatesValid(dto.startDate, dto.dueDate);
+    await this.assertComplexityLevelValid(dto.taskTypeId, dto.complexityLevelId);
+    this.assertCsoCategoryRequirement(kase.isCsoLabeled, dto.category);
 
     const created = await this.prisma.$transaction(async (tx) => {
       const task = await tx.task.create({
@@ -82,9 +93,12 @@ export class TaskService {
           storyPoints: dto.storyPoints,
           reminderLeadMinutes: dto.reminderLeadMinutes,
           jiraStatusLabel: dto.jiraStatusLabel,
+          category: dto.category,
           case: { connect: { id: dto.caseId } },
           priority: { connect: { id: priorityId } },
           createdBy: { connect: { id: user.id } },
+          ...(dto.taskTypeId && { taskType: { connect: { id: dto.taskTypeId } } }),
+          ...(dto.complexityLevelId && { complexityLevel: { connect: { id: dto.complexityLevelId } } }),
           ...(dto.assigneeIds?.length && {
             assignees: { createMany: { data: dto.assigneeIds.map((userId) => ({ userId })) } },
           }),
@@ -118,6 +132,17 @@ export class TaskService {
 
       return task;
     });
+
+    if (dto.assigneeIds?.length) {
+      this.notificationService.notifyAssignees({
+        assigneeUserIds: dto.assigneeIds,
+        actorId: user.id,
+        actorName: user.name,
+        entityType: 'TASK',
+        entityId: created.id,
+        entityTitle: dto.title,
+      }).catch(() => { /* error swallowed by notification service */ });
+    }
 
     return this.findOne(created.id, user);
   }
@@ -207,6 +232,14 @@ export class TaskService {
       );
     }
 
+    const mergedTaskTypeId = dto.taskTypeId !== undefined ? dto.taskTypeId : existing.taskTypeId ?? undefined;
+    const mergedComplexityLevelId =
+      dto.complexityLevelId !== undefined ? dto.complexityLevelId : existing.complexityLevelId ?? undefined;
+    await this.assertComplexityLevelValid(mergedTaskTypeId, mergedComplexityLevelId);
+
+    const mergedCategory = dto.category !== undefined ? dto.category : existing.category;
+    this.assertCsoCategoryRequirement(existing.case.isCsoLabeled, mergedCategory);
+
     const { assigneeIds, labelIds, ...restDto } = dto;
     const isStatusChange = !!dto.status && dto.status !== existing.status;
     const changes = [
@@ -272,6 +305,42 @@ export class TaskService {
       ? await this.checkDependencyWarnings(id, dto.status as string)
       : [];
 
+    if (dto.assigneeIds?.length) {
+      this.notificationService.notifyAssignees({
+        assigneeUserIds: dto.assigneeIds,
+        actorId: user.id,
+        actorName: user.name,
+        entityType: 'TASK',
+        entityId: id,
+        entityTitle: existing.title,
+      }).catch(() => {});
+    }
+
+    if (isStatusChange && dto.status) {
+      this.prisma.taskAssignee
+        .findMany({
+          where: { taskId: id },
+          select: { userId: true },
+        })
+        .then((taskAssignees) => {
+          const recipientIds = [
+            ...taskAssignees.map((a) => a.userId),
+            existing.createdById,
+          ].filter(Boolean);
+
+          return this.notificationService.notifyStatusChange({
+            recipientUserIds: Array.from(new Set(recipientIds)),
+            actorId: user.id,
+            actorName: user.name,
+            entityType: 'TASK',
+            entityId: id,
+            entityTitle: existing.title,
+            newStatus: dto.status as string,
+          });
+        })
+        .catch(() => {});
+    }
+
     return { task: await this.findOne(id, user), warnings };
   }
 
@@ -335,6 +404,15 @@ export class TaskService {
         tx,
       );
     });
+
+    this.notificationService.notifyAssignees({
+      assigneeUserIds: assigneeIds,
+      actorId: user.id,
+      actorName: user.name,
+      entityType: 'TASK',
+      entityId: taskId,
+      entityTitle: task.title,
+    }).catch(() => {});
 
     return this.findOne(taskId, user);
   }
@@ -657,6 +735,9 @@ export class TaskService {
     if (filter.projectId) {
       where.case = { ...(where.case as object), projectId: filter.projectId };
     }
+    if (filter.customerId) {
+      where.case = { ...(where.case as object), project: { customerId: filter.customerId } };
+    }
     if (filter.status) {
       where.status = filter.status;
     }
@@ -666,19 +747,33 @@ export class TaskService {
     if (filter.assigneeId) {
       where.assignees = { some: { userId: filter.assigneeId } };
     }
+    if (filter.unassigned) {
+      where.assignees = { none: {} };
+    }
     if (filter.labelId) {
       where.labels = { some: { labelId: filter.labelId } };
     }
+    if (filter.category) {
+      where.category = filter.category;
+    }
+
+    const andConditions: Prisma.TaskWhereInput[] = [];
+
+    if (filter.isCsoLabeled !== undefined) {
+      andConditions.push({ case: { isCsoLabeled: filter.isCsoLabeled } });
+    }
 
     if (filter.search) {
-      where.AND = [
-        {
-          OR: [
-            { title: { contains: filter.search, mode: 'insensitive' } },
-            { description: { contains: filter.search, mode: 'insensitive' } },
-          ],
-        },
-      ];
+      andConditions.push({
+        OR: [
+          { title: { contains: filter.search, mode: 'insensitive' } },
+          { description: { contains: filter.search, mode: 'insensitive' } },
+        ],
+      });
+    }
+
+    if (andConditions.length > 0) {
+      where.AND = andConditions;
     }
 
     if (filter.priorityId) {
@@ -764,6 +859,39 @@ export class TaskService {
     }
   }
 
+  /** A Task's category is independent of its Case's, but the same rule
+   * applies: required whenever the parent Case is CSO, since that's what
+   * routes it into a Functional/Technical queue. */
+  private assertCsoCategoryRequirement(
+    caseIsCsoLabeled: boolean,
+    category: TaskCategory | null | undefined,
+  ): void {
+    if (caseIsCsoLabeled && !category) {
+      throw new BadRequestException('A task on a CSO case must be tagged Functional or Technical.');
+    }
+  }
+
+  private async assertComplexityLevelValid(
+    taskTypeId: string | undefined,
+    complexityLevelId: string | undefined,
+  ): Promise<void> {
+    if (taskTypeId) {
+      const taskType = await this.prisma.taskType.findFirst({ where: { id: taskTypeId, isActive: true } });
+      if (!taskType) {
+        throw new BadRequestException('Task type does not exist or is inactive.');
+      }
+    }
+    if (!complexityLevelId) return;
+
+    const level = await this.prisma.taskComplexityLevel.findUnique({ where: { id: complexityLevelId } });
+    if (!level) {
+      throw new BadRequestException('Complexity level does not exist.');
+    }
+    if (!taskTypeId || level.taskTypeId !== taskTypeId) {
+      throw new BadRequestException('Complexity level does not belong to the selected task type.');
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Lookups & mapping
   // ---------------------------------------------------------------------------
@@ -771,7 +899,7 @@ export class TaskService {
   private async getCaseOrThrow(id: string) {
     const kase = await this.prisma.case.findFirst({
       where: { id, deletedAt: null },
-      select: { id: true, projectId: true },
+      select: { id: true, projectId: true, isCsoLabeled: true },
     });
     if (!kase) {
       throw new NotFoundException('Case not found.');
@@ -782,7 +910,7 @@ export class TaskService {
   private async getTaskWithProjectOrThrow(id: string) {
     const task = await this.prisma.task.findFirst({
       where: { id, deletedAt: null },
-      include: { case: { select: { projectId: true } } },
+      include: { case: { select: { projectId: true, isCsoLabeled: true } } },
     });
     if (!task) {
       throw new NotFoundException('Task not found.');
@@ -811,6 +939,11 @@ export class TaskService {
       priorityId: task.priorityId,
       dueDate: task.dueDate ? task.dueDate.toISOString() : null,
       jiraStatusLabel: task.jiraStatusLabel,
+      category: task.category,
+      taskTypeId: task.taskTypeId,
+      taskType: task.taskType,
+      complexityLevelId: task.complexityLevelId,
+      complexityLevel: task.complexityLevel,
       case: task.case,
       priority: task.priority,
       assignees: task.assignees.map((a) => a.user),
@@ -827,6 +960,11 @@ export class TaskService {
       priorityId: task.priorityId,
       dueDate: task.dueDate ? task.dueDate.toISOString() : null,
       jiraStatusLabel: task.jiraStatusLabel,
+      category: task.category,
+      taskTypeId: task.taskTypeId,
+      taskType: task.taskType,
+      complexityLevelId: task.complexityLevelId,
+      complexityLevel: task.complexityLevel,
       case: task.case,
       priority: task.priority,
       startDate: task.startDate ? task.startDate.toISOString() : null,

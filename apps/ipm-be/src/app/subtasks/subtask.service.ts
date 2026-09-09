@@ -5,12 +5,14 @@ import { ActivityAction, EntityType, Prisma } from '@prisma/client';
 import { CreateSubtaskDto } from './dto/create-subtask.dto';
 import { UpdateSubtaskDto } from './dto/update-subtask.dto';
 import { ActivityLogsService } from '../activity-logs/activity-logs.service';
+import { NotificationService } from '../notifications/notification.service';
 
 const ADMIN_SYSTEM_ROLES: AuthUser['systemRole'][] = ['ADMIN', 'SUPER_ADMIN'];
 
 const subtaskInclude = {
   assignees: { include: { user: { select: { id: true, name: true, email: true } } } },
   createdBy: { select: { id: true, name: true } },
+  subtaskType: { select: { id: true, name: true } },
 } satisfies Prisma.SubtaskInclude;
 
 type SubtaskWithDetail = Prisma.SubtaskGetPayload<{ include: typeof subtaskInclude }>;
@@ -20,6 +22,7 @@ export class SubtaskService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly activityLogs: ActivityLogsService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   async findAllByTask(taskId: string, user: AuthUser): Promise<Subtask[]> {
@@ -38,6 +41,7 @@ export class SubtaskService {
     const task = await this.getTaskOrThrow(taskId);
     await this.assertCanEdit(task.case.projectId, user);
     await this.assertAssigneesValid(dto.assigneeIds, task.case.projectId);
+    await this.assertSubtaskTypeValid(dto.subtaskTypeId);
 
     const created = await this.prisma.$transaction(async (tx) => {
       const subtask = await tx.subtask.create({
@@ -48,6 +52,7 @@ export class SubtaskService {
           status: dto.status,
           dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
           jiraStatusLabel: dto.jiraStatusLabel,
+          subtaskTypeId: dto.subtaskTypeId,
           createdById: user.id,
           ...(dto.assigneeIds?.length && {
             assignees: { createMany: { data: dto.assigneeIds.map((userId) => ({ userId })) } },
@@ -72,6 +77,17 @@ export class SubtaskService {
       return subtask;
     });
 
+    if (dto.assigneeIds?.length) {
+      this.notificationService.notifyAssignees({
+        assigneeUserIds: dto.assigneeIds,
+        actorId: user.id,
+        actorName: user.name,
+        entityType: 'SUBTASK',
+        entityId: created.id,
+        entityTitle: dto.title,
+      }).catch(() => {});
+    }
+
     return this.toSubtask(created);
   }
 
@@ -87,6 +103,9 @@ export class SubtaskService {
 
     if (dto.assigneeIds) {
       await this.assertAssigneesValid(dto.assigneeIds, existing.task.case.projectId);
+    }
+    if (dto.subtaskTypeId !== undefined) {
+      await this.assertSubtaskTypeValid(dto.subtaskTypeId);
     }
 
     const { assigneeIds, ...restDto } = dto;
@@ -138,6 +157,17 @@ export class SubtaskService {
 
       return subtask;
     });
+
+    if (assigneeIds?.length) {
+      this.notificationService.notifyAssignees({
+        assigneeUserIds: assigneeIds,
+        actorId: user.id,
+        actorName: user.name,
+        entityType: 'SUBTASK',
+        entityId: id,
+        entityTitle: existing.title,
+      }).catch(() => {});
+    }
 
     return this.toSubtask(updated);
   }
@@ -198,6 +228,15 @@ export class SubtaskService {
         tx,
       );
     });
+
+    this.notificationService.notifyAssignees({
+      assigneeUserIds: assigneeIds,
+      actorId: user.id,
+      actorName: user.name,
+      entityType: 'SUBTASK',
+      entityId: id,
+      entityTitle: existing.title,
+    }).catch(() => {});
 
     return this.findOne(id, user);
   }
@@ -294,6 +333,14 @@ export class SubtaskService {
     }
   }
 
+  private async assertSubtaskTypeValid(subtaskTypeId: string | undefined): Promise<void> {
+    if (!subtaskTypeId) return;
+    const type = await this.prisma.subtaskType.findFirst({ where: { id: subtaskTypeId, isActive: true } });
+    if (!type) {
+      throw new NotFoundException('Subtask type does not exist or is inactive.');
+    }
+  }
+
   private async getTaskOrThrow(taskId: string) {
     const task = await this.prisma.task.findFirst({
       where: { id: taskId, deletedAt: null },
@@ -325,6 +372,8 @@ export class SubtaskService {
       status: subtask.status,
       dueDate: subtask.dueDate ? subtask.dueDate.toISOString() : null,
       jiraStatusLabel: subtask.jiraStatusLabel,
+      subtaskTypeId: subtask.subtaskTypeId,
+      subtaskType: subtask.subtaskType,
       assignees: subtask.assignees.map((a) => a.user),
       createdBy: subtask.createdBy,
       createdAt: subtask.createdAt.toISOString(),

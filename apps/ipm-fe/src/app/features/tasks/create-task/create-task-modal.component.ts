@@ -14,6 +14,8 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ProjectsService } from '../../projects/services/projects.service';
+import { TaskTypesService } from '../../../core/services/task-types.service';
+import type { TaskCategory, TaskType } from '@sebsa-pm-tool/shared-models';
 import {
   PriorityModalComponent,
   PriorityFormData,
@@ -29,13 +31,18 @@ export interface TaskFormData {
   priorityId?: string;
   dueDate: string;
   description: string;
+  /** Required when `isCsoCase` is set — routes the task into the
+   *  Functional/Technical queue, independent of the parent Case's own tag. */
+  category?: TaskCategory;
+  taskTypeId?: string;
+  complexityLevelId?: string;
 }
 
 /** Creates a Task under a fixed, already-known Case — `caseId`/`projectId`
- * are always supplied by the caller (case detail page, task detail's Add
- * Subtask... no: subtasks use their own modal now). Unlike the old
- * combined Task modal, there's no type/CSO/category picker here anymore —
- * those live on the parent Case. */
+ * are always supplied by the caller. Task Type/Complexity are always
+ * offered (global lists); the Functional/Technical category picker only
+ * appears when `isCsoCase` is set, since only CSO cases route their tasks
+ * into a queue. */
 @Component({
   standalone: true,
   selector: 'app-create-task-modal',
@@ -48,10 +55,14 @@ export class CreateTaskModalComponent implements OnChanges {
   @Input() isOpen = false;
   @Input({ required: true }) projectId = '';
   @Input() caseTitle = '';
+  /** Whether the parent Case is CSO — shows the Functional/Technical
+   *  category picker and requires it to be set. */
+  @Input() isCsoCase = false;
   @Output() closed = new EventEmitter<void>();
   @Output() submitted = new EventEmitter<TaskFormData>();
 
   private readonly projectsService = inject(ProjectsService);
+  private readonly taskTypesService = inject(TaskTypesService);
 
   @ViewChild('assigneeDropdownRef') assigneeDropdownRef?: ElementRef<HTMLElement>;
 
@@ -69,8 +80,12 @@ export class CreateTaskModalComponent implements OnChanges {
 
   dueDate = '';
   description = '';
+  selectedCategory: TaskCategory | '' = '';
+  selectedTaskTypeId = '';
+  selectedComplexityLevelId = '';
 
   readonly availableAssignees = signal<AssigneeCandidate[]>([]);
+  readonly availableTaskTypes = signal<TaskType[]>([]);
   readonly isLoadingUsers = signal(false);
   readonly userError = signal('');
   readonly isAssigneeDropdownOpen = signal(false);
@@ -80,7 +95,25 @@ export class CreateTaskModalComponent implements OnChanges {
     if (this.isOpen && this.projectId) {
       this.loadPriorities(this.projectId);
       this.loadAssignees(this.projectId);
+      this.loadTaskTypes();
     }
+  }
+
+  private loadTaskTypes(): void {
+    this.taskTypesService.list().subscribe({
+      next: (types) => this.availableTaskTypes.set(types.filter((t) => t.isActive)),
+      error: () => this.availableTaskTypes.set([]),
+    });
+  }
+
+  onTaskTypeSelect(taskTypeId: string): void {
+    this.selectedTaskTypeId = taskTypeId;
+    this.selectedComplexityLevelId = '';
+  }
+
+  availableComplexityLevels() {
+    const type = this.availableTaskTypes().find((t) => t.id === this.selectedTaskTypeId);
+    return type?.complexityLevels ?? [];
   }
 
   @HostListener('document:click', ['$event'])
@@ -166,6 +199,10 @@ export class CreateTaskModalComponent implements OnChanges {
       alert('Please enter a task title');
       return;
     }
+    if (this.isCsoCase && !this.selectedCategory) {
+      alert('Please tag this CSO task as Functional or Technical');
+      return;
+    }
 
     const formData: TaskFormData = {
       title: this.taskTitle,
@@ -173,6 +210,9 @@ export class CreateTaskModalComponent implements OnChanges {
       priorityId: this.priorityId,
       dueDate: this.dueDate,
       description: this.description,
+      category: this.selectedCategory || undefined,
+      taskTypeId: this.selectedTaskTypeId || undefined,
+      complexityLevelId: this.selectedComplexityLevelId || undefined,
     };
 
     this.submitted.emit(formData);
@@ -188,6 +228,9 @@ export class CreateTaskModalComponent implements OnChanges {
     this.priorityId = undefined;
     this.dueDate = '';
     this.description = '';
+    this.selectedCategory = '';
+    this.selectedTaskTypeId = '';
+    this.selectedComplexityLevelId = '';
     this.availableAssignees.set([]);
   }
 

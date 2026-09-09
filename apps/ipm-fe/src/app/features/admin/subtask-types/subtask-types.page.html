@@ -1,0 +1,85 @@
+<div class="admin-users-container">
+  <header class="sebsa-page-header">
+    <span class="sebsa-eyebrow">CSO CONFIGURATION</span>
+    <h1 class="sebsa-page-title">Subtask Types</h1>
+    <p class="sebsa-page-desc">Define the subtask types teams can pick from when breaking a task down.</p>
+  </header>
+
+  <div class="sebsa-card">
+    <div class="content-header-row" style="display: flex; justify-content: flex-end; margin-bottom: 24px;">
+      <button type="button" class="btn-primary" (click)="openCreateModal()">+ Create Subtask Type</button>
+    </div>
+
+    @if (errorMessage()) {
+      <div class="error-banner">{{ errorMessage() }}</div>
+    }
+
+    <section class="section">
+      <table class="sebsa-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Description</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (type of types(); track type.id) {
+            <tr>
+              <td>{{ type.name }}</td>
+              <td>{{ type.description || '—' }}</td>
+              <td>
+                @if (type.isActive) {
+                  <span class="badge badge-active">Active</span>
+                } @else {
+                  <span class="badge badge-pending">Inactive</span>
+                }
+              </td>
+              <td class="actions">
+                <button type="button" class="btn-text" (click)="openEditModal(type)">Edit</button>
+                <button type="button" class="btn-text btn-text-danger" (click)="remove(type)">Delete</button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </section>
+  </div>
+
+  @if (isModalOpen()) {
+    <div class="modal-overlay" (click)="closeModal()"></div>
+    <div class="modal-container">
+      <div class="modal-header">
+        <h2>{{ editingId() ? 'Edit Subtask Type' : 'Create Subtask Type' }}</h2>
+        <button type="button" class="close-btn" (click)="closeModal()">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Name</label>
+          <input type="text" [(ngModel)]="form.name" class="form-input" placeholder="e.g. Investigation" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Description</label>
+          <input type="text" [(ngModel)]="form.description" class="form-input" placeholder="Optional" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Order</label>
+          <input type="number" [(ngModel)]="form.order" class="form-input" placeholder="Defaults to last" />
+        </div>
+        <div class="form-group">
+          <label class="checkbox-item">
+            <input type="checkbox" [(ngModel)]="form.isActive" />
+            Active (selectable when creating subtasks)
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-cancel" (click)="closeModal()">Cancel</button>
+        <button type="button" class="btn-create" (click)="submit()">Save</button>
+      </div>
+    </div>
+  }
+</div>

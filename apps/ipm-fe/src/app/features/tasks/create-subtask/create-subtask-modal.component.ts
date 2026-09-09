@@ -14,6 +14,8 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ProjectsService } from '../../projects/services/projects.service';
+import { SubtaskTypesService } from '../../../core/services/subtask-types.service';
+import type { SubtaskType } from '@sebsa-pm-tool/shared-models';
 
 type AssigneeCandidate = { id: string; name: string; email: string };
 
@@ -22,11 +24,13 @@ export interface SubtaskFormData {
   description: string;
   dueDate: string;
   assigneeIds: string[];
+  subtaskTypeId?: string;
 }
 
 /** Lean by design — a Subtask has no priority/sprint/CSO/category, just
- * title, description, due date, and assignees. `projectId` is only needed
- * to scope the assignee picker to project members. */
+ * title, description, due date, assignees, and an optional Subtask Type.
+ * `projectId` is only needed to scope the assignee picker to project
+ * members. */
 @Component({
   standalone: true,
   selector: 'app-create-subtask-modal',
@@ -43,6 +47,7 @@ export class CreateSubtaskModalComponent implements OnChanges {
   @Output() submitted = new EventEmitter<SubtaskFormData>();
 
   private readonly projectsService = inject(ProjectsService);
+  private readonly subtaskTypesService = inject(SubtaskTypesService);
 
   @ViewChild('assigneeDropdownRef') assigneeDropdownRef?: ElementRef<HTMLElement>;
 
@@ -51,8 +56,10 @@ export class CreateSubtaskModalComponent implements OnChanges {
   dueDate = '';
   selectedAssigneeIds: string[] = [];
   assigneeSearch = '';
+  selectedSubtaskTypeId = '';
 
   readonly availableAssignees = signal<AssigneeCandidate[]>([]);
+  readonly availableSubtaskTypes = signal<SubtaskType[]>([]);
   readonly isLoadingUsers = signal(false);
   readonly userError = signal('');
   readonly isAssigneeDropdownOpen = signal(false);
@@ -60,7 +67,15 @@ export class CreateSubtaskModalComponent implements OnChanges {
   ngOnChanges(): void {
     if (this.isOpen && this.projectId) {
       this.loadAssignees(this.projectId);
+      this.loadSubtaskTypes();
     }
+  }
+
+  private loadSubtaskTypes(): void {
+    this.subtaskTypesService.list().subscribe({
+      next: (types) => this.availableSubtaskTypes.set(types.filter((t) => t.isActive)),
+      error: () => this.availableSubtaskTypes.set([]),
+    });
   }
 
   @HostListener('document:click', ['$event'])
@@ -107,6 +122,7 @@ export class CreateSubtaskModalComponent implements OnChanges {
       description: this.description,
       dueDate: this.dueDate,
       assigneeIds: this.selectedAssigneeIds,
+      subtaskTypeId: this.selectedSubtaskTypeId || undefined,
     };
 
     this.submitted.emit(formData);
@@ -120,6 +136,7 @@ export class CreateSubtaskModalComponent implements OnChanges {
     this.dueDate = '';
     this.selectedAssigneeIds = [];
     this.assigneeSearch = '';
+    this.selectedSubtaskTypeId = '';
     this.isAssigneeDropdownOpen.set(false);
   }
 

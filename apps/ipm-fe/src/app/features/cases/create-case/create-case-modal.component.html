@@ -133,69 +133,12 @@
               {{ userError() }}
             </div>
           } @else {
-            <div class="assignee-dropdown" #assigneeDropdownRef>
-              <div class="assignee-input" [class.open]="isAssigneeDropdownOpen()">
-                <div class="selected-assignees">
-                  @for (user of selectedAssignees(); track user.id) {
-                    <span class="selected-assignee-chip">
-                      <span class="chip-avatar">{{ getUserInitials(user.name) }}</span>
-                      <span class="chip-name">{{ user.name }}</span>
-                      <button type="button" class="remove-assignee" (click)="removeAssignee(user.id, $event)" [attr.aria-label]="'Remove ' + user.name">
-                        <span class="material-symbols-outlined">close</span>
-                      </button>
-                    </span>
-                  }
-                  <input
-                    id="assignee"
-                    type="text"
-                    class="assignee-search-input"
-                    placeholder="Search users..."
-                    [(ngModel)]="assigneeSearch"
-                    (focus)="openAssigneeDropdown()"
-                    (input)="onAssigneeSearch()"
-                    autocomplete="off"
-                  />
-                </div>
-                <button type="button" class="dropdown-toggle" [attr.aria-expanded]="isAssigneeDropdownOpen()" aria-label="Toggle assignee list" (click)="toggleAssigneeDropdown($event)">
-                  <span class="material-symbols-outlined">{{ isAssigneeDropdownOpen() ? 'expand_less' : 'expand_more' }}</span>
-                </button>
-              </div>
-              @if (isAssigneeDropdownOpen()) {
-                <div class="assignee-menu">
-                  <div class="assignee-options">
-                    @if (getFilteredAssignees().length === 0) {
-                      <div class="no-assignees">
-                        <span class="material-symbols-outlined">person_search</span>
-                        <span>No users found</span>
-                      </div>
-                    } @else {
-                      @for (user of getFilteredAssignees(); track user.id) {
-                        <button type="button" class="assignee-option" [class.selected]="isAssigneeSelected(user.id)" (click)="toggleAssignee(user.id)">
-                          <span class="assignee-avatar">{{ getUserInitials(user.name) }}</span>
-                          <span class="assignee-info">
-                            <span class="assignee-name">{{ user.name }}</span>
-                            @if (user.email) {
-                              <span class="assignee-email">{{ user.email }}</span>
-                            }
-                          </span>
-                          <span class="assignee-checkbox" [class.checked]="isAssigneeSelected(user.id)">
-                            @if (isAssigneeSelected(user.id)) {
-                              <span class="material-symbols-outlined">check</span>
-                            }
-                          </span>
-                        </button>
-                      }
-                    }
-                  </div>
-                  @if (selectedAssigneeIds.length > 0) {
-                    <div class="assignee-footer">
-                      <span>{{ selectedAssigneeIds.length }} {{ selectedAssigneeIds.length === 1 ? 'user' : 'users' }} selected</span>
-                      <button type="button" class="clear-assignees" (click)="clearAssignees($event)">Clear all</button>
-                    </div>
-                  }
-                </div>
+            <select id="assignee" [(ngModel)]="selectedAssigneeId" class="form-select">
+              <option value="">Unassigned</option>
+              @for (user of availableAssignees(); track user.id) {
+                <option [value]="user.id">{{ user.name }}</option>
               }
-            </div>
+            </select>
           }
         </div>
 
@@ -218,16 +161,6 @@
         ></textarea>
       </div>
 
-      <!-- CSO Label -->
-      @if (!isTargetProjectCso()) {
-        <div class="form-group full-width">
-          <label class="checkbox-label">
-            <input type="checkbox" [(ngModel)]="isCsoLabeled" />
-            Tag as CSO — surfaces this case on the CSO Overview page
-          </label>
-        </div>
-      }
-
       <!-- Functional/Technical tag -->
       @if (lockedCategory) {
         <div class="form-group full-width">
@@ -237,7 +170,7 @@
             <span class="project-name">{{ lockedCategory === 'TECHNICAL' ? 'Technical' : 'Functional' }} queue</span>
           </div>
         </div>
-      } @else if (isTargetProjectCso() || isCsoLabeled) {
+      } @else if (isTargetProjectCso()) {
         <div class="form-group full-width">
           <div class="form-label" id="category-label">
             Category

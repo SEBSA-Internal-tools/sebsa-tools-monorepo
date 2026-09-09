@@ -26,7 +26,6 @@ interface CaseEditDraft {
   startDate: string;
   dueDate: string;
   storyPoints: number | null;
-  isCsoLabeled: boolean;
   category: TaskCategory | '';
   assigneeId: string;
 }
@@ -61,7 +60,6 @@ export class CaseDetailPageComponent implements OnInit {
     startDate: '',
     dueDate: '',
     storyPoints: null,
-    isCsoLabeled: false,
     category: '',
     assigneeId: '',
   };
@@ -144,7 +142,6 @@ export class CaseDetailPageComponent implements OnInit {
       startDate: kase.startDate ? kase.startDate.split('T')[0] : '',
       dueDate: kase.dueDate ? kase.dueDate.split('T')[0] : '',
       storyPoints: kase.storyPoints,
-      isCsoLabeled: kase.isCsoLabeled,
       category: kase.category ?? '',
       assigneeId: kase.assignees[0]?.id ?? '',
     };
@@ -185,7 +182,7 @@ export class CaseDetailPageComponent implements OnInit {
       this.errorMessage.set('Case title cannot be empty.');
       return;
     }
-    if (this.draft.isCsoLabeled && !this.draft.category) {
+    if (current.project.isCsoProject && !this.draft.category) {
       this.errorMessage.set('Please tag this CSO case as Functional or Technical.');
       return;
     }
@@ -200,7 +197,6 @@ export class CaseDetailPageComponent implements OnInit {
       startDate: this.draft.startDate || undefined,
       dueDate: this.draft.dueDate || undefined,
       storyPoints: this.draft.storyPoints !== null ? this.draft.storyPoints : undefined,
-      isCsoLabeled: this.draft.isCsoLabeled,
       assigneeIds: this.draft.assigneeId ? [this.draft.assigneeId] : [],
       category: this.draft.category || undefined,
     };
@@ -292,6 +288,9 @@ export class CaseDetailPageComponent implements OnInit {
       priorityId: formData.priorityId,
       dueDate: formData.dueDate || undefined,
       assigneeIds: formData.assigneeIds.length > 0 ? formData.assigneeIds : undefined,
+      category: formData.category,
+      taskTypeId: formData.taskTypeId,
+      complexityLevelId: formData.complexityLevelId,
     };
 
     this.isLoading.set(true);

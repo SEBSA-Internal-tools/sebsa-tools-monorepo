@@ -1,9 +1,9 @@
 <div class="cso-queue-tab" [class.technical]="category === 'TECHNICAL'">
   <div class="tab-toolbar">
-    <p class="tab-subtitle">Every CSO task tagged {{ queueLabel }}, across all projects.</p>
+    <p class="tab-subtitle">Every unassigned task tagged {{ queueLabel }}, across all CSO cases.</p>
     <button type="button" class="btn-primary" (click)="openTaskModal()">
       <span class="material-symbols-outlined">add</span>
-      Create Task
+      Create Case
     </button>
   </div>
 
@@ -26,27 +26,12 @@
       }
     </select>
 
-    <select [(ngModel)]="selectedPriority" (change)="applyFilters()" class="filter-select">
-      <option value="">All Priorities</option>
-      <option value="CRITICAL">Critical</option>
-      <option value="HIGH">High</option>
-      <option value="MEDIUM">Medium</option>
-      <option value="LOW">Low</option>
-    </select>
-
     <select [(ngModel)]="selectedStatus" class="filter-select">
       <option value="">All Statuses</option>
       <option value="new">New</option>
       <option value="todo">To Do</option>
       <option value="inprogress">In Progress</option>
       <option value="done">Done</option>
-    </select>
-
-    <select [(ngModel)]="selectedAssigneeId" (change)="applyFilters()" class="filter-select">
-      <option value="">All Assignees</option>
-      @for (user of availableAssignees(); track user.id) {
-        <option [value]="user.id">{{ user.name }}</option>
-      }
     </select>
   </div>
 
@@ -67,11 +52,13 @@
           <thead>
             <tr>
               <th>Task</th>
+              <th>Case</th>
               <th>Project</th>
               <th>Customer</th>
+              <th>Type</th>
+              <th>Complexity</th>
               <th>Priority</th>
               <th>Status</th>
-              <th>Assignee</th>
               <th>Due Date</th>
             </tr>
           </thead>
@@ -84,8 +71,19 @@
                 tabindex="0"
               >
                 <td>{{ task.title }}</td>
+                <td>{{ task.caseTitle }}</td>
                 <td>{{ task.projectName }}</td>
                 <td>{{ task.customerName || '—' }}</td>
+                <td>{{ task.taskTypeName || '—' }}</td>
+                <td>
+                  @if (task.complexityName) {
+                    <span class="priority-badge" [style.--priority-color]="task.complexityColor || '#94a3b8'">
+                      {{ task.complexityName }}
+                    </span>
+                  } @else {
+                    —
+                  }
+                </td>
                 <td>
                   <span class="priority-badge" [style.--priority-color]="task.priorityColor || '#f59e0b'">
                     {{ task.priority }}
@@ -96,7 +94,6 @@
                     {{ statusLabelText(task.statusLabel) }}
                   </span>
                 </td>
-                <td>{{ task.assignee || '—' }}</td>
                 <td>{{ task.dueDate ? (task.dueDate | date: 'mediumDate') : '—' }}</td>
               </tr>
             }
