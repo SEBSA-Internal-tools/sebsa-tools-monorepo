@@ -87,6 +87,11 @@ export const appRoutes: Route[] = [
 					import('./features/admin/users/admin-users.page').then((m) => m.AdminUsersPageComponent),
 			},
 			{
+				path: 'activity/:entityType/:entityId',
+				loadComponent: () =>
+					import('./features/activity/activity-log.page').then((m) => m.ActivityLogPageComponent),
+			},
+			{
 				path: 'admin/audit-logs',
 				canActivate: [superAdminGuard],
 				loadComponent: () =>

@@ -23,6 +23,7 @@ import { SubtaskTypesModule } from './subtask-types/subtask-types.module';
 import { SprintsModule } from './sprints/sprints.module';
 import { JiraModule } from './jira/jira.module';
 import { ActivityLogsModule } from './activity-logs/activity-logs.module';
+import { CommentsModule } from './comments/comments.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { NotificationModule } from './notifications/notification.module';
 
@@ -52,6 +53,7 @@ import { NotificationModule } from './notifications/notification.module';
     CustomersModule,
     JiraModule,
     ActivityLogsModule,
+    CommentsModule,
     DashboardModule,
     NotificationModule,
   ],

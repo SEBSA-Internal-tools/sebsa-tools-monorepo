@@ -192,3 +192,67 @@
 .feed-count {
   color: var(--text-muted);
 }
+
+.feed-view-all {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-link);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+
+  &:focus-visible {
+    outline: none;
+    border-radius: 4px;
+    box-shadow: var(--shadow-glow-focus);
+  }
+
+  .material-symbols-outlined {
+    font-size: 18px;
+  }
+}
+
+// Sidebar-card variant: smaller type and tighter rows so three entries fit
+// alongside the other metadata cards without dominating them.
+.compact {
+  gap: 12px;
+
+  .feed-item {
+    padding-bottom: 14px;
+    grid-template-columns: 24px 1fr;
+    gap: 10px;
+  }
+
+  .feed-icon {
+    width: 24px;
+    height: 24px;
+
+    .material-symbols-outlined {
+      font-size: 14px;
+    }
+  }
+
+  .feed-item::before {
+    left: 11px;
+    top: 24px;
+  }
+
+  .feed-description {
+    font-size: 13px;
+  }
+
+  .feed-empty {
+    padding: 16px 8px;
+
+    .material-symbols-outlined {
+      font-size: 24px;
+    }
+  }
+}

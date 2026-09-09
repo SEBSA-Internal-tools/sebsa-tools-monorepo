@@ -1,4 +1,4 @@
-<section class="activity-feed">
+<section class="activity-feed" [class.compact]="compact">
   @if (errorMessage()) {
     <p class="feed-error">
       <span class="material-symbols-outlined">error</span>
@@ -43,7 +43,15 @@
     <p class="feed-status">Loading activity…</p>
   }
 
-  @if (hasMore && !isLoading()) {
+  @if (viewAllLink) {
+    @if (total() > entries().length) {
+      <a class="feed-view-all" [routerLink]="viewAllLink">
+        View all
+        <span class="feed-count">({{ total() }})</span>
+        <span class="material-symbols-outlined" aria-hidden="true">chevron_right</span>
+      </a>
+    }
+  } @else if (hasMore && !isLoading()) {
     <button type="button" class="feed-load-more" (click)="loadNextPage()">
       Show more
       <span class="feed-count">({{ entries().length }} of {{ total() }})</span>

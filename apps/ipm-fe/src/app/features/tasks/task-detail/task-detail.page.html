@@ -335,13 +335,17 @@
         </div>
       </div>
 
-      <!-- Activity -->
+      <!-- Comments -->
       <div class="section-block">
         <h3 class="section-heading">
-          <span class="material-symbols-outlined">history</span>
-          Activity
+          <span class="material-symbols-outlined">forum</span>
+          Comments
         </h3>
-        <app-activity-feed entityType="TASK" [entityId]="task.id"></app-activity-feed>
+        <app-comment-section
+          targetType="TASK"
+          [targetId]="task.id"
+          [mentionableUsers]="availableAssignees()"
+        ></app-comment-section>
       </div>
     </div>
     <!-- Right: Metadata Sidebar -->
@@ -400,6 +404,22 @@
           }
         </select>
       </div>
+
+      <!-- Activity -->
+      <div class="meta-card">
+        <h4 class="meta-heading">
+          <span class="material-symbols-outlined">history</span>
+          Activity
+        </h4>
+        <app-activity-feed
+          entityType="TASK"
+          [entityId]="task.id"
+          [pageSize]="3"
+          [compact]="true"
+          [viewAllLink]="['/activity', 'tasks', task.id]"
+        ></app-activity-feed>
+      </div>
+
       <!-- Labels -->
       @if (task.labels && task.labels.length > 0) {
         <div class="meta-card">
