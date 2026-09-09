@@ -15,11 +15,12 @@ import {
   TaskListSummary,
   UpdateTaskResponse,
 } from '@sebsa-pm-tool/shared-models';
-import { Prisma, TaskCategory } from '@prisma/client';
+import { ActivityAction, EntityType, Prisma, TaskCategory } from '@prisma/client';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { FilterTaskDto } from './dto/filter-task.dto';
 import { CreateTaskDependencyDto } from './dto/create-task-dependency.dto';
+import { ActivityLogsService } from '../activity-logs/activity-logs.service';
 import { NotificationService } from '../notifications/notification.service';
 
 const ADMIN_SYSTEM_ROLES: AuthUser['systemRole'][] = ['ADMIN', 'SUPER_ADMIN'];
@@ -77,6 +78,7 @@ type TaskWithDetail = Prisma.TaskGetPayload<{ include: typeof taskDetailInclude 
 export class TaskService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly activityLogs: ActivityLogsService,
     private readonly notificationService: NotificationService,
   ) {}
 
@@ -126,6 +128,19 @@ export class TaskService {
           changedById: user.id,
         },
       });
+
+      await this.activityLogs.record(
+        {
+          projectId: kase.projectId,
+          entityType: EntityType.TASK,
+          entityId: task.id,
+          entityLabel: task.title,
+          action: ActivityAction.CREATED,
+          actorId: user.id,
+          description: `Created task "${task.title}"`,
+        },
+        tx,
+      );
 
       return task;
     });
@@ -241,6 +256,15 @@ export class TaskService {
 
     const { assigneeIds, labelIds, ...restDto } = dto;
     const isStatusChange = !!dto.status && dto.status !== existing.status;
+    const changes = [
+      ...this.activityLogs.buildFieldChanges(existing, restDto),
+      ...(assigneeIds
+        ? this.activityLogs.buildAssigneeChange(
+            await this.getAssigneeNames(id),
+            await this.getUserNames(assigneeIds),
+          )
+        : []),
+    ];
 
     await this.prisma.$transaction(async (tx) => {
       await tx.task.update({
@@ -267,6 +291,27 @@ export class TaskService {
             changedById: user.id,
           },
         });
+      }
+
+      // TaskStatusHistory stays the authoritative status timeline; this adds
+      // the same move to the cross-entity feed, plus any non-status edits in
+      // the request, as a single entry.
+      if (changes.length > 0 || assigneeIds || labelIds) {
+        await this.activityLogs.record(
+          {
+            projectId: existing.case.projectId,
+            entityType: EntityType.TASK,
+            entityId: id,
+            entityLabel: dto.title ?? existing.title,
+            action: isStatusChange ? ActivityAction.STATUS_CHANGED : ActivityAction.UPDATED,
+            actorId: user.id,
+            description: isStatusChange
+              ? `Moved task "${existing.title}" from ${existing.status} to ${dto.status}`
+              : `Updated task "${existing.title}"`,
+            changes,
+          },
+          tx,
+        );
       }
     });
 
@@ -321,7 +366,23 @@ export class TaskService {
     const task = await this.getTaskWithProjectOrThrow(id);
     await this.assertCanDelete(task.case.projectId, user);
 
-    await this.prisma.task.update({ where: { id }, data: { deletedAt: new Date() } });
+    await this.prisma.$transaction(async (tx) => {
+      await tx.task.update({ where: { id }, data: { deletedAt: new Date() } });
+
+      await this.activityLogs.record(
+        {
+          projectId: task.case.projectId,
+          entityType: EntityType.TASK,
+          entityId: id,
+          entityLabel: task.title,
+          action: ActivityAction.DELETED,
+          actorId: user.id,
+          description: `Deleted task "${task.title}"`,
+        },
+        tx,
+      );
+    });
+
     return { message: 'Task deleted successfully.' };
   }
 
@@ -334,9 +395,32 @@ export class TaskService {
     await this.assertCanEdit(task.case.projectId, user);
     await this.assertAssigneesValid(assigneeIds, task.case.projectId);
 
-    await this.prisma.taskAssignee.createMany({
-      data: assigneeIds.map((userId) => ({ taskId, userId })),
-      skipDuplicates: true,
+    const addedNames = await this.getUserNames(assigneeIds);
+    const previousAssignees = await this.getAssigneeNames(taskId);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.taskAssignee.createMany({
+        data: assigneeIds.map((userId) => ({ taskId, userId })),
+        skipDuplicates: true,
+      });
+
+      await this.activityLogs.record(
+        {
+          projectId: task.case.projectId,
+          entityType: EntityType.TASK,
+          entityId: taskId,
+          entityLabel: task.title,
+          action: ActivityAction.ASSIGNED,
+          actorId: user.id,
+          description: `Assigned ${addedNames.join(', ')} to task "${task.title}"`,
+          changes: this.activityLogs.buildAssigneeChange(
+            previousAssignees,
+            // createMany skips duplicates, so the resulting set is the union.
+            Array.from(new Set([...previousAssignees, ...addedNames])),
+          ),
+        },
+        tx,
+      );
     });
 
     this.notificationService.notifyAssignees({
@@ -355,7 +439,33 @@ export class TaskService {
     const task = await this.getTaskWithProjectOrThrow(taskId);
     await this.assertCanEdit(task.case.projectId, user);
 
-    await this.prisma.taskAssignee.deleteMany({ where: { taskId, userId } });
+    const removed = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true },
+    });
+    const previousAssignees = await this.getAssigneeNames(taskId);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.taskAssignee.deleteMany({ where: { taskId, userId } });
+
+      await this.activityLogs.record(
+        {
+          projectId: task.case.projectId,
+          entityType: EntityType.TASK,
+          entityId: taskId,
+          entityLabel: task.title,
+          action: ActivityAction.UNASSIGNED,
+          actorId: user.id,
+          description: `Unassigned ${removed?.name ?? 'a user'} from task "${task.title}"`,
+          changes: this.activityLogs.buildAssigneeChange(
+            previousAssignees,
+            previousAssignees.filter((name) => name !== removed?.name),
+          ),
+        },
+        tx,
+      );
+    });
+
     return this.findOne(taskId, user);
   }
 
@@ -538,6 +648,26 @@ export class TaskService {
   // ---------------------------------------------------------------------------
   // Authorization
   // ---------------------------------------------------------------------------
+
+  /** Current assignee names on a task, for rendering an assignee change. */
+  private async getAssigneeNames(taskId: string): Promise<string[]> {
+    const rows = await this.prisma.taskAssignee.findMany({
+      where: { taskId },
+      select: { user: { select: { name: true } } },
+    });
+    return rows.map((row) => row.user.name);
+  }
+
+  /** Names for a set of user ids, for rendering an assignee change. */
+  private async getUserNames(userIds: string[]): Promise<string[]> {
+    if (userIds.length === 0) return [];
+
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: { name: true },
+    });
+    return users.map((u) => u.name);
+  }
 
   private async getMembershipWithGroup(projectId: string, userId: string) {
     return this.prisma.projectMember.findFirst({

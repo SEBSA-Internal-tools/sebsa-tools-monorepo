@@ -1,0 +1,24 @@
+<ul class="change-list">
+  @for (change of changes; track change.field) {
+    <li class="change-row" [class.expanded]="isExpanded(change.field)">
+      <span class="change-field">{{ humanizeField(change.field) }}</span>
+
+      <span class="change-values">
+        <span class="change-from">{{ display(change.from, change.field) }}</span>
+        <span class="material-symbols-outlined change-arrow" aria-hidden="true">arrow_forward</span>
+        <span class="change-to">{{ display(change.to, change.field) }}</span>
+      </span>
+
+      @if (isCollapsible(change)) {
+        <button
+          type="button"
+          class="change-toggle"
+          (click)="toggle(change.field)"
+          [attr.aria-expanded]="isExpanded(change.field)"
+        >
+          {{ isExpanded(change.field) ? 'Show less' : 'Show more' }}
+        </button>
+      }
+    </li>
+  }
+</ul>
