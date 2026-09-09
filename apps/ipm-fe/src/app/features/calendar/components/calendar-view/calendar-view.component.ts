@@ -214,8 +214,13 @@ export class CalendarViewComponent implements OnInit, AfterViewInit, OnDestroy {
       }
 
       // 2. Type and status filters
-      if (type !== 'ALL' && item.type !== type && item.taskType !== type) return false;
-      if (status !== 'ALL' && item.status !== status) return false;
+      if (type !== 'ALL') {
+        const typeUpper = type.toUpperCase();
+        const itemTypeUpper = (item.type || '').toUpperCase();
+        const itemTaskTypeUpper = (item.taskType || '').toUpperCase();
+        if (itemTypeUpper !== typeUpper && itemTaskTypeUpper !== typeUpper) return false;
+      }
+      if (status !== 'ALL' && (item.status || '').toUpperCase() !== status.toUpperCase()) return false;
 
       // 3. Search query
       if (query) {
@@ -784,7 +789,8 @@ export class CalendarViewComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   getTypeClass(type?: string): string {
-    switch (type) {
+    const t = (type || '').toUpperCase();
+    switch (t) {
       case 'BUG':
         return 'type-bug';
       case 'STORY':
@@ -801,7 +807,8 @@ export class CalendarViewComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   getTypePipColor(type?: string): string {
-    switch (type) {
+    const t = (type || '').toUpperCase();
+    switch (t) {
       case 'BUG':
         return '#ef4444';
       case 'STORY':
@@ -818,7 +825,8 @@ export class CalendarViewComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   getTypeIcon(type?: string): string {
-    switch (type) {
+    const t = (type || '').toUpperCase();
+    switch (t) {
       case 'BUG':
         return 'bug_report';
       case 'STORY':
@@ -835,7 +843,8 @@ export class CalendarViewComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   getStatusClass(status?: TaskStatus | string): string {
-    switch (status) {
+    const s = (status || '').toUpperCase();
+    switch (s) {
       case 'IN_PROGRESS':
         return 'status-in-progress';
       case 'IN_REVIEW':
@@ -853,7 +862,8 @@ export class CalendarViewComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   getStatusLabel(status?: TaskStatus | string): string {
-    switch (status) {
+    const s = (status || '').toUpperCase();
+    switch (s) {
       case 'IN_PROGRESS':
         return 'In Progress';
       case 'IN_REVIEW':
