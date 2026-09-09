@@ -31,16 +31,28 @@ const taskSummarySelect = {
   description: true,
   status: true,
   priorityId: true,
+  startDate: true,
   dueDate: true,
+  createdAt: true,
+  updatedAt: true,
   jiraStatusLabel: true,
   category: true,
   taskTypeId: true,
   complexityLevelId: true,
-  case: { select: { id: true, title: true, type: true, projectId: true, isCsoLabeled: true } },
+  case: {
+    select: {
+      id: true,
+      title: true,
+      type: true,
+      projectId: true,
+      isCsoLabeled: true,
+      project: { select: { id: true, name: true } },
+    },
+  },
   priority: { select: { id: true, name: true, color: true } },
   taskType: { select: { id: true, name: true } },
   complexityLevel: { select: { id: true, name: true, color: true } },
-  assignees: { include: { user: { select: { id: true, name: true, email: true } } } },
+  assignees: { select: { user: { select: { id: true, name: true, email: true } } } },
 } satisfies Prisma.TaskSelect;
 
 type TaskWithSummary = Prisma.TaskGetPayload<{ select: typeof taskSummarySelect }>;
@@ -126,7 +138,9 @@ export class TaskService {
         entityType: 'TASK',
         entityId: created.id,
         entityTitle: dto.title,
-      }).catch(() => { /* error swallowed by notification service */ });
+      }).catch((err) => {
+        console.error('Failed to notify assignees on task creation:', err);
+      });
     }
 
     return this.findOne(created.id, user);
@@ -244,7 +258,7 @@ export class TaskService {
         },
       });
 
-      if (isStatusChange) {
+      if (dto.status && dto.status !== existing.status) {
         await tx.taskStatusHistory.create({
           data: {
             taskId: id,
@@ -268,7 +282,9 @@ export class TaskService {
         entityType: 'TASK',
         entityId: id,
         entityTitle: existing.title,
-      }).catch(() => {});
+      }).catch((err) => {
+        console.error('Failed to notify assignees on task update:', err);
+      });
     }
 
     if (isStatusChange && dto.status) {
@@ -293,7 +309,9 @@ export class TaskService {
             newStatus: dto.status as string,
           });
         })
-        .catch(() => {});
+        .catch((err) => {
+          console.error('Failed to notify status change:', err);
+        });
     }
 
     return { task: await this.findOne(id, user), warnings };
@@ -807,7 +825,10 @@ export class TaskService {
       description: task.description,
       status: task.status,
       priorityId: task.priorityId,
+      startDate: task.startDate ? task.startDate.toISOString() : null,
       dueDate: task.dueDate ? task.dueDate.toISOString() : null,
+      createdAt: task.createdAt ? task.createdAt.toISOString() : undefined,
+      updatedAt: task.updatedAt ? task.updatedAt.toISOString() : undefined,
       jiraStatusLabel: task.jiraStatusLabel,
       category: task.category,
       taskTypeId: task.taskTypeId,

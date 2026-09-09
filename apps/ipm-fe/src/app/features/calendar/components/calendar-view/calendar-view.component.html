@@ -54,7 +54,7 @@
         <span class="material-symbols-outlined search-icon">search</span>
         <input
           type="text"
-          placeholder="Filter cases..."
+          placeholder="Filter tasks..."
           [(ngModel)]="searchQuery"
           class="search-input"
         />
@@ -126,19 +126,19 @@
         [class.active]="quickPreset() === 'all'"
         (click)="setQuickPreset('all')"
       >
-        <span>All Cases</span>
+        <span>All Tasks</span>
         <span class="preset-badge">{{ presetCounts().total }}</span>
       </button>
 
       <button
         type="button"
         class="preset-chip"
-        [class.active]="quickPreset() === 'my-cases'"
-        (click)="setQuickPreset('my-cases')"
+        [class.active]="quickPreset() === 'my-tasks'"
+        (click)="setQuickPreset('my-tasks')"
       >
         <span class="material-symbols-outlined icon-sm">person</span>
-        <span>My Cases</span>
-        <span class="preset-badge">{{ presetCounts().myCases }}</span>
+        <span>My Tasks</span>
+        <span class="preset-badge">{{ presetCounts().myTasks }}</span>
       </button>
 
       <button
@@ -173,7 +173,7 @@
           (ngModelChange)="setTypeFilter($event)"
           class="compact-select"
         >
-          @for (type of caseTypes; track type.id) {
+          @for (type of taskTypes; track type.id) {
             <option [value]="type.id">{{ type.label }}</option>
           }
         </select>
@@ -186,7 +186,7 @@
           (ngModelChange)="setStatusFilter($event)"
           class="compact-select"
         >
-          @for (st of caseStatuses; track st.id) {
+          @for (st of taskStatuses; track st.id) {
             <option [value]="st.id">{{ st.label }}</option>
           }
         </select>
@@ -403,7 +403,7 @@
             <div class="week-col-header">
               <div class="col-day-name">{{ day.date.toLocaleDateString('default', { weekday: 'short' }) }}</div>
               <div class="col-day-number" [class.today-badge]="day.isToday">{{ day.dayNumber }}</div>
-              <div class="col-count-chip">{{ day.items.length }} cases</div>
+              <div class="col-count-chip">{{ day.items.length === 1 ? '1 task' : day.items.length + ' tasks' }}</div>
             </div>
 
             <!-- Column Body / Cards -->
@@ -427,7 +427,7 @@
                         <span class="card-case-id font-mono">{{ item.caseNumber }}</span>
                       }
                       <span class="badge-type" [ngClass]="getTypeClass(item.type)">
-                        {{ item.type || 'CASE' }}
+                        {{ item.type || 'TASK' }}
                       </span>
                     </div>
 
@@ -466,7 +466,7 @@
 
               @if (day.items.length === 0) {
                 <div class="week-empty-slot">
-                  <span class="empty-text">No cases scheduled</span>
+                  <span class="empty-text">No tasks scheduled</span>
                   <button
                     type="button"
                     class="btn-add-schedule"
@@ -490,8 +490,8 @@
       @if (agendaGroups().length === 0) {
         <div class="agenda-empty-state">
           <span class="material-symbols-outlined empty-icon">event_busy</span>
-          <h3>No Scheduled Cases Found</h3>
-          <p>No cases match your current active filters or date filter.</p>
+          <h3>No Scheduled Tasks Found</h3>
+          <p>No tasks match your current active filters or date filter.</p>
           <button type="button" class="btn-clear-filters" (click)="resetFilters()">
             Clear Filters
           </button>
@@ -504,7 +504,7 @@
             <div class="agenda-group-header">
               <span class="material-symbols-outlined group-calendar-icon">calendar_month</span>
               <h3 class="agenda-group-title">{{ group.label }}</h3>
-              <span class="agenda-group-badge">{{ group.items.length }} cases</span>
+              <span class="agenda-group-badge">{{ group.items.length === 1 ? '1 task' : group.items.length + ' tasks' }}</span>
             </div>
 
             <div class="agenda-items-list">
@@ -566,7 +566,7 @@
                         {{ item.assignee }}
                       </span>
                     }
-                    <button type="button" class="btn-inspect-arrow" aria-label="View case">
+                    <button type="button" class="btn-inspect-arrow" aria-label="View task">
                       <span class="material-symbols-outlined">arrow_forward</span>
                     </button>
                   </div>
@@ -598,7 +598,7 @@
               </h4>
               <span class="flyout-subtitle">
                 <span class="count-badge">{{ day.items.length }}</span>
-                <span>{{ day.items.length === 1 ? 'case scheduled' : 'cases scheduled' }}</span>
+                <span>{{ day.items.length === 1 ? 'task scheduled' : 'tasks scheduled' }}</span>
               </span>
             </div>
           </div>
@@ -624,7 +624,7 @@
                 <div class="badge-group-left">
                   <span class="badge-type" [ngClass]="getTypeClass(item.type)">
                     <span class="material-symbols-outlined icon-xs">{{ getTypeIcon(item.type) }}</span>
-                    <span>{{ item.type || 'CASE' }}</span>
+                    <span>{{ item.type || 'TASK' }}</span>
                   </span>
                   @if (item.caseNumber) {
                     <span class="pill-case-id font-mono">{{ item.caseNumber }}</span>
@@ -685,7 +685,7 @@
           @if (day.items.length === 0) {
             <div class="flyout-empty-state">
               <span class="material-symbols-outlined icon-lg">event_available</span>
-              <p>No cases scheduled for this date.</p>
+              <p>No tasks scheduled for this date.</p>
             </div>
           }
         </div>
@@ -697,7 +697,7 @@
             (click)="triggerCreateForDate(day.date, $event); closeDayFlyout()"
           >
             <span class="material-symbols-outlined">add</span>
-            <span>Schedule Case on This Day</span>
+            <span>Schedule Task on This Day</span>
           </button>
         </footer>
       </div>
@@ -718,7 +718,7 @@
             <span class="hover-case-id font-mono">{{ hovered.item.caseNumber }}</span>
           }
           <span class="badge-type" [ngClass]="getTypeClass(hovered.item.type)">
-            {{ hovered.item.type || 'CASE' }}
+            {{ hovered.item.type || 'TASK' }}
           </span>
         </div>
         @if (hovered.item.isOverdue) {
@@ -774,7 +774,7 @@
     </div>
   }
 
-  <!-- 5. Sleek Focused Side Panel for Case Inspection -->
+  <!-- 5. Sleek Focused Side Panel for Task Inspection -->
   @if (selectedItem(); as item) {
     <div
       class="drawer-backdrop"
@@ -786,10 +786,10 @@
       <div class="drawer-panel" role="document">
         <header class="drawer-header">
           <div class="drawer-header-left">
-            <span class="drawer-case-id font-mono">{{ item.caseNumber || 'CASE' }}</span>
+            <span class="drawer-case-id font-mono">{{ item.caseNumber || 'TASK' }}</span>
             <span class="badge-type" [ngClass]="getTypeClass(item.type)">
               <span class="material-symbols-outlined type-icon-sm">{{ getTypeIcon(item.type) }}</span>
-              <span>{{ item.type || 'CASE' }}</span>
+              <span>{{ item.type || 'TASK' }}</span>
             </span>
             @if (item.isOverdue) {
               <span class="overdue-tag">⚠️ OVERDUE</span>
@@ -861,7 +861,7 @@
           </button>
           <button type="button" class="btn-primary" (click)="navigateToCase(item)">
             <span class="material-symbols-outlined">open_in_new</span>
-            <span>Open Case Details</span>
+            <span>Open Task Details</span>
           </button>
         </footer>
       </div>
