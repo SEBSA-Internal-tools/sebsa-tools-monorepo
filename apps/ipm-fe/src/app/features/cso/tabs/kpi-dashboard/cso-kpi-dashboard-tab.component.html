@@ -15,7 +15,8 @@
       (click)="setActiveTab('team')"
     >
       <span class="material-symbols-outlined">person</span>
-      Team Dashboard
+      <span class="tab-label-desktop">Team Dashboard</span>
+      <span class="tab-label-mobile">Team</span>
     </button>
     <button
       type="button" role="tab" class="tab-btn"
@@ -24,7 +25,8 @@
       (click)="setActiveTab('management')"
     >
       <span class="material-symbols-outlined">manage_accounts</span>
-      CSO Management Dashboard
+      <span class="tab-label-desktop">CSO Management Dashboard</span>
+      <span class="tab-label-mobile">Management</span>
     </button>
   </div>
 
@@ -137,7 +139,11 @@
           } @else {
             <table class="data-table">
               <thead>
-                <tr><th>Status</th><th>Count</th><th>% of Total</th></tr>
+                <tr>
+                  <th style="width: 35%;">Status</th>
+                  <th style="width: 25%;">Count</th>
+                  <th style="width: 40%;">% of Total</th>
+                </tr>
               </thead>
               <tbody>
                 @for (row of caseStatusTable(); track row.status) {
@@ -147,9 +153,11 @@
                     </td>
                     <td><strong>{{ row.count }}</strong></td>
                     <td>
-                      <div class="mini-bar-wrap">
-                        <div class="mini-bar" [style.width.%]="row.pct"></div>
-                        <span>{{ row.pct }}%</span>
+                      <div class="progress-cell">
+                        <span class="pct-text">{{ row.pct }}%</span>
+                        <div class="progress-track">
+                          <div class="progress-fill" [style.width.%]="row.pct"></div>
+                        </div>
                       </div>
                     </td>
                   </tr>
@@ -164,14 +172,25 @@
           <div class="chart-card-header"><h3>Case Count by Case Age</h3></div>
           <table class="data-table">
             <thead>
-              <tr><th>Age Range</th><th>Count</th><th>% of Open</th></tr>
+              <tr>
+                <th style="width: 35%;">Age Range</th>
+                <th style="width: 25%;">Count</th>
+                <th style="width: 40%;">% of Open</th>
+              </tr>
             </thead>
             <tbody>
               @for (row of caseAgeTable(); track row.label) {
                 <tr [class.row-warn]="row.minDays === 15" [class.row-crit]="row.minDays === 31">
                   <td>{{ row.label }}</td>
                   <td><strong>{{ row.count }}</strong></td>
-                  <td>{{ row.pct }}%</td>
+                  <td>
+                    <div class="progress-cell">
+                      <span class="pct-text">{{ row.pct }}%</span>
+                      <div class="progress-track">
+                        <div class="progress-fill" [style.width.%]="row.pct"></div>
+                      </div>
+                    </div>
+                  </td>
                 </tr>
               }
             </tbody>

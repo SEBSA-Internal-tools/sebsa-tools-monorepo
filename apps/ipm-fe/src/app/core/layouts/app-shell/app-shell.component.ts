@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, HostListener, inject, OnInit } from '@angular/core';
-import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { filter } from 'rxjs';
 import { ThemeService } from '../../services/theme.service';
 import { AuthService } from '../../services/auth.service';
 import { ToastComponent } from '../../components/toast/toast.component';
@@ -127,16 +128,47 @@ export class AppShellComponent implements OnInit {
 
   private readonly manuallyToggledGroups = new Map<string, boolean>();
 
+  protected isMobileSidebarOpen = false;
+  protected isMobileSearchOpen = false;
   protected isTaskModalOpen = false;
   protected lastCreatedTask: CaseFormData | null = null;
   protected isProfileMenuOpen = false;
   protected isNotificationMenuOpen = false;
+
+  protected openMobileSearch(): void {
+    this.isMobileSearchOpen = true;
+    this.isProfileMenuOpen = false;
+    this.isNotificationMenuOpen = false;
+  }
+
+  protected closeMobileSearch(): void {
+    this.isMobileSearchOpen = false;
+  }
 
   ngOnInit(): void {
     // Initial fetch if user is logged in
     if (this.authService.currentUser()) {
       this.notificationService.refreshRecent();
     }
+
+    // Auto-close mobile drawer when user navigates
+    this.router.events
+      .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))
+      .subscribe(() => {
+        this.closeMobileSidebar();
+      });
+  }
+
+  protected toggleMobileSidebar(): void {
+    this.isMobileSidebarOpen = !this.isMobileSidebarOpen;
+  }
+
+  protected openMobileSidebar(): void {
+    this.isMobileSidebarOpen = true;
+  }
+
+  protected closeMobileSidebar(): void {
+    this.isMobileSidebarOpen = false;
   }
 
   protected toggleProfileMenu(): void {

@@ -15,6 +15,16 @@
   background-color: var(--surface-page);
   box-sizing: border-box;
 
+  @media (max-width: 768px) {
+    padding: 20px 16px;
+    gap: 16px;
+  }
+
+  @media (max-width: 480px) {
+    padding: 16px 12px;
+    gap: 14px;
+  }
+
   .sebsa-card {
     width: 100%;
     box-sizing: border-box;
@@ -26,12 +36,18 @@
   align-items: center;
   justify-content: space-between;
   margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 12px;
 
   h1 {
     margin: 0 0 4px;
     font-size: 1.5rem;
     font-weight: 700;
     color: var(--app-text);
+
+    @media (max-width: 640px) {
+      font-size: 1.3rem;
+    }
   }
 
   p {

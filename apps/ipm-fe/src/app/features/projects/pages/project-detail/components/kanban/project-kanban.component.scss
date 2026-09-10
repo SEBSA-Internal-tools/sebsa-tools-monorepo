@@ -86,6 +86,13 @@
   scrollbar-width: thin;
   scrollbar-color: var(--app-border) transparent;
 
+  @media (max-width: 640px) {
+    gap: 14px;
+    padding: 4px 4px 16px 4px;
+    min-height: 480px;
+    scroll-snap-type: x mandatory;
+  }
+
   &::-webkit-scrollbar {
     height: 6px;
   }
@@ -122,6 +129,15 @@
     min-width: 300px;
     width: 300px;
     min-height: auto;
+  }
+
+  @media (max-width: 640px) {
+    min-width: 84vw;
+    width: 84vw;
+    padding: 14px;
+    border-radius: 14px;
+    scroll-snap-align: center;
+    gap: 12px;
   }
 }
 

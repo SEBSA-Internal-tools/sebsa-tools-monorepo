@@ -13,21 +13,30 @@
       <h2>Welcome back</h2>
       <p class="subtitle">Sign in to your SEBSA account</p>
       @if (hasError()) {
-            <div class="error-alert">
-              <span class="material-symbols-outlined error-icon">error</span>
-              <div class="error-text">
-                <strong>Authentication Failed</strong>
-                <span>{{ errorMessage() }}</span>
-              </div>
-            </div>
-          }
+        <div class="error-alert">
+          <span class="material-symbols-outlined error-icon">error</span>
+          <div class="error-text">
+            <strong>Authentication Failed</strong>
+            <span>{{ errorMessage() }}</span>
+          </div>
+        </div>
+      }
 
       <form (submit)="login(); $event.preventDefault()">
         <div class="form-group">
           <label for="email">Corporate Email Address</label>
           <div class="input-wrapper">
             <span class="material-symbols-outlined input-icon">mail</span>
-            <input id="email" type="email" tabindex="1" name="email" [(ngModel)]="email" autocomplete="current-email" placeholder="user@sebsaworld.com" [class.error-input]="hasError()" />
+            <input
+              id="email"
+              type="email"
+              tabindex="1"
+              name="email"
+              [(ngModel)]="email"
+              autocomplete="current-email"
+              placeholder="user@sebsaworld.com"
+              [class.error-input]="hasError()"
+            />
           </div>
         </div>
 
@@ -38,7 +47,6 @@
 
           <div class="input-wrapper">
             <span class="material-symbols-outlined input-icon">lock</span>
-
             <input
               id="password"
               type="password"
@@ -62,11 +70,11 @@
 
       <div class="login-footer">
         <p>Don't have an account? <a routerLink="/register">Sign up</a></p>
-        <p>Access is restricted to SEBSA employees.<br>Contact your System Administrator for account creation.</p>
+        <p>Access is restricted to SEBSA employees.<br />Contact your System Administrator for account creation.</p>
       </div>
       
       <div class="copyright">
-        &copy; {{currentYear}} SEBSA (Pvt) Ltd. All rights reserved.
+        &copy; {{ currentYear }} SEBSA (Pvt) Ltd. All rights reserved.
       </div>
     </div>
   </div>

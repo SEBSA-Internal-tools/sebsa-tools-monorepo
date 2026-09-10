@@ -74,57 +74,47 @@
   text-decoration: underline;
 }
 
-.tasks-table {
-  display: flex;
-  flex-direction: column;
+.tasks-table-container {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   border: 1px solid var(--app-border);
   border-radius: 8px;
   background: var(--app-surface);
-  overflow: hidden;
+  width: 100%;
+}
+
+.tasks-table {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 880px;
 }
 
 .table-header {
   display: grid;
-  grid-template-columns: 2fr 2fr 1.2fr 120px 110px 100px 80px;
-  gap: 16px;
-  padding: 16px 20px;
+  grid-template-columns: minmax(180px, 2.5fr) minmax(220px, 3fr) minmax(100px, 1fr) minmax(120px, 1.2fr) minmax(110px, 1fr) minmax(90px, 0.9fr) minmax(80px, 0.8fr);
+  gap: 14px;
+  padding: 14px 18px;
   background: var(--app-surface-soft);
   border-bottom: 2px solid var(--app-border);
   font-weight: 600;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   color: var(--app-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   position: sticky;
   top: 0;
   z-index: 10;
-
-  @media (max-width: 1200px) {
-    grid-template-columns: 2fr 2fr 1fr 110px 100px 90px 70px;
-    gap: 12px;
-    padding: 14px 16px;
-    font-size: 0.75rem;
-  }
-
-  @media (max-width: 768px) {
-    display: none;
-  }
 }
 
 .table-row {
   display: grid;
-  grid-template-columns: 2fr 2fr 1.2fr 120px 110px 100px 80px;
-  gap: 16px;
-  padding: 16px 20px;
+  grid-template-columns: minmax(180px, 2.5fr) minmax(220px, 3fr) minmax(100px, 1fr) minmax(120px, 1.2fr) minmax(110px, 1fr) minmax(90px, 0.9fr) minmax(80px, 0.8fr);
+  gap: 14px;
+  padding: 14px 18px;
   align-items: center;
   border-bottom: 1px solid var(--app-border);
   transition: all 0.2s ease;
-
-  @media (max-width: 1200px) {
-    grid-template-columns: 2fr 2fr 1fr 110px 100px 90px 70px;
-    gap: 12px;
-    padding: 14px 16px;
-  }
 
   &:hover {
     background: var(--app-surface-soft);
@@ -137,26 +127,14 @@
   &:last-child {
     border-bottom: none;
   }
-
-  @media (max-width: 768px) {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    padding: 16px;
-    border-bottom: 1px solid var(--app-border);
-  }
 }
 
 [class^='col-'] {
   display: flex;
   align-items: center;
   min-width: 0;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   color: var(--app-text);
-
-  @media (max-width: 768px) {
-    font-size: 0.85rem;
-  }
 }
 
 .col-description {
@@ -171,7 +149,9 @@
   overflow: hidden;
   text-overflow: ellipsis;
   word-break: break-word;
-  line-height: 1.4;
+  line-height: 1.35;
+  font-size: 0.825rem;
+  color: var(--app-text-muted);
 }
 
 .col-id {
@@ -194,14 +174,16 @@
 }
 
 .task-title {
-  font-weight: 500;
-  line-height: 1.3;
+  font-weight: 600;
+  line-height: 1.35;
   text-align: left;
-  display: block;
-  width: 100%;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
   text-overflow: ellipsis;
+  word-break: break-word;
+  width: 100%;
 }
 
 .category-badge {
@@ -231,13 +213,9 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-
-  // Allow text to wrap
   white-space: normal;
   overflow-wrap: break-word;
   word-break: normal;
-
-  // Controls the wrapping width
   max-width: 120px;
   text-align: center;
 
@@ -341,18 +319,30 @@
   }
 
   .task-toolbar {
-    flex-direction: column;
-    align-items: flex-start;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 14px;
   }
+}
 
-  [class^='col-']::before {
-    content: attr(data-label);
-    display: block;
-    font-weight: 600;
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    color: var(--app-text-muted);
-    margin-bottom: 4px;
-    letter-spacing: 0.05em;
+@media (max-width: 480px) {
+  .task-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+
+    .sort-controls {
+      width: 100%;
+      justify-content: space-between;
+
+      .sort-select {
+        flex: 1;
+      }
+    }
+
+    .task-count {
+      text-align: right;
+    }
   }
 }

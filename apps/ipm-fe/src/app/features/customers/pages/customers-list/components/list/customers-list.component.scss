@@ -79,6 +79,15 @@
     justify-content: flex-end;
   }
 
+  @media (max-width: 640px) {
+    width: 100%;
+
+    .btn-primary {
+      width: 100%;
+      justify-content: center;
+    }
+  }
+
   .btn-primary {
     white-space: nowrap;
     flex-shrink: 0;
@@ -120,6 +129,10 @@
     font-size: 0.875rem;
     outline: none;
 
+    @media (max-width: 640px) {
+      font-size: 1rem;
+    }
+
     &::placeholder {
       color: var(--text-muted);
     }
@@ -157,6 +170,7 @@
 
 .customers-list-container {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   border-radius: 16px;
   border: 1px solid #F1F5F9;
   background: #FFFFFF;
@@ -165,7 +179,7 @@
 .customers-list {
   display: flex;
   flex-direction: column;
-  min-width: 100%;
+  min-width: 720px;
 }
 
 .list-header {

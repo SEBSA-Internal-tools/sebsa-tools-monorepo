@@ -110,24 +110,48 @@ $desktop: 1024px;
 
 .results-table {
   width: 100%;
+  min-width: 600px;
   border-collapse: collapse;
 
   thead {
     position: sticky;
     top: 0;
     z-index: 2;
-    background: #FFFFFF;
+    background: var(--surface-muted);
 
     th {
       position: sticky;
       top: 0;
-      background: #FFFFFF;
+      background: var(--surface-muted);
       z-index: 2;
+      padding: 10px 14px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-secondary);
+      border-bottom: 1px solid var(--border-default);
+      white-space: nowrap;
+    }
+  }
+
+  tbody tr {
+    border-bottom: 1px solid var(--border-subtle);
+
+    td {
+      padding: 10px 14px;
+      color: var(--text-primary);
+      white-space: nowrap;
     }
   }
 
   .clickable-row {
     cursor: pointer;
+    transition: background 0.15s ease;
+
+    &:hover {
+      background: var(--surface-muted);
+    }
   }
 }
 

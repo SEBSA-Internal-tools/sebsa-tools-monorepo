@@ -12,6 +12,10 @@
   @media (max-width: 768px) {
     padding: 12px 12px 24px;
   }
+
+  @media (max-width: 480px) {
+    padding: 10px 10px 20px;
+  }
 }
 
 .dashboard-container {
@@ -24,6 +28,10 @@
 
   @media (max-width: 768px) {
     gap: 14px;
+  }
+
+  @media (max-width: 480px) {
+    gap: 12px;
   }
 }
 
