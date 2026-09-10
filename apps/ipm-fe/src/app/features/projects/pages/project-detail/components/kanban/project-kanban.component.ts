@@ -4,15 +4,17 @@ import {
   ChangeDetectionStrategy,
   inject,
   computed,
+  signal,
+  effect,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { CasesService, CASE_STATUSES, type CaseView } from '../../../../../../core/services/cases.service';
-import type { CaseStatus } from '@sebsa-pm-tool/shared-models';
+import { TasksService, TASK_STATUSES, type TaskView } from '../../../../../../core/services/tasks.service';
+import type { CaseStatus, TaskStatus } from '@sebsa-pm-tool/shared-models';
 
-/** Case board — grouped by the fixed, global CaseStatus lifecycle (no more
- * per-project custom WorkflowStage columns / "Add Column"). */
+/** Case & Task board — grouped by status. */
 @Component({
   standalone: true,
   selector: 'project-kanban',
@@ -25,19 +27,44 @@ export class ProjectKanbanComponent {
   @Input() projectId!: string;
 
   private readonly casesService = inject(CasesService);
+  private readonly tasksService = inject(TasksService);
   private readonly router = inject(Router);
 
-  readonly statuses = CASE_STATUSES;
-  readonly errorMessage = '';
+  readonly caseStatuses = CASE_STATUSES;
+  readonly taskStatuses = TASK_STATUSES;
+  readonly filterOptions = ['Cases', 'Task'] as const;
+  readonly filter = signal<typeof this.filterOptions[number]>('Cases');
+
+  private readonly tasks = signal<TaskView[]>([]);
 
   readonly cases = computed<Record<string, CaseView[]>>(() => {
     const allCases = this.casesService.cases();
     const map: Record<string, CaseView[]> = {};
-    for (const status of this.statuses) {
+    for (const status of this.caseStatuses) {
       map[status.id] = allCases.filter((c) => c.projectId === this.projectId && c.status === status.id);
     }
     return map;
   });
+
+  readonly tasksByStatus = computed<Record<TaskStatus, TaskView[]>>(() => {
+    const allTasks = this.tasks();
+    const map: Record<TaskStatus, TaskView[]> = {} as Record<TaskStatus, TaskView[]>;
+    for (const status of this.taskStatuses) {
+      map[status.id as TaskStatus] = allTasks.filter((t) => t.status === status.id);
+    }
+    return map;
+  });
+
+  constructor() {
+    effect(() => {
+      if (this.projectId && this.filter() === 'Task') {
+        this.tasksService.getTasksByProject(this.projectId).subscribe({
+          next: (tasks) => this.tasks.set(tasks),
+          error: (err) => console.error('Failed to load tasks:', err),
+        });
+      }
+    });
+  }
 
   // ─── Drag state ───────────────────────────────────────────────────────────
   draggedCase: CaseView | null = null;
@@ -76,6 +103,10 @@ export class ProjectKanbanComponent {
 
   openCaseDetail(caseId: string): void {
     this.router.navigate(['/cases', caseId]);
+  }
+
+  openTaskDetail(taskId: string): void {
+    this.router.navigate(['/tasks', taskId]);
   }
 
   getCaseInitials(name: string): string {
