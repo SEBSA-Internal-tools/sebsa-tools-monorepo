@@ -234,10 +234,6 @@ export class TasksService {
     return this._tasks().filter((task) => task.caseId === caseId);
   }
 
-  getTasksByProject(projectId: string): TaskView[] {
-    return this._tasks().filter((task) => task.projectId === projectId);
-  }
-
   getTaskList(caseId: string): Observable<TaskView[]> {
     const params = new HttpParams().set('caseId', caseId);
     return this.http
@@ -261,12 +257,6 @@ export class TasksService {
           })),
         ),
       );
-  }
-
-  getTasksByProject(projectId: string): Observable<TaskView[]> {
-    return this.http
-      .get<BackendTaskSummary[]>(`/api/tasks/project/${projectId}`)
-      .pipe(map((tasks) => tasks.map((task) => this.toTaskView(task))));
   }
 
   private toTaskView(task: BackendTask | BackendTaskSummary): TaskView {

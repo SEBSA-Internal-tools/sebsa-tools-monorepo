@@ -58,9 +58,9 @@ export class ProjectKanbanComponent {
   constructor() {
     effect(() => {
       if (this.projectId && this.filter() === 'Task') {
-        this.tasksService.getTasksByProject(this.projectId).subscribe({
-          next: (tasks) => this.tasks.set(tasks),
-          error: (err) => console.error('Failed to load tasks:', err),
+        this.tasksService.loadTasksByProject(this.projectId).subscribe({
+          next: (tasks: TaskView[]) => this.tasks.set(tasks),
+          error: (err: unknown) => console.error('Failed to load tasks:', err),
         });
       }
     });
