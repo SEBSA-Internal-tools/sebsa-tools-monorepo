@@ -1,0 +1,80 @@
+<div class="page-container">
+  <header class="sebsa-page-header">
+    <button type="button" class="back-btn" (click)="goBack()">
+      <span class="material-symbols-outlined" aria-hidden="true">arrow_back</span>
+      Back
+    </button>
+    <span class="sebsa-eyebrow">HISTORY</span>
+    <h1 class="sebsa-page-title">{{ entityLabel }} Activity</h1>
+    <p class="sebsa-page-desc">
+      Every recorded change on this {{ entityLabel.toLowerCase() }} and everything beneath it.
+    </p>
+  </header>
+
+  @if (errorMessage()) {
+    <p class="page-error">
+      <span class="material-symbols-outlined">error</span>
+      {{ errorMessage() }}
+    </p>
+  }
+
+  <nav class="filter-tabs" aria-label="Filter activity by action">
+    @for (tab of tabs; track tab.id) {
+      <button
+        type="button"
+        class="filter-tab"
+        [class.active]="activeTab() === tab.id"
+        [attr.aria-pressed]="activeTab() === tab.id"
+        (click)="setTab(tab.id)"
+      >
+        {{ tab.label }}
+      </button>
+    }
+    <span class="filter-summary">{{ total() }} {{ total() === 1 ? 'entry' : 'entries' }}</span>
+  </nav>
+
+  <section class="sebsa-card feed-card">
+    <ol class="feed-list">
+      @for (entry of entries(); track trackById($index, entry)) {
+        <li class="feed-item">
+          <span class="feed-icon" [attr.data-tone]="toneFor(entry.action)">
+            <span class="material-symbols-outlined">{{ iconFor(entry.action) }}</span>
+          </span>
+
+          <div class="feed-body">
+            <p class="feed-description">{{ entry.description }}</p>
+            <p class="feed-meta">
+              <span class="feed-actor">{{ entry.actor?.name ?? 'System' }}</span>
+              <span class="feed-dot">·</span>
+              <span [title]="formatTimestamp(entry.createdAt)">{{ relativeTime(entry.createdAt) }}</span>
+            </p>
+
+            @if (entry.metadata?.changes?.length) {
+              <div class="feed-changes">
+                <app-change-list [changes]="entry.metadata?.changes ?? []"></app-change-list>
+              </div>
+            }
+          </div>
+        </li>
+      } @empty {
+        @if (!isLoading() && !errorMessage()) {
+          <li class="feed-empty">
+            <span class="material-symbols-outlined">history</span>
+            <p>No activity matches this filter.</p>
+          </li>
+        }
+      }
+    </ol>
+
+    @if (isLoading()) {
+      <p class="feed-status">Loading activity…</p>
+    }
+
+    @if (hasMore && !isLoading()) {
+      <button type="button" class="feed-load-more" (click)="loadMore()">
+        Show more
+        <span class="feed-count">({{ entries().length }} of {{ total() }})</span>
+      </button>
+    }
+  </section>
+</div>

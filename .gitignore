@@ -51,3 +51,7 @@ Thumbs.db
 .env.local
 .env.testing
 docker/.env
+
+# local reference docs (working notes, functional specs) — never pushed
+MEMORY.md
+*.docx

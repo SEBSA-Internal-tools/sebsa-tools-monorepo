@@ -22,6 +22,8 @@ import {
   CreateSubtaskModalComponent,
   type SubtaskFormData,
 } from '../create-subtask/create-subtask-modal.component';
+import { ActivityFeedComponent } from '../../../core/components/activity-feed/activity-feed.component';
+import { CommentSectionComponent } from '../../../core/components/comment-section/comment-section.component';
 
 interface TaskEditDraft {
   title: string;
@@ -39,7 +41,7 @@ interface TaskEditDraft {
 @Component({
   standalone: true,
   selector: 'app-task-detail-page',
-  imports: [CommonModule, FormsModule, RouterLink, CreateSubtaskModalComponent],
+  imports: [CommonModule, FormsModule, RouterLink, CreateSubtaskModalComponent, ActivityFeedComponent, CommentSectionComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './task-detail.page.html',
   styleUrls: ['./task-detail.page.scss'],

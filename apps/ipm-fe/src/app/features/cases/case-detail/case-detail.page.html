@@ -148,6 +148,19 @@
               <p class="empty-placeholder">No tasks yet.</p>
             }
           </div>
+
+          <!-- Comments -->
+          <div class="section-block">
+            <h3 class="section-heading">
+              <span class="material-symbols-outlined">forum</span>
+              Comments
+            </h3>
+            <app-comment-section
+              targetType="CASE"
+              [targetId]="kase.id"
+              [mentionableUsers]="availableAssignees()"
+            ></app-comment-section>
+          </div>
         </div>
 
         <!-- Sidebar -->
@@ -211,6 +224,20 @@
             </select>
           </div>
 
+          <div class="meta-card">
+            <h4 class="meta-heading">
+              <span class="material-symbols-outlined">history</span>
+              Activity
+            </h4>
+            <app-activity-feed
+              entityType="CASE"
+              [entityId]="kase.id"
+              [pageSize]="3"
+              [compact]="true"
+              [viewAllLink]="['/activity', 'cases', kase.id]"
+            ></app-activity-feed>
+          </div>
+
           @if (kase.labels && kase.labels.length > 0) {
             <div class="meta-card">
               <h4 class="meta-heading">
@@ -232,31 +259,9 @@
             </div>
           }
 
-          @if (categoryHistory().length > 0) {
-            <div class="meta-card">
-              <h4 class="meta-heading">
-                <span class="material-symbols-outlined">history</span>
-                Assignment History
-              </h4>
-              <div class="assignment-history">
-                @for (entry of categoryHistory(); track entry.id) {
-                  <div class="assignment-entry" [class.technical]="entry.category === 'TECHNICAL'">
-                    <span class="assignment-dot"></span>
-                    <div class="assignment-body">
-                      <p class="assignment-line">
-                        <span class="assignment-category">{{ getCategoryLabel(entry.category) }} Assigned</span>
-                        <span class="assignment-dash">—</span>
-                        <span class="assignment-name">{{ entry.assignee?.name ?? 'Unassigned' }}</span>
-                      </p>
-                      <p class="assignment-meta">{{ formatDate(entry.changedAt) }} by {{ entry.changedBy.name }}</p>
-                    </div>
-                  </div>
-                }
-              </div>
-            </div>
-          }
         </div>
       </div>
+
     </div>
   }
 

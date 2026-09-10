@@ -2,169 +2,443 @@
   <!-- Top Hero Banner (Global SEBSA Blueprint) -->
   <header class="sebsa-page-header">
     <span class="sebsa-eyebrow">WORK QUEUE</span>
-    <h1 class="sebsa-page-title">Assigned Tasks</h1>
+    <h1 class="sebsa-page-title">Assigned Work</h1>
     <p class="sebsa-page-desc">
-      Review the tasks that are assigned to you. The list updates automatically for the current user and adapts seamlessly across desktop and mobile.
+      Review and manage tasks and cases assigned to you across all customer projects. Seamlessly track deadlines, priorities, and active deliverables.
     </p>
+
+    <!-- Master Sub-Tabs Switcher -->
+    <div class="assigned-tabs-nav" role="tablist" aria-label="Assigned sections">
+      <button
+        type="button"
+        role="tab"
+        class="assigned-tab-btn"
+        [class.active]="activeTab() === 'tasks'"
+        [attr.aria-selected]="activeTab() === 'tasks'"
+        (click)="setTab('tasks')"
+      >
+        <span class="material-symbols-outlined tab-icon">task_alt</span>
+        <span class="tab-label">Assigned Tasks</span>
+      </button>
+
+      <button
+        type="button"
+        role="tab"
+        class="assigned-tab-btn"
+        [class.active]="activeTab() === 'cases'"
+        [attr.aria-selected]="activeTab() === 'cases'"
+        (click)="setTab('cases')"
+      >
+        <span class="material-symbols-outlined tab-icon">folder_shared</span>
+        <span class="tab-label">Assigned Cases</span>
+      </button>
+    </div>
   </header>
 
-  <!-- Bottom Task List Card -->
-  <article class="workspace-card list-card">
-    <!-- Search Bar & Task Count Control Row -->
-    <div class="controls-row">
-      <div class="search-box">
-        <span class="material-symbols-outlined search-icon">search</span>
-        <input
-          type="text"
-          [ngModel]="searchQuery()"
-          (ngModelChange)="searchQuery.set($event)"
-          placeholder="Search tasks..."
-          class="search-input"
-        />
-        @if (searchQuery()) {
-          <button
-            type="button"
-            (click)="searchQuery.set('')"
-            class="clear-btn"
-          >
-            <span class="material-symbols-outlined">close</span>
+  <!-- TAB 1: Assigned Tasks Section -->
+  @if (activeTab() === 'tasks') {
+    <article class="workspace-card list-card" role="tabpanel" aria-label="Assigned Tasks">
+      <!-- Search Bar & Task Count Control Row -->
+      <div class="controls-row">
+        <div class="search-box">
+          <span class="material-symbols-outlined search-icon">search</span>
+          <input
+            type="text"
+            [ngModel]="taskSearchQuery()"
+            (ngModelChange)="taskSearchQuery.set($event)"
+            placeholder="Search tasks by title, case, or priority..."
+            class="search-input"
+          />
+          @if (taskSearchQuery()) {
+            <button
+              type="button"
+              (click)="taskSearchQuery.set('')"
+              class="clear-btn"
+              aria-label="Clear search"
+            >
+              <span class="material-symbols-outlined">close</span>
+            </button>
+          }
+        </div>
+
+        <div class="item-count-chip">
+          <span>Assigned Tasks:</span>
+          <span class="badge">{{ filteredTasks().length }}</span>
+          @if (filteredTasks().length !== tasks().length) {
+            <span class="total-subtext">(of {{ tasks().length }})</span>
+          }
+        </div>
+      </div>
+
+      <!-- Task Filters Row -->
+      <div class="filter-row">
+        <select
+          class="filter-select"
+          [ngModel]="selectedCaseId()"
+          (ngModelChange)="selectedCaseId.set($event)"
+          aria-label="Filter by Case"
+        >
+          <option value="">All Parent Cases</option>
+          @for (kase of availableCases(); track kase.id) {
+            <option [value]="kase.id">{{ kase.title }}</option>
+          }
+        </select>
+
+        <select
+          class="filter-select"
+          [ngModel]="selectedTaskStatus()"
+          (ngModelChange)="selectedTaskStatus.set($event)"
+          aria-label="Filter by Status"
+        >
+          <option value="">All Statuses</option>
+          @for (status of taskStatuses; track status.id) {
+            <option [value]="status.id">{{ status.name }}</option>
+          }
+        </select>
+
+        <select
+          class="filter-select"
+          [ngModel]="selectedTaskPriority()"
+          (ngModelChange)="selectedTaskPriority.set($event)"
+          aria-label="Filter by Priority"
+        >
+          <option value="">All Priorities</option>
+          @for (priority of availableTaskPriorities(); track priority) {
+            <option [value]="priority">{{ priority }}</option>
+          }
+        </select>
+
+        @if (hasActiveTaskFilters()) {
+          <button type="button" class="clear-filters-btn" (click)="clearTaskFilters()">
+            <span class="material-symbols-outlined">filter_alt_off</span>
+            <span>Clear filters</span>
           </button>
         }
       </div>
 
-      <div class="task-count">
-        Assigned Tasks: <span class="badge">{{ filteredTasks().length }}</span>
-      </div>
-    </div>
-
-    <!-- Filter Row -->
-    <div class="filter-row">
-      <select
-        class="filter-select"
-        [ngModel]="selectedCaseId()"
-        (ngModelChange)="selectedCaseId.set($event)"
-      >
-        <option value="">All Cases</option>
-        @for (kase of availableCases(); track kase.id) {
-          <option [value]="kase.id">{{ kase.title }}</option>
-        }
-      </select>
-
-      <select
-        class="filter-select"
-        [ngModel]="selectedStatus()"
-        (ngModelChange)="selectedStatus.set($event)"
-      >
-        <option value="">All Statuses</option>
-        @for (status of statuses; track status.id) {
-          <option [value]="status.id">{{ status.name }}</option>
-        }
-      </select>
-
-      <select
-        class="filter-select"
-        [ngModel]="selectedPriority()"
-        (ngModelChange)="selectedPriority.set($event)"
-      >
-        <option value="">All Priorities</option>
-        @for (priority of availablePriorities(); track priority) {
-          <option [value]="priority">{{ priority }}</option>
-        }
-      </select>
-
-      @if (hasActiveFilters()) {
-        <button type="button" class="clear-filters-btn" (click)="clearFilters()">
-          <span class="material-symbols-outlined">filter_alt_off</span>
-          Clear filters
-        </button>
-      }
-    </div>
-
-    @if (errorMessage()) {
-      <div class="status-row">
-        <span class="status-icon material-symbols-outlined">
-          error_outline
-        </span>
-        <p>{{ errorMessage() }}</p>
-      </div>
-    }
-
-    <div class="task-content">
-      @if (isLoading()) {
-        <div class="loading-state">
-          <span class="loader"></span>
-          <p>Loading your assigned tasks…</p>
+      <!-- Error State -->
+      @if (tasksErrorMessage()) {
+        <div class="status-row error-banner" role="alert">
+          <div class="error-msg-wrap">
+            <span class="status-icon material-symbols-outlined">error_outline</span>
+            <p>{{ tasksErrorMessage() }}</p>
+          </div>
+          <button type="button" class="btn-retry" (click)="loadAssignedTasks()">Retry</button>
         </div>
       }
 
-      @if (!isLoading() && filteredTasks().length === 0) {
-        <div class="empty-state">
-          <span class="material-symbols-outlined empty-icon">inbox</span>
-          <h3>No tasks found</h3>
-          <p>No tasks match your search query or assignments.</p>
-        </div>
-      }
+      <div class="task-content">
+        @if (isTasksLoading()) {
+          <div class="loading-state">
+            <span class="loader"></span>
+            <p>Loading your assigned tasks…</p>
+          </div>
+        }
 
-      @if (!isLoading() && filteredTasks().length > 0) {
-        <div class="tasks-table-container">
-          <div class="tasks-table">
-            <div class="table-header">
-              <div class="col-title">Task</div>
-              <div class="col-project">Case</div>
-              <div class="col-type">Type</div>
-              <div class="col-status">Status</div>
-              <div class="col-priority">Priority</div>
-              <div class="col-due">Due Date</div>
-            </div>
-
-            @for (task of filteredTasks(); track task.id) {
-              <div class="table-row clickable-row" [routerLink]="['/tasks', task.id]">
-                <div class="col-title">
-                  <span class="task-name-link">
-                    {{ task.title }}
-                  </span>
-                </div>
-
-                <div class="col-project">
-                  <span class="task-project-name">
-                    {{ task.caseTitle }}
-                  </span>
-                </div>
-
-                <div class="col-type">
-                  <span class="type-badge">
-                    {{ task.caseType }}
-                  </span>
-                </div>
-
-                <div class="col-status">
-                  <span
-                    class="status-pill"
-                    [ngClass]="getStageBadgeClass(task.status)"
-                  >
-                    {{ getStatusLabel(task.status) }}
-                  </span>
-                </div>
-
-                <div class="col-priority">
-                  <span
-                    class="priority-badge"
-                    [style.--priority-color]="task.priorityColor || '#f59e0b'"
-                  >
-                    {{ task.priority }}
-                  </span>
-                </div>
-
-                <div class="col-due">
-                  <span class="due-date-text">
-                    {{ task.dueDate ? task.dueDate.slice(0, 10) : 'No due date' }}
-                  </span>
-                </div>
-              </div>
+        @if (!isTasksLoading() && filteredTasks().length === 0) {
+          <div class="empty-state">
+            <span class="material-symbols-outlined empty-icon">assignment_late</span>
+            <h3>No assigned tasks found</h3>
+            @if (hasActiveTaskFilters()) {
+              <p>No tasks match your current filter criteria.</p>
+              <button type="button" class="btn-reset-empty" (click)="clearTaskFilters()">
+                Reset Filters
+              </button>
+            } @else {
+              <p>You currently do not have any tasks assigned to you.</p>
             }
           </div>
+        }
+
+        @if (!isTasksLoading() && filteredTasks().length > 0) {
+          <div class="tasks-table-container">
+            <div class="tasks-table">
+              <div class="table-header">
+                <div class="col-title">Task</div>
+                <div class="col-project">Parent Case</div>
+                <div class="col-type">Type</div>
+                <div class="col-status">Status</div>
+                <div class="col-priority">Priority</div>
+                <div class="col-due">Due Date</div>
+              </div>
+
+              @for (task of filteredTasks(); track trackByTaskId($index, task)) {
+                <div
+                  class="table-row clickable-row"
+                  role="button"
+                  tabindex="0"
+                  (click)="navigateToTask(task.id)"
+                  (keydown.enter)="navigateToTask(task.id)"
+                  (keydown.space)="navigateToTask(task.id); $event.preventDefault()"
+                >
+                  <div class="col-title">
+                    <div class="title-cell-wrap">
+                      <span class="task-id-tag font-mono">TASK-{{ task.id.slice(0, 4).toUpperCase() }}</span>
+                      <span class="task-name-link" [title]="task.title">
+                        {{ task.title }}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div class="col-project">
+                    <span class="task-project-name" [title]="task.caseTitle || 'General'">
+                      <span class="material-symbols-outlined icon-xs">folder</span>
+                      <span>{{ task.caseTitle || 'General Case' }}</span>
+                    </span>
+                  </div>
+
+                  <div class="col-type">
+                    <span class="type-badge" [ngClass]="getTypeBadgeClass(task.caseType)">
+                      {{ task.caseType || 'TASK' }}
+                    </span>
+                  </div>
+
+                  <div class="col-status">
+                    <span
+                      class="status-pill"
+                      [ngClass]="getStageBadgeClass(task.status)"
+                    >
+                      {{ getTaskStatusLabel(task.status) }}
+                    </span>
+                  </div>
+
+                  <div class="col-priority">
+                    <span
+                      class="priority-badge"
+                      [ngClass]="getPriorityClass(task.priority)"
+                      [style.--priority-color]="task.priorityColor || '#f59e0b'"
+                    >
+                      {{ task.priority || 'Normal' }}
+                    </span>
+                  </div>
+
+                  <div class="col-due">
+                    <span class="due-date-text" [class.no-date]="!task.dueDate">
+                      <span class="material-symbols-outlined icon-xs">schedule</span>
+                      <span>{{ task.dueDate ? task.dueDate.slice(0, 10) : 'No due date' }}</span>
+                    </span>
+                  </div>
+                </div>
+              }
+            </div>
+          </div>
+        }
+      </div>
+    </article>
+  }
+
+  <!-- TAB 2: Assigned Cases Section -->
+  @if (activeTab() === 'cases') {
+    <article class="workspace-card list-card" role="tabpanel" aria-label="Assigned Cases">
+      <!-- Search Bar & Case Count Control Row -->
+      <div class="controls-row">
+        <div class="search-box">
+          <span class="material-symbols-outlined search-icon">search</span>
+          <input
+            type="text"
+            [ngModel]="caseSearchQuery()"
+            (ngModelChange)="caseSearchQuery.set($event)"
+            placeholder="Search cases by title, project, or description..."
+            class="search-input"
+          />
+          @if (caseSearchQuery()) {
+            <button
+              type="button"
+              (click)="caseSearchQuery.set('')"
+              class="clear-btn"
+              aria-label="Clear search"
+            >
+              <span class="material-symbols-outlined">close</span>
+            </button>
+          }
+        </div>
+
+        <div class="item-count-chip">
+          <span>Assigned Cases:</span>
+          <span class="badge">{{ filteredCases().length }}</span>
+          @if (filteredCases().length !== cases().length) {
+            <span class="total-subtext">(of {{ cases().length }})</span>
+          }
+        </div>
+      </div>
+
+      <!-- Case Filters Row -->
+      <div class="filter-row">
+        <select
+          class="filter-select"
+          [ngModel]="selectedProjectId()"
+          (ngModelChange)="selectedProjectId.set($event)"
+          aria-label="Filter by Project"
+        >
+          <option value="">All Projects</option>
+          @for (proj of availableProjects(); track proj.id) {
+            <option [value]="proj.id">{{ proj.name }}</option>
+          }
+        </select>
+
+        <select
+          class="filter-select"
+          [ngModel]="selectedCaseStatus()"
+          (ngModelChange)="selectedCaseStatus.set($event)"
+          aria-label="Filter by Status"
+        >
+          <option value="">All Statuses</option>
+          @for (status of caseStatuses; track status.id) {
+            <option [value]="status.id">{{ status.name }}</option>
+          }
+        </select>
+
+        <select
+          class="filter-select"
+          [ngModel]="selectedCaseType()"
+          (ngModelChange)="selectedCaseType.set($event)"
+          aria-label="Filter by Type"
+        >
+          <option value="">All Types</option>
+          @for (type of availableCaseTypes(); track type) {
+            <option [value]="type">{{ type }}</option>
+          }
+        </select>
+
+        <select
+          class="filter-select"
+          [ngModel]="selectedCasePriority()"
+          (ngModelChange)="selectedCasePriority.set($event)"
+          aria-label="Filter by Priority"
+        >
+          <option value="">All Priorities</option>
+          @for (priority of availableCasePriorities(); track priority) {
+            <option [value]="priority">{{ priority }}</option>
+          }
+        </select>
+
+        @if (hasActiveCaseFilters()) {
+          <button type="button" class="clear-filters-btn" (click)="clearCaseFilters()">
+            <span class="material-symbols-outlined">filter_alt_off</span>
+            <span>Clear filters</span>
+          </button>
+        }
+      </div>
+
+      <!-- Error State -->
+      @if (casesErrorMessage()) {
+        <div class="status-row error-banner" role="alert">
+          <div class="error-msg-wrap">
+            <span class="status-icon material-symbols-outlined">error_outline</span>
+            <p>{{ casesErrorMessage() }}</p>
+          </div>
+          <button type="button" class="btn-retry" (click)="loadAssignedCases()">Retry</button>
         </div>
       }
-    </div>
-  </article>
+
+      <div class="task-content">
+        @if (isCasesLoading()) {
+          <div class="loading-state">
+            <span class="loader"></span>
+            <p>Loading your assigned cases…</p>
+          </div>
+        }
+
+        @if (!isCasesLoading() && filteredCases().length === 0) {
+          <div class="empty-state">
+            <span class="material-symbols-outlined empty-icon">folder_off</span>
+            <h3>No assigned cases found</h3>
+            @if (hasActiveCaseFilters()) {
+              <p>No cases match your current filter criteria.</p>
+              <button type="button" class="btn-reset-empty" (click)="clearCaseFilters()">
+                Reset Filters
+              </button>
+            } @else {
+              <p>You currently do not have any cases assigned to you.</p>
+            }
+          </div>
+        }
+
+        @if (!isCasesLoading() && filteredCases().length > 0) {
+          <div class="tasks-table-container">
+            <div class="tasks-table">
+              <div class="table-header">
+                <div class="col-title">Case</div>
+                <div class="col-project">Project</div>
+                <div class="col-type">Type</div>
+                <div class="col-status">Status</div>
+                <div class="col-priority">Priority</div>
+                <div class="col-due">Due Date</div>
+                <div class="col-tasks">Tasks</div>
+              </div>
+
+              @for (kase of filteredCases(); track trackByCaseId($index, kase)) {
+                <div
+                  class="table-row clickable-row"
+                  role="button"
+                  tabindex="0"
+                  (click)="navigateToCase(kase.id)"
+                  (keydown.enter)="navigateToCase(kase.id)"
+                  (keydown.space)="navigateToCase(kase.id); $event.preventDefault()"
+                >
+                  <div class="col-title">
+                    <div class="title-cell-wrap">
+                      <span class="task-name-link" [title]="kase.title">
+                        {{ kase.title }}
+                      </span>
+                      @if (kase.description) {
+                        <span class="sub-desc-preview">{{ kase.description | slice:0:60 }}</span>
+                      }
+                    </div>
+                  </div>
+
+                  <div class="col-project">
+                    <span class="task-project-name" [title]="kase.projectName">
+                      <span class="material-symbols-outlined icon-xs">domain</span>
+                      <span>{{ kase.projectName }}</span>
+                    </span>
+                  </div>
+
+                  <div class="col-type">
+                    <span class="type-badge" [ngClass]="getTypeBadgeClass(kase.type)">
+                      {{ kase.type || 'CASE' }}
+                    </span>
+                  </div>
+
+                  <div class="col-status">
+                    <span
+                      class="status-pill"
+                      [ngClass]="getStageBadgeClass(kase.status)"
+                    >
+                      {{ getCaseStatusLabel(kase.status) }}
+                    </span>
+                  </div>
+
+                  <div class="col-priority">
+                    <span
+                      class="priority-badge"
+                      [ngClass]="getPriorityClass(kase.priority)"
+                      [style.--priority-color]="kase.priorityColor || '#f59e0b'"
+                    >
+                      {{ kase.priority || 'Normal' }}
+                    </span>
+                  </div>
+
+                  <div class="col-due">
+                    <span class="due-date-text" [class.no-date]="!kase.dueDate">
+                      <span class="material-symbols-outlined icon-xs">schedule</span>
+                      <span>{{ kase.dueDate ? kase.dueDate.slice(0, 10) : 'No due date' }}</span>
+                    </span>
+                  </div>
+
+                  <div class="col-tasks">
+                    <span class="count-tag">
+                      <span class="material-symbols-outlined icon-xs">task</span>
+                      <span>{{ kase.taskCount !== undefined ? kase.taskCount : 0 }}</span>
+                    </span>
+                  </div>
+                </div>
+              }
+            </div>
+          </div>
+        }
+      </div>
+    </article>
+  }
 </section>
+

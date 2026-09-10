@@ -35,7 +35,7 @@ export interface TaskSummary {
   complexityLevel: { id: string; name: string; color: string | null } | null;
   /** `isCsoLabeled` included here (unlike Case's other fields) so the FE can
    *  gate the category/type/complexity pickers without a second lookup. */
-  case: { id: string; title: string; type: string; projectId: string; isCsoLabeled: boolean };
+  case: { id: string; title: string; type: string; projectId: string; isCsoLabeled: boolean; project?: { id: string; name: string } };
   priority: { id: string; name: string; color: string | null };
   assignees: Pick<UserSummary, 'id' | 'name' | 'email'>[];
   startDate?: string | null;

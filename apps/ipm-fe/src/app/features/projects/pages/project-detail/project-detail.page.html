@@ -57,7 +57,7 @@
               [currentUserId]="authService.currentUser()?.id"
               [currentUserName]="authService.currentUser()?.name"
               (createClick)="onCreateForDate($event)"
-              (itemClick)="onCaseClicked($event)"
+              (itemClick)="onTaskClicked($event)"
             ></app-calendar-view>
           </div>
         }
@@ -66,6 +66,13 @@
         }
         @case ('team') {
           <project-team [projectId]="project.id"></project-team>
+        }
+        @case ('activity') {
+          <app-activity-feed
+            entityType="PROJECT"
+            [entityId]="project.id"
+            [pageSize]="20"
+          ></app-activity-feed>
         }
         @case ('configuration') {
           <project-configuration [project]="project"></project-configuration>

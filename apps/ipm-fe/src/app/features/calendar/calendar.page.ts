@@ -13,24 +13,20 @@ import { Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { CalendarViewComponent } from './components/calendar-view/calendar-view.component';
 import { AuthService } from '../../core/services/auth.service';
-import { CasesService, type CaseView } from '../../core/services/cases.service';
+import { TasksService, type TaskView } from '../../core/services/tasks.service';
 import { ProjectsService } from '../projects/services/projects.service';
-import { NotificationService } from '../../core/services/notification.service';
+import { ToastService } from '../../core/services/toast.service';
 import {
-  CreateCaseModalComponent,
-  type CaseFormData,
-} from '../cases/create-case/create-case-modal.component';
-import {
-  caseToCalendarItem,
+  taskToCalendarItem,
   type CalendarItem,
   type CalendarKPI,
 } from './models/calendar.models';
-import type { CreateCaseRequest, ProjectSummary } from '@sebsa-pm-tool/shared-models';
+import type { ProjectSummary } from '@sebsa-pm-tool/shared-models';
 
 @Component({
   standalone: true,
   selector: 'app-calendar-page',
-  imports: [CommonModule, FormsModule, CalendarViewComponent, CreateCaseModalComponent],
+  imports: [CommonModule, FormsModule, CalendarViewComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './calendar.page.html',
   styleUrl: './calendar.page.scss',
@@ -38,23 +34,19 @@ import type { CreateCaseRequest, ProjectSummary } from '@sebsa-pm-tool/shared-mo
 export class CalendarPageComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   protected readonly authService = inject(AuthService);
-  private readonly casesService = inject(CasesService);
+  private readonly tasksService = inject(TasksService);
   private readonly projectsService = inject(ProjectsService);
-  private readonly notificationService = inject(NotificationService);
+  private readonly toastService = inject(ToastService);
 
-  private casesSub?: Subscription;
+  private tasksSub?: Subscription;
   private projectsSub?: Subscription;
 
   // Real backend data states
-  readonly rawCases = signal<CaseView[]>([]);
+  readonly rawTasks = signal<TaskView[]>([]);
   readonly availableProjects = signal<ProjectSummary[]>([]);
   readonly selectedProjectId = signal<string>('');
   readonly isLoading = signal<boolean>(false);
   readonly errorMessage = signal<string>('');
-
-  // Modal state
-  readonly isCreateCaseModalOpen = signal<boolean>(false);
-  readonly initialCaseDueDate = signal<string>('');
 
   readonly selectedProjectName = computed<string>(() => {
     const id = this.selectedProjectId();
@@ -65,25 +57,25 @@ export class CalendarPageComponent implements OnInit, OnDestroy {
 
   // Client-side instant filtering based on selected project
   // Avoids firing heavy duplicate backend API calls when user switches project dropdown
-  readonly calendarCases = computed<CalendarItem[]>(() => {
+  readonly calendarTasks = computed<CalendarItem[]>(() => {
     const selectedId = this.selectedProjectId();
-    const cases = this.rawCases();
-    const filtered = selectedId ? cases.filter((c) => c.projectId === selectedId) : cases;
-    return filtered.map((c) => caseToCalendarItem(c));
+    const tasks = this.rawTasks();
+    const filtered = selectedId ? tasks.filter((t) => t.projectId === selectedId) : tasks;
+    return filtered.map((t) => taskToCalendarItem(t));
   });
 
   readonly kpiMetrics = computed<CalendarKPI[]>(() => {
-    const cases = this.calendarCases();
-    const total = cases.length;
-    const inProgress = cases.filter((c) => c.status === 'IN_PROGRESS').length;
-    const urgentOrHigh = cases.filter(
-      (c) => c.priority === 'Urgent' || c.priority === 'High'
+    const tasks = this.calendarTasks();
+    const total = tasks.length;
+    const inProgress = tasks.filter((t) => t.status === 'IN_PROGRESS').length;
+    const urgentOrHigh = tasks.filter(
+      (t) => t.priority === 'Urgent' || t.priority === 'High'
     ).length;
-    const overdue = cases.filter((c) => c.isOverdue).length;
+    const overdue = tasks.filter((t) => t.isOverdue).length;
 
     return [
       {
-        label: 'Total Scheduled',
+        label: 'Total Scheduled Tasks',
         value: total,
         icon: 'calendar_month',
         colorVariant: 'primary',
@@ -95,13 +87,13 @@ export class CalendarPageComponent implements OnInit, OnDestroy {
         colorVariant: 'warning',
       },
       {
-        label: 'In Progress Cases',
+        label: 'In Progress Tasks',
         value: inProgress,
         icon: 'pending_actions',
         colorVariant: 'purple',
       },
       {
-        label: 'Overdue Commitments',
+        label: 'Overdue Tasks',
         value: overdue,
         icon: 'error',
         colorVariant: 'error',
@@ -111,11 +103,11 @@ export class CalendarPageComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.loadProjects();
-    this.loadCases();
+    this.loadTasks();
   }
 
   ngOnDestroy(): void {
-    this.casesSub?.unsubscribe();
+    this.tasksSub?.unsubscribe();
     this.projectsSub?.unsubscribe();
   }
 
@@ -132,19 +124,19 @@ export class CalendarPageComponent implements OnInit, OnDestroy {
     });
   }
 
-  loadCases(force = false): void {
+  loadTasks(force = false): void {
     this.isLoading.set(true);
     this.errorMessage.set('');
 
-    this.casesSub?.unsubscribe();
-    this.casesSub = this.casesService.loadAllCases(undefined, force).subscribe({
-      next: (cases) => {
-        this.rawCases.set(cases);
+    this.tasksSub?.unsubscribe();
+    this.tasksSub = this.tasksService.loadAllTasks(undefined, force).subscribe({
+      next: (tasks) => {
+        this.rawTasks.set(tasks);
         this.isLoading.set(false);
       },
       error: (err) => {
-        console.error('Failed to load cases from backend:', err);
-        this.errorMessage.set('Could not load cases from the server. Please check connection and retry.');
+        console.error('Failed to load tasks from backend:', err);
+        this.errorMessage.set('Could not load tasks from the server. Please check connection and retry.');
         this.isLoading.set(false);
       },
     });
@@ -154,58 +146,25 @@ export class CalendarPageComponent implements OnInit, OnDestroy {
     this.selectedProjectId.set(projectId);
   }
 
-  onCaseClicked(item: CalendarItem): void {
-    this.router.navigate(['/cases', item.id]);
+  onTaskClicked(item: CalendarItem): void {
+    this.router.navigate(['/tasks', item.id]);
   }
 
   onCreateForDate(date: Date): void {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    this.initialCaseDueDate.set(`${y}-${m}-${d}`);
-    this.isCreateCaseModalOpen.set(true);
-  }
-
-  onCreateCaseClicked(): void {
-    this.initialCaseDueDate.set('');
-    this.isCreateCaseModalOpen.set(true);
-  }
-
-  onCaseModalClosed(): void {
-    this.isCreateCaseModalOpen.set(false);
-    this.initialCaseDueDate.set('');
-  }
-
-  onCaseFormSubmitted(formData: CaseFormData): void {
-    if (!formData.projectId) {
-      this.notificationService.error('Please select a project for the case.');
-      return;
+    const selectedProj = this.selectedProjectId();
+    if (selectedProj) {
+      this.router.navigate(['/projects', selectedProj], { queryParams: { tab: 'tasklist' } });
+    } else {
+      this.router.navigate(['/tasks']);
     }
+  }
 
-    const dto: CreateCaseRequest = {
-      projectId: formData.projectId,
-      title: formData.title,
-      description: formData.description || undefined,
-      type: formData.type,
-      priorityId: formData.priorityId,
-      dueDate: formData.dueDate || undefined,
-      sprintId: formData.sprintId || undefined,
-      assigneeIds: formData.assigneeIds.length > 0 ? formData.assigneeIds : undefined,
-      isCsoLabeled: formData.isCsoLabeled,
-      category: formData.category,
-    };
-
-    this.casesService.createCase(dto).subscribe({
-      next: (created) => {
-        this.notificationService.success(`Case "${formData.title}" created successfully!`);
-        this.isCreateCaseModalOpen.set(false);
-        // Reload to sync with calendar items
-        this.loadCases(true);
-      },
-      error: (err) => {
-        console.error('Failed to create case:', err);
-        this.notificationService.error('Failed to create case. Please try again.');
-      },
-    });
+  onCreateTaskClicked(): void {
+    const selectedProj = this.selectedProjectId();
+    if (selectedProj) {
+      this.router.navigate(['/projects', selectedProj], { queryParams: { tab: 'tasklist' } });
+    } else {
+      this.router.navigate(['/tasks']);
+    }
   }
 }

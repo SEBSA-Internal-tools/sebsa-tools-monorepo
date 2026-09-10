@@ -1,6 +1,6 @@
 import { Component, inject, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { NotificationService } from '../../services/notification.service';
+import { Toast, ToastService } from '../../services/toast.service';
 
 @Component({
   standalone: true,
@@ -11,10 +11,17 @@ import { NotificationService } from '../../services/notification.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ToastComponent {
-  private readonly notificationService = inject(NotificationService);
-  readonly notifications = this.notificationService.notifications;
+  private readonly toastService = inject(ToastService);
+  readonly notifications = this.toastService.toasts;
 
   closeNotification(id: string): void {
-    this.notificationService.dismiss(id);
+    this.toastService.dismiss(id);
+  }
+
+  handleAction(toast: Toast): void {
+    if (toast.onAction) {
+      toast.onAction();
+    }
+    this.closeNotification(toast.id);
   }
 }

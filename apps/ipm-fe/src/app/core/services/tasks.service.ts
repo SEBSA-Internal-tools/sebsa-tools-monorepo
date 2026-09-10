@@ -1,6 +1,6 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
-import { BehaviorSubject, Observable, tap, map } from 'rxjs';
+import { BehaviorSubject, Observable, tap, map, of, finalize, shareReplay } from 'rxjs';
 import {
   CreateTaskDependencyRequest,
   CreateTaskRequest,
@@ -10,6 +10,7 @@ import {
   TaskStatusHistoryEntry,
   TaskSummary as BackendTaskSummary,
   TaskListSummary as BackendTaskListSummary,
+  TaskCategory,
   UpdateTaskRequest,
   UpdateTaskResponse,
 } from '@sebsa-pm-tool/shared-models';
@@ -33,13 +34,20 @@ export interface TaskView {
   priorityColor: string | null;
   duration: string;
   assignee?: string;
+  assigneeIds?: string[];
   dueDate: string;
+  startDate?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
   caseId: string;
   caseTitle: string;
   caseType: string;
   projectId: string;
+  projectName?: string;
+  category?: TaskCategory | null;
+  taskTypeName?: string;
   subtaskCount?: number;
-  updatedAt?: string;
+  isCsoLabeled?: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -53,6 +61,8 @@ export class TasksService {
   private readonly _tasksSubject = new BehaviorSubject<TaskView[]>([]);
 
   private currentCaseId?: string;
+  private currentProjectId?: string;
+  private readonly inFlightLoads = new Map<string, Observable<TaskView[]>>();
 
   constructor() {
     this.tasks$ = this._tasksSubject.asObservable();
@@ -76,11 +86,65 @@ export class TasksService {
       .subscribe({ next: (tasks) => this.setState(tasks) });
   }
 
+  loadTasksByProject(projectId: string, force = false): Observable<TaskView[]> {
+    if (!force && this.currentProjectId === projectId && this._tasks().length > 0) {
+      return of(this._tasks().filter((t) => t.projectId === projectId));
+    }
+
+    const cacheKey = `project_${projectId}`;
+    const existing$ = this.inFlightLoads.get(cacheKey);
+    if (existing$) {
+      return existing$;
+    }
+
+    this.currentProjectId = projectId;
+    const params = new HttpParams().set('projectId', projectId);
+    const req$ = this.http
+      .get<BackendTaskSummary[]>('/api/tasks', { params })
+      .pipe(
+        map((tasks) => tasks.map((task) => this.toTaskView(task))),
+        tap((tasks) => this.setState(tasks)),
+        finalize(() => this.inFlightLoads.delete(cacheKey)),
+        shareReplay(1)
+      );
+
+    this.inFlightLoads.set(cacheKey, req$);
+    req$.subscribe({ error: (err) => console.error('Failed to load project tasks:', err) });
+    return req$;
+  }
+
+  loadAllTasks(projectId?: string, force = false): Observable<TaskView[]> {
+    const cacheKey = projectId ? `project_${projectId}` : '__ALL_TASKS__';
+    if (!force && this.inFlightLoads.has(cacheKey)) {
+      return this.inFlightLoads.get(cacheKey)!;
+    }
+
+    let params = new HttpParams();
+    if (projectId) {
+      this.currentProjectId = projectId;
+      params = params.set('projectId', projectId);
+    } else {
+      this.currentProjectId = undefined;
+    }
+
+    const req$ = this.http
+      .get<BackendTaskSummary[]>('/api/tasks', { params })
+      .pipe(
+        map((tasks) => tasks.map((task) => this.toTaskView(task))),
+        tap((tasks) => this.setState(tasks)),
+        finalize(() => this.inFlightLoads.delete(cacheKey)),
+        shareReplay(1)
+      );
+
+    this.inFlightLoads.set(cacheKey, req$);
+    return req$;
+  }
+
   createTask(dto: CreateTaskRequest): Observable<TaskView> {
     return this.http.post<BackendTask>('/api/tasks', dto).pipe(
       map((task) => this.toTaskView(task)),
       tap((newTask) => {
-        if (dto.caseId === this.currentCaseId) {
+        if (dto.caseId === this.currentCaseId || (this.currentProjectId && newTask.projectId === this.currentProjectId)) {
           this.setState([...this._tasks(), newTask]);
         }
       }),
@@ -91,7 +155,7 @@ export class TasksService {
     return this.http.patch<UpdateTaskResponse>(`/api/tasks/${taskId}`, dto).pipe(
       tap((response) => {
         const updatedTask = this.toTaskView(response.task);
-        if (updatedTask.caseId === this.currentCaseId) {
+        if (updatedTask.caseId === this.currentCaseId || updatedTask.projectId === this.currentProjectId) {
           this.setState(this._tasks().map((t) => (t.id === updatedTask.id ? updatedTask : t)));
         }
       }),
@@ -149,7 +213,7 @@ export class TasksService {
     return this.http.patch<UpdateTaskResponse>(`/api/tasks/${taskId}`, dto).pipe(
       tap((response) => {
         const updatedView = this.toTaskView(response.task);
-        if (updatedView.caseId === this.currentCaseId) {
+        if (updatedView.caseId === this.currentCaseId || updatedView.projectId === this.currentProjectId) {
           this.setState(
             this._tasks().map((t) => (t.id === updatedView.id ? updatedView : t))
           );
@@ -168,6 +232,10 @@ export class TasksService {
 
   getTasksByCase(caseId: string): TaskView[] {
     return this._tasks().filter((task) => task.caseId === caseId);
+  }
+
+  getTasksByProject(projectId: string): TaskView[] {
+    return this._tasks().filter((task) => task.projectId === projectId);
   }
 
   getTaskList(caseId: string): Observable<TaskView[]> {
@@ -203,6 +271,8 @@ export class TasksService {
 
   private toTaskView(task: BackendTask | BackendTaskSummary): TaskView {
     const assignee = task.assignees?.map((a) => a.name).join(', ') || undefined;
+    const assigneeIds = task.assignees?.map((a) => a.id) || [];
+    const projectName = 'project' in task.case && task.case.project ? task.case.project.name : undefined;
     return {
       id: task.id,
       title: task.title,
@@ -212,11 +282,20 @@ export class TasksService {
       priorityColor: task.priority?.color ?? null,
       duration: task.dueDate ? `${task.dueDate.slice(0, 10)}` : 'No due date',
       assignee,
+      assigneeIds,
       dueDate: task.dueDate ?? '',
+      startDate: task.startDate ?? null,
+      createdAt: task.createdAt,
+      updatedAt: task.updatedAt,
       caseId: task.caseId,
       caseTitle: task.case.title,
       caseType: task.case.type,
       projectId: task.case.projectId,
+      projectName,
+      category: task.category,
+      taskTypeName: task.taskType?.name,
+      subtaskCount: task.subtaskCount,
+      isCsoLabeled: task.case.isCsoLabeled,
     };
   }
 

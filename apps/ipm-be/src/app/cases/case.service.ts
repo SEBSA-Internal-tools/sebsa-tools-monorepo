@@ -11,12 +11,13 @@ import {
   CaseCategoryAssignmentEntry,
   CaseStatusHistoryEntry,
   CaseSummary,
-  TaskLabelSummary,
 } from '@sebsa-pm-tool/shared-models';
-import { Prisma, TaskCategory } from '@prisma/client';
+import { ActivityAction, EntityType, Prisma, TaskCategory } from '@prisma/client';
 import { CreateCaseDto } from './dto/create-case.dto';
 import { UpdateCaseDto } from './dto/update-case.dto';
 import { FilterCaseDto } from './dto/filter-case.dto';
+import { ActivityLogsService } from '../activity-logs/activity-logs.service';
+import { NotificationService } from '../notifications/notification.service';
 
 const ADMIN_SYSTEM_ROLES: AuthUser['systemRole'][] = ['ADMIN', 'SUPER_ADMIN'];
 
@@ -62,7 +63,11 @@ type CaseWithDetail = Prisma.CaseGetPayload<{ include: typeof caseDetailInclude 
 
 @Injectable()
 export class CaseService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly activityLogs: ActivityLogsService,
+    private readonly notificationService: NotificationService,
+  ) {}
 
   async create(dto: CreateCaseDto, user: AuthUser): Promise<Case> {
     await this.assertCanCreate(dto.projectId, user);
@@ -128,8 +133,32 @@ export class CaseService {
         });
       }
 
+      await this.activityLogs.record(
+        {
+          projectId: kase.projectId,
+          entityType: EntityType.CASE,
+          entityId: kase.id,
+          entityLabel: kase.title,
+          action: ActivityAction.CREATED,
+          actorId: user.id,
+          description: `Created case "${kase.title}"`,
+        },
+        tx,
+      );
+
       return kase;
     });
+
+    if (dto.assigneeIds?.length) {
+      this.notificationService.notifyAssignees({
+        assigneeUserIds: dto.assigneeIds,
+        actorId: user.id,
+        actorName: user.name,
+        entityType: 'CASE',
+        entityId: created.id,
+        entityTitle: dto.title,
+      }).catch(() => {});
+    }
 
     return this.findOne(created.id, user);
   }
@@ -200,6 +229,16 @@ export class CaseService {
     this.assertCsoCategoryRequirement(isCsoLabeled, mergedCategory);
 
     const { assigneeIds, labelIds, isCsoLabeled: _ignoredIsCsoLabeled, ...restDto } = dto;
+    const isStatusChange = !!dto.status && dto.status !== existing.status;
+    const changes = [
+      ...this.activityLogs.buildFieldChanges(existing, restDto),
+      ...(assigneeIds
+        ? this.activityLogs.buildAssigneeChange(
+            await this.getAssigneeNames(id),
+            await this.getUserNames(assigneeIds),
+          )
+        : []),
+    ];
 
     const oldPrimaryAssignee = await this.prisma.caseAssignee.findFirst({
       where: { caseId: id },
@@ -248,7 +287,64 @@ export class CaseService {
           },
         });
       }
+
+      // CaseStatusHistory and CaseCategoryAssignment remain the authoritative
+      // per-dimension timelines; this adds one entry to the cross-entity feed
+      // covering whatever the request actually changed.
+      if (changes.length > 0 || assigneeIds || labelIds) {
+        await this.activityLogs.record(
+          {
+            projectId: existing.projectId,
+            entityType: EntityType.CASE,
+            entityId: id,
+            entityLabel: dto.title ?? existing.title,
+            action: isStatusChange ? ActivityAction.STATUS_CHANGED : ActivityAction.UPDATED,
+            actorId: user.id,
+            description: isStatusChange
+              ? `Moved case "${existing.title}" from ${existing.status} to ${dto.status}`
+              : `Updated case "${existing.title}"`,
+            changes,
+          },
+          tx,
+        );
+      }
     });
+
+    if (dto.assigneeIds?.length) {
+      this.notificationService.notifyAssignees({
+        assigneeUserIds: dto.assigneeIds,
+        actorId: user.id,
+        actorName: user.name,
+        entityType: 'CASE',
+        entityId: id,
+        entityTitle: existing.title,
+      }).catch(() => {});
+    }
+
+    if (dto.status && dto.status !== existing.status) {
+      this.prisma.caseAssignee
+        .findMany({
+          where: { caseId: id },
+          select: { userId: true },
+        })
+        .then((caseAssignees) => {
+          const recipientIds = [
+            ...caseAssignees.map((a) => a.userId),
+            existing.createdById,
+          ].filter(Boolean);
+
+          return this.notificationService.notifyStatusChange({
+            recipientUserIds: Array.from(new Set(recipientIds)),
+            actorId: user.id,
+            actorName: user.name,
+            entityType: 'CASE',
+            entityId: id,
+            entityTitle: existing.title,
+            newStatus: dto.status as string,
+          });
+        })
+        .catch(() => {});
+    }
 
     return this.findOne(id, user);
   }
@@ -257,7 +353,23 @@ export class CaseService {
     const kase = await this.getCaseOrThrow(id);
     await this.assertCanDelete(kase.projectId, user);
 
-    await this.prisma.case.update({ where: { id }, data: { deletedAt: new Date() } });
+    await this.prisma.$transaction(async (tx) => {
+      await tx.case.update({ where: { id }, data: { deletedAt: new Date() } });
+
+      await this.activityLogs.record(
+        {
+          projectId: kase.projectId,
+          entityType: EntityType.CASE,
+          entityId: id,
+          entityLabel: kase.title,
+          action: ActivityAction.DELETED,
+          actorId: user.id,
+          description: `Deleted case "${kase.title}"`,
+        },
+        tx,
+      );
+    });
+
     return { message: 'Case deleted successfully.' };
   }
 
@@ -270,15 +382,45 @@ export class CaseService {
     await this.assertCanEdit(kase.projectId, user);
     await this.assertAssigneesValid(assigneeIds, kase.projectId);
 
-    // Replaces rather than adds to the existing assignee set — a case can
-    // only ever have one owner.
-    await this.prisma.$transaction([
-      this.prisma.caseAssignee.deleteMany({ where: { caseId } }),
-      this.prisma.caseAssignee.createMany({
+    const addedNames = await this.getUserNames(assigneeIds);
+    const previousAssignees = await this.getAssigneeNames(caseId);
+
+    await this.prisma.$transaction(async (tx) => {
+      // Replaces rather than adds to the existing assignee set — a case can
+      // only ever have one owner.
+      await tx.caseAssignee.deleteMany({ where: { caseId } });
+      await tx.caseAssignee.createMany({
         data: assigneeIds.map((userId) => ({ caseId, userId })),
-      }),
-    ]);
+      });
+
+      await this.activityLogs.record(
+        {
+          projectId: kase.projectId,
+          entityType: EntityType.CASE,
+          entityId: caseId,
+          entityLabel: kase.title,
+          action: ActivityAction.ASSIGNED,
+          actorId: user.id,
+          description: `Assigned ${addedNames.join(', ')} to case "${kase.title}"`,
+          // The set is replaced outright, so the resulting set is exactly
+          // what was passed in — no union with the previous assignees.
+          changes: this.activityLogs.buildAssigneeChange(previousAssignees, addedNames),
+        },
+        tx,
+      );
+    });
+
     await this.recordCategoryAssignmentIfChanged(caseId, kase.category, user.id);
+
+    this.notificationService.notifyAssignees({
+      assigneeUserIds: assigneeIds,
+      actorId: user.id,
+      actorName: user.name,
+      entityType: 'CASE',
+      entityId: caseId,
+      entityTitle: kase.title,
+    }).catch(() => {});
+
     return this.findOne(caseId, user);
   }
 
@@ -286,9 +428,55 @@ export class CaseService {
     const kase = await this.getCaseOrThrow(caseId);
     await this.assertCanEdit(kase.projectId, user);
 
-    await this.prisma.caseAssignee.deleteMany({ where: { caseId, userId } });
+    const removed = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true },
+    });
+    const previousAssignees = await this.getAssigneeNames(caseId);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.caseAssignee.deleteMany({ where: { caseId, userId } });
+
+      await this.activityLogs.record(
+        {
+          projectId: kase.projectId,
+          entityType: EntityType.CASE,
+          entityId: caseId,
+          entityLabel: kase.title,
+          action: ActivityAction.UNASSIGNED,
+          actorId: user.id,
+          description: `Unassigned ${removed?.name ?? 'a user'} from case "${kase.title}"`,
+          changes: this.activityLogs.buildAssigneeChange(
+            previousAssignees,
+            previousAssignees.filter((name) => name !== removed?.name),
+          ),
+        },
+        tx,
+      );
+    });
+
     await this.recordCategoryAssignmentIfChanged(caseId, kase.category, user.id);
     return this.findOne(caseId, user);
+  }
+
+  /** Current assignee names on a case, for rendering an assignee change. */
+  private async getAssigneeNames(caseId: string): Promise<string[]> {
+    const rows = await this.prisma.caseAssignee.findMany({
+      where: { caseId },
+      select: { user: { select: { name: true } } },
+    });
+    return rows.map((row) => row.user.name);
+  }
+
+  /** Names for a set of user ids, for rendering an assignee change. */
+  private async getUserNames(userIds: string[]): Promise<string[]> {
+    if (userIds.length === 0) return [];
+
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: { name: true },
+    });
+    return users.map((u) => u.name);
   }
 
   private async recordCategoryAssignmentIfChanged(

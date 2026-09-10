@@ -200,6 +200,35 @@
   }
 }
 
+.nav-group {
+  display: flex;
+  flex-direction: column;
+}
+
+// The parent is a button, not a link, so it never carries routerLinkActive.
+// `.active` is applied manually while one of its children is the current route.
+.nav-group-toggle {
+  .nav-chevron {
+    margin-left: auto;
+    font-size: 18px;
+    transition: transform 0.2s ease;
+  }
+}
+
+.nav-submenu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 2px 0 2px 16px;
+  padding-left: 10px;
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.nav-subitem {
+  padding: 8px 12px;
+  font-size: 0.8125rem;
+}
+
 .nav-icon {
   width: 20px;
   height: 20px;
@@ -398,9 +427,15 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 16px;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--border-default);
   background: var(--surface-muted);
+}
+
+.notification-menu-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .notification-menu-title {
@@ -420,6 +455,23 @@
   border-radius: 9999px;
 }
 
+.notification-mark-all-btn {
+  background: transparent;
+  border: none;
+  color: var(--brand-primary);
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: rgba(139, 92, 246, 0.1);
+  }
+}
+
 .notification-menu-list {
   max-height: 340px;
   overflow-y: auto;
@@ -431,22 +483,35 @@
   align-items: flex-start;
   gap: 12px;
   padding: 12px 16px;
+  background: transparent;
+  border-top: none;
+  border-right: none;
   border-bottom: 1px solid var(--border-default);
+  border-left: 3px solid transparent;
+  font-family: inherit;
+  color: inherit;
+  font-size: inherit;
   transition: background 0.15s ease;
-  cursor: default;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
 
   &:last-child {
     border-bottom: none;
   }
 
-  &:hover {
+  &:hover,
+  &:focus-visible {
     background: var(--surface-muted);
+    outline: none;
   }
 
   &.unread {
     background: rgba(139, 92, 246, 0.05);
+    border-left-color: var(--brand-primary);
 
-    &:hover {
+    &:hover,
+    &:focus-visible {
       background: rgba(139, 92, 246, 0.09);
     }
   }
@@ -649,15 +714,27 @@
   padding: 12px 16px;
   border: none;
   background: transparent;
-  color: var(--status-error-fg);
+  color: var(--text-primary);
   font-family: var(--font-body);
   font-size: 0.85rem;
   font-weight: 500;
+  text-decoration: none;
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease;
 
   &:hover {
-    background: var(--status-error-bg);
+    background: var(--surface-muted);
+    color: var(--brand-primary);
+  }
+
+  &.logout {
+    color: var(--status-error-fg);
+    border-top: 1px solid var(--border-subtle, #f1f5f9);
+
+    &:hover {
+      background: var(--status-error-bg);
+      color: var(--status-error-fg);
+    }
   }
 
   .material-symbols-outlined {

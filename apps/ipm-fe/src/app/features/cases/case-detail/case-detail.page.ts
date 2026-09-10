@@ -7,7 +7,6 @@ import { TasksService, TASK_STATUSES, type TaskView } from '../../../core/servic
 import { ProjectsService } from '../../projects/services/projects.service';
 import type {
   Case,
-  CaseCategoryAssignmentEntry,
   CaseStatus,
   CreateTaskRequest,
   TaskCategory,
@@ -17,6 +16,8 @@ import {
   CreateTaskModalComponent,
   type TaskFormData,
 } from '../../tasks/create-task/create-task-modal.component';
+import { ActivityFeedComponent } from '../../../core/components/activity-feed/activity-feed.component';
+import { CommentSectionComponent } from '../../../core/components/comment-section/comment-section.component';
 
 interface CaseEditDraft {
   title: string;
@@ -32,7 +33,7 @@ interface CaseEditDraft {
 @Component({
   standalone: true,
   selector: 'app-case-detail-page',
-  imports: [CommonModule, FormsModule, RouterLink, CreateTaskModalComponent],
+  imports: [CommonModule, FormsModule, RouterLink, CreateTaskModalComponent, ActivityFeedComponent, CommentSectionComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './case-detail.page.html',
   styleUrls: ['./case-detail.page.scss'],
@@ -67,7 +68,6 @@ export class CaseDetailPageComponent implements OnInit {
 
   readonly statuses = CASE_STATUSES;
   readonly taskStatuses = TASK_STATUSES;
-  categoryHistory = signal<CaseCategoryAssignmentEntry[]>([]);
 
   readonly tasks = computed<TaskView[]>(() => {
     const current = this.kase();
@@ -89,14 +89,12 @@ export class CaseDetailPageComponent implements OnInit {
   private loadCase(caseId: string): void {
     this.isLoading.set(true);
     this.errorMessage.set('');
-    this.categoryHistory.set([]);
     this.casesService.getCaseById(caseId).subscribe({
       next: (kase) => {
         this.kase.set(kase);
         this.populateDraft(kase);
         this.isLoading.set(false);
         this.tasksService.loadTasksByCase(caseId);
-        this.loadCategoryHistory(caseId);
         this.loadPriorities(kase.projectId);
         this.loadAssignees(kase.projectId);
       },
@@ -119,13 +117,6 @@ export class CaseDetailPageComponent implements OnInit {
     this.projectsService.getMembers(projectId).subscribe({
       next: (members) => this.availableAssignees.set(members.map((m) => m.user)),
       error: () => this.availableAssignees.set([]),
-    });
-  }
-
-  private loadCategoryHistory(caseId: string): void {
-    this.casesService.getCategoryHistory(caseId).subscribe({
-      next: (history) => this.categoryHistory.set(history),
-      error: () => this.categoryHistory.set([]),
     });
   }
 
@@ -206,7 +197,6 @@ export class CaseDetailPageComponent implements OnInit {
           this.kase.set(kase);
           this.populateDraft(kase);
           this.isSaving.set(false);
-          this.loadCategoryHistory(current.id);
         });
       },
       error: (err) => {
@@ -357,17 +347,6 @@ export class CaseDetailPageComponent implements OnInit {
         return 'inventory_2';
       default:
         return 'task';
-    }
-  }
-
-  getCategoryLabel(category: string): string {
-    switch (category) {
-      case 'FUNCTIONAL':
-        return 'Functional';
-      case 'TECHNICAL':
-        return 'Technical';
-      default:
-        return category;
     }
   }
 

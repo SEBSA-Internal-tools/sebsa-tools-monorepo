@@ -1,32 +1,126 @@
-import { Component } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { Component, OnInit, inject, signal } from '@angular/core';
+import { Router } from '@angular/router';
+import { NotificationService } from '../../core/services/notification.service';
+import type { NotificationDto, NotificationType } from '@sebsa-pm-tool/shared-models';
+
+type FilterTab = 'ALL' | 'UNREAD' | 'ASSIGNMENTS' | 'STATUS_CHANGE' | 'DEADLINES';
 
 @Component({
   standalone: true,
+  imports: [CommonModule],
   selector: 'app-notifications-page',
-  styles: [`
-    :host {
-      display: block;
-      width: 100%;
-      background-color: var(--surface-page);
-    }
-    .page-container {
-      padding: 32px 40px;
-      background-color: var(--surface-page);
-      width: 100%;
-      box-sizing: border-box;
-      display: flex;
-      flex-direction: column;
-      gap: 24px;
-    }
-  `],
-  template: `
-    <div class="page-container">
-      <header class="sebsa-page-header">
-        <span class="sebsa-eyebrow">UPDATES</span>
-        <h1 class="sebsa-page-title">Notifications</h1>
-        <p class="sebsa-page-desc">Keep alerts, mentions, and system updates visible inside the unified shell.</p>
-      </header>
-    </div>
-  `,
+  templateUrl: './notifications.page.html',
+  styleUrl: './notifications.page.scss',
 })
-export class NotificationsPageComponent {}
+export class NotificationsPageComponent implements OnInit {
+  private readonly router = inject(Router);
+  protected readonly notificationService = inject(NotificationService);
+
+  readonly activeTab = signal<FilterTab>('ALL');
+
+  ngOnInit(): void {
+    this.loadData();
+  }
+
+  setTab(tab: FilterTab): void {
+    this.activeTab.set(tab);
+    this.loadData();
+  }
+
+  loadData(): void {
+    const tab = this.activeTab();
+    if (tab === 'UNREAD') {
+      this.notificationService.loadNotifications({ isRead: false, limit: 50 }).subscribe();
+    } else if (tab === 'ASSIGNMENTS') {
+      this.notificationService.loadNotifications({ type: 'TASK_ASSIGNED', limit: 50 }).subscribe();
+    } else if (tab === 'STATUS_CHANGE') {
+      this.notificationService.loadNotifications({ type: 'STATUS_CHANGE', limit: 50 }).subscribe();
+    } else if (tab === 'DEADLINES') {
+      this.notificationService.loadNotifications({ type: 'DUE_DATE_REMINDER', limit: 50 }).subscribe();
+    } else {
+      this.notificationService.loadNotifications({ limit: 50 }).subscribe();
+    }
+  }
+
+  filteredNotifications(): NotificationDto[] {
+    return this.notificationService.notifications();
+  }
+
+  markAsRead(id: string): void {
+    this.notificationService.markAsRead(id).subscribe();
+  }
+
+  markAllAsRead(): void {
+    this.notificationService.markAllAsRead().subscribe();
+  }
+
+  deleteNotification(id: string): void {
+    this.notificationService.deleteNotification(id).subscribe();
+  }
+
+  navigateToEntity(item: NotificationDto): void {
+    if (!item.isRead) {
+      this.notificationService.markAsRead(item.id).subscribe();
+    }
+
+    if (item.relatedEntityType === 'TASK' && item.relatedEntityId) {
+      this.router.navigate(['/tasks', item.relatedEntityId]);
+    } else if (item.relatedEntityType === 'CASE' && item.relatedEntityId) {
+      this.router.navigate(['/cases', item.relatedEntityId]);
+    } else if (item.relatedEntityType === 'PROJECT' && item.relatedEntityId) {
+      this.router.navigate(['/projects', item.relatedEntityId]);
+    } else if (item.relatedEntityType === 'SUBTASK') {
+      this.router.navigate(['/tasks']);
+    }
+  }
+
+  getNotificationIcon(type: NotificationType): string {
+    switch (type) {
+      case 'TASK_ASSIGNED':
+        return 'assignment_ind';
+      case 'STATUS_CHANGE':
+        return 'swap_horiz';
+      case 'MENTION':
+        return 'alternate_email';
+      case 'DUE_DATE_REMINDER':
+        return 'schedule';
+      case 'OVERDUE_ALERT':
+        return 'warning';
+      case 'SPRINT_EVENT':
+        return 'flag';
+      default:
+        return 'notifications';
+    }
+  }
+
+  getIconClass(type: NotificationType): string {
+    switch (type) {
+      case 'TASK_ASSIGNED':
+        return 'assignment';
+      case 'STATUS_CHANGE':
+        return 'status';
+      case 'OVERDUE_ALERT':
+        return 'warning';
+      default:
+        return '';
+    }
+  }
+
+  formatTime(dateString?: string | null): string {
+    if (!dateString) return '';
+    const now = new Date();
+    const date = new Date(dateString);
+    const diffSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+    if (diffSeconds < 60) return 'Just now';
+    const diffMinutes = Math.floor(diffSeconds / 60);
+    if (diffMinutes < 60) return `${diffMinutes}m ago`;
+    const diffHours = Math.floor(diffMinutes / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
+}

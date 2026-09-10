@@ -24,7 +24,7 @@ export const appRoutes: Route[] = [
 			{
 				path: '',
 				pathMatch: 'full',
-				redirectTo: '/login',
+				redirectTo: '/dashboard',
 			},
 			{
 				path: 'dashboard',
@@ -87,6 +87,17 @@ export const appRoutes: Route[] = [
 					import('./features/admin/users/admin-users.page').then((m) => m.AdminUsersPageComponent),
 			},
 			{
+				path: 'activity/:entityType/:entityId',
+				loadComponent: () =>
+					import('./features/activity/activity-log.page').then((m) => m.ActivityLogPageComponent),
+			},
+			{
+				path: 'admin/audit-logs',
+				canActivate: [superAdminGuard],
+				loadComponent: () =>
+					import('./features/admin/audit-logs/audit-logs.page').then((m) => m.AuditLogsPageComponent),
+			},
+			{
 				path: 'admin/privilege-groups',
 				canActivate: [superAdminGuard],
 				loadComponent: () =>
@@ -115,6 +126,13 @@ export const appRoutes: Route[] = [
 				loadComponent: () =>
 					import('./features/cso/cso.page').then(
 						(m) => m.CsoPageComponent
+					),
+			},
+			{
+				path: 'settings',
+				loadComponent: () =>
+					import('./features/settings/settings.page').then(
+						(m) => m.SettingsPageComponent
 					),
 			},
 		],
