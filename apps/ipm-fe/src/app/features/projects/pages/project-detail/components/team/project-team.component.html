@@ -6,15 +6,6 @@
     </div>
     
     <div class="header-actions">
-      <div class="view-toggle">
-        <button type="button" class="view-btn" [class.active]="viewMode() === 'card'" (click)="toggleViewMode('card')" title="Card View">
-          <span class="material-symbols-outlined">grid_view</span>
-        </button>
-        <button type="button" class="view-btn" [class.active]="viewMode() === 'list'" (click)="toggleViewMode('list')" title="List View">
-          <span class="material-symbols-outlined">view_list</span>
-        </button>
-      </div>
-
       <button
         type="button"
         class="btn-add-member"
@@ -24,6 +15,15 @@
         <span class="material-symbols-outlined">person_add</span>
         Add Member
       </button>
+
+      <div class="view-toggle">
+        <button type="button" class="view-btn" [class.active]="viewMode() === 'card'" (click)="toggleViewMode('card')" title="Card View">
+          <span class="material-symbols-outlined">grid_view</span>
+        </button>
+        <button type="button" class="view-btn" [class.active]="viewMode() === 'list'" (click)="toggleViewMode('list')" title="List View">
+          <span class="material-symbols-outlined">view_list</span>
+        </button>
+      </div>
     </div>
   </div>
 

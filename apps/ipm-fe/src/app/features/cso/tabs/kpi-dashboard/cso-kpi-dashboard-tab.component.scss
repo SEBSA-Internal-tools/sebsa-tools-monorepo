@@ -1,9 +1,16 @@
 .cso-kpi-dashboard {
   width: 100%;
+  max-width: 100%;
   padding: 24px;
   display: flex;
   flex-direction: column;
   gap: 24px;
+  box-sizing: border-box;
+
+  @media (max-width: 768px) {
+    padding: 16px 12px;
+    gap: 16px;
+  }
 }
 
 // ── Header ────────────────────────────────────────────────────────────────────
@@ -13,6 +20,10 @@
     font-weight: 700;
     color: var(--app-text);
     margin: 0 0 6px;
+
+    @media (max-width: 640px) {
+      font-size: 1.35rem;
+    }
   }
 
   .subtitle {
@@ -47,6 +58,40 @@
 
     &:hover { color: var(--app-text); background: var(--app-hover); }
     &.active { color: var(--app-primary); border-bottom-color: var(--app-primary); }
+  }
+
+  @media (max-width: 640px) {
+    width: 100%;
+
+    .tab-btn {
+      flex: 1;
+      justify-content: center;
+      padding: 10px 12px;
+      font-size: 0.82rem;
+      gap: 6px;
+
+      .material-symbols-outlined {
+        font-size: 16px;
+      }
+    }
+  }
+}
+
+.tab-label-desktop {
+  display: inline;
+}
+
+.tab-label-mobile {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .tab-label-desktop {
+    display: none;
+  }
+
+  .tab-label-mobile {
+    display: inline;
   }
 }
 
@@ -193,7 +238,11 @@
   background: var(--app-surface);
   border: 1px solid var(--app-border);
   border-radius: 12px;
-  overflow: hidden;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 
   &.full-width { width: 100%; }
 }
@@ -424,6 +473,7 @@
 // ── Data Table ────────────────────────────────────────────────────────────────
 .data-table {
   width: 100%;
+  min-width: 320px;
   border-collapse: collapse;
   font-size: 0.84rem;
 
@@ -431,7 +481,7 @@
     background: var(--app-hover);
 
     th {
-      padding: 10px 16px;
+      padding: 10px 14px;
       text-align: left;
       font-weight: 600;
       font-size: 0.72rem;
@@ -453,9 +503,10 @@
     &.row-crit td:first-child { color: #ef4444; font-weight: 600; }
 
     td {
-      padding: 10px 16px;
+      padding: 10px 14px;
       color: var(--app-text);
       vertical-align: middle;
+      white-space: nowrap;
     }
   }
 }
@@ -488,25 +539,46 @@
   &.low      { background: #dbeafe; color: #1e40af; }
 }
 
-// Mini progress bar
-.mini-bar-wrap {
-  display: flex;
+// Progress bar cell
+.progress-cell {
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 
-  .mini-bar {
-    height: 6px;
-    background: var(--app-primary);
-    border-radius: 3px;
-    min-width: 4px;
-    max-width: 120px;
-    opacity: 0.7;
+  .pct-text {
+    min-width: 38px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--app-text);
   }
 
-  span {
-    font-size: 0.78rem;
-    color: var(--app-text-muted);
-    white-space: nowrap;
+  .progress-track {
+    width: 80px;
+    height: 6px;
+    background: var(--app-border);
+    border-radius: 999px;
+    overflow: hidden;
+    flex-shrink: 0;
+
+    .progress-fill {
+      height: 100%;
+      background: var(--app-primary);
+      border-radius: 999px;
+      transition: width 0.3s ease;
+    }
+  }
+
+  @media (max-width: 480px) {
+    gap: 6px;
+
+    .pct-text {
+      min-width: 32px;
+      font-size: 0.78rem;
+    }
+
+    .progress-track {
+      width: 50px;
+    }
   }
 }
 

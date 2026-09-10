@@ -7,6 +7,11 @@
   @media (min-width: 768px) {
     padding: 32px;
   }
+
+  @media (max-width: 640px) {
+    padding: 16px 12px;
+    gap: 16px;
+  }
 }
 
 .team-header {
@@ -49,6 +54,7 @@
   cursor: pointer;
   transition: all 0.2s ease;
   box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
+  white-space: nowrap;
 
   .material-symbols-outlined {
     font-size: 20px;
@@ -65,21 +71,24 @@
   }
 
   @media (max-width: 640px) {
-    width: 100%;
+    flex: 1;
     justify-content: center;
+    padding: 8px 12px;
+    font-size: 0.85rem;
   }
 }
 
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   flex-wrap: wrap;
 
   @media (max-width: 640px) {
     width: 100%;
-    flex-direction: column;
-    align-items: stretch;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
   }
 }
 
@@ -90,10 +99,7 @@
   border: 1px solid var(--app-border);
   border-radius: 8px;
   padding: 4px;
-  
-  @media (max-width: 640px) {
-    justify-content: center;
-  }
+  flex-shrink: 0;
 }
 
 .view-btn {

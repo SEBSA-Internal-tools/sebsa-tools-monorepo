@@ -30,10 +30,20 @@
   display: flex;
   flex-direction: column;
   animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  box-sizing: border-box;
 
   @media (max-width: 640px) {
-    max-width: 95%;
-    max-height: 95vh;
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-width: 100%;
+    max-height: 92vh;
+    max-height: 92dvh;
+    transform: none;
+    border-radius: 20px 20px 0 0;
+    animation: slideUpMobile 0.28s cubic-bezier(0.16, 1, 0.3, 1);
   }
 }
 
@@ -48,6 +58,17 @@
   }
 }
 
+@keyframes slideUpMobile {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .modal-header {
   display: flex;
   align-items: flex-start;
@@ -55,6 +76,15 @@
   gap: 20px;
   padding: 24px 28px;
   border-bottom: 1px solid var(--border-default);
+
+  @media (max-width: 640px) {
+    padding: 16px 18px;
+    gap: 12px;
+
+    h2 {
+      font-size: 1.15rem;
+    }
+  }
 
   .header-content {
     flex: 1;
@@ -105,6 +135,11 @@
   display: flex;
   flex-direction: column;
   gap: 20px;
+
+  @media (max-width: 640px) {
+    padding: 16px 18px;
+    gap: 16px;
+  }
 }
 
 .form-grid {
@@ -415,6 +450,20 @@
   border-top: 1px solid var(--border-default);
   background: var(--surface-muted);
   border-radius: 0 0 24px 24px;
+
+  @media (max-width: 640px) {
+    padding: 12px 18px;
+    border-radius: 0 0 16px 16px;
+    gap: 8px;
+
+    .btn-cancel,
+    .btn-create {
+      flex: 1;
+      text-align: center;
+      justify-content: center;
+      padding: 10px 14px;
+    }
+  }
 }
 
 .btn-cancel {
@@ -545,6 +594,14 @@
   color: var(--brand-primary);
   font-size: 0.75rem;
   font-weight: 600;
+  max-width: 100%;
+
+  .chip-name {
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 
 .chip-avatar {

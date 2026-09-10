@@ -20,9 +20,14 @@
   flex: 1;
   overflow-y: auto;
   padding: 24px;
+  -webkit-overflow-scrolling: touch;
 
   @media (min-width: 768px) {
     padding: 32px;
+  }
+
+  @media (max-width: 640px) {
+    padding: 14px 12px;
   }
 }
 
@@ -37,6 +42,15 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 16px;
+
+  @media (max-width: 640px) {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  @media (max-width: 420px) {
+    grid-template-columns: 1fr;
+  }
 }
 
 .project-kpi-card {

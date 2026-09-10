@@ -20,9 +20,6 @@ export class LoginPageComponent {
   email = '';
   password = '';
 
-  // Signals (not plain fields): this app has no zone.js, so a plain field
-  // mutated inside an RxJS subscribe callback (outside any Angular-bound
-  // event context) won't reliably schedule a re-render.
   readonly hasError = signal(false);
   readonly errorMessage = signal('');
 

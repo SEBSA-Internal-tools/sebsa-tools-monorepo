@@ -1,34 +1,139 @@
 // =============================================================================
-// Customer Detail Page — uses the shared design-token system in styles.scss
-// (.sebsa-card, .btn / .btn-*-outline, .badge) for buttons/cards/badges; this
-// file only covers page-specific layout.
+// Customer Detail Page — SEBSA PM Tool Design System
+// Responsive mobile/desktop layout with full dark & light mode token support
 // =============================================================================
+
+:host {
+  display: block;
+  width: 100%;
+  min-height: 100%;
+  background-color: var(--surface-page);
+}
 
 .customer-detail-page {
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  max-width: 1100px;
+  gap: 24px;
+  max-width: 1200px;
   margin: 0 auto;
-  padding: 24px 16px;
+  padding: 32px 24px;
+  width: 100%;
+  box-sizing: border-box;
 
-  @media (min-width: 768px) {
-    padding: 28px 24px;
+  @media (max-width: 768px) {
+    padding: 20px 16px;
+    gap: 16px;
+  }
+
+  @media (max-width: 480px) {
+    padding: 16px 12px;
+    gap: 14px;
   }
 }
+
+// =============================================================================
+// Top Action Bar & Button Theme Overrides
+// =============================================================================
 
 .header-actions {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  width: 100%;
+
+  @media (max-width: 480px) {
+    gap: 10px;
+  }
 }
 
 .header-actions-right {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
+
+.btn-navy-outline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  color: var(--text-heading);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  .material-symbols-outlined {
+    font-size: 18px;
+  }
+
+  &:hover {
+    background: var(--surface-muted);
+    border-color: var(--border-strong, var(--border-default));
+    color: var(--text-heading);
+  }
+}
+
+.btn-primary-outline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  color: var(--brand-primary);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  .material-symbols-outlined {
+    font-size: 18px;
+  }
+
+  &:hover {
+    background: var(--brand-primary-50, rgba(112, 0, 255, 0.08));
+    border-color: var(--brand-primary);
+    color: var(--brand-primary);
+  }
+}
+
+.btn-danger-outline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: var(--surface-card);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: var(--status-error-fg);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  .material-symbols-outlined {
+    font-size: 18px;
+  }
+
+  &:hover {
+    background: var(--status-error-bg);
+    border-color: var(--status-error-solid);
+    color: var(--status-error-fg);
+  }
+}
+
+// =============================================================================
+// Loading & Error States
+// =============================================================================
 
 .loading-state {
   display: flex;
@@ -45,6 +150,8 @@
 
   .spin {
     animation: spin 1s linear infinite;
+    font-size: 28px;
+    color: var(--brand-primary);
   }
 }
 
@@ -63,27 +170,56 @@
 }
 
 // =============================================================================
-// Customer header card
+// Customer Header Card
 // =============================================================================
 
 .customer-header-card {
   display: flex;
   align-items: flex-start;
-  gap: 20px;
+  gap: 24px;
+  padding: 28px 32px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 20px;
+  box-shadow: var(--shadow-card);
+  box-sizing: border-box;
+  width: 100%;
+
+  @media (max-width: 768px) {
+    padding: 20px;
+    gap: 16px;
+    border-radius: 16px;
+  }
+
+  @media (max-width: 640px) {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 18px 16px;
+    gap: 16px;
+  }
 }
 
 .customer-avatar-large {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
+  width: 68px;
+  height: 68px;
+  border-radius: 18px;
   background: var(--brand-primary-100);
   color: var(--brand-primary);
-  font-size: 1.25rem;
+  font-size: 1.4rem;
   font-weight: 700;
+  font-family: var(--font-heading);
   flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(112, 0, 255, 0.12);
+
+  @media (max-width: 640px) {
+    width: 54px;
+    height: 54px;
+    border-radius: 14px;
+    font-size: 1.2rem;
+  }
 }
 
 .customer-header-info {
@@ -92,16 +228,23 @@
 
   h1 {
     margin: 0 0 10px;
-    font-size: 1.5rem;
-    font-weight: 600;
+    font-size: 1.6rem;
+    font-weight: 700;
     color: var(--text-heading);
+    font-family: var(--font-heading);
+    letter-spacing: -0.02em;
+
+    @media (max-width: 640px) {
+      font-size: 1.25rem;
+      margin-bottom: 8px;
+    }
   }
 }
 
 .contact-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
 }
 
 .contact-chip {
@@ -113,10 +256,14 @@
   background: var(--surface-muted);
   border: 1px solid var(--border-default);
   color: var(--text-secondary);
-  font-size: 0.85rem;
+  font-size: 0.82rem;
+  font-weight: 500;
+  word-break: break-all;
 
   .material-symbols-outlined {
-    font-size: 16px;
+    font-size: 15px;
+    color: var(--brand-primary);
+    flex-shrink: 0;
   }
 
   &.muted {
@@ -127,9 +274,14 @@
 
 .customer-notes {
   margin: 14px 0 0;
-  color: var(--text-secondary);
-  font-size: 0.9rem;
-  line-height: 1.5;
+  color: var(--text-primary);
+  font-size: 0.88rem;
+  line-height: 1.55;
+  background: var(--surface-muted);
+  padding: 12px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  word-break: break-word;
 }
 
 .customer-project-count {
@@ -138,39 +290,81 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  min-width: 90px;
-  padding: 12px 16px;
-  border-radius: 12px;
+  min-width: 100px;
+  padding: 14px 20px;
+  border-radius: 14px;
   background: var(--surface-muted);
   border: 1px solid var(--border-default);
 
   .count-value {
-    font-size: 1.6rem;
+    font-size: 1.75rem;
     font-weight: 700;
     color: var(--text-heading);
     font-family: var(--font-heading);
+    line-height: 1.1;
   }
 
   .count-label {
-    font-size: 0.75rem;
+    font-size: 0.72rem;
     color: var(--text-secondary);
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    margin-top: 2px;
+  }
+
+  @media (max-width: 640px) {
+    flex-direction: row;
+    justify-content: space-between;
+    padding: 10px 14px;
+    min-width: 100%;
+    border-radius: 10px;
+
+    .count-value {
+      font-size: 1.25rem;
+    }
+
+    .count-label {
+      font-size: 0.8rem;
+      margin-top: 0;
+    }
   }
 }
 
 // =============================================================================
-// Projects section
+// Projects Section
 // =============================================================================
 
+.projects-section {
+  padding: 28px 32px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 20px;
+  box-shadow: var(--shadow-card);
+  box-sizing: border-box;
+  width: 100%;
+
+  @media (max-width: 768px) {
+    padding: 20px;
+    border-radius: 16px;
+  }
+
+  @media (max-width: 480px) {
+    padding: 16px 12px;
+    border-radius: 14px;
+  }
+}
+
 .section-header {
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 
   h2 {
     margin: 0;
-    font-size: 1.1rem;
-    font-weight: 600;
+    font-size: 1.2rem;
+    font-weight: 700;
     color: var(--text-heading);
+    font-family: var(--font-heading);
+    letter-spacing: -0.01em;
   }
 }
 
@@ -186,12 +380,13 @@
   .empty-icon {
     font-size: 48px;
     color: var(--text-muted);
+    opacity: 0.6;
   }
 
   h3 {
     margin: 0;
     color: var(--text-heading);
-    font-size: 1rem;
+    font-size: 1.05rem;
     font-weight: 600;
   }
 
@@ -204,19 +399,23 @@
 
 .projects-table-container {
   overflow-x: auto;
-  border-radius: 12px;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 14px;
   border: 1px solid var(--border-default);
+  background: var(--surface-card);
+  width: 100%;
 }
 
 .projects-table {
   display: flex;
   flex-direction: column;
-  min-width: 100%;
+  width: 100%;
+  min-width: 680px;
 }
 
 .table-row {
   display: grid;
-  grid-template-columns: 2.2fr 1fr 0.8fr 0.8fr 1.2fr;
+  grid-template-columns: minmax(180px, 2.2fr) minmax(110px, 1fr) minmax(90px, 0.8fr) minmax(90px, 0.8fr) minmax(120px, 1.2fr);
   gap: 16px;
   padding: 14px 18px;
   align-items: center;
@@ -233,6 +432,7 @@
     color: var(--text-secondary);
     text-transform: uppercase;
     letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--border-default);
   }
 
   &:not(.table-header) {
@@ -254,21 +454,28 @@
 
     .material-symbols-outlined {
       font-size: 16px;
-      color: var(--text-secondary);
+      color: var(--text-muted);
     }
   }
 }
 
 .col-project {
-  font-weight: 500;
+  font-weight: 600;
+
+  .project-name {
+    color: var(--text-heading);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    word-break: break-word;
+    line-height: 1.35;
+  }
 }
 
 .project-icon {
   color: var(--brand-primary) !important;
-}
-
-.project-name {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: 18px !important;
+  flex-shrink: 0;
 }

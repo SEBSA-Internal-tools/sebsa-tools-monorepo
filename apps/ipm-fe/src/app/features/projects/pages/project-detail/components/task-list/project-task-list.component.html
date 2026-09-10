@@ -22,63 +22,65 @@
 
   <!-- Cases Table -->
   @if (cases.length > 0) {
-    <div class="tasks-table">
-      <div class="table-header">
-        <div class="col-title">Case Title</div>
-        <div class="col-description">Description</div>
-        <div class="col-category">Type</div>
-        <div class="col-status">Status</div>
-        <div class="col-priority">Priority</div>
-        <div class="col-duration">Duration</div>
-        <div class="col-assignee">Assignee</div>
-      </div>
-
-      @for (kase of cases; track kase.id) {
-        <div class="table-row clickable-row" (click)="openCase(kase.id)">
-          <div class="col-title">
-            <span class="task-title task-title-link">
-              {{ kase.title }}
-            </span>
-          </div>
-
-          <div class="col-description">
-            <span class="description-text" [title]="kase.description || 'No description'">{{ kase.description || 'No description' }}</span>
-          </div>
-
-          <div class="col-category">
-            <span class="category-badge">{{ kase.type }}</span>
-          </div>
-
-          <div class="col-status" data-label="Status">
-            <span class="status-badge" [class]="getStatusBadgeClass(kase)">
-              {{ getStatusLabel(kase) }}
-            </span>
-          </div>
-
-          <div class="col-priority" data-label="Priority">
-            <span
-              class="priority-badge"
-              [style.--priority-color]="kase.priorityColor || '#f59e0b'"
-            >
-              {{ kase.priority }}
-            </span>
-          </div>
-
-          <div class="col-duration" data-label="Duration">
-            <span class="duration-text">{{ kase.duration }}</span>
-          </div>
-
-          <div class="col-assignee" data-label="Assignee">
-            @if (kase.assignee) {
-              <div class="assignee-avatar" [title]="kase.assignee">
-                {{ getTaskInitials(kase.assignee) }}
-              </div>
-            } @else {
-              <span class="no-assignee">—</span>
-            }
-          </div>
+    <div class="tasks-table-container">
+      <div class="tasks-table">
+        <div class="table-header">
+          <div class="col-title">Case Title</div>
+          <div class="col-description">Description</div>
+          <div class="col-category">Type</div>
+          <div class="col-status">Status</div>
+          <div class="col-priority">Priority</div>
+          <div class="col-duration">Duration</div>
+          <div class="col-assignee">Assignee</div>
         </div>
-      }
+
+        @for (kase of cases; track kase.id) {
+          <div class="table-row clickable-row" (click)="openCase(kase.id)">
+            <div class="col-title">
+              <span class="task-title task-title-link">
+                {{ kase.title }}
+              </span>
+            </div>
+
+            <div class="col-description">
+              <span class="description-text" [title]="kase.description || 'No description'">{{ kase.description || 'No description' }}</span>
+            </div>
+
+            <div class="col-category">
+              <span class="category-badge">{{ kase.type }}</span>
+            </div>
+
+            <div class="col-status">
+              <span class="status-badge" [class]="getStatusBadgeClass(kase)">
+                {{ getStatusLabel(kase) }}
+              </span>
+            </div>
+
+            <div class="col-priority">
+              <span
+                class="priority-badge"
+                [style.--priority-color]="kase.priorityColor || '#f59e0b'"
+              >
+                {{ kase.priority }}
+              </span>
+            </div>
+
+            <div class="col-duration">
+              <span class="duration-text">{{ kase.duration }}</span>
+            </div>
+
+            <div class="col-assignee">
+              @if (kase.assignee) {
+                <div class="assignee-avatar" [title]="kase.assignee">
+                  {{ getTaskInitials(kase.assignee) }}
+                </div>
+              } @else {
+                <span class="no-assignee">—</span>
+              }
+            </div>
+          </div>
+        }
+      </div>
     </div>
   } @else {
     <div class="empty-state">

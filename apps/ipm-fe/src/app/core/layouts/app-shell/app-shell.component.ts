@@ -129,10 +129,21 @@ export class AppShellComponent implements OnInit {
   private readonly manuallyToggledGroups = new Map<string, boolean>();
 
   protected isMobileSidebarOpen = false;
+  protected isMobileSearchOpen = false;
   protected isTaskModalOpen = false;
   protected lastCreatedTask: CaseFormData | null = null;
   protected isProfileMenuOpen = false;
   protected isNotificationMenuOpen = false;
+
+  protected openMobileSearch(): void {
+    this.isMobileSearchOpen = true;
+    this.isProfileMenuOpen = false;
+    this.isNotificationMenuOpen = false;
+  }
+
+  protected closeMobileSearch(): void {
+    this.isMobileSearchOpen = false;
+  }
 
   ngOnInit(): void {
     // Initial fetch if user is logged in

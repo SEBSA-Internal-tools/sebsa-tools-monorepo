@@ -811,4 +811,63 @@ table, .sebsa-table {
   vertical-align: middle;
 }
 
+// =============================================================================
+// Global Responsive Utilities & Form Resets
+// =============================================================================
+
+@media (max-width: 640px) {
+  /* Prevent iOS Safari input auto-zoom by ensuring 16px font size on mobile inputs */
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+
+  /* Global Modal Container Mobile Default */
+  .modal-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 92vh !important;
+    max-height: 92dvh !important;
+    border-radius: 20px 20px 0 0 !important;
+    bottom: 0 !important;
+    top: auto !important;
+    left: 0 !important;
+    right: 0 !important;
+    transform: none !important;
+  }
+
+  /* Full Width Mobile Buttons in Modal Footers */
+  .modal-footer {
+    padding: 14px 18px !important;
+    gap: 10px !important;
+
+    button {
+      flex: 1;
+      justify-content: center;
+      padding: 12px 16px !important;
+    }
+  }
+
+  /* Ensure smooth momentum scrolling on touch devices */
+  .modal-body,
+  .page-content,
+  .table-responsive,
+  .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media (max-width: 768px) {
+  /* Global responsive horizontal scrolling for HTML data tables */
+  .sebsa-table,
+  table {
+    display: block !important;
+    width: 100% !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    white-space: nowrap !important;
+  }
+}
+
 

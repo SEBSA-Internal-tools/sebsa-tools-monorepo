@@ -19,7 +19,10 @@
   &::before {
     content: '';
     position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
     background-image: radial-gradient(circle at 20% 30%, rgba(217, 37, 97, 0.05) 0%, transparent 5%),
                       radial-gradient(circle at 70% 60%, rgba(255, 255, 255, 0.03) 0%, transparent 5%);
     pointer-events: none;
@@ -237,4 +240,66 @@
   text-align: center;
   color: #9ca3af;
   font-size: 0.75rem;
+}
+
+/* ========================================================================== */
+/* MOBILE VIEW: Show top brand banner, then form                              */
+/* ========================================================================== */
+@media (max-width: 900px) {
+  .login-container {
+    flex-direction: column;
+    height: auto;
+    min-height: 100vh;
+    min-height: 100dvh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .left-panel {
+    display: flex;
+    flex: none;
+    padding: 36px 20px 28px;
+    background-color: #0b1a30;
+
+    .brand-content {
+      max-width: 100%;
+
+      .brand-logo {
+        max-width: 220px;
+        margin-bottom: 0;
+      }
+
+      .brand-dash {
+        width: 40px;
+        height: 3px;
+        margin: 10px auto 14px;
+      }
+
+      h1 {
+        font-size: 1.35rem;
+        margin: 0 0 6px;
+      }
+
+      p {
+        font-size: 0.85rem;
+      }
+    }
+  }
+
+  .right-panel {
+    flex: 1;
+    padding: 32px 20px 40px;
+    align-items: flex-start;
+  }
+
+  .login-form-container {
+    padding: 0;
+    max-width: 100%;
+  }
+
+  .copyright {
+    position: static;
+    margin-top: 32px;
+    padding-bottom: 12px;
+  }
 }
