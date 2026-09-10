@@ -1,8 +1,29 @@
 <main class="app-shell">
+  <!-- Mobile Sidebar Backdrop Overlay -->
+  @if (isMobileSidebarOpen) {
+    <div
+      class="sidebar-backdrop"
+      aria-hidden="true"
+      (click)="closeMobileSidebar()"
+    ></div>
+  }
+
   <!-- Left Navigation Sidebar -->
-  <aside class="sidebar" aria-label="Primary navigation">
+  <aside
+    class="sidebar"
+    [class.mobile-open]="isMobileSidebarOpen"
+    aria-label="Primary navigation"
+  >
     <section class="brand-block">
       <div class="sidebar-logo-mask"></div>
+      <button
+        type="button"
+        class="mobile-sidebar-close-btn"
+        aria-label="Close navigation menu"
+        (click)="closeMobileSidebar()"
+      >
+        <span class="material-symbols-outlined" aria-hidden="true">close</span>
+      </button>
     </section>
 
     <button type="button" class="btn-primary new-task-button" aria-haspopup="dialog" [attr.aria-expanded]="isTaskModalOpen" (click)="openTaskModal()">
@@ -17,6 +38,7 @@
           [routerLink]="item.path"
           routerLinkActive="active"
           [routerLinkActiveOptions]="{ exact: true }"
+          (click)="closeMobileSidebar()"
         >
           <span class="nav-icon" aria-hidden="true">
             <span class="material-symbols-outlined">{{ item.icon }}</span>
@@ -50,6 +72,7 @@
                   class="nav-item nav-subitem"
                   [routerLink]="child.path"
                   routerLinkActive="active"
+                  (click)="closeMobileSidebar()"
                 >
                   <span class="nav-icon" aria-hidden="true">
                     <span class="material-symbols-outlined">{{ child.icon }}</span>
@@ -64,7 +87,7 @@
     </nav>
 
     <div class="sidebar-footer">
-      <a class="nav-item settings-item" routerLink="/settings" routerLinkActive="active">
+      <a class="nav-item settings-item" routerLink="/settings" routerLinkActive="active" (click)="closeMobileSidebar()">
         <span class="nav-icon" aria-hidden="true">
           <span class="material-symbols-outlined">settings</span>
         </span>
@@ -76,8 +99,18 @@
   <!-- Right Content Viewport with Fixed Top Header -->
   <div class="content-wrapper">
     <header class="top-navbar">
-      <!-- Column 1: Left Header Slot -->
-      <div class="navbar-left"></div>
+      <!-- Column 1: Left Header Slot with Mobile Hamburger Menu Trigger -->
+      <div class="navbar-left">
+        <button
+          type="button"
+          class="mobile-menu-btn"
+          aria-label="Open navigation menu"
+          [attr.aria-expanded]="isMobileSidebarOpen"
+          (click)="toggleMobileSidebar()"
+        >
+          <span class="material-symbols-outlined" aria-hidden="true">menu</span>
+        </button>
+      </div>
 
       <!-- Column 2: Centered Search Bar -->
       <div class="navbar-center">
