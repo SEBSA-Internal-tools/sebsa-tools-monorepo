@@ -1,7 +1,7 @@
 {
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
-    "target": "es2023",
     /*
      * DOM and JSX are here for `.storybook/preview.tsx`, which is a TSX module
      * that imports a stylesheet. `allowArbitraryExtensions` covers that import.
@@ -11,35 +11,15 @@
     // `vite/client` declares the `*.css` side-effect module that
     // `.storybook/preview.tsx` imports.
     "types": ["node", "vite/client"],
-    "skipLibCheck": true,
 
     /*
-     * Bundler mode, matching tsconfig.app.json rather than `nodenext`.
-     * Vite processes these files, and the e2e specs use extensionless relative
-     * imports (`./settleAnimations`) that `nodenext` rejects.
+     * Bundler mode, matching apps/web/tsconfig.app.json rather than `nodenext`.
+     * Vite processes these files, and `.storybook/preview.tsx` uses
+     * extensionless relative imports that `nodenext` rejects.
      */
-    "module": "esnext",
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
-    "allowArbitraryExtensions": true,
-    "verbatimModuleSyntax": true,
-    "moduleDetection": "force",
-    "noEmit": true,
-
-    /* Type safety — kept in step with tsconfig.app.json. */
-    "strict": true,
-    "noUncheckedIndexedAccess": true,
-    "noImplicitOverride": true,
-    "noImplicitReturns": true,
-    "noPropertyAccessFromIndexSignature": true,
-    "useUnknownInCatchVariables": true,
-    "forceConsistentCasingInFileNames": true,
-
-    /* Linting */
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "erasableSyntaxOnly": true,
-    "noFallthroughCasesInSwitch": true
+    "allowArbitraryExtensions": true
   },
   /*
    * `.storybook` belongs here, not in tsconfig.app.json: it runs in Node and
