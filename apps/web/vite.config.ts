@@ -26,8 +26,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(dirname, 'src'),
-      '@sdp/contracts': path.resolve(dirname, 'packages/contracts/src'),
-      '@sdp/types': path.resolve(dirname, 'packages/types/src'),
+      '@sdp/contracts': path.resolve(dirname, '../../packages/contracts/src'),
+      '@sdp/types': path.resolve(dirname, '../../packages/types/src'),
     },
   },
   server: {
@@ -75,7 +75,8 @@ export default defineConfig({
    */
   cacheDir: join(tmpdir(), 'sdp-vite', createHash('sha1').update(PROJECT_ROOT).digest('hex')),
   build: {
-    outDir: 'dist',
+    outDir: '../../dist/apps/web',
+    emptyOutDir: true,
     sourcemap: true,
     rollupOptions: {
       output: {

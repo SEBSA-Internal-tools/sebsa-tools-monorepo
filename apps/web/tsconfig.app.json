@@ -24,8 +24,8 @@
      */
     "paths": {
       "@/*": ["./src/*"],
-      "@sdp/contracts": ["./packages/contracts/src/index.ts"],
-      "@sdp/types": ["./packages/types/src/index.ts"]
+      "@sdp/contracts": ["../../packages/contracts/src/index.ts"],
+      "@sdp/types": ["../../packages/types/src/index.ts"]
     },
 
     /*
@@ -56,5 +56,5 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src", "packages/*/src"]
+  "include": ["src", "../../packages/*/src"]
 }
