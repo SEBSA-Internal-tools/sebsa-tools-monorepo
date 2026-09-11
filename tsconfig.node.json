@@ -2,37 +2,15 @@
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
-    /*
-     * DOM and JSX are here for `.storybook/preview.tsx`, which is a TSX module
-     * that imports a stylesheet. `allowArbitraryExtensions` covers that import.
-     */
-    "lib": ["ES2023", "DOM"],
-    "jsx": "react-jsx",
-    // `vite/client` declares the `*.css` side-effect module that
-    // `.storybook/preview.tsx` imports.
-    "types": ["node", "vite/client"],
+    "lib": ["ES2023"],
+    "types": ["node"],
 
     /*
      * Bundler mode, matching apps/web/tsconfig.app.json rather than `nodenext`.
-     * Vite processes these files, and `.storybook/preview.tsx` uses
-     * extensionless relative imports that `nodenext` rejects.
+     * Vite processes these files.
      */
     "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
-    "allowArbitraryExtensions": true
+    "allowImportingTsExtensions": true
   },
-  /*
-   * `.storybook` belongs here, not in tsconfig.app.json: it runs in Node and
-   * uses `node:` builtins and `import.meta.resolve`. Leaving it out of every
-   * project meant ESLint's type-aware rules could not parse it at all.
-   * `apps/web-e2e` has its own tsconfig.json for the same reason, now that it
-   * is no longer at the repo root.
-   */
-  "include": [
-    "apps/web/vite.config.ts",
-    "apps/web/vitest.config.ts",
-    "apps/web/vitest.shims.d.ts",
-    ".storybook/**/*.ts",
-    ".storybook/**/*.tsx"
-  ]
+  "include": ["apps/web/vite.config.ts", "apps/web/vitest.config.ts", "apps/web/vitest.shims.d.ts"]
 }
