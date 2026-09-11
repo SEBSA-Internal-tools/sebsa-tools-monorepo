@@ -1,4 +1,8 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { expect, test, type Page } from '@playwright/test';
+
+const dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /**
  * Sign-in verified in a real browser.
@@ -108,7 +112,7 @@ test.describe('login page does not scroll', () => {
       await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeInViewport();
 
       await page.screenshot({
-        path: `e2e/screenshots/login-${viewport.name}.png`,
+        path: path.join(dirname, 'screenshots', `login-${viewport.name}.png`),
         fullPage: false,
       });
     });

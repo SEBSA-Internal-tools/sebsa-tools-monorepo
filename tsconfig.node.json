@@ -42,18 +42,17 @@
     "noFallthroughCasesInSwitch": true
   },
   /*
-   * `.storybook` and `e2e` belong here, not in tsconfig.app.json: they run in
-   * Node and use `node:` builtins and `import.meta.resolve`. Leaving them out
-   * of every project meant ESLint's type-aware rules could not parse them at
-   * all — 13 files silently dropped out of the sweep with a parsing error.
+   * `.storybook` belongs here, not in tsconfig.app.json: it runs in Node and
+   * uses `node:` builtins and `import.meta.resolve`. Leaving it out of every
+   * project meant ESLint's type-aware rules could not parse it at all.
+   * `apps/web-e2e` has its own tsconfig.json for the same reason, now that it
+   * is no longer at the repo root.
    */
   "include": [
     "apps/web/vite.config.ts",
     "apps/web/vitest.config.ts",
     "apps/web/vitest.shims.d.ts",
-    "playwright.config.ts",
     ".storybook/**/*.ts",
-    ".storybook/**/*.tsx",
-    "e2e/**/*.ts"
+    ".storybook/**/*.tsx"
   ]
 }
