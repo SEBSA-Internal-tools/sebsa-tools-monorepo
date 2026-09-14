@@ -16,8 +16,15 @@ test-results
 playwright-report
 *.local
 
-# enviorment variables
+# Nx local cache and workspace data. No Nx Cloud - cache stays on-machine.
+.nx/cache
+.nx/workspace-data
+
+# environment variables (apps/api/.env.example stays tracked - it has no real values)
+.env
 .env-local
+.env.local
+.env.*.local
 
 
 # Editor directories and files
