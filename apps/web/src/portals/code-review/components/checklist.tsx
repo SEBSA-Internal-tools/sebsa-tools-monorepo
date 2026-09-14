@@ -350,7 +350,7 @@ export function ChecklistSection({
         type="button"
         onClick={toggle}
         aria-expanded={isExpanded}
-        className="flex w-full items-center justify-between gap-3 p-3 text-left transition-colors hover:bg-canvas/50 sm:p-3.5"
+        className="flex w-full flex-wrap items-center justify-between gap-3 p-3 text-left transition-colors hover:bg-canvas/50 sm:p-3.5"
       >
         <div className="flex min-w-0 items-center gap-2.5">
           <ChevronDown

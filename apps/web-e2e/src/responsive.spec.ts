@@ -170,7 +170,15 @@ async function openWizardStep(page: Page, path: string) {
   await page.waitForURL(/\/checklist$/);
 
   if (path.endsWith('/review')) {
-    await page.getByRole('checkbox', { name: 'Quick Report' }).click({ force: true });
+    /*
+     * The checkbox itself is `sr-only` and absolutely positioned with no
+     * positioned ancestor of its own, so a forced click on it (the pattern
+     * used elsewhere, e.g. developer.spec.ts, at desktop widths) can land on
+     * the wrong coordinates at narrow viewports. Clicking the visible label
+     * text instead triggers the same native input via the browser's normal
+     * label click-through, regardless of viewport width.
+     */
+    await page.getByText('Quick Report', { exact: true }).click();
     const groups = page.getByRole('radiogroup');
     await expect(groups).toHaveCount(9);
     for (let index = 0; index < 9; index += 1) {
@@ -395,6 +403,12 @@ test.describe('cards in a row share a height', () => {
               child.matches('.rounded-card') ? child : child.querySelector('.rounded-card'),
             )
             .filter((card): card is Element => card !== null)
+            // The currently-selected filter card (aria-pressed="true", on the
+            // Admin/Reviewer counter rows) carries a deliberate scale-[1.02]
+            // emphasis - genuinely a couple of pixels taller by design, not a
+            // shared-height defect. Excluded from this comparison rather than
+            // from the row itself, so it still counts toward "found a row".
+            .filter((card) => card.getAttribute('aria-pressed') !== 'true')
             .map((card) => Math.round(card.getBoundingClientRect().height));
         });
 

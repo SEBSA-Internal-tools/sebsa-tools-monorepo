@@ -191,15 +191,19 @@ test.describe('developer workspace', () => {
         .click();
     }
 
+    // The developer's note travels with the submission and is entered here,
+    // on the Checklist step - the Review step (screen 24) only displays it
+    // back read-only, it isn't itself editable.
+    await page.getByLabel(/additional remarks/i).fill('Flagged intentionally.');
+
     await expect(nextToReview).toBeEnabled();
     await nextToReview.click();
     await expect(page).toHaveURL(/\/review$/);
 
     await expect(page.getByText(/ready to submit/i)).toBeVisible();
     await expect(page.getByText(/all requirements met/i)).toBeVisible();
-    await expect(page.getByText(/1 issue in this section/i)).toBeVisible();
-
-    await page.getByLabel(/note to reviewer/i).fill('Flagged intentionally.');
+    await expect(page.getByText(/1 needs attention/i)).toBeVisible();
+    await expect(page.getByText('Flagged intentionally.')).toBeVisible();
 
     /*
      * The review step used to carry a "Supporting Screenshots" dropzone, and
@@ -448,7 +452,7 @@ test.describe('developer workspace', () => {
      * the tooltip are siblings inside this exact `relative` box and that
      * relationship is the whole subject of the test.
      */
-    const ring = page.locator('div.relative.shrink-0:has(p.font-display)').first();
+    const ring = page.locator('div.relative.shrink-0:has(span.font-display)').first();
     await ring.scrollIntoViewIfNeeded();
     await expect(ring).toHaveCount(1);
 

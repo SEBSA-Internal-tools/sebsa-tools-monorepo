@@ -116,7 +116,7 @@ export function StatCard({
   const activeStyle = ACTIVE_TONE_STYLES[tone];
 
   const shell = cn(
-    'group relative flex h-full flex-col justify-between rounded-2xl border text-left transition-all duration-200',
+    'group relative flex h-full flex-col justify-between rounded-card border text-left transition-all duration-200',
     compact ? 'p-4' : 'p-5',
     onSelect
       ? 'cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600'

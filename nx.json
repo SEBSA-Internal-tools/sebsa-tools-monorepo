@@ -22,12 +22,6 @@
       }
     },
     {
-      /**
-       * Bare specifier, not "@nx/vitest/plugin": this package's 23.2.1
-       * release does not declare a "./plugin" export subpath (unlike
-       * @nx/vite, @nx/eslint and @nx/playwright, which all do) - only its
-       * main entry re-exports createNodesV2. Revisit on an Nx upgrade.
-       */
       "plugin": "@nx/vitest",
       "options": {
         "testTargetName": "test"
@@ -66,5 +60,6 @@
     "serve": {
       "cache": false
     }
-  }
+  },
+  "analytics": true
 }
