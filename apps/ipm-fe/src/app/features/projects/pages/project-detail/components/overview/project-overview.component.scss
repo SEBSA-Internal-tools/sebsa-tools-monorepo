@@ -57,11 +57,17 @@
 
   @media (max-width: 1200px) {
     grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
   }
 
   @media (max-width: 640px) {
-    grid-template-columns: 1fr;
-    gap: 12px;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  @media (max-width: 380px) {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
   }
 }
 
@@ -540,7 +546,46 @@
   }
 
   .kpi-card {
-    padding: 16px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    gap: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: space-between;
+    min-height: 105px;
+
+    .kpi-icon-wrap {
+      width: 32px;
+      height: 32px;
+      min-width: 32px;
+      border-radius: 8px;
+
+      .material-symbols-outlined {
+        font-size: 18px;
+      }
+    }
+
+    .kpi-body {
+      width: 100%;
+    }
+
+    .kpi-value {
+      font-size: 1.45rem;
+      line-height: 1.1;
+    }
+
+    .kpi-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+    }
+
+    .health-badge {
+      font-size: 0.62rem;
+      padding: 2px 7px;
+      margin-top: 3px;
+    }
   }
 
   .chart-card,
@@ -554,11 +599,28 @@
 
 @media (max-width: 480px) {
   .kpi-card {
-    padding: 14px;
-    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    gap: 6px;
+    min-height: 98px;
+
+    .kpi-icon-wrap {
+      width: 28px;
+      height: 28px;
+      min-width: 28px;
+      border-radius: 6px;
+
+      .material-symbols-outlined {
+        font-size: 16px;
+      }
+    }
 
     .kpi-value {
-      font-size: 1.75rem;
+      font-size: 1.3rem;
+    }
+
+    .kpi-label {
+      font-size: 0.65rem;
     }
   }
 
