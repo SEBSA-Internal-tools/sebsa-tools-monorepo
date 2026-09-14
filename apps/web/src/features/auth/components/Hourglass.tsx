@@ -53,7 +53,6 @@ export function Hourglass({
         fill="none"
         strokeWidth={1.75}
       >
-        {/* Frame */}
         <path
           d="M6 2h12M6 22h12M7 2v4.2a5 5 0 0 0 2.2 4.1L12 12l-2.8 1.7A5 5 0 0 0 7 17.8V22M17 2v4.2a5 5 0 0 1-2.2 4.1L12 12l2.8 1.7a5 5 0 0 1 2.2 4.1V22"
           stroke="currentColor"

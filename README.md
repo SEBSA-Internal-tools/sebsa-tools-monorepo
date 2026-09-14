@@ -12,7 +12,7 @@ shared, framework-free packages consumed by the frontend.
 ```bash
 npm install
 npm run dev          # nx run-many -t dev — starts every app with a dev target
-npm run dev:web       # just the frontend — http://localhost:5173, seeded mock data, no backend needed
+npm run dev:web       # just the frontend — http://localhost:5175, seeded mock data, no backend needed
 npm run dev:api       # just the API scaffold — http://localhost:3000
 ```
 
@@ -55,6 +55,42 @@ Inside `apps/web` you can also run its local scripts directly (`npm run dev`,
 `test:watch`, `test:ui`, `preview`, …) — see `apps/web/package.json`.
 `window.__resetDb()` restores the seeded mock database from the browser
 console.
+
+### Running web and api in separate terminals
+
+`npm run dev` runs both apps through one Nx process (`nx run-many -t dev`),
+multiplexing their output into a single terminal. If you'd rather control
+each independently — its own `Ctrl+C`, its own terminal to close — open two
+terminals instead and run:
+
+```bash
+npm run dev:web   # terminal 1 — http://localhost:5175
+npm run dev:api   # terminal 2 — http://localhost:3000
+```
+
+### Stopping a stuck dev server
+
+`apps/web/vite.config.ts` sets `strictPort: true` on purpose: if port 5175 is
+already taken, Vite fails immediately with `Port 5175 is already in use`
+rather than silently starting on 5176, which would desync it from the
+Playwright config's `baseURL`. So if a previous `apps/web` dev server didn't
+shut down cleanly (for example `Ctrl+C` not reaching it), free the port by
+hand before starting a new one — same idea applies to `apps/api` on 3000.
+
+**Windows** — find the PID holding the port, then kill it:
+
+```powershell
+Get-NetTCPConnection -LocalPort 5175 -State Listen | Select-Object OwningProcess
+taskkill /F /PID <pid>
+```
+
+(Or open Task Manager, search for the `node.exe` process, and end it.)
+
+**macOS/Linux**:
+
+```bash
+lsof -ti tcp:5175 | xargs kill -9
+```
 
 ---
 
