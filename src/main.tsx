@@ -5,7 +5,7 @@ import { App } from './app/App';
 import './styles/index.css';
 
 async function bootstrap(): Promise<void> {
-  if (import.meta.env.DEV) {
+  if (import.meta.env.DEV && import.meta.env['VITE_USE_MOCK_API'] !== 'false') {
     const { startMockApi, ensureMockApiActive } = await import('@/mocks/browser');
     await startMockApi();
     const { setDetachedRecovery } = await import('@/lib/apiClient');

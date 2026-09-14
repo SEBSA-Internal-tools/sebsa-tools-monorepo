@@ -28,9 +28,10 @@ export function RequireAuth({ children }: { children: ReactNode }) {
    * and the query cache, so there is no session and no data behind the screen.
    */
   const isExpired = useSession((s) => s.isExpired);
+  const isChecking = useSession((s) => s.isChecking);
   const location = useLocation();
 
-  if (!isAuthenticated && !isExpired) {
+  if (!isAuthenticated && !isExpired && !isChecking) {
     return (
       <Navigate
         to={ROUTES.login}

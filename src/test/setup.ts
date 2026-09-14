@@ -124,14 +124,7 @@ const TEST_USER_ID = 'u-charith';
 
 export function signInForTest(userId: string = TEST_USER_ID): void {
   try {
-    window.localStorage.setItem(
-      'sdp.session',
-      JSON.stringify({
-        userId,
-        expiresAt: Date.now() + 2 * 60 * 60 * 1000,
-        remember: true,
-      }),
-    );
+    window.localStorage.setItem('sdp.mock-user-id', userId);
   } catch {
     /* jsdom always provides storage; guard is for safety only. */
   }
@@ -139,6 +132,7 @@ export function signInForTest(userId: string = TEST_USER_ID): void {
   useSession.setState({
     userId,
     isAuthenticated: true,
+    isChecking: false,
     isExpired: false,
     didExpire: false,
   });
@@ -146,8 +140,8 @@ export function signInForTest(userId: string = TEST_USER_ID): void {
 
 export function signOutForTest(): void {
   try {
-    window.localStorage.removeItem('sdp.session');
-    window.sessionStorage.removeItem('sdp.session');
+    window.localStorage.removeItem('sdp.mock-user-id');
+    window.sessionStorage.removeItem('sdp.mock-user-id');
   } catch {
     /* jsdom safety */
   }
@@ -155,6 +149,7 @@ export function signOutForTest(): void {
   useSession.setState({
     userId: null,
     isAuthenticated: false,
+    isChecking: false,
     isExpired: false,
     didExpire: false,
   });

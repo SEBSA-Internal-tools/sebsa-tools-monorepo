@@ -32,13 +32,12 @@ export default defineConfig({
   },
   server: {
     port: 5175,
-    /**
-     * Phase 1 has no backend — MSW answers `/api/*` in the browser.
-     * Phase 2 replaces this block with a proxy to the NestJS server; no
-     * application code changes because the `api/` layer already calls
-     * real relative URLs.
-     */
-
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
+    },
     /*
      * Fail rather than drift to 5176.
      *

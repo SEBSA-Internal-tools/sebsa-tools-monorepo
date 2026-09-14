@@ -27,14 +27,15 @@ export const currentUserKeys = {
 };
 
 export function useCurrentUser() {
-  const userId = useSession((s) => s.userId);
+  const isChecking = useSession((s) => s.isChecking);
+  const isAuthenticated = useSession((s) => s.isAuthenticated);
 
   return useQuery({
     // Keyed by user so switching identity refetches rather than serving a stale
     // principal from cache.
-    queryKey: [...currentUserKeys.me(), userId],
+    queryKey: currentUserKeys.me(),
     queryFn: ({ signal }) => api.get('/auth/me', userSchema, { signal }),
-    enabled: userId !== null,
+    enabled: isChecking || isAuthenticated,
     staleTime: 5 * 60_000,
   });
 }

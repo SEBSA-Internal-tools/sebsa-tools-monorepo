@@ -2,7 +2,7 @@ import { isRouteErrorResponse, Link, useRouteError } from 'react-router-dom';
 import { AlertTriangle, FileQuestion } from 'lucide-react';
 import { EmptyState } from '@/components/common/states.tsx';
 import { ROUTES } from '@/config/routes.ts';
-import { readSession } from '@/lib/sessionStorage.ts';
+import { useSession } from '@/hooks/useSession.ts';
 import common from '@/content/common.json';
 import { SessionExpiredScreen } from '@/features/auth/components/SessionExpiredScreen.tsx';
 
@@ -40,6 +40,7 @@ function isChunkLoadError(error: unknown): boolean {
  */
 export function RouteError() {
   const error = useRouteError();
+  const isAuthenticated = useSession((state) => state.isAuthenticated);
 
   /*
    * A dead session outranks whatever threw.
@@ -52,11 +53,10 @@ export function RouteError() {
    *
    * If there is not, then whatever threw, the honest answer is "you have been
    * signed out", not "this page has a bug" — and the user gets an action that
-   * works instead of a retry that cannot. Storage is read directly rather than
-   * through the store because a boundary must not assume the app above it still
-   * holds sane state.
+   * works instead of a retry that cannot. The Zustand flag reflects the
+   * cookie-backed authentication check performed at application startup.
    */
-  if (readSession() === null) {
+  if (!isAuthenticated) {
     return <SessionExpiredScreen />;
   }
 

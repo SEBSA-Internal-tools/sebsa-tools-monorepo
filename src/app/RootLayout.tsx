@@ -1,4 +1,4 @@
-import { Suspense, useEffect } from 'react';
+import { Suspense } from 'react';
 import { Outlet, useMatches } from 'react-router-dom';
 import { ShieldAlert } from 'lucide-react';
 import { EmptyState, ErrorState } from '@/components/common/states.tsx';
@@ -9,7 +9,7 @@ import auth from '@/content/auth.json';
 import common from '@/content/common.json';
 import { SessionExpiredScreen } from '@/features/auth/components/SessionExpiredScreen.tsx';
 import { useCurrentUser } from '@/hooks/useCurrentUser.ts';
-import { touchSession, useSession } from '@/hooks/useSession.ts';
+import { useSession } from '@/hooks/useSession.ts';
 import { AppBar } from './AppBar.tsx';
 import { AppFooter } from './AppFooter.tsx';
 
@@ -38,33 +38,6 @@ function usePageTitle(): string | undefined {
 const MAIN_CONTENT_ID = 'main-content';
 
 /**
- * Slides the session deadline forward while the user is actually here.
- *
- * Pointer and keyboard events are the signal, throttled hard inside
- * `renewSession` — a session is two hours long, so sampling activity once a
- * minute is ample and costs one storage write.
- */
-function useActivityRenewal(): void {
-  useEffect(() => {
-    const onActivity = () => {
-      touchSession();
-    };
-
-    // `passive` because none of these are cancelled; `visibilitychange` covers
-    // returning to a tab, which is exactly when a stale session gets noticed.
-    window.addEventListener('pointerdown', onActivity, { passive: true });
-    window.addEventListener('keydown', onActivity, { passive: true });
-    document.addEventListener('visibilitychange', onActivity);
-
-    return () => {
-      window.removeEventListener('pointerdown', onActivity);
-      window.removeEventListener('keydown', onActivity);
-      document.removeEventListener('visibilitychange', onActivity);
-    };
-  }, []);
-}
-
-/**
  * Shell rendered around every authenticated route.
  *
  * Resolves the principal once here rather than in each page, so no screen has
@@ -75,36 +48,10 @@ export function RootLayout() {
   const { data: user, isPending, isError, error, refetch } = useCurrentUser();
   const title = usePageTitle();
   const isExpired = useSession((state) => state.isExpired);
-  const expireSession = useSession((state) => state.expireSession);
 
-  useActivityRenewal();
-
-  /*
-   * A 401 means the session has gone — almost always because it timed out, since
-   * `readSession()` drops an expired envelope and `apiClient` then sends no
-   * identity afterwards.
-   *
-   * Ending the session here is right; doing it in the RENDER BODY, as this used
-   * to, was not. `expireSession()` writes to the Zustand store, and `RequireAuth`
-   * subscribes to that store from ABOVE this component, so the write invalidated
-   * a component that had already rendered — the "Cannot update a component while
-   * rendering a different component" violation, and a loop risk while the 401
-   * persists across renders. An effect runs after commit, so the write is an
-   * ordinary update.
-   *
-   * ⚠️ Honest scope: this was NOT reproduced as the reported "This page ran into
-   * a problem" screen. The old code was probed in a real browser across four
-   * routes, through both a rejected `/auth/me` and a session cleared while the
-   * app was mounted, and it redirected to `/login` cleanly every time. The render
-   * -phase write was a genuine defect worth removing on its own terms; the
-   * reported crash has a cause still unaccounted for, which is why `RouteError`
-   * now checks for a dead session before blaming the page.
-   */
+  // The API client attempts one refresh before a 401 reaches this query.
+  // Authentication state changes are handled by AuthBootstrap after commit.
   const isUnauthorised = isError && error instanceof ApiError && error.statusCode === 401;
-
-  useEffect(() => {
-    if (isUnauthorised) expireSession();
-  }, [isUnauthorised, expireSession]);
 
   /*
    * Checked before anything else, and before the query branches below: once the

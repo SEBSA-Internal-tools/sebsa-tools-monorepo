@@ -1,14 +1,11 @@
 import type { z } from 'zod';
 import { apiErrorSchema } from '@sdp/contracts';
-import { readSessionUserId, renewSession } from './sessionStorage.ts';
 
 /**
  * The single HTTP seam between the application and its data.
  *
- * This layer issues real `fetch` calls to real relative URLs from day one. In
- * Phase 1 MSW intercepts them in the Service Worker; in Phase 2 the same
- * requests reach NestJS. Removing MSW is a one-line change in `main.tsx` and
- * nothing above this file moves (plan section 2.2).
+ * This layer issues real `fetch` calls to relative URLs. Development can use
+ * MSW or the Vite proxy; production sends the same requests to NestJS.
  *
  * Responses are parsed through the Zod schema the caller supplies. That costs
  * microseconds against a network round-trip and buys the thing most likely to
@@ -18,6 +15,9 @@ import { readSessionUserId, renewSession } from './sessionStorage.ts';
  */
 
 const API_BASE = '/api';
+const USE_MOCK_API = import.meta.env.DEV && import.meta.env['VITE_USE_MOCK_API'] !== 'false';
+export const isMockApiEnabled = USE_MOCK_API;
+export const MOCK_IDENTITY_KEY = 'sdp.mock-user-id';
 
 export class ApiError extends Error {
   readonly statusCode: number;
@@ -62,8 +62,8 @@ export class ApiContractError extends Error {
 }
 
 /**
- * Phase 1 only. Identifies the caller to the MSW handlers the way a Bearer
- * token will in Phase 2, so handlers can filter server-side (for example
+ * Development mocks only. Identifies the caller to MSW so handlers can filter
+ * server-side (for example
  * excluding a reviewer's own submissions from the Available queue) instead of
  * the UI hiding rows it should never have received.
  *
@@ -74,8 +74,8 @@ export class ApiContractError extends Error {
  * while the UI still believed it was signed in — surfacing as an authentication
  * error minutes after launch.
  *
- * `setMockUserId` remains as an explicit override that wins when set, because
- * the unit-test harness signs in without touching storage.
+ * `setMockUserId` is an explicit override used by the unit-test harness. Real
+ * authentication never reads this value and relies only on HttpOnly cookies.
  */
 let identityOverride: string | null = null;
 
@@ -84,7 +84,9 @@ export function setMockUserId(userId: string | null): void {
 }
 
 function callerIdentity(): string | null {
-  return identityOverride ?? readSessionUserId();
+  if (identityOverride !== null) return identityOverride;
+  if (!USE_MOCK_API || typeof window === 'undefined') return null;
+  return window.sessionStorage.getItem(MOCK_IDENTITY_KEY) ?? window.localStorage.getItem(MOCK_IDENTITY_KEY);
 }
 
 /**
@@ -171,15 +173,19 @@ async function send(path: string, options: RequestOptions): Promise<Response> {
 
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
+  if (!['GET'].includes(method)) {
+    const csrf = readCookie('sdp_csrf');
+    if (csrf) headers['X-CSRF-Token'] = csrf;
+  }
 
-  const identity = callerIdentity();
+  const identity = USE_MOCK_API ? callerIdentity() : null;
   if (identity) headers['X-Mock-User-Id'] = identity;
 
   try {
     return await fetch(buildUrl(path, searchParams), {
       method,
       headers,
-      credentials: 'same-origin',
+      credentials: 'include',
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       ...(signal ? { signal } : {}),
     });
@@ -200,6 +206,11 @@ async function request<TSchema extends z.ZodTypeAny>(
   options: RequestOptions = {},
 ): Promise<z.infer<TSchema>> {
   let response = await send(path, options);
+
+  if (response.status === 401 && shouldRefresh(path)) {
+    if (!USE_MOCK_API && (await refreshAuthentication())) response = await send(path, options);
+    if (response.status === 401) window.dispatchEvent(new Event('sdp:unauthorized'));
+  }
 
   /*
    * Phase 1 only. When the browser stops the MSW service worker, it bypasses
@@ -226,10 +237,6 @@ async function request<TSchema extends z.ZodTypeAny>(
     throw await toApiError(response, path);
   }
 
-  // A successful call is the best evidence the app has that the user is active,
-  // so it slides the session deadline forward. Throttled inside `renewSession`.
-  renewSession();
-
   if (response.status === 204) {
     return schema.parse(undefined);
   }
@@ -240,6 +247,34 @@ async function request<TSchema extends z.ZodTypeAny>(
     throw new ApiContractError(path, result.error.issues);
   }
   return result.data;
+}
+
+function shouldRefresh(path: string): boolean {
+  return !['/auth/login', '/auth/register', '/auth/refresh', '/auth/logout'].includes(path);
+}
+
+let refreshInFlight: Promise<boolean> | null = null;
+
+function refreshAuthentication(): Promise<boolean> {
+  const csrf = readCookie('sdp_csrf');
+  refreshInFlight ??= fetch(`${API_BASE}/auth/refresh`, {
+    method: 'POST',
+    headers: { Accept: 'application/json', ...(csrf ? { 'X-CSRF-Token': csrf } : {}) },
+    credentials: 'include',
+  })
+    .then((response) => response.ok)
+    .catch(() => false)
+    .finally(() => {
+      refreshInFlight = null;
+    });
+  return refreshInFlight;
+}
+
+function readCookie(name: string): string | undefined {
+  if (typeof document === 'undefined') return undefined;
+  const prefix = `${name}=`;
+  const pair = document.cookie.split('; ').find((entry) => entry.startsWith(prefix));
+  return pair ? decodeURIComponent(pair.slice(prefix.length)) : undefined;
 }
 
 /**

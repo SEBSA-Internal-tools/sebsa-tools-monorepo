@@ -30,6 +30,7 @@ export function useLogin() {
       api.post('/auth/login', userSchema, {
         email: input.email,
         password: input.password,
+        remember: input.remember,
       }),
     onSuccess: (user: User, input) => {
       // Every list in the app is scoped to the caller, so an identity change
@@ -38,7 +39,7 @@ export function useLogin() {
       signIn(user.id, input.remember);
       // Seed the cache so the app does not immediately refetch a user we
       // already hold, which would otherwise flash a loading state after login.
-      queryClient.setQueryData([...currentUserKeys.me(), user.id], user);
+      queryClient.setQueryData(currentUserKeys.me(), user);
     },
   });
 }

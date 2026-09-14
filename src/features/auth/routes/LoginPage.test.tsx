@@ -103,18 +103,7 @@ describe('LoginPage authentication', () => {
 });
 
 describe('LoginPage session persistence', () => {
-  /**
-   * The stored value is an envelope, not a bare id.
-   *
-   * It used to be the raw user id with no expiry, which meant a session lived
-   * forever. `{ userId, expiresAt }` is what gives it the two-hour lifetime, and
-   * asserting the id INSIDE the envelope keeps this test about persistence
-   * rather than about the serialisation format.
-   */
-  function storedSession(store: Storage): { userId?: unknown; expiresAt?: unknown } | null {
-    const raw = store.getItem('sdp.session');
-    return raw === null ? null : (JSON.parse(raw) as Record<string, unknown>);
-  }
+  const storedMockIdentity = (store: Storage) => store.getItem('sdp.mock-user-id');
 
   it('persists to localStorage when Remember me is checked', async () => {
     const { user } = renderLogin();
@@ -127,8 +116,8 @@ describe('LoginPage session persistence', () => {
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
 
     await waitFor(() => expect(useSession.getState().isAuthenticated).toBe(true));
-    expect(storedSession(window.localStorage)?.userId).toBe('u-hiruni');
-    expect(window.sessionStorage.getItem('sdp.session')).toBeNull();
+    expect(storedMockIdentity(window.localStorage)).toBe('u-hiruni');
+    expect(storedMockIdentity(window.sessionStorage)).toBeNull();
   });
 
   it('confines the session to sessionStorage when Remember me is cleared', async () => {
@@ -140,27 +129,22 @@ describe('LoginPage session persistence', () => {
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
 
     await waitFor(() => expect(useSession.getState().isAuthenticated).toBe(true));
-    expect(storedSession(window.sessionStorage)?.userId).toBe('u-hiruni');
+    expect(storedMockIdentity(window.sessionStorage)).toBe('u-hiruni');
     // The critical half: nothing must survive a browser restart.
-    expect(window.localStorage.getItem('sdp.session')).toBeNull();
+    expect(storedMockIdentity(window.localStorage)).toBeNull();
   });
 
-  it('stores an expiry roughly two hours out', async () => {
+  it('never stores a real authentication token in browser storage', async () => {
     const { user } = renderLogin();
 
-    const before = Date.now();
     await user.type(screen.getByLabelText(/work email/i), SEEDED_EMAIL);
     await user.type(screen.getByLabelText(/^password/i), DEMO_PASSWORD);
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
 
     await waitFor(() => expect(useSession.getState().isAuthenticated).toBe(true));
 
-    const expiresAt = storedSession(window.localStorage)?.expiresAt;
-    expect(typeof expiresAt).toBe('number');
-    // A window rather than an exact value — the assertion is "two hours", not
-    // "the millisecond the test ran".
-    expect(expiresAt as number).toBeGreaterThan(before + 110 * 60 * 1000);
-    expect(expiresAt as number).toBeLessThan(before + 130 * 60 * 1000);
+    expect(window.localStorage.getItem('sdp.session')).toBeNull();
+    expect(window.sessionStorage.getItem('sdp.session')).toBeNull();
   });
 });
 
