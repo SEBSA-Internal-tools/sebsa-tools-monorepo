@@ -168,28 +168,24 @@
     <div class="secondary-filters-wrap">
       <div class="filter-group">
         <span class="filter-label">Type:</span>
-        <select
-          [ngModel]="selectedType()"
-          (ngModelChange)="setTypeFilter($event)"
-          class="compact-select"
-        >
-          @for (type of taskTypes; track type.id) {
-            <option [value]="type.id">{{ type.label }}</option>
-          }
-        </select>
+        <app-custom-select
+          [value]="selectedType()"
+          (valueChange)="setTypeFilter($event)"
+          [options]="taskTypes"
+          ariaLabel="Filter by Type"
+          customClass="compact-select"
+        ></app-custom-select>
       </div>
 
       <div class="filter-group">
         <span class="filter-label">Status:</span>
-        <select
-          [ngModel]="selectedStatus()"
-          (ngModelChange)="setStatusFilter($event)"
-          class="compact-select"
-        >
-          @for (st of taskStatuses; track st.id) {
-            <option [value]="st.id">{{ st.label }}</option>
-          }
-        </select>
+        <app-custom-select
+          [value]="selectedStatus()"
+          (valueChange)="setStatusFilter($event)"
+          [options]="taskStatuses"
+          ariaLabel="Filter by Status"
+          customClass="compact-select"
+        ></app-custom-select>
       </div>
 
       @if (selectedType() !== 'ALL' || selectedStatus() !== 'ALL' || searchQuery() || quickPreset() !== 'all' || dateMode() !== 'dueDate') {

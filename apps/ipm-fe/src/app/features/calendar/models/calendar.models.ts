@@ -1,5 +1,6 @@
 import type { TaskStatus, TaskSummary, TaskCategory, CaseType } from '@sebsa-pm-tool/shared-models';
 import type { TaskView } from '../../../core/services/tasks.service';
+import type { CaseView } from '../../../core/services/cases.service';
 
 export type CalendarViewMode = 'month' | 'week' | 'agenda';
 export type CalendarColorByMode = 'type' | 'priority' | 'project' | 'status';
@@ -153,7 +154,7 @@ export function taskToCalendarItem(t: TaskSummary | TaskView): CalendarItem {
 
   const defaultDate = dueDateStr || startDateStr || createdAtStr || '';
 
-  const todayStr = normalizeDateToKey(new Date())!;
+  const todayStr = normalizeDateToKey(new Date()) ?? '';
   const statusUpper = (t.status || '').toUpperCase();
   const isDone = statusUpper === 'DONE' || statusUpper === 'CANCELLED';
   const isOverdue = !!dueDateStr && !isDone && dueDateStr < todayStr;
@@ -167,7 +168,7 @@ export function taskToCalendarItem(t: TaskSummary | TaskView): CalendarItem {
     startDate: startDateStr,
     createdAt: createdAtStr,
     type: caseType || 'TASK',
-    taskType: ('taskTypeName' in t ? (t as TaskView).taskTypeName : ('taskType' in t && (t as TaskSummary).taskType ? (t as TaskSummary).taskType!.name : undefined)) || 'TASK',
+    taskType: ('taskTypeName' in t ? (t as TaskView).taskTypeName : ('taskType' in t && (t as TaskSummary).taskType ? (t as TaskSummary).taskType?.name : undefined)) || 'TASK',
     category: t.category ?? null,
     status: t.status,
     priority: priorityName,
@@ -186,3 +187,48 @@ export function taskToCalendarItem(t: TaskSummary | TaskView): CalendarItem {
     raw: t,
   };
 }
+
+/**
+ * Adapter function converting backend CaseView to CalendarItem so parent Cases
+ * are fully represented in the Calendar views and filters.
+ */
+export function caseToCalendarItem(c: CaseView): CalendarItem {
+  const dueDateStr = normalizeDateToKey(c.dueDate);
+  const startDateStr = normalizeDateToKey(c.startDate);
+  const createdAtStr = normalizeDateToKey(c.createdAt || c.updatedAt);
+  const defaultDate = dueDateStr || startDateStr || createdAtStr || '';
+
+  const todayStr = normalizeDateToKey(new Date()) ?? '';
+  const statusUpper = (c.status || '').toUpperCase();
+  const isDone = statusUpper === 'DONE' || statusUpper === 'CANCELLED';
+  const isOverdue = !!dueDateStr && !isDone && dueDateStr < todayStr;
+  const isBlocked = statusUpper === 'BLOCKED';
+
+  return {
+    id: c.id,
+    title: c.title,
+    date: defaultDate,
+    dueDate: dueDateStr,
+    startDate: startDateStr,
+    createdAt: createdAtStr,
+    type: c.type || 'STORY',
+    taskType: c.type || 'STORY',
+    category: c.tag ?? null,
+    status: c.status as TaskStatus,
+    priority: c.priority || 'Medium',
+    priorityColor: c.priorityColor,
+    projectId: c.projectId,
+    projectName: c.projectName,
+    caseId: c.id,
+    caseTitle: c.title,
+    assignee: c.assignee,
+    assigneeId: c.assigneeIds && c.assigneeIds.length > 0 ? c.assigneeIds[0] : undefined,
+    assigneeIds: c.assigneeIds || [],
+    description: c.description ?? '',
+    caseNumber: c.id.length > 8 ? `CASE-${c.id.slice(0, 4).toUpperCase()}` : c.id,
+    isOverdue,
+    isBlocked,
+    raw: c,
+  };
+}
+

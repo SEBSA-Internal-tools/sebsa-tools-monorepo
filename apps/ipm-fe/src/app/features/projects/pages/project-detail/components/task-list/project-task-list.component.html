@@ -2,17 +2,14 @@
   <!-- Toolbar -->
   <div class="task-toolbar">
     <div class="sort-controls">
-      <label for="sort-select" class="sort-label">Sort by:</label>
-      <select
-        id="sort-select"
-        [(ngModel)]="sortBy"
-        (change)="onSortChange(sortBy)"
-        class="sort-select"
-      >
-        <option value="status">Status</option>
-        <option value="priority">Priority</option>
-        <option value="date">Due Date</option>
-      </select>
+      <span class="sort-label">Sort by:</span>
+      <app-custom-select
+        [options]="sortOptions"
+        [ngModel]="sortBy"
+        (ngModelChange)="onSortChange($event)"
+        customClass="sort-custom-select"
+        ariaLabel="Sort by"
+      ></app-custom-select>
     </div>
 
     <div class="task-count">

@@ -18,6 +18,7 @@ import { ActivityFeedComponent } from '../../../../core/components/activity-feed
 import { CalendarViewComponent } from '../../../calendar/components/calendar-view/calendar-view.component';
 import {
   taskToCalendarItem,
+  caseToCalendarItem,
   type CalendarItem,
   type CalendarKPI,
 } from '../../../calendar/models/calendar.models';
@@ -77,8 +78,15 @@ export class ProjectDetailPageComponent implements OnInit {
   isEditModalOpen = false;
 
   readonly projectCalendarItems = computed<CalendarItem[]>(() => {
+    const projId = this.project()?.id;
+    const cases = this.casesService.cases();
     const tasks = this.tasksService.tasks();
-    return tasks.map((t) => taskToCalendarItem(t));
+    const filteredCases = projId ? cases.filter((c) => c.projectId === projId) : cases;
+    const filteredTasks = projId ? tasks.filter((t) => t.projectId === projId) : tasks;
+    return [
+      ...filteredCases.map((c) => caseToCalendarItem(c)),
+      ...filteredTasks.map((t) => taskToCalendarItem(t)),
+    ];
   });
 
   readonly calendarKpis = computed<CalendarKPI[]>(() => {
@@ -146,13 +154,22 @@ export class ProjectDetailPageComponent implements OnInit {
 
   onTabChange(tab: typeof this.activeTab): void {
     this.activeTab = tab;
-    if (tab === 'calendar' && this.project()) {
-      this.tasksService.loadTasksByProject(this.project()!.id, true);
+    const p = this.project();
+    if (p) {
+      if (tab === 'calendar' || tab === 'kanban' || tab === 'tasklist') {
+        this.casesService.loadCases(p.id, true);
+        this.tasksService.loadTasksByProject(p.id, true);
+      }
     }
   }
 
   onTaskClicked(item: CalendarItem): void {
-    this.router.navigate(['/tasks', item.id]);
+    const isCase = this.casesService.cases().some((c) => c.id === item.id) || (item.raw && typeof item.raw === 'object' && 'isCsoLabeled' in item.raw);
+    if (isCase) {
+      this.router.navigate(['/cases', item.id]);
+    } else {
+      this.router.navigate(['/tasks', item.id]);
+    }
   }
 
   onAddTaskClick(): void {
@@ -166,7 +183,11 @@ export class ProjectDetailPageComponent implements OnInit {
   }
 
   onCreateForDate(date: Date): void {
-    this.activeTab = 'tasklist';
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    this.initialCaseDueDate.set(`${y}-${m}-${d}`);
+    this.isTaskModalOpen = true;
   }
 
   onCreateTask(formData: CaseFormData): void {
@@ -194,6 +215,8 @@ export class ProjectDetailPageComponent implements OnInit {
         this.isLoading.set(false);
         this.closeTaskModal();
         this.toastService.success(`Case "${formData.title}" created successfully!`);
+        this.casesService.loadCases(current.id, true);
+        this.tasksService.loadTasksByProject(current.id, true);
       },
       error: () => {
         this.isLoading.set(false);

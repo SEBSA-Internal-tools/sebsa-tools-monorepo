@@ -1,5 +1,11 @@
 @if (isOpen) {
-  <div class="modal-overlay" (click)="onBackdropClick()"></div>
+  <div
+    class="modal-overlay"
+    (click)="onBackdropClick()"
+    (keydown.escape)="onCancel()"
+    tabindex="-1"
+    aria-hidden="true"
+  ></div>
 
   <div class="modal-container">
     <!-- Modal Header -->
@@ -156,30 +162,37 @@
         <!-- Due Date -->
         <div class="form-group">
           <label for="dueDate" class="form-label">Due Date</label>
-          <input id="dueDate" type="date" [(ngModel)]="dueDate" class="form-input" />
+          <app-custom-datepicker
+            [(ngModel)]="dueDate"
+            placeholder="Select due date"
+            ariaLabel="Due date"
+          ></app-custom-datepicker>
         </div>
 
         <!-- Task Type -->
         <div class="form-group">
           <label for="taskType" class="form-label">Task Type</label>
-          <select id="taskType" [(ngModel)]="selectedTaskTypeId" (change)="onTaskTypeSelect(selectedTaskTypeId)" class="form-select">
-            <option value="">None</option>
-            @for (type of availableTaskTypes(); track type.id) {
-              <option [value]="type.id">{{ type.name }}</option>
-            }
-          </select>
+          <app-custom-select
+            [(ngModel)]="selectedTaskTypeId"
+            (ngModelChange)="onTaskTypeSelect($event)"
+            [options]="availableTaskTypes()"
+            defaultOptionLabel="None"
+            defaultOptionValue=""
+            ariaLabel="Select task type"
+          ></app-custom-select>
         </div>
 
         <!-- Complexity (depends on the selected Task Type's own scale) -->
         @if (selectedTaskTypeId) {
           <div class="form-group">
             <label for="complexity" class="form-label">Complexity</label>
-            <select id="complexity" [(ngModel)]="selectedComplexityLevelId" class="form-select">
-              <option value="">None</option>
-              @for (level of availableComplexityLevels(); track level.id) {
-                <option [value]="level.id">{{ level.name }}</option>
-              }
-            </select>
+            <app-custom-select
+              [(ngModel)]="selectedComplexityLevelId"
+              [options]="availableComplexityLevels()"
+              defaultOptionLabel="None"
+              defaultOptionValue=""
+              ariaLabel="Select complexity"
+            ></app-custom-select>
           </div>
         }
       </div>

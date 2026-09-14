@@ -263,7 +263,7 @@
       <div class="info-grid">
         <div class="info-item">
           <span class="info-label">Created By</span>
-          <span class="info-value">{{ project.createdBy.name }}</span>
+          <span class="info-value">{{ project.createdBy.name || 'Unassigned' }}</span>
         </div>
 
         <div class="info-item">
@@ -277,17 +277,17 @@
 
         <div class="info-item">
           <span class="info-label">Type</span>
-          <span class="info-value">{{ project.type | titlecase }}</span>
+          <span class="info-value">{{ (project.type | titlecase) || 'Standard' }}</span>
         </div>
 
         <div class="info-item">
           <span class="info-label">Last Updated</span>
-          <span class="info-value">{{ project.updatedAt | date: 'mediumDate' }}</span>
+          <span class="info-value">{{ project.updatedAt ? (project.updatedAt | date: 'mediumDate') : 'Recently' }}</span>
         </div>
 
         <div class="info-item">
           <span class="info-label">Customer</span>
-          <span class="info-value">{{ project.customer.name }}</span>
+          <span class="info-value">{{ (project.customer && project.customer.name) || 'Internal' }}</span>
         </div>
       </div>
     </div>

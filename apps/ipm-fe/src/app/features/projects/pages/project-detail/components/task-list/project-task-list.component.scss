@@ -313,6 +313,10 @@
   }
 }
 
+.sort-custom-select {
+  min-width: 140px;
+}
+
 @media (max-width: 768px) {
   .task-list-container {
     gap: 12px;
@@ -336,7 +340,8 @@
       width: 100%;
       justify-content: space-between;
 
-      .sort-select {
+      .sort-select,
+      .sort-custom-select {
         flex: 1;
       }
     }

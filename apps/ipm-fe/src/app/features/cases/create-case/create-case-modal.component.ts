@@ -17,6 +17,8 @@ import {
   PriorityModalComponent,
   PriorityFormData,
 } from '../../projects/components/modals/priority-modal/priority-modal.component';
+import { CustomSelectComponent } from '../../../core/components/custom-select/custom-select.component';
+import { CustomDatepickerComponent } from '../../../core/components/custom-datepicker/custom-datepicker.component';
 
 type AssigneeCandidate = { id: string; name: string; email: string };
 
@@ -38,7 +40,13 @@ export interface CaseFormData {
 @Component({
   standalone: true,
   selector: 'app-create-case-modal',
-  imports: [CommonModule, FormsModule, PriorityModalComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    PriorityModalComponent,
+    CustomSelectComponent,
+    CustomDatepickerComponent,
+  ],
   templateUrl: './create-case-modal.component.html',
   styleUrl: './create-case-modal.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -65,6 +73,29 @@ export class CreateCaseModalComponent implements OnChanges {
 
   private readonly sprintService = inject(SprintService);
   private readonly projectsService = inject(ProjectsService);
+
+  readonly caseTypeOptions = [
+    { value: 'EPIC', label: 'Epic' },
+    { value: 'STORY', label: 'Story' },
+    { value: 'BUG', label: 'Bug' },
+    { value: 'IMPROVEMENT', label: 'Improvement' },
+    { value: 'TEST', label: 'Test' },
+    { value: 'GENERAL', label: 'General' },
+  ];
+
+  get sprintOptions(): { value: string; label: string }[] {
+    return this.availableSprints().map((s) => ({
+      value: s.id,
+      label: this.getSprintLabel(s),
+    }));
+  }
+
+  get assigneeOptions(): { value: string; label: string }[] {
+    return this.availableAssignees().map((u) => ({
+      value: u.id,
+      label: u.name,
+    }));
+  }
 
   caseTitle = '';
   selectedAssigneeId = '';

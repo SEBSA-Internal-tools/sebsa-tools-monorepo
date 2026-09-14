@@ -20,6 +20,8 @@ import {
   PriorityModalComponent,
   PriorityFormData,
 } from '../../projects/components/modals/priority-modal/priority-modal.component';
+import { CustomSelectComponent } from '../../../core/components/custom-select/custom-select.component';
+import { CustomDatepickerComponent } from '../../../core/components/custom-datepicker/custom-datepicker.component';
 
 type AssigneeCandidate = { id: string; name: string; email: string };
 
@@ -46,7 +48,13 @@ export interface TaskFormData {
 @Component({
   standalone: true,
   selector: 'app-create-task-modal',
-  imports: [CommonModule, FormsModule, PriorityModalComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    PriorityModalComponent,
+    CustomSelectComponent,
+    CustomDatepickerComponent,
+  ],
   templateUrl: './create-task-modal.component.html',
   styleUrl: './create-task-modal.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

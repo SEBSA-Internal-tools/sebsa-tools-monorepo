@@ -12,17 +12,15 @@
 
           <div class="header-actions">
             <!-- Project Scope Filter -->
-            <select
-              [ngModel]="selectedProjectId()"
-              (ngModelChange)="onProjectFilterChanged($event)"
-              class="project-filter-select"
-              aria-label="Scope by Project"
-            >
-              <option value="">All Accessible Projects</option>
-              @for (proj of availableProjects(); track proj.id) {
-                <option [value]="proj.id">{{ proj.name }}</option>
-              }
-            </select>
+            <app-custom-select
+              [value]="selectedProjectId()"
+              (valueChange)="onProjectFilterChanged($event)"
+              [options]="availableProjects()"
+              defaultOptionLabel="All Accessible Projects"
+              defaultOptionValue=""
+              ariaLabel="Scope by Project"
+              customClass="project-filter-select"
+            ></app-custom-select>
 
             <!-- Refresh Button -->
             <button
@@ -83,4 +81,14 @@
           (createClick)="onCreateForDate($event)"
         ></app-calendar-view>
       </main>
+
+      <!-- Create Case Modal -->
+      <app-create-case-modal
+        [isOpen]="isCreateCaseOpen()"
+        [projectId]="selectedProjectId()"
+        [projectName]="selectedProjectName()"
+        [initialDueDate]="createCaseDueDate()"
+        (closed)="isCreateCaseOpen.set(false)"
+        (submitted)="onCreateCaseSubmit($event)"
+      ></app-create-case-modal>
 </div>

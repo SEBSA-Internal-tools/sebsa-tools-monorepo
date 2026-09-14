@@ -25,19 +25,23 @@
 
     <!-- Right: Filter Tabs and New Project CTA -->
     <div class="controls-right">
-      <select [(ngModel)]="selectedStatus" class="status-filter">
-        <option value="all">All Statuses</option>
-        @for (status of statusOptions; track status) {
-          <option [value]="status">{{ statusLabels[status] }} ({{ getStatusCount(status) }})</option>
-        }
-      </select>
+      <app-custom-select
+        [(ngModel)]="selectedStatus"
+        defaultOptionLabel="All Statuses"
+        defaultOptionValue="all"
+        [options]="statusSelectOptions"
+        ariaLabel="Filter by status"
+        customClass="status-filter"
+      ></app-custom-select>
 
-      <select [(ngModel)]="selectedCustomerId" class="customer-filter">
-        <option value="">All Customers</option>
-        @for (customer of availableCustomers(); track customer.id) {
-          <option [value]="customer.id">{{ customer.name }}</option>
-        }
-      </select>
+      <app-custom-select
+        [(ngModel)]="selectedCustomerId"
+        defaultOptionLabel="All Customers"
+        defaultOptionValue=""
+        [options]="availableCustomers()"
+        ariaLabel="Filter by customer"
+        customClass="customer-filter"
+      ></app-custom-select>
 
       <button type="button" class="btn-primary" (click)="onNewProject()">
         <span class="material-symbols-outlined">add</span>

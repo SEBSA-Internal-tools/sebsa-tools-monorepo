@@ -1,5 +1,11 @@
 @if (isOpen) {
-  <div class="modal-overlay" (click)="onBackdropClick()"></div>
+  <div
+    class="modal-overlay"
+    (click)="onBackdropClick()"
+    (keydown.escape)="onCancel()"
+    tabindex="-1"
+    aria-hidden="true"
+  ></div>
 
   <div class="modal-container">
     <!-- Modal Header -->
@@ -70,11 +76,12 @@
         <label for="role" class="form-label">
           Assign as <span class="required">*</span>
         </label>
-        <select id="role" [(ngModel)]="selectedRoleId" class="form-input">
-          @for (role of availableRoles(); track role.id) {
-            <option [value]="role.id">{{ role.name }}</option>
-          }
-        </select>
+        <app-custom-select
+          [(ngModel)]="selectedRoleId"
+          [options]="availableRoles()"
+          placeholder="Select a role..."
+          ariaLabel="Select role"
+        ></app-custom-select>
       </div>
 
       <!-- Selected Users Section -->
