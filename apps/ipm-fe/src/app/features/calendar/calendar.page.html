@@ -81,4 +81,14 @@
           (createClick)="onCreateForDate($event)"
         ></app-calendar-view>
       </main>
+
+      <!-- Create Case Modal -->
+      <app-create-case-modal
+        [isOpen]="isCreateCaseOpen()"
+        [projectId]="selectedProjectId()"
+        [projectName]="selectedProjectName()"
+        [initialDueDate]="createCaseDueDate()"
+        (closed)="isCreateCaseOpen.set(false)"
+        (submitted)="onCreateCaseSubmit($event)"
+      ></app-create-case-modal>
 </div>

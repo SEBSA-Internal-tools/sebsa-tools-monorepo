@@ -277,7 +277,8 @@ export class CalendarViewComponent implements OnInit, AfterViewInit, OnDestroy {
     const year = current.getFullYear();
     const month = current.getMonth();
     const todayStr = this.formatDateKey(new Date());
-    const selStr = this.selectedDate() ? this.formatDateKey(this.selectedDate()!) : null;
+    const selectedDate = this.selectedDate();
+    const selStr = selectedDate ? this.formatDateKey(selectedDate) : null;
     const mode = this.dateMode();
 
     const firstDayOfMonth = new Date(year, month, 1);
@@ -299,10 +300,9 @@ export class CalendarViewComponent implements OnInit, AfterViewInit, OnDestroy {
     for (const item of items) {
       const key = this.getItemActiveDate(item, mode);
       if (key) {
-        if (!itemMap.has(key)) {
-          itemMap.set(key, []);
-        }
-        itemMap.get(key)!.push(item);
+        const bucket = itemMap.get(key) || [];
+        bucket.push(item);
+        itemMap.set(key, bucket);
       }
     }
 
@@ -393,7 +393,8 @@ export class CalendarViewComponent implements OnInit, AfterViewInit, OnDestroy {
     const curr = this.currentDate();
     const startOfWeek = this.getStartOfWeek(curr);
     const todayStr = this.formatDateKey(new Date());
-    const selStr = this.selectedDate() ? this.formatDateKey(this.selectedDate()!) : null;
+    const selectedDate = this.selectedDate();
+    const selStr = selectedDate ? this.formatDateKey(selectedDate) : null;
     const mode = this.dateMode();
 
     const items = this.filteredItems();
@@ -401,10 +402,9 @@ export class CalendarViewComponent implements OnInit, AfterViewInit, OnDestroy {
     for (const item of items) {
       const key = this.getItemActiveDate(item, mode);
       if (key) {
-        if (!itemMap.has(key)) {
-          itemMap.set(key, []);
-        }
-        itemMap.get(key)!.push(item);
+        const bucket = itemMap.get(key) || [];
+        bucket.push(item);
+        itemMap.set(key, bucket);
       }
     }
 
@@ -463,10 +463,9 @@ export class CalendarViewComponent implements OnInit, AfterViewInit, OnDestroy {
     for (const item of items) {
       const key = this.getItemActiveDate(item, mode);
       if (key) {
-        if (!grouped.has(key)) {
-          grouped.set(key, []);
-        }
-        grouped.get(key)!.push(item);
+        const bucket = grouped.get(key) || [];
+        bucket.push(item);
+        grouped.set(key, bucket);
       }
     }
 
@@ -698,7 +697,12 @@ export class CalendarViewComponent implements OnInit, AfterViewInit, OnDestroy {
 
   navigateToCase(item: CalendarItem): void {
     this.closeDrawer();
-    this.router.navigate(['/tasks', item.id]);
+    const isCase = (item.raw && typeof item.raw === 'object' && 'isCsoLabeled' in item.raw) || item.caseNumber?.startsWith('CASE-');
+    if (isCase) {
+      this.router.navigate(['/cases', item.id]);
+    } else {
+      this.router.navigate(['/tasks', item.id]);
+    }
   }
 
   setTypeFilter(type: string): void {
