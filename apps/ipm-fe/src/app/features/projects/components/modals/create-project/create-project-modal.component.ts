@@ -13,6 +13,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { UsersService } from '../../../../../core/services/users.service';
 import { CustomersService } from '../../../../../core/services/customers.service';
+import { CustomSelectComponent } from '../../../../../core/components/custom-select/custom-select.component';
 import type {
   Customer,
   Project,
@@ -54,7 +55,7 @@ const PROJECT_STATUS_OPTIONS: { value: ProjectStatus; label: string }[] = [
 @Component({
   standalone: true,
   selector: 'create-project-modal',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, CustomSelectComponent],
   templateUrl: './create-project-modal.component.html',
   styleUrl: './create-project-modal.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

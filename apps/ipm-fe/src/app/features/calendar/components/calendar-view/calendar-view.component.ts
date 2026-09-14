@@ -26,10 +26,12 @@ import type {
   QuickPresetFilter,
 } from '../../models/calendar.models';
 
+import { CustomSelectComponent } from '../../../../core/components/custom-select/custom-select.component';
+
 @Component({
   standalone: true,
   selector: 'app-calendar-view',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, CustomSelectComponent],
   templateUrl: './calendar-view.component.html',
   styleUrls: ['./calendar-view.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,

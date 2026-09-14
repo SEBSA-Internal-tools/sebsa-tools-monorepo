@@ -164,6 +164,11 @@
   gap: 10px;
   flex-wrap: wrap;
   width: 100%;
+
+  app-custom-select,
+  .filter-select-wrapper {
+    min-width: 170px;
+  }
 }
 
 .filter-select {
@@ -649,8 +654,11 @@
     gap: 8px;
     width: 100%;
 
+    app-custom-select,
+    .filter-select-wrapper,
     .filter-select {
       width: 100%;
+      min-width: 0;
     }
 
     .clear-filters-btn {

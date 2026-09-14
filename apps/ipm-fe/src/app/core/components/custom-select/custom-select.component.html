@@ -1,0 +1,80 @@
+<div
+  class="custom-select-wrapper"
+  [class.open]="isOpen()"
+  [class.disabled]="disabled"
+  [ngClass]="customClass"
+  #wrapperRef
+>
+  <button
+    type="button"
+    class="custom-select-trigger"
+    [class.has-value]="
+      currentValue() !== '' &&
+      currentValue() !== null &&
+      currentValue() !== undefined
+    "
+    [disabled]="disabled"
+    [attr.aria-expanded]="isOpen()"
+    [attr.aria-label]="ariaLabel || placeholder"
+    (click)="toggleOpen($event)"
+  >
+    <span class="trigger-label">{{ displayLabel() }}</span>
+    <span
+      class="material-symbols-outlined select-chevron"
+      [class.rotated]="isOpen()"
+    >
+      expand_more
+    </span>
+  </button>
+
+  @if (isOpen()) {
+    <div
+      class="custom-select-dropdown"
+      role="listbox"
+    >
+      @if (defaultOptionLabel) {
+        <button
+          type="button"
+          class="dropdown-option-item"
+          [class.selected]="currentValue() === defaultOptionValue"
+          role="option"
+          [attr.aria-selected]="currentValue() === defaultOptionValue"
+          (click)="selectOption(defaultOptionValue)"
+        >
+          <span class="option-label">{{ defaultOptionLabel }}</span>
+          @if (currentValue() === defaultOptionValue) {
+            <span class="material-symbols-outlined check-icon">check</span>
+          }
+        </button>
+      }
+
+      @for (opt of normalizedOptions(); track opt.value) {
+        <button
+          type="button"
+          class="dropdown-option-item"
+          [class.selected]="currentValue() === opt.value"
+          role="option"
+          [attr.aria-selected]="currentValue() === opt.value"
+          (click)="selectOption(opt.value)"
+        >
+          @if (opt.icon) {
+            <span class="material-symbols-outlined opt-icon">{{
+              opt.icon
+            }}</span>
+          }
+          <span class="option-label">{{ opt.label }}</span>
+          @if (opt.badge) {
+            <span class="option-badge">{{ opt.badge }}</span>
+          }
+          @if (currentValue() === opt.value) {
+            <span class="material-symbols-outlined check-icon">check</span>
+          }
+        </button>
+      }
+
+      @if (normalizedOptions().length === 0 && !defaultOptionLabel) {
+        <div class="dropdown-empty-item">No options available</div>
+      }
+    </div>
+  }
+</div>

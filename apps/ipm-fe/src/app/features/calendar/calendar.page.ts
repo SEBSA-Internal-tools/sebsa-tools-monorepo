@@ -22,11 +22,12 @@ import {
   type CalendarKPI,
 } from './models/calendar.models';
 import type { ProjectSummary } from '@sebsa-pm-tool/shared-models';
+import { CustomSelectComponent } from '../../core/components/custom-select/custom-select.component';
 
 @Component({
   standalone: true,
   selector: 'app-calendar-page',
-  imports: [CommonModule, FormsModule, CalendarViewComponent],
+  imports: [CommonModule, FormsModule, CalendarViewComponent, CustomSelectComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './calendar.page.html',
   styleUrl: './calendar.page.scss',

@@ -1,5 +1,11 @@
 @if (isOpen) {
-  <div class="modal-overlay" (click)="onBackdropClick()"></div>
+  <div
+    class="modal-overlay"
+    (click)="onBackdropClick()"
+    (keydown.escape)="onCancel()"
+    tabindex="-1"
+    aria-hidden="true"
+  ></div>
 
   <div class="modal-container">
     <!-- Modal Header -->
@@ -24,12 +30,14 @@
               <span class="project-name">{{ projectName }}</span>
             </div>
           } @else {
-            <select [(ngModel)]="selectedProjectId" (change)="onProjectSelect(selectedProjectId)" class="form-select">
-              <option value="">Select a project...</option>
-              @for (project of availableProjects(); track project.id) {
-                <option [value]="project.id">{{ project.name }}</option>
-              }
-            </select>
+            <app-custom-select
+              [(ngModel)]="selectedProjectId"
+              (ngModelChange)="onProjectSelect($event)"
+              [options]="availableProjects()"
+              defaultOptionLabel="Select a project..."
+              defaultOptionValue=""
+              ariaLabel="Select a project"
+            ></app-custom-select>
           }
         </div>
 
@@ -48,12 +56,13 @@
               {{ sprintError() }}
             </div>
           } @else {
-            <select id="sprint" [(ngModel)]="selectedSprintId" class="form-select">
-              <option value="">No sprint (Backlog)</option>
-              @for (sprint of availableSprints(); track sprint.id) {
-                <option [value]="sprint.id">{{ getSprintLabel(sprint) }}</option>
-              }
-            </select>
+            <app-custom-select
+              [(ngModel)]="selectedSprintId"
+              [options]="sprintOptions"
+              defaultOptionLabel="No sprint (Backlog)"
+              defaultOptionValue=""
+              ariaLabel="Select sprint"
+            ></app-custom-select>
           }
         </div>
 
@@ -109,14 +118,11 @@
         <!-- Case Type -->
         <div class="form-group">
           <label for="caseType" class="form-label">Type</label>
-          <select id="caseType" [(ngModel)]="selectedType" class="form-select">
-            <option value="EPIC">Epic</option>
-            <option value="STORY">Story</option>
-            <option value="BUG">Bug</option>
-            <option value="IMPROVEMENT">Improvement</option>
-            <option value="TEST">Test</option>
-            <option value="GENERAL">General</option>
-          </select>
+          <app-custom-select
+            [(ngModel)]="selectedType"
+            [options]="caseTypeOptions"
+            ariaLabel="Case Type"
+          ></app-custom-select>
         </div>
 
         <!-- Assignee -->
@@ -133,19 +139,24 @@
               {{ userError() }}
             </div>
           } @else {
-            <select id="assignee" [(ngModel)]="selectedAssigneeId" class="form-select">
-              <option value="">Unassigned</option>
-              @for (user of availableAssignees(); track user.id) {
-                <option [value]="user.id">{{ user.name }}</option>
-              }
-            </select>
+            <app-custom-select
+              [(ngModel)]="selectedAssigneeId"
+              [options]="assigneeOptions"
+              defaultOptionLabel="Unassigned"
+              defaultOptionValue=""
+              ariaLabel="Select assignee"
+            ></app-custom-select>
           }
         </div>
 
         <!-- Due Date -->
         <div class="form-group">
           <label for="dueDate" class="form-label">Due Date</label>
-          <input id="dueDate" type="date" [(ngModel)]="dueDate" class="form-input" />
+          <app-custom-datepicker
+            [(ngModel)]="dueDate"
+            placeholder="Select due date"
+            ariaLabel="Due date"
+          ></app-custom-datepicker>
         </div>
       </div>
 

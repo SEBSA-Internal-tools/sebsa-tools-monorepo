@@ -15,6 +15,8 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ProjectsService } from '../../projects/services/projects.service';
 import { SubtaskTypesService } from '../../../core/services/subtask-types.service';
+import { CustomSelectComponent } from '../../../core/components/custom-select/custom-select.component';
+import { CustomDatepickerComponent } from '../../../core/components/custom-datepicker/custom-datepicker.component';
 import type { SubtaskType } from '@sebsa-pm-tool/shared-models';
 
 type AssigneeCandidate = { id: string; name: string; email: string };
@@ -34,7 +36,7 @@ export interface SubtaskFormData {
 @Component({
   standalone: true,
   selector: 'app-create-subtask-modal',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, CustomSelectComponent, CustomDatepickerComponent],
   templateUrl: './create-subtask-modal.component.html',
   styleUrl: './create-subtask-modal.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

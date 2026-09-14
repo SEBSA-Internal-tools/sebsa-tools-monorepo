@@ -12,42 +12,54 @@
   }
 
   <div class="filter-bar">
-    <select [(ngModel)]="selectedProjectId" (change)="applyFilters()" class="filter-select">
-      <option value="">All Projects</option>
-      @for (project of csoProjects(); track project.id) {
-        <option [value]="project.id">{{ project.name }}</option>
-      }
-    </select>
+    <app-custom-select
+      [(ngModel)]="selectedProjectId"
+      (change)="applyFilters()"
+      [options]="csoProjects()"
+      defaultOptionLabel="All Projects"
+      defaultOptionValue=""
+      ariaLabel="Filter by Project"
+      customClass="filter-select"
+    ></app-custom-select>
 
-    <select [(ngModel)]="selectedCustomerId" (change)="applyFilters()" class="filter-select">
-      <option value="">All Customers</option>
-      @for (customer of availableCustomers(); track customer.id) {
-        <option [value]="customer.id">{{ customer.name }}</option>
-      }
-    </select>
+    <app-custom-select
+      [(ngModel)]="selectedCustomerId"
+      (change)="applyFilters()"
+      [options]="availableCustomers()"
+      defaultOptionLabel="All Customers"
+      defaultOptionValue=""
+      ariaLabel="Filter by Customer"
+      customClass="filter-select"
+    ></app-custom-select>
 
-    <select [(ngModel)]="selectedPriority" (change)="applyFilters()" class="filter-select">
-      <option value="">All Priorities</option>
-      <option value="CRITICAL">Critical</option>
-      <option value="HIGH">High</option>
-      <option value="MEDIUM">Medium</option>
-      <option value="LOW">Low</option>
-    </select>
+    <app-custom-select
+      [(ngModel)]="selectedPriority"
+      (change)="applyFilters()"
+      [options]="priorityFilterOptions"
+      defaultOptionLabel="All Priorities"
+      defaultOptionValue=""
+      ariaLabel="Filter by Priority"
+      customClass="filter-select"
+    ></app-custom-select>
 
-    <select [(ngModel)]="selectedStatus" class="filter-select">
-      <option value="">All Statuses</option>
-      <option value="new">New</option>
-      <option value="todo">To Do</option>
-      <option value="inprogress">In Progress</option>
-      <option value="done">Done</option>
-    </select>
+    <app-custom-select
+      [(ngModel)]="selectedStatus"
+      [options]="statusFilterOptions"
+      defaultOptionLabel="All Statuses"
+      defaultOptionValue=""
+      ariaLabel="Filter by Status"
+      customClass="filter-select"
+    ></app-custom-select>
 
-    <select [(ngModel)]="selectedAssigneeId" (change)="applyFilters()" class="filter-select">
-      <option value="">All Assignees</option>
-      @for (user of availableAssignees(); track user.id) {
-        <option [value]="user.id">{{ user.name }}</option>
-      }
-    </select>
+    <app-custom-select
+      [(ngModel)]="selectedAssigneeId"
+      (change)="applyFilters()"
+      [options]="availableAssignees()"
+      defaultOptionLabel="All Assignees"
+      defaultOptionValue=""
+      ariaLabel="Filter by Assignee"
+      customClass="filter-select"
+    ></app-custom-select>
   </div>
 
   <div class="results-card">

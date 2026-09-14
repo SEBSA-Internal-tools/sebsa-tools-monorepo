@@ -29,6 +29,8 @@ const STATUS_OPTIONS: ProjectStatus[] = [
   'ARCHIVED',
 ];
 
+import { CustomSelectComponent } from '../../../../../../core/components/custom-select/custom-select.component';
+
 const STATUS_LABELS: Record<ProjectStatus, string> = {
   PLANNING: 'Planning',
   ACTIVE: 'Active',
@@ -40,7 +42,7 @@ const STATUS_LABELS: Record<ProjectStatus, string> = {
 @Component({
   standalone: true,
   selector: 'projects-list',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, CustomSelectComponent],
   templateUrl: './projects-list.component.html',
   styleUrl: './projects-list.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -55,6 +57,13 @@ export class ProjectsListComponent {
 
   protected readonly statusOptions = STATUS_OPTIONS;
   protected readonly statusLabels = STATUS_LABELS;
+
+  get statusSelectOptions(): { value: string; label: string }[] {
+    return this.statusOptions.map((status) => ({
+      value: status,
+      label: `${this.statusLabels[status]} (${this.getStatusCount(status)})`,
+    }));
+  }
 
   searchQuery = '';
   selectedStatus: 'all' | ProjectStatus = 'all';

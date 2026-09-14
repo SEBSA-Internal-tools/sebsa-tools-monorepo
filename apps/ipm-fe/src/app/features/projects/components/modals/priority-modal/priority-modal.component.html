@@ -1,5 +1,11 @@
 @if (isOpen) {
-  <div class="modal-overlay" (click)="onBackdropClick()"></div>
+  <div
+    class="modal-overlay"
+    (click)="onBackdropClick()"
+    (keydown.escape)="onCancel()"
+    tabindex="-1"
+    aria-hidden="true"
+  ></div>
 
   <div class="modal-container">
     <!-- Modal Header -->

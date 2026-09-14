@@ -21,53 +21,65 @@
       </div>
 
       <div class="filter-field">
-        <label for="filter-entity-type">Entity type</label>
-        <select id="filter-entity-type" [(ngModel)]="filters.entityType">
-          <option value="">All types</option>
-          @for (type of filterOptions()?.entityTypes ?? []; track type) {
-            <option [value]="type">{{ humanize(type) }}</option>
-          }
-        </select>
+        <label>Entity type</label>
+        <app-custom-select
+          [(ngModel)]="filters.entityType"
+          [options]="entityTypeOptions()"
+          defaultOptionLabel="All types"
+          defaultOptionValue=""
+          ariaLabel="Filter by entity type"
+        ></app-custom-select>
       </div>
 
       <div class="filter-field">
-        <label for="filter-action">Action</label>
-        <select id="filter-action" [(ngModel)]="filters.action">
-          <option value="">All actions</option>
-          @for (action of filterOptions()?.actions ?? []; track action) {
-            <option [value]="action">{{ humanize(action) }}</option>
-          }
-        </select>
+        <label>Action</label>
+        <app-custom-select
+          [(ngModel)]="filters.action"
+          [options]="actionOptions()"
+          defaultOptionLabel="All actions"
+          defaultOptionValue=""
+          ariaLabel="Filter by action"
+        ></app-custom-select>
       </div>
 
       <div class="filter-field">
-        <label for="filter-actor">User</label>
-        <select id="filter-actor" [(ngModel)]="filters.actorId">
-          <option value="">All users</option>
-          @for (actor of filterOptions()?.actors ?? []; track actor.id) {
-            <option [value]="actor.id">{{ actor.name }}</option>
-          }
-        </select>
+        <label>User</label>
+        <app-custom-select
+          [(ngModel)]="filters.actorId"
+          [options]="actorOptions()"
+          defaultOptionLabel="All users"
+          defaultOptionValue=""
+          ariaLabel="Filter by user"
+        ></app-custom-select>
       </div>
 
       <div class="filter-field">
-        <label for="filter-project">Project</label>
-        <select id="filter-project" [(ngModel)]="filters.projectId">
-          <option value="">All projects</option>
-          @for (project of filterOptions()?.projects ?? []; track project.id) {
-            <option [value]="project.id">{{ project.name }}</option>
-          }
-        </select>
+        <label>Project</label>
+        <app-custom-select
+          [(ngModel)]="filters.projectId"
+          [options]="projectOptions()"
+          defaultOptionLabel="All projects"
+          defaultOptionValue=""
+          ariaLabel="Filter by project"
+        ></app-custom-select>
       </div>
 
       <div class="filter-field">
         <label for="filter-date-from">From</label>
-        <input id="filter-date-from" type="date" [(ngModel)]="filters.dateFrom" />
+        <app-custom-datepicker
+          [(ngModel)]="filters.dateFrom"
+          placeholder="From date"
+          ariaLabel="Filter date from"
+        ></app-custom-datepicker>
       </div>
 
       <div class="filter-field">
         <label for="filter-date-to">To</label>
-        <input id="filter-date-to" type="date" [(ngModel)]="filters.dateTo" />
+        <app-custom-datepicker
+          [(ngModel)]="filters.dateTo"
+          placeholder="To date"
+          ariaLabel="Filter date to"
+        ></app-custom-datepicker>
       </div>
     </div>
 

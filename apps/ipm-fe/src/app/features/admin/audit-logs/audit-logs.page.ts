@@ -7,6 +7,8 @@ import {
 } from '@sebsa-pm-tool/shared-models';
 import { ActivityLogsService, AuditLogQuery } from '../../../core/services/activity-logs.service';
 import { ChangeListComponent } from '../../../core/components/change-list/change-list.component';
+import { CustomSelectComponent } from '../../../core/components/custom-select/custom-select.component';
+import { CustomDatepickerComponent } from '../../../core/components/custom-datepicker/custom-datepicker.component';
 
 /** Blank strings rather than undefined so they bind straight to `<select>` and
  * `<input>` without a null-vs-empty mismatch on reset. */
@@ -37,7 +39,13 @@ const EMPTY_FILTERS: AuditFilterForm = {
 @Component({
   standalone: true,
   selector: 'app-audit-logs-page',
-  imports: [CommonModule, FormsModule, ChangeListComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    ChangeListComponent,
+    CustomSelectComponent,
+    CustomDatepickerComponent,
+  ],
   templateUrl: './audit-logs.page.html',
   styleUrl: './audit-logs.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -47,6 +55,16 @@ export class AuditLogsPageComponent implements OnInit {
 
   protected readonly entries = signal<ActivityLogEntry[]>([]);
   protected readonly filterOptions = signal<AuditLogFilterOptions | null>(null);
+
+  protected readonly entityTypeOptions = () =>
+    (this.filterOptions()?.entityTypes ?? []).map((t) => ({ value: t, label: this.humanize(t) }));
+  protected readonly actionOptions = () =>
+    (this.filterOptions()?.actions ?? []).map((a) => ({ value: a, label: this.humanize(a) }));
+  protected readonly actorOptions = () =>
+    (this.filterOptions()?.actors ?? []).map((a) => ({ value: a.id, label: a.name }));
+  protected readonly projectOptions = () =>
+    (this.filterOptions()?.projects ?? []).map((p) => ({ value: p.id, label: p.name }));
+
   protected readonly isLoading = signal(false);
   protected readonly errorMessage = signal('');
   protected readonly total = signal(0);

@@ -8,13 +8,14 @@ import { ProjectsService } from '../../../projects/services/projects.service';
 import { UserAdminService } from '../../../../core/services/user-admin.service';
 import { CasesService } from '../../../../core/services/cases.service';
 import { CreateCaseModalComponent, type CaseFormData } from '../../../cases/create-case/create-case-modal.component';
+import { CustomSelectComponent } from '../../../../core/components/custom-select/custom-select.component';
 
 type StatusFilter = '' | 'new' | 'todo' | 'inprogress' | 'done';
 
 @Component({
   standalone: true,
   selector: 'cso-overview-tab',
-  imports: [CommonModule, FormsModule, CreateCaseModalComponent],
+  imports: [CommonModule, FormsModule, CreateCaseModalComponent, CustomSelectComponent],
   templateUrl: './cso-overview-tab.component.html',
   styleUrl: './cso-overview-tab.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -57,6 +58,20 @@ export class CsoOverviewTabComponent implements OnInit {
   protected selectedPriority: '' | 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' = '';
   protected selectedAssigneeId = '';
   protected selectedStatus: StatusFilter = '';
+
+  protected readonly priorityFilterOptions = [
+    { value: 'CRITICAL', label: 'Critical' },
+    { value: 'HIGH', label: 'High' },
+    { value: 'MEDIUM', label: 'Medium' },
+    { value: 'LOW', label: 'Low' },
+  ];
+
+  protected readonly statusFilterOptions = [
+    { value: 'new', label: 'New' },
+    { value: 'todo', label: 'To Do' },
+    { value: 'inprogress', label: 'In Progress' },
+    { value: 'done', label: 'Done' },
+  ];
 
   protected isTaskModalOpen = false;
   protected errorMessage = '';

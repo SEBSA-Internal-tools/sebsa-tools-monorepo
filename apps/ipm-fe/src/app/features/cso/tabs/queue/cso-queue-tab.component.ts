@@ -7,6 +7,7 @@ import { CsoTaskQueueService, CsoQueueTaskView } from '../../../../core/services
 import { ProjectsService } from '../../../projects/services/projects.service';
 import { CasesService } from '../../../../core/services/cases.service';
 import { CreateCaseModalComponent, type CaseFormData } from '../../../cases/create-case/create-case-modal.component';
+import { CustomSelectComponent } from '../../../../core/components/custom-select/custom-select.component';
 
 type StatusFilter = '' | 'new' | 'todo' | 'inprogress' | 'done';
 
@@ -21,7 +22,7 @@ type StatusFilter = '' | 'new' | 'todo' | 'inprogress' | 'done';
 @Component({
   standalone: true,
   selector: 'cso-queue-tab',
-  imports: [CommonModule, FormsModule, CreateCaseModalComponent],
+  imports: [CommonModule, FormsModule, CreateCaseModalComponent, CustomSelectComponent],
   templateUrl: './cso-queue-tab.component.html',
   styleUrl: './cso-queue-tab.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -57,6 +58,13 @@ export class CsoQueueTabComponent implements OnChanges {
   protected selectedProjectId = '';
   protected selectedCustomerId = '';
   protected selectedStatus: StatusFilter = '';
+
+  protected readonly statusFilterOptions = [
+    { value: 'new', label: 'New' },
+    { value: 'todo', label: 'To Do' },
+    { value: 'inprogress', label: 'In Progress' },
+    { value: 'done', label: 'Done' },
+  ];
 
   protected isCaseModalOpen = false;
   protected errorMessage = '';

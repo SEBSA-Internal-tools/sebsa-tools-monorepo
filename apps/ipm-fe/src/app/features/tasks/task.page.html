@@ -72,41 +72,32 @@
 
       <!-- Task Filters Row -->
       <div class="filter-row">
-        <select
-          class="filter-select"
+        <app-custom-select
+          [options]="caseSelectOptions()"
           [ngModel]="selectedCaseId()"
           (ngModelChange)="selectedCaseId.set($event)"
-          aria-label="Filter by Case"
-        >
-          <option value="">All Parent Cases</option>
-          @for (kase of availableCases(); track kase.id) {
-            <option [value]="kase.id">{{ kase.title }}</option>
-          }
-        </select>
+          placeholder="All Parent Cases"
+          customClass="filter-select-wrapper"
+          ariaLabel="Filter by Case"
+        ></app-custom-select>
 
-        <select
-          class="filter-select"
+        <app-custom-select
+          [options]="taskStatusSelectOptions()"
           [ngModel]="selectedTaskStatus()"
           (ngModelChange)="selectedTaskStatus.set($event)"
-          aria-label="Filter by Status"
-        >
-          <option value="">All Statuses</option>
-          @for (status of taskStatuses; track status.id) {
-            <option [value]="status.id">{{ status.name }}</option>
-          }
-        </select>
+          placeholder="All Statuses"
+          customClass="filter-select-wrapper"
+          ariaLabel="Filter by Status"
+        ></app-custom-select>
 
-        <select
-          class="filter-select"
+        <app-custom-select
+          [options]="taskPrioritySelectOptions()"
           [ngModel]="selectedTaskPriority()"
           (ngModelChange)="selectedTaskPriority.set($event)"
-          aria-label="Filter by Priority"
-        >
-          <option value="">All Priorities</option>
-          @for (priority of availableTaskPriorities(); track priority) {
-            <option [value]="priority">{{ priority }}</option>
-          }
-        </select>
+          placeholder="All Priorities"
+          customClass="filter-select-wrapper"
+          ariaLabel="Filter by Priority"
+        ></app-custom-select>
 
         @if (hasActiveTaskFilters()) {
           <button type="button" class="clear-filters-btn" (click)="clearTaskFilters()">
@@ -264,53 +255,41 @@
 
       <!-- Case Filters Row -->
       <div class="filter-row">
-        <select
-          class="filter-select"
+        <app-custom-select
+          [options]="projectSelectOptions()"
           [ngModel]="selectedProjectId()"
           (ngModelChange)="selectedProjectId.set($event)"
-          aria-label="Filter by Project"
-        >
-          <option value="">All Projects</option>
-          @for (proj of availableProjects(); track proj.id) {
-            <option [value]="proj.id">{{ proj.name }}</option>
-          }
-        </select>
+          placeholder="All Projects"
+          customClass="filter-select-wrapper"
+          ariaLabel="Filter by Project"
+        ></app-custom-select>
 
-        <select
-          class="filter-select"
+        <app-custom-select
+          [options]="caseStatusSelectOptions()"
           [ngModel]="selectedCaseStatus()"
           (ngModelChange)="selectedCaseStatus.set($event)"
-          aria-label="Filter by Status"
-        >
-          <option value="">All Statuses</option>
-          @for (status of caseStatuses; track status.id) {
-            <option [value]="status.id">{{ status.name }}</option>
-          }
-        </select>
+          placeholder="All Statuses"
+          customClass="filter-select-wrapper"
+          ariaLabel="Filter by Status"
+        ></app-custom-select>
 
-        <select
-          class="filter-select"
+        <app-custom-select
+          [options]="caseTypeSelectOptions()"
           [ngModel]="selectedCaseType()"
           (ngModelChange)="selectedCaseType.set($event)"
-          aria-label="Filter by Type"
-        >
-          <option value="">All Types</option>
-          @for (type of availableCaseTypes(); track type) {
-            <option [value]="type">{{ type }}</option>
-          }
-        </select>
+          placeholder="All Types"
+          customClass="filter-select-wrapper"
+          ariaLabel="Filter by Type"
+        ></app-custom-select>
 
-        <select
-          class="filter-select"
+        <app-custom-select
+          [options]="casePrioritySelectOptions()"
           [ngModel]="selectedCasePriority()"
           (ngModelChange)="selectedCasePriority.set($event)"
-          aria-label="Filter by Priority"
-        >
-          <option value="">All Priorities</option>
-          @for (priority of availableCasePriorities(); track priority) {
-            <option [value]="priority">{{ priority }}</option>
-          }
-        </select>
+          placeholder="All Priorities"
+          customClass="filter-select-wrapper"
+          ariaLabel="Filter by Priority"
+        ></app-custom-select>
 
         @if (hasActiveCaseFilters()) {
           <button type="button" class="clear-filters-btn" (click)="clearCaseFilters()">

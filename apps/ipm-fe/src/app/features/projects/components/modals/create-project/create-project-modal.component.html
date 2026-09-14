@@ -1,5 +1,11 @@
 @if (isOpen) {
-  <div class="modal-overlay" (click)="onBackdropClick()"></div>
+  <div
+    class="modal-overlay"
+    (click)="onBackdropClick()"
+    (keydown.escape)="onCancel()"
+    tabindex="-1"
+    aria-hidden="true"
+  ></div>
 
   <div class="modal-container">
     <!-- Modal Header -->
@@ -31,23 +37,23 @@
         <label for="projectType" class="form-label">
           Project Type <span class="required">*</span>
         </label>
-        <select id="projectType" [(ngModel)]="type" class="form-input">
-          <option value="" disabled>Select a type&hellip;</option>
-          @for (option of typeOptions; track option.value) {
-            <option [value]="option.value">{{ option.label }}</option>
-          }
-        </select>
+        <app-custom-select
+          [(ngModel)]="type"
+          [options]="typeOptions"
+          placeholder="Select a type..."
+          ariaLabel="Select project type"
+        ></app-custom-select>
       </div>
 
       <!-- Status Field (edit only — a new project always starts Planning) -->
       @if (isEditMode()) {
         <div class="form-group">
           <label for="projectStatus" class="form-label">Status</label>
-          <select id="projectStatus" [(ngModel)]="status" class="form-input">
-            @for (option of statusOptions; track option.value) {
-              <option [value]="option.value">{{ option.label }}</option>
-            }
-          </select>
+          <app-custom-select
+            [(ngModel)]="status"
+            [options]="statusOptions"
+            ariaLabel="Select project status"
+          ></app-custom-select>
         </div>
       }
 
@@ -83,12 +89,12 @@
         <label for="customerId" class="form-label">
           Customer <span class="required">*</span>
         </label>
-        <select id="customerId" [(ngModel)]="customerId" class="form-input">
-          <option value="" disabled>Select a customer&hellip;</option>
-          @for (customer of availableCustomers(); track customer.id) {
-            <option [value]="customer.id">{{ customer.name }}</option>
-          }
-        </select>
+        <app-custom-select
+          [(ngModel)]="customerId"
+          [options]="availableCustomers()"
+          placeholder="Select a customer..."
+          ariaLabel="Select customer"
+        ></app-custom-select>
       </div>
 
       <!-- Assign Team Members Field (create only — existing projects manage members from the Team tab) -->

@@ -20,13 +20,17 @@ import {
   CASE_STATUSES,
   type CaseView,
 } from '../../core/services/cases.service';
+import {
+  CustomSelectComponent,
+  type SelectOptionItem,
+} from '../../core/components/custom-select/custom-select.component';
 
 export type AssignedSubTab = 'tasks' | 'cases';
 
 @Component({
   standalone: true,
   selector: 'app-tasks-page',
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [CommonModule, FormsModule, RouterModule, CustomSelectComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './task.page.html',
   styleUrls: ['./task.page.scss'],
@@ -78,6 +82,21 @@ export class TasksPageComponent implements OnInit {
     const names = new Set(this.tasks().map((t) => t.priority).filter(Boolean));
     return [...names].sort((a, b) => a.localeCompare(b));
   });
+
+  readonly caseSelectOptions = computed<SelectOptionItem[]>(() => [
+    { value: '', label: 'All Parent Cases' },
+    ...this.availableCases().map((c) => ({ value: c.id, label: c.title })),
+  ]);
+
+  readonly taskStatusSelectOptions = computed<SelectOptionItem[]>(() => [
+    { value: '', label: 'All Statuses' },
+    ...this.taskStatuses.map((s) => ({ value: s.id, label: s.name })),
+  ]);
+
+  readonly taskPrioritySelectOptions = computed<SelectOptionItem[]>(() => [
+    { value: '', label: 'All Priorities' },
+    ...this.availableTaskPriorities().map((p) => ({ value: p, label: p })),
+  ]);
 
   readonly filteredTasks = computed<TaskView[]>(() => {
     const query = this.taskSearchQuery().toLowerCase().trim();
@@ -134,6 +153,26 @@ export class TasksPageComponent implements OnInit {
     const types = new Set(this.cases().map((c) => c.type).filter(Boolean));
     return [...types].sort((a, b) => a.localeCompare(b));
   });
+
+  readonly projectSelectOptions = computed<SelectOptionItem[]>(() => [
+    { value: '', label: 'All Projects' },
+    ...this.availableProjects().map((p) => ({ value: p.id, label: p.name })),
+  ]);
+
+  readonly caseStatusSelectOptions = computed<SelectOptionItem[]>(() => [
+    { value: '', label: 'All Statuses' },
+    ...this.caseStatuses.map((s) => ({ value: s.id, label: s.name })),
+  ]);
+
+  readonly caseTypeSelectOptions = computed<SelectOptionItem[]>(() => [
+    { value: '', label: 'All Types' },
+    ...this.availableCaseTypes().map((t) => ({ value: t, label: t })),
+  ]);
+
+  readonly casePrioritySelectOptions = computed<SelectOptionItem[]>(() => [
+    { value: '', label: 'All Priorities' },
+    ...this.availableCasePriorities().map((p) => ({ value: p, label: p })),
+  ]);
 
   readonly filteredCases = computed<CaseView[]>(() => {
     const query = this.caseSearchQuery().toLowerCase().trim();

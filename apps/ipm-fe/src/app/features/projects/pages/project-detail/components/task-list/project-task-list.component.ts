@@ -4,11 +4,15 @@ import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { CasesService, CASE_STATUSES, type CaseView } from '../../../../../../core/services/cases.service';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import {
+  CustomSelectComponent,
+  type SelectOptionItem,
+} from '../../../../../../core/components/custom-select/custom-select.component';
 
 @Component({
   standalone: true,
   selector: 'project-task-list',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, CustomSelectComponent],
   templateUrl: './project-task-list.component.html',
   styleUrl: './project-task-list.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -24,6 +28,11 @@ export class ProjectTaskListComponent implements OnInit {
   cases: CaseView[] = [];
   sortBy: 'status' | 'priority' | 'date' = 'status';
   readonly statusOrder = CASE_STATUSES.map((s) => s.id);
+  readonly sortOptions: SelectOptionItem[] = [
+    { value: 'status', label: 'Status' },
+    { value: 'priority', label: 'Priority' },
+    { value: 'date', label: 'Due Date' },
+  ];
 
   ngOnInit(): void {
     this.casesService.cases$

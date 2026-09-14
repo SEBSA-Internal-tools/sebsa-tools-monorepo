@@ -12,6 +12,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { UsersService } from '../../../../../core/services/users.service';
 import { ProjectsService } from '../../../services/projects.service';
+import { CustomSelectComponent } from '../../../../../core/components/custom-select/custom-select.component';
 import type { ProjectRole, UserSummary } from '@sebsa-pm-tool/shared-models';
 
 export type AssignedUser = UserSummary;
@@ -24,7 +25,7 @@ export interface AssignUserFormData {
 @Component({
   standalone: true,
   selector: 'assign-user-modal',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, CustomSelectComponent],
   templateUrl: './assign-user-modal.component.html',
   styleUrl: './assign-user-modal.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
