@@ -63,7 +63,6 @@ export function TaskFilterBar({
 
   return (
     <div className="flex w-full flex-col gap-3">
-      {/* Row 1: Full-width modern search input */}
       <div className="w-full">
         <SearchField
           value={filters.search}
@@ -75,7 +74,6 @@ export function TaskFilterBar({
         />
       </div>
 
-      {/* Row 2: Filter dropdown cards and Reset action */}
       <div
         className={cn(
           'grid w-full gap-3',

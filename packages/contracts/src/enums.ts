@@ -11,7 +11,6 @@ import { z } from 'zod';
 
 /* -------------------------------------------------------------------------- */
 /* Roles — additive. A user holds a SET of these, never a single value.        */
-/* Wireframes show one user as "Developer • Reviewer • Admin" simultaneously.  */
 /* -------------------------------------------------------------------------- */
 export const ROLES = ['Developer', 'Reviewer', 'Admin'] as const;
 export const roleSchema = z.enum(ROLES);

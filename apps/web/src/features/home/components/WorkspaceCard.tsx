@@ -37,10 +37,6 @@ export function WorkspaceCard({ workspace, to }: { workspace: WorkspaceKey; to: 
          * shorter card; at narrower widths they wrap onto separate rows and the
          * mismatch never showed.
          */
-        /*
-         * Borderless base with raised elevation, enhanced with a smooth lift,
-         * refined shadow depth, and subtle border highlight on hover.
-         */
         'group relative flex h-full flex-col overflow-hidden rounded-card bg-surface shadow-card-raised',
         'border border-transparent transition-all duration-300 ease-out',
         'hover:-translate-y-1.5 hover:border-line hover:shadow-card-raised-hover',
@@ -49,7 +45,6 @@ export function WorkspaceCard({ workspace, to }: { workspace: WorkspaceKey; to: 
         'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600',
       )}
     >
-      {/* Accent rule along the top edge, expanding smoothly on hover */}
       <span
         className={cn(
           'absolute inset-x-0 top-0 h-1 transition-all duration-300 ease-out group-hover:h-1.5',

@@ -148,7 +148,6 @@ export function LoginPage({ onSignedIn }: { onSignedIn: () => void }) {
     // `h-dvh` + `overflow-hidden`: a login screen should never scroll. `dvh`
     // rather than `vh` so mobile browser chrome does not create hidden overflow.
     <div className="grid h-dvh overflow-hidden lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
-      {/* ------------------------------------------------ brand panel (left) */}
       <section className="relative isolate hidden flex-col justify-between overflow-hidden bg-brand-gradient-deep p-10 text-white lg:flex xl:p-14">
         <PanelDecoration />
 
@@ -225,7 +224,6 @@ export function LoginPage({ onSignedIn }: { onSignedIn: () => void }) {
         </p>
       </section>
 
-      {/* -------------------------------------------------- sign-in (right) */}
       {/* Scrolls INTERNALLY on a short viewport rather than clipping the submit
           button — a scrollbar on a 500px-tall window beats an unreachable CTA. */}
       <section className="flex flex-col justify-center overflow-y-auto bg-canvas px-5 py-8 sm:px-8">
@@ -307,13 +305,6 @@ export function LoginPage({ onSignedIn }: { onSignedIn: () => void }) {
           >
             {content.form.ssoButton}
           </Button>
-
-          {/* The password is spelled out in content rather than imported from
-              `mocks/`, which application code must not depend on. A test in
-              `mocks/credentials.test.ts` asserts the two stay in step. */}
-          {/* <p className="mt-7 rounded-control border border-line bg-surface px-3 py-2 text-center text-xs text-ink-500">
-            {content.demoHint}
-          </p> */}
         </div>
       </section>
     </div>
