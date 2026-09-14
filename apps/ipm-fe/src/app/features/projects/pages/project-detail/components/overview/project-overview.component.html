@@ -9,7 +9,7 @@
         <span class="material-symbols-outlined">task_alt</span>
       </div>
       <div class="kpi-body">
-        <span class="kpi-value">{{ metrics()?.totalCases ?? 0 }}</span>
+        <span class="kpi-value">{{ metrics().totalCases }}</span>
         <span class="kpi-label">Total Tasks</span>
       </div>
     </div>
@@ -20,7 +20,7 @@
         <span class="material-symbols-outlined">category</span>
       </div>
       <div class="kpi-body">
-        <span class="kpi-value">{{ metrics()?.functionalCases ?? 0 }}</span>
+        <span class="kpi-value">{{ metrics().functionalCases }}</span>
         <span class="kpi-label">Functional Tasks</span>
       </div>
     </div>
@@ -31,7 +31,7 @@
         <span class="material-symbols-outlined">engineering</span>
       </div>
       <div class="kpi-body">
-        <span class="kpi-value">{{ metrics()?.technicalCases ?? 0 }}</span>
+        <span class="kpi-value">{{ metrics().technicalCases }}</span>
         <span class="kpi-label">Technical Tasks</span>
       </div>
     </div>
@@ -42,7 +42,7 @@
         <span class="material-symbols-outlined">favorite</span>
       </div>
       <div class="kpi-body">
-        <span class="kpi-value">{{ metrics()?.healthPct ?? 100 }}%</span>
+        <span class="kpi-value">{{ metrics().healthPct }}%</span>
         <span class="kpi-label">Project Health</span>
         <span class="health-badge" [class]="healthClass()">{{ healthLabel() }}</span>
       </div>
@@ -263,7 +263,7 @@
       <div class="info-grid">
         <div class="info-item">
           <span class="info-label">Created By</span>
-          <span class="info-value">{{ project?.createdBy?.name || 'Unassigned' }}</span>
+          <span class="info-value">{{ project.createdBy.name || 'Unassigned' }}</span>
         </div>
 
         <div class="info-item">
@@ -277,17 +277,17 @@
 
         <div class="info-item">
           <span class="info-label">Type</span>
-          <span class="info-value">{{ (project?.type | titlecase) || 'Standard' }}</span>
+          <span class="info-value">{{ (project.type | titlecase) || 'Standard' }}</span>
         </div>
 
         <div class="info-item">
           <span class="info-label">Last Updated</span>
-          <span class="info-value">{{ project?.updatedAt ? (project.updatedAt | date: 'mediumDate') : 'Recently' }}</span>
+          <span class="info-value">{{ project.updatedAt ? (project.updatedAt | date: 'mediumDate') : 'Recently' }}</span>
         </div>
 
         <div class="info-item">
           <span class="info-label">Customer</span>
-          <span class="info-value">{{ project?.customer?.name || 'Internal' }}</span>
+          <span class="info-value">{{ project.customer.name || 'Internal' }}</span>
         </div>
       </div>
     </div>
