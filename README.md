@@ -1,89 +1,176 @@
-# SEBSA Service Delivery Portal — Frontend
+# SEBSA Service Delivery Portal
 
-A shell hosting several internal applications. The **Code Review Portal** (spec `SPL/OPS/FO-001`)
-is the first; **Delivery** and **Wiki** follow in later phases and are already registered as
-navigable shells so the portal registry stays exercised.
+An Nx monorepo. **`apps/web`** is the frontend shell hosting several internal
+applications — the **Code Review Portal** (spec `SPL/OPS/FO-001`) is the
+first; **Delivery** and **Wiki** follow in later phases and are already
+registered as navigable shells so the portal registry stays exercised.
+**`apps/api`** is an early-stage NestJS scaffold (config module + health
+check only — not yet wired to the frontend). **`apps/web-e2e`** holds the
+Playwright suite, and **`packages/contracts`** / **`packages/types`** are
+shared, framework-free packages consumed by the frontend.
 
 ```bash
 npm install
-npm run dev          # http://localhost:5173 — runs against seeded mock data, no backend needed
-npm run storybook    # http://localhost:6006 — the design system
+npm run dev          # nx run-many -t dev — starts every app with a dev target
+npm run dev:web       # just the frontend — http://localhost:5175, seeded mock data, no backend needed
+npm run dev:api       # just the API scaffold — http://localhost:3000
 ```
 
-No `.env` file is required. Development defaults to mock mode; a production build defaults to
-`live` so fixtures can never ship by accident.
+No `.env` file is required for `apps/web`. Development defaults to mock mode;
+a production build defaults to `live` so fixtures can never ship by accident.
+`apps/api` does need one — see [Environment](#environment).
+
+Nx also builds a project graph from these packages; `npm run graph` (or
+`npx nx graph`) opens an interactive view of what depends on what.
 
 ---
 
 ## Scripts
 
-| Script                            | What it does                                                                           |
-| --------------------------------- | -------------------------------------------------------------------------------------- |
-| `npm run dev`                     | Vite dev server with MSW intercepting `/api/*`                                         |
-| `npm run build`                   | Type-check the whole workspace, then build                                             |
-| `npm run typecheck`               | `tsc -b` across the app and all three packages                                         |
-| `npm run lint` / `lint:fix`       | ESLint flat config, including the architectural boundary rules                         |
-| `npm run format` / `format:check` | Prettier                                                                               |
-| `npm test`                        | Unit and component tests (jsdom)                                                       |
-| `npm run test:coverage`           | Same, with coverage — `**/domain/**` is held to 90%                                    |
-| `npm run test:storybook`          | Every story rendered in Chromium, with accessibility checks that **fail** on violation |
-| `npm run test:e2e`                | Playwright                                                                             |
-| `npm run storybook`               | Component workshop                                                                     |
+Everything is driven through [Nx](https://nx.dev). `nx run-many -t <target>`
+fans a target out to every project that defines it; `nx run <project>:<target>`
+(or `npx nx <target> <project>`) runs it for one project. Build, test, lint
+and typecheck targets are cached by Nx (`nx.json`) — an unchanged project
+replays its last result instead of re-running. `dev` and `serve` are never
+cached.
 
-`window.__resetDb()` restores the seeded mock database from the browser console.
+| Script                            | What it does                                                                                                  |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `npm run dev`                     | `nx run-many -t dev` — Vite dev server (web) + esbuild watch (api)                                            |
+| `npm run dev:web`                 | `nx run @sdp/web:dev` — just the frontend, MSW intercepting `/api/*`                                          |
+| `npm run dev:api`                 | `nx run @sdp/api:dev` — just the NestJS scaffold                                                              |
+| `npm run build`                   | `nx run-many -t build` — type-check and build every project                                                   |
+| `npm run build:web`               | `nx run @sdp/web:build` — `tsc -b` then `vite build`                                                          |
+| `npm run build:api`               | `nx run @sdp/api:build` — esbuild bundle                                                                      |
+| `npm run typecheck`               | `tsc -b` across the root solution (`apps/web`, `apps/web-e2e`, `apps/api`, all packages)                      |
+| `npm run test`                    | `nx run-many -t test` — unit/component tests for every project                                                |
+| `npm run test:web`                | `nx run @sdp/web:test` — Vitest, jsdom, with coverage (`**/domain/**` held to 90%)                            |
+| `npm run test:api`                | `nx run @sdp/api:test` — Vitest e2e config for the API scaffold                                               |
+| `npm run e2e`                     | `nx run @sdp/web-e2e:e2e` — Playwright against the running frontend                                           |
+| `npm run lint` / `lint:fix`       | `nx run-many -t lint` — one ESLint flat config for the whole repo, including the architectural boundary rules |
+| `npm run format` / `format:check` | Prettier, run directly (not through Nx)                                                                       |
+| `npm run graph`                   | `nx graph` — visualize the project dependency graph                                                           |
+
+Inside `apps/web` you can also run its local scripts directly (`npm run dev`,
+`test:watch`, `test:ui`, `preview`, …) — see `apps/web/package.json`.
+`window.__resetDb()` restores the seeded mock database from the browser
+console.
+
+### Running web and api in separate terminals
+
+`npm run dev` runs both apps through one Nx process (`nx run-many -t dev`),
+multiplexing their output into a single terminal. If you'd rather control
+each independently — its own `Ctrl+C`, its own terminal to close — open two
+terminals instead and run:
+
+```bash
+npm run dev:web   # terminal 1 — http://localhost:5175
+npm run dev:api   # terminal 2 — http://localhost:3000
+```
+
+### Stopping a stuck dev server
+
+`apps/web/vite.config.ts` sets `strictPort: true` on purpose: if port 5175 is
+already taken, Vite fails immediately with `Port 5175 is already in use`
+rather than silently starting on 5176, which would desync it from the
+Playwright config's `baseURL`. So if a previous `apps/web` dev server didn't
+shut down cleanly (for example `Ctrl+C` not reaching it), free the port by
+hand before starting a new one — same idea applies to `apps/api` on 3000.
+
+**Windows** — find the PID holding the port, then kill it:
+
+```powershell
+Get-NetTCPConnection -LocalPort 5175 -State Listen | Select-Object OwningProcess
+taskkill /F /PID <pid>
+```
+
+(Or open Task Manager, search for the `node.exe` process, and end it.)
+
+**macOS/Linux**:
+
+```bash
+lsof -ti tcp:5175 | xargs kill -9
+```
 
 ---
 
 ## Layout
 
 ```
+apps/
+  web/           @sdp/web     — the frontend shell (Vite + React)
+  web-e2e/       @sdp/web-e2e — Playwright specs against apps/web
+  api/           @sdp/api     — NestJS scaffold (config + health check; not yet consumed by web)
 packages/
-  contracts/   @sdp/contracts — Zod schemas for everything crossing the network
-  types/       @sdp/types     — the type-only face of contracts (zero runtime)
-src/
-  app/         providers, root layout, app bar, app footer, guards — the shell
-  routes/      the router tree and the /crp subtree
-  components/
-    ui/        tier 1 — React, Radix, CVA and nothing else
-    common/    tier 2 — app-aware, portal-agnostic
-  features/    app-wide features: auth, home, notifications
-  hooks/       hooks no single feature owns (session, media query, reveal)
-  portals/
-    code-review/
-      components/      this portal's shared, domain-carrying components
-      hooks/           this portal's data hooks
-      features/<name>/ api · components · domain · hooks · routes
-    delivery/  wiki/   Phase 2 and 3 shells
-  lib/         apiClient, queryClient, formatters, session storage, domain rules
-  config/      env, the routes facade, workspaceTheme
-  constants/   routePaths, portals, roles
-  content/     every user-facing string, as JSON
-  mocks/       MSW handlers, seeded database, fixture data
-  services/    mockApiService — demo and test controls for the mock backend
+  contracts/     @sdp/contracts — Zod schemas for everything crossing the network
+  types/         @sdp/types     — the type-only face of contracts (zero runtime)
+docs/            numbered engineering & architecture standards, ADRs
+qa/              manual, spec-traceable test plan and results
 ```
+
+### `apps/web/src`
+
+```
+app/         providers, root layout, app bar, app footer, guards — the shell
+routes/      the router tree and the /crp subtree
+components/
+  ui/        tier 1 — React, Radix, CVA and nothing else
+  common/    tier 2 — app-aware, portal-agnostic
+features/    app-wide features: auth, home, notifications
+hooks/       hooks no single feature owns (session, media query, reveal)
+portals/
+  code-review/
+    components/      this portal's shared, domain-carrying components
+    hooks/           this portal's data hooks
+    features/<name>/ api · components · domain · hooks · routes
+  delivery/  wiki/   Phase 2 and 3 shells
+lib/         apiClient, queryClient, formatters, session storage, domain rules
+config/      env, the routes facade, workspaceTheme
+constants/   routePaths, portals, roles
+content/     every user-facing string, as JSON
+mocks/       MSW handlers, seeded database, fixture data
+services/    mockApiService — demo and test controls for the mock backend
+```
+
+### `apps/api/src`
+
+```
+config/                       env schema and typed configuration factory
+common/
+  interceptors/                cross-cutting request/response concerns (logging)
+  filters/                     exception handling
+modules/
+  health/                      the only feature module so far — a health check endpoint
+```
+
+This is a Phase 7 scaffold: `AppModule` wires up `ConfigModule` and
+`HealthModule` and nothing else yet. There is no database integration,
+authentication, or business logic here, and `apps/web` does not call it.
+
+There is no `packages/ui` and no `src/shared`. Both appeared in an earlier
+draft of this README and never existed on disk.
 
 ---
 
 ## The rules that matter
+
+These apply to `apps/web`, the only app with real business logic today.
 
 ### Three component tiers
 
 The distinction is **what a component is allowed to know**, and it is enforced by ESLint rather
 than by convention.
 
-| Tier            | Lives in                          | May import                                  | Example                                       |
-| --------------- | --------------------------------- | ------------------------------------------- | --------------------------------------------- |
-| Design system   | `src/components/ui`               | react, radix, cva, lucide                   | `Button`, `Dialog`, `Select`                  |
-| App composition | `src/components/common`           | tier 1, `config`, `content`, `hooks`, `lib` | `DataTable`, `PageHeader`, `Skeleton`         |
-| Portal          | `src/portals/<portal>/components` | tiers 1–2, plus that portal's domain        | `badges`, `taskColumns`, `ReviewCycleHistory` |
+| Tier            | Lives in                                   | May import                                  | Example                                       |
+| --------------- | ------------------------------------------ | ------------------------------------------- | --------------------------------------------- |
+| Design system   | `apps/web/src/components/ui`               | react, radix, cva, lucide                   | `Button`, `Dialog`, `Select`                  |
+| App composition | `apps/web/src/components/common`           | tier 1, `config`, `content`, `hooks`, `lib` | `DataTable`, `PageHeader`, `Skeleton`         |
+| Portal          | `apps/web/src/portals/<portal>/components` | tiers 1–2, plus that portal's domain        | `badges`, `taskColumns`, `ReviewCycleHistory` |
 
 The decision is made by the **import list**, not by where a file currently sits. `DataTable` renders
 whatever columns it is given, so it is tier 2; `taskColumns` names Task, Review and Rank, so it is
-not. Tier 2 may not import a portal, and `src/app` may not import a portal at all — that is what
-lets Delivery and Wiki be built without depending on Code Review.
-
-There is no `packages/ui` and no `src/shared`. Both appeared in an earlier draft of this README and
-never existed on disk.
+not. Tier 2 may not import a portal, and `apps/web/src/app` may not import a portal at all — that is
+what lets Delivery and Wiki be built without depending on Code Review.
 
 ### `domain/` is React-free, and lint enforces it
 
@@ -98,10 +185,10 @@ task type's question count fails the build.
 
 ### Contracts are the single source of truth
 
-`@sdp/contracts` describes what crosses the network. `lib/apiClient` validates responses against it
-and the MSW handlers validate requests against it, so contract drift fails loudly in development
-rather than shipping. Form schemas live in the owning feature's `domain/` and are built by
-`.pick()`/`.extend()` from a contract — never by redeclaring the shape.
+`@sdp/contracts` describes what crosses the network. `apps/web/src/lib/apiClient` validates
+responses against it and the MSW handlers validate requests against it, so contract drift fails
+loudly in development rather than shipping. Form schemas live in the owning feature's `domain/` and
+are built by `.pick()`/`.extend()` from a contract — never by redeclaring the shape.
 
 ### Authorization is decided by the server, even in mock mode
 
@@ -109,25 +196,29 @@ The MSW handlers check roles and ownership and return real 401/403/409 responses
 exclusion, concurrent task pick, and admin-only deletion are enforced there. The UI's role gating
 shapes what a user sees; it does not secure anything.
 
-### Strings live in `src/content`
+### Strings live in `apps/web/src/content`
 
 Every user-facing string is JSON, so the specification's exact error wording can be asserted in
 tests rather than retyped into JSX — and so adopting i18n later is a change to one file.
 
 ### Colour is computed, not chosen
 
-The categorical chart palette in `src/styles/index.css` was validated for lightness band, chroma floor,
-colourblind separation and contrast. The obvious choice — reusing the violet and blue semantic
-tokens — puts those two hues 0.4 ΔE apart under deuteranopia. Every chart also carries a legend with
-counts and percentages, so colour is never the sole encoding.
+The categorical chart palette in `apps/web/src/styles/index.css` was validated for lightness band,
+chroma floor, colourblind separation and contrast. The obvious choice — reusing the violet and blue
+semantic tokens — puts those two hues 0.4 ΔE apart under deuteranopia. Every chart also carries a
+legend with counts and percentages, so colour is never the sole encoding.
 
-Storybook runs accessibility checks at `error` severity. Several contrast failures in this codebase
-were found that way, not by inspection: white on `success-500` is 3.3:1, white on `warning-500` is
-2.2:1, and dimming tinted text with `opacity` pushed every feedback tone below 4.5:1.
+Storybook accessibility checks (previously run in CI) surfaced several contrast failures that way,
+not by inspection: white on `success-500` is 3.3:1, white on `warning-500` is 2.2:1, and dimming
+tinted text with `opacity` pushed every feedback tone below 4.5:1.
 
 ---
 
 ## Environment
+
+### `apps/web`
+
+No `.env` file exists or is needed — mock mode is the dev default.
 
 | Variable               | Default                          | Purpose                                    |
 | ---------------------- | -------------------------------- | ------------------------------------------ |
@@ -136,18 +227,32 @@ were found that way, not by inspection: white on `success-500` is 3.3:1, white o
 | `VITE_APP_NAME`        | SEBSA Service Delivery Portal    |                                            |
 | `VITE_ENABLE_DEVTOOLS` | on in dev                        | React Query devtools and the user switcher |
 
-See `.env.example`. Node 22 or newer is required (Vite 8).
+### `apps/api`
+
+Copy `apps/api/.env.example` to `apps/api/.env` and fill in real values. This
+is a separate process from `apps/web` and MSW is not part of it.
+
+| Variable       | Example                                         | Purpose                     |
+| -------------- | ----------------------------------------------- | --------------------------- |
+| `NODE_ENV`     | `development`                                   |                             |
+| `PORT`         | `3000`                                          | HTTP listen port            |
+| `DATABASE_URL` | `postgresql://user:password@localhost:5432/sdp` | Not yet wired to any module |
+
+Node 22 or newer is required (Vite 8).
 
 ---
 
 ## Working on it
 
-Adding a portal: add its segment to `src/constants/routePaths.ts` and mount it in
-`src/routes/index.tsx`. `/delivery` and `/wiki` are already there as one lazy route each — copy
-either. The shell needs no other change.
+See [`docs/`](./docs) for the full engineering and architecture standards —
+start with [`docs/README.md`](./docs/README.md).
 
-Adding a feature: create `features/<name>/{api,components,domain,hooks,routes}`. Put the rules in
-`domain/` first and test them there; the components that follow become thin.
+Adding a portal: add its segment to `apps/web/src/constants/routePaths.ts` and mount it in
+`apps/web/src/routes/index.tsx`. `/delivery` and `/wiki` are already there as one lazy route each —
+copy either. The shell needs no other change.
+
+Adding a feature: create `apps/web/src/features/<name>/{api,components,domain,hooks,routes}`. Put
+the rules in `domain/` first and test them there; the components that follow become thin.
 
 Adding a component: pick the tier from its import list, using the table above. Start inside the
 feature that needs it and promote only when a second consumer actually exists — promoting early is

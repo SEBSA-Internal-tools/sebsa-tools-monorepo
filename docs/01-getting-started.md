@@ -21,7 +21,7 @@ Check with `node --version`. If you use `nvm`, run `nvm use 22`.
 
 ```bash
 git clone <repository-url>
-cd FE_Repo_SDP
+cd Repo_SDP
 npm install
 npm run dev
 ```

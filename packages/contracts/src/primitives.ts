@@ -23,7 +23,6 @@ export const hexColorSchema = z
   .string()
   .regex(/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, "Must be a hex colour such as #4f46e5");
 
-/** Non-empty display string, trimmed. */
 export const nonEmptyStringSchema = z.string().trim().min(1);
 
 /** Monotonic integer used for stable ordering of admin-managed lists. */

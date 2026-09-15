@@ -9,10 +9,7 @@ import {
   MAX_FEEDBACK_SUMMARY_CHARS,
 } from './enums.js';
 
-/* -------------------------------------------------------------------------- */
-/* General Check — spec §3.1, 13 fixed questions                               */
-/* -------------------------------------------------------------------------- */
-
+// General Check — spec §3.1, 13 fixed questions.
 export const generalCheckQuestionSchema = z.object({
   id: idSchema,
   text: z.string().min(1),
@@ -26,10 +23,7 @@ export const generalCheckEntrySchema = z.object({
 });
 export type GeneralCheckEntry = z.infer<typeof generalCheckEntrySchema>;
 
-/* -------------------------------------------------------------------------- */
-/* Screenshots — spec §2.9.2.6                                                 */
-/* -------------------------------------------------------------------------- */
-
+// Screenshots — spec §2.9.2.6.
 export const reviewScreenshotSchema = z.object({
   id: idSchema,
   fileName: z.string().min(1),
@@ -46,10 +40,7 @@ export const reviewScreenshotSchema = z.object({
 });
 export type ReviewScreenshot = z.infer<typeof reviewScreenshotSchema>;
 
-/* -------------------------------------------------------------------------- */
-/* Review — one row per cycle                                                  */
-/* -------------------------------------------------------------------------- */
-
+// Review — one row per cycle.
 /** The three Detailed Review Findings text areas from screen 12, §3.2. */
 export const reviewFindingsSchema = z.object({
   incorrectCode: z.string(),
@@ -105,10 +96,7 @@ export const reviewDraftSchema = z.object({
 });
 export type ReviewDraft = z.infer<typeof reviewDraftSchema>;
 
-/* -------------------------------------------------------------------------- */
-/* Issue responses — the developer's reply to each finding (spec §1.5 p.11)    */
-/* -------------------------------------------------------------------------- */
-
+// Issue responses — the developer's reply to each finding (spec §1.5 p.11).
 export const issueResponseRecordSchema = z.object({
   id: idSchema,
   taskId: idSchema,
@@ -132,10 +120,7 @@ export const issueResponseDraftSchema = z.object({
 });
 export type IssueResponseDraft = z.infer<typeof issueResponseDraftSchema>;
 
-/* -------------------------------------------------------------------------- */
-/* Cycle history — screen 14 and the developer's Review Feedback History       */
-/* -------------------------------------------------------------------------- */
-
+// Cycle history — screen 14 and the developer's Review Feedback History.
 /** One past cycle, newest first (spec §1.5 p.11: descending order). */
 export const reviewHistoryEntrySchema = reviewSchema.extend({
   responses: z.array(issueResponseRecordSchema),

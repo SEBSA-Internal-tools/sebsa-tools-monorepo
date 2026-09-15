@@ -3,7 +3,7 @@
 ## Repository root
 
 ```
-FE_Repo_SDP/
+Repo_SDP/
   .husky/               pre-commit hook (lint-staged)
   .storybook/           Storybook config, and the preview that loads the real
                         stylesheet so stories render styled
