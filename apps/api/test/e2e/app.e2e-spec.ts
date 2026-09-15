@@ -5,6 +5,7 @@ import { Test } from '@nestjs/testing';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import { AppModule } from '../../src/app.module.ts';
+import { PrismaService } from '../../src/prisma/prisma.service.js';
 
 interface HealthResponse {
   status: string;
@@ -18,7 +19,10 @@ describe('App (e2e)', () => {
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(PrismaService)
+      .useValue({ $connect: () => Promise.resolve(), $disconnect: () => Promise.resolve() })
+      .compile();
 
     app = moduleRef.createNestApplication();
     app.setGlobalPrefix('api');
@@ -40,5 +44,9 @@ describe('App (e2e)', () => {
     // were stripped, Nest could not have resolved ConfigService here at all
     // and this request would never have reached a response.
     expect(body.environment).toBe('test');
+  });
+
+  it('keeps domain endpoints behind the global JWT guard', async () => {
+    await request(app.getHttpServer() as Server).get('/api/users').expect(401);
   });
 });

@@ -658,6 +658,7 @@ export default tseslint.config(
       'apps/web-e2e/playwright.config.ts',
       'apps/web-e2e/src/**/*.ts',
       'apps/api/vitest.e2e.config.ts',
+      'apps/api/vitest.config.ts',
     ],
     languageOptions: {
       globals: globals.node,

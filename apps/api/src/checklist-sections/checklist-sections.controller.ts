@@ -1,0 +1,66 @@
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+} from '@nestjs/common';
+import {
+  ApiCreatedResponse,
+  ApiNoContentResponse,
+  ApiOkResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import { ChecklistSectionsService } from './checklist-sections.service.js';
+import { CreateChecklistSectionDto } from './dto/create-checklist-section.dto.js';
+import { UpdateChecklistSectionDto } from './dto/update-checklist-section.dto.js';
+import { Roles } from '../auth/decorators/roles.decorator.js';
+
+@ApiTags('Checklist Sections')
+@Controller('checklist-sections')
+export class ChecklistSectionsController {
+  constructor(private readonly checklistSections: ChecklistSectionsService) {}
+
+  @Get()
+  @ApiOkResponse()
+  findAll() {
+    return this.checklistSections.findAll();
+  }
+
+  @Get(':id')
+  @ApiOkResponse()
+  findOne(@Param('id', ParseUUIDPipe) id: string) {
+    return this.checklistSections.findOne(id);
+  }
+
+  @Post()
+  @Roles('ADMIN')
+  @ApiCreatedResponse()
+  create(@Body() dto: CreateChecklistSectionDto) {
+    return this.checklistSections.create(dto);
+  }
+
+  @Patch(':id')
+  @Roles('ADMIN')
+  @ApiOkResponse()
+  update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateChecklistSectionDto,
+  ) {
+    return this.checklistSections.update(id, dto);
+  }
+
+  @Delete(':id')
+  @Roles('ADMIN')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContentResponse()
+  async remove(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
+    await this.checklistSections.remove(id);
+  }
+}
+
