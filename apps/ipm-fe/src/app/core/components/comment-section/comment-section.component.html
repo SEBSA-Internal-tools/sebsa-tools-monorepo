@@ -8,6 +8,17 @@
 
   <!-- Composer -->
   <div class="composer">
+    <input
+      #fileInput
+      id="comment-file-input"
+      type="file"
+      multiple
+      class="file-input"
+      (change)="onFileSelected($event)"
+      accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.gif,.txt,.csv"
+      [disabled]="isSaving() || isUploadingFiles()"
+    />
+
     <div class="composer-field">
       <textarea
         #bodyInput
@@ -54,16 +65,55 @@
       </p>
     }
 
+    <!-- Selected files display -->
+    @if (selectedFiles().length > 0) {
+      <div class="selected-files">
+        <p class="files-label">Attachments:</p>
+        <div class="files-list">
+          @for (file of selectedFiles(); track file.name; let i = $index) {
+            <div class="file-item">
+              <span class="material-symbols-outlined">attach_file</span>
+              <span class="file-name">{{ file.name }}</span>
+              <span class="file-size">({{ formatFileSize(file.size) }})</span>
+              <button
+                type="button"
+                class="btn-remove"
+                (click)="removeFile(i)"
+                [disabled]="isSaving() || isUploadingFiles()"
+                title="Remove"
+              >
+                <span class="material-symbols-outlined">close</span>
+              </button>
+            </div>
+          }
+        </div>
+      </div>
+    }
+
     <div class="composer-actions">
+      <button
+        type="button"
+        class="btn-attach"
+        (click)="triggerFileInput()"
+        [disabled]="isSaving() || isUploadingFiles()"
+        title="Attach files"
+      >
+        <span class="material-symbols-outlined">attach_file</span>
+      </button>
+
       <span class="char-count">{{ newBody.length }} / {{ maxLength }}</span>
 
       <button
         type="button"
         class="sebsa-btn-primary"
-        [disabled]="!newBody.trim() || isSaving()"
+        [disabled]="!newBody.trim() || isSaving() || isUploadingFiles()"
         (click)="post()"
       >
-        Comment
+        @if (isUploadingFiles()) {
+          <span>Uploading…</span>
+        } @else {
+          <span>Comment</span>
+        }
       </button>
     </div>
   </div>

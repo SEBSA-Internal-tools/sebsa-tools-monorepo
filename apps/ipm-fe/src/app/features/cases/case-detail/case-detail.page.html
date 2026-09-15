@@ -238,6 +238,10 @@
             ></app-activity-feed>
           </div>
 
+          <div class="meta-card">
+            <app-task-attachments targetType="CASE" [targetId]="kase.id"></app-task-attachments>
+          </div>
+
           @if (kase.labels && kase.labels.length > 0) {
             <div class="meta-card">
               <h4 class="meta-heading">

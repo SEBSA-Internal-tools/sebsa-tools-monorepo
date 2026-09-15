@@ -18,6 +18,18 @@ const ADMIN_SYSTEM_ROLES: AuthUser['systemRole'][] = ['ADMIN', 'SUPER_ADMIN'];
 const commentInclude = {
   author: { select: { id: true, name: true, email: true } },
   mentions: { include: { mentionedUser: { select: { id: true, name: true } } } },
+  attachments: {
+    select: {
+      id: true,
+      fileName: true,
+      fileSize: true,
+      mimeType: true,
+      filePath: true,
+      createdAt: true,
+      uploadedBy: { select: { id: true, name: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+  },
 } satisfies Prisma.CommentInclude;
 
 type CommentWithRelations = Prisma.CommentGetPayload<{ include: typeof commentInclude }>;
@@ -345,6 +357,15 @@ export class CommentsService {
       updatedAt: comment.updatedAt.toISOString(),
       canModify:
         comment.authorId === user.id || ADMIN_SYSTEM_ROLES.includes(user.systemRole),
+      attachments: comment.attachments?.map((a) => ({
+        id: a.id,
+        fileName: a.fileName,
+        fileSize: a.fileSize,
+        mimeType: a.mimeType,
+        filePath: a.filePath,
+        uploadedBy: a.uploadedBy,
+        createdAt: a.createdAt.toISOString(),
+      })),
     };
   }
 

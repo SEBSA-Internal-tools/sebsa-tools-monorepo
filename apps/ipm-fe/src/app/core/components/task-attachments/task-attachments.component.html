@@ -1,0 +1,69 @@
+<div class="task-attachments">
+  <div class="attachments-header">
+    <h3 class="section-heading">
+      <span class="material-symbols-outlined">attach_file</span>
+      Attachments
+      @if (attachments().length > 0) {
+        <span class="count-badge">{{ attachments().length }}</span>
+      }
+    </h3>
+  </div>
+
+  @if (isLoading()) {
+    <div class="loading-state">
+      <span class="loader"></span>
+      <p>Loading attachments…</p>
+    </div>
+  } @else if (attachments().length > 0) {
+    <div class="attachments-list">
+      @for (attachment of attachments(); track attachment.id) {
+        <div class="attachment-item">
+          <div class="attachment-icon">
+            <span class="material-symbols-outlined">{{ getFileIcon(attachment.mimeType) }}</span>
+          </div>
+
+          <div class="attachment-info">
+            <div class="attachment-name">
+              <button
+                type="button"
+                class="file-link"
+                (click)="downloadFile(attachment)"
+                [title]="attachment.fileName"
+              >
+                {{ attachment.fileName }}
+              </button>
+            </div>
+            <div class="attachment-meta">
+              <span class="file-size">{{ formatFileSize(attachment.fileSize) }}</span>
+              <span class="meta-dot">·</span>
+              <span class="upload-date">{{ formatDate(attachment.createdAt) }}</span>
+              <span class="meta-dot">·</span>
+              <span class="uploaded-by">by {{ attachment.uploadedBy.name }}</span>
+            </div>
+          </div>
+
+          <div class="attachment-actions">
+            <button
+              type="button"
+              class="btn-download"
+              (click)="downloadFile(attachment)"
+              title="Download"
+            >
+              <span class="material-symbols-outlined">download</span>
+            </button>
+            <button
+              type="button"
+              class="btn-delete"
+              (click)="deleteAttachment(attachment.id, attachment.fileName)"
+              title="Delete"
+            >
+              <span class="material-symbols-outlined">delete</span>
+            </button>
+          </div>
+        </div>
+      }
+    </div>
+  } @else {
+    <p class="empty-state">No attachments yet.</p>
+  }
+</div>

@@ -23,3 +23,4 @@ export * from './lib/comments/comment.models';
 export * from './lib/dashboard/dashboard.models';
 export * from './lib/users/user-profile.models';
 export * from './lib/notifications/notification.models';
+export * from './lib/attachments/attachment.models';
