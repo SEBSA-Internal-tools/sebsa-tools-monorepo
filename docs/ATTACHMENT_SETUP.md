@@ -1,12 +1,13 @@
 # SharePoint Attachment Upload Setup Guide
 
-This document explains how to configure and use the attachment upload feature that integrates with SharePoint.
+This document explains how to configure the **optional** SharePoint backend for the attachment upload feature. By default, no configuration is required — attachments are stored on local disk (see [`LOCAL_UPLOADS_GUIDE.md`](../LOCAL_UPLOADS_GUIDE.md)). Follow this guide only if you want uploads to go to SharePoint instead.
 
 ## Overview
 
-The attachment feature allows users to upload files to task comments, which are then stored in SharePoint under task-specific folders. The folder structure is automatically organized as:
+Users attach files while composing a comment on a task or a case (see [`ATTACHMENTS_IMPLEMENTATION.md`](../ATTACHMENTS_IMPLEMENTATION.md) for the full design). Once `SHAREPOINT_CLIENT_ID` is set, uploads switch from local disk to SharePoint, stored under entity-specific folders:
 ```
 /tasks/{taskId}/{fileName}
+/cases/{caseId}/{fileName}
 ```
 
 ## Prerequisites
@@ -84,7 +85,7 @@ $drive.Id
 
 ## Step 6: Configure Environment Variables
 
-Update your `.env` file with the values collected:
+Update your `.env` file with the values collected (they're commented out by default in `.env.example`):
 
 ```env
 SHAREPOINT_CLIENT_ID=your-app-client-id
@@ -94,9 +95,11 @@ SHAREPOINT_SITE_ID=your-site-id
 SHAREPOINT_DRIVE_ID=your-drive-id
 ```
 
+`AttachmentsService` checks for `SHAREPOINT_CLIENT_ID` on startup: if it's set, every upload goes through `SharePointService`; if not, it uses `LocalStorageService`. Restart the backend after changing this.
+
 ## Step 7: Verify the Backend Module is Imported
 
-Make sure the `AttachmentsModule` is imported in your main application module (`app.module.ts`):
+Make sure the `AttachmentsModule` is imported in your main application module (`app.module.ts`), and that `AttachmentsModule` itself imports `AuthModule` (its controller's `JwtAuthGuard` depends on `JwtService`, which only `AuthModule` provides):
 
 ```typescript
 import { AttachmentsModule } from './attachments/attachments.module';
@@ -114,11 +117,11 @@ export class AppModule {}
 
 1. Start the backend server
 2. Start the frontend development server
-3. Navigate to a task in the application
-4. Scroll to the Comments section
-5. Click the **Attach file** button (📎 icon)
-6. Select a file (PDF, Word, Excel, Images, Text, CSV - max 50MB)
-7. The file should upload and appear in the Attachments section
+3. Navigate to a task or a case in the application
+4. Scroll to the **Comments** section
+5. Click the 📎 **attach** button in the comment composer and pick a file (PDF, Word, Excel, Images, Text, CSV - max 50MB)
+6. Post the comment — the file uploads right after the comment is created
+7. The file shows as a small chip under your comment, and in the "Attachments" card in the sidebar
 
 ## Troubleshooting
 
@@ -133,13 +136,15 @@ export class AppModule {}
 - Ensure the user has access to the SharePoint folder
 
 ### File appears in database but not in SharePoint
-- Check the folder structure in SharePoint - it should exist under `/tasks/{taskId}/`
+- Check the folder structure in SharePoint - it should exist under `/tasks/{taskId}/` or `/cases/{caseId}/`
 - Verify the application's folder creation permissions
 
-### Upload button doesn't appear
-- Ensure `FileUploadComponent` is imported in `CommentSectionComponent`
+### Attach button doesn't appear
 - Check browser console for any JavaScript errors
-- Verify the task ID is being passed correctly
+- Verify the task/case ID is being passed correctly to `CommentSectionComponent`'s `targetId` input
+
+### Downloading a SharePoint-stored file fails
+- This is a known limitation, not a bug: the app's in-app download endpoint only serves locally-stored files. Files uploaded while SharePoint is active must be opened directly in SharePoint. See "Known Limitations" in `ATTACHMENTS_IMPLEMENTATION.md`.
 
 ## Folder Structure in SharePoint
 
@@ -151,8 +156,11 @@ After uploading files, you'll see a structure like:
   │   │   ├── document1.pdf
   │   │   ├── image.jpg
   │   │   └── spreadsheet.xlsx
-  │   ├── 📁 {task-id-2}
-  │   │   └── report.docx
+  │   └── 📁 {task-id-2}
+  │       └── report.docx
+  └── 📁 cases
+      └── 📁 {case-id-1}
+          └── proposal.pdf
 ```
 
 ## Security Considerations
@@ -161,6 +169,7 @@ After uploading files, you'll see a structure like:
 2. **Permissions**: Use the principle of least privilege - only grant required permissions
 3. **File Validation**: The frontend validates file type and size; the backend also validates
 4. **Access Control**: Only the uploader or admins can delete attachments
+5. **Downloads are authenticated**: the download route requires a JWT — the frontend fetches it as a `Blob` through `HttpClient` (not a plain link) so the bearer token is attached
 
 ## API Reference
 
@@ -168,8 +177,8 @@ After uploading files, you'll see a structure like:
 ```
 POST /api/attachments/upload
 Query Parameters:
-  - taskId (required, UUID)
-  - commentId (optional, UUID)
+  - taskId OR caseId (required, exactly one, UUID)
+  - commentId (optional, UUID — set when the file is attached to a specific comment)
 Body: multipart/form-data with 'file' field
 Response: {
   id: string,
@@ -180,6 +189,19 @@ Response: {
   uploadedBy: { id: string, name: string },
   createdAt: string
 }
+```
+
+### List Attachments
+```
+GET /api/attachments/task/:taskId
+GET /api/attachments/case/:caseId
+Response: UploadAttachmentResponse[]
+```
+
+### Download File
+```
+GET /api/attachments/download/:filePath   (filePath URL-encoded)
+Response: raw file bytes with Content-Disposition: attachment
 ```
 
 ### Delete Attachment
@@ -199,12 +221,12 @@ Response: { message: string }
   - Text (`.txt`, `.csv`)
 
 To modify these limits, edit:
-- Frontend: `apps/ipm-fe/src/app/core/components/file-upload/file-upload.component.ts`
-- Backend: `apps/ipm-be/src/app/attachments/attachments.controller.ts`
+- Frontend: `apps/ipm-fe/src/app/core/components/comment-section/comment-section.component.ts` (`onFileSelected`, `isAllowedFileType`)
+- Backend: `apps/ipm-be/src/app/attachments/attachments.controller.ts` (`FileInterceptor` limits)
 
 ## Database Schema
 
-Attachments are stored in the `attachments` table with the following structure:
+Attachments are stored in the `attachments` table:
 ```sql
 CREATE TABLE attachments (
   id UUID PRIMARY KEY,
@@ -217,7 +239,7 @@ CREATE TABLE attachments (
   mimeType VARCHAR(100),
   uploadedById UUID,
   createdAt TIMESTAMP,
-  
+
   -- CHECK constraint ensures exactly one of taskId/caseId/commentId is set
   FOREIGN KEY (taskId) REFERENCES tasks(id) ON DELETE CASCADE,
   FOREIGN KEY (caseId) REFERENCES cases(id) ON DELETE CASCADE,
@@ -226,13 +248,15 @@ CREATE TABLE attachments (
 );
 ```
 
+**Important:** the exactly-one-parent constraint means a comment-attached file's row has `commentId` set and `taskId`/`caseId` left `NULL` — it is *not* also tagged with the task/case directly. To list "all attachments for task X", the backend queries `WHERE taskId = X OR comment.taskId = X`, joining through the comment relation. An earlier version of this feature set both fields together and every comment upload failed with a Postgres `23514` constraint violation — worth knowing if you're extending this code.
+
 ## Common Issues and Solutions
 
 ### Issue: "File type not allowed"
-**Solution**: The frontend restricts file types. Modify the `ALLOWED_TYPES` array in `FileUploadComponent` if you need to support additional types.
+**Solution**: The frontend restricts file types. Modify `isAllowedFileType()` in `CommentSectionComponent` if you need to support additional types.
 
 ### Issue: SharePoint folder not created automatically
-**Solution**: The service attempts to create folders automatically. If this fails, manually create the `/tasks/` folder in SharePoint before uploading.
+**Solution**: The service attempts to create folders automatically. If this fails, manually create the `/tasks/` or `/cases/` folder in SharePoint before uploading.
 
 ### Issue: Cannot delete attachment
 **Solution**: Only the uploader or admins can delete attachments. Make sure you're logged in as the original uploader or an admin.
@@ -243,5 +267,5 @@ CREATE TABLE attachments (
 - [ ] Implement file versioning
 - [ ] Add preview functionality for images and PDFs
 - [ ] Support drag-and-drop upload
-- [ ] Batch upload multiple files
+- [ ] Proxy/redirect downloads for SharePoint-stored files (currently local-storage only)
 - [ ] Add file expiration/retention policies

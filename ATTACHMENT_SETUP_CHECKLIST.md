@@ -1,10 +1,21 @@
 # Attachment Feature Setup Checklist
 
-## ✅ Implementation Complete
+## ✅ Implementation Status
 
-All code has been written and integrated. The backend is running successfully.
+Code is complete and working for both **tasks and cases** using **local disk storage** by default — no setup required to try it out. SharePoint is an optional swap-in backend; follow the steps below only if you want files to land in SharePoint instead of `/uploads`.
 
-## 📋 Required Setup Steps
+## 🧪 Try It Now (no setup needed)
+
+1. Backend running (`npx nx serve ipm-be`), frontend running (`npx nx serve ipm-fe` or `ng serve`)
+2. Open a task or a case detail page
+3. Scroll to the **Comments** section
+4. Click the 📎 attach button in the comment composer, pick a file, then post the comment
+5. The file appears as a small chip under your comment — click it to download
+6. Scroll to the **Attachments** card in the sidebar (below Activity) to see every attachment for that task/case, with download and delete actions
+
+That's it — files land in `/uploads/tasks/{taskId}/...` or `/uploads/cases/{caseId}/...`, which is git-ignored. See `LOCAL_UPLOADS_GUIDE.md` for details.
+
+## 📋 Optional: Switch to SharePoint
 
 ### Step 1: Azure AD Configuration
 - [ ] Go to [Azure Portal](https://portal.azure.com)
@@ -51,7 +62,7 @@ Get-PnPList -Identity "Documents" | Select Id  # SHAREPOINT_DRIVE_ID
 
 ### Step 5: Configure Environment Variables
 - [ ] Open `.env` file
-- [ ] Add or update SharePoint section:
+- [ ] Uncomment and fill in the SharePoint section:
 ```env
 SHAREPOINT_CLIENT_ID=<your-app-id>
 SHAREPOINT_CLIENT_SECRET=<your-client-secret>
@@ -60,60 +71,61 @@ SHAREPOINT_SITE_ID=<your-site-id>
 SHAREPOINT_DRIVE_ID=<your-drive-id>
 ```
 - [ ] Save the file
-- [ ] Restart the backend server
+- [ ] Restart the backend server (SharePoint vs. local storage is decided once, on startup, from whether `SHAREPOINT_CLIENT_ID` is set)
 
-### Step 6: Verify Setup
-- [ ] Backend is running (already confirmed ✅)
-- [ ] Frontend is running (if not: `ng serve` in `apps/ipm-fe`)
-- [ ] Open browser to http://localhost:4200
-- [ ] Navigate to any task
-- [ ] Scroll to Comments section
-- [ ] Look for **attachment icon (📎)** button
-
-### Step 7: Test Upload
-- [ ] Click attachment button
-- [ ] Select a file (PDF, Word, Excel, Image, Text, or CSV)
-- [ ] Wait for upload to complete
-- [ ] Verify file appears in "Attachments:" section below comment
-- [ ] Log into SharePoint
-- [ ] Navigate to the configured library
+### Step 6: Test Upload Against SharePoint
+- [ ] Attach a file to a comment on a task, post it
+- [ ] Confirm it uploads without error
+- [ ] Log into SharePoint, navigate to the configured library
 - [ ] Verify `/tasks/{taskId}/` folder was created with your file
+- [ ] Repeat on a case → verify `/cases/{caseId}/` folder
 
-## 🧪 Testing Scenarios
+> ⚠️ **Known limitation:** the in-app download button/chip only works for locally-stored files. Once SharePoint is active, open uploaded files directly in SharePoint rather than via the app's download action (it will return an error explaining this).
+
+## 🧪 Testing Scenarios (either storage backend)
 
 ### Basic Upload
-- [ ] Upload a PDF file
-- [ ] Verify it appears in comments section
-- [ ] Check SharePoint folder
+- [ ] Attach a file while writing a comment, post it
+- [ ] File chip appears under the comment
+- [ ] File appears in the sidebar Attachments list
 
 ### Multiple Files
-- [ ] Upload multiple files to same task
-- [ ] Verify all appear in attachments list
-- [ ] Check file sizes are correct
+- [ ] Attach multiple files to one comment before posting
+- [ ] All appear as separate chips under that comment
+- [ ] All appear in the sidebar attachments list
 
-### File Type Validation
-- [ ] Try uploading .exe file → Should show error
-- [ ] Try uploading file > 50MB → Should show error
-- [ ] Try uploading supported type → Should succeed
+### On a Case (not just a Task)
+- [ ] Repeat the basic upload flow on a case detail page
+- [ ] Confirm the sidebar Attachments card shows case attachments correctly
+
+### File Type / Size Validation
+- [ ] Try attaching a `.exe` file → rejected with a toast, before upload starts
+- [ ] Try attaching a file > 50MB → rejected with a toast
+- [ ] Try a supported type (PDF, Word, Excel, PNG/JPEG/GIF, txt, csv) → succeeds
 
 ### Permissions
-- [ ] Upload file as User A
-- [ ] Try to delete as User B → Should not have delete button
-- [ ] Try to delete as User A → Should work
-- [ ] Try to delete as Admin → Should work
+- [ ] Upload a file as User A
+- [ ] As User B, confirm there's no delete option for that attachment in the sidebar
+- [ ] As User A (or an admin), confirm delete works
 
-### Error Handling
-- [ ] Disable SHAREPOINT_CLIENT_ID temporarily
-- [ ] Try to upload → Should show clear error
-- [ ] Re-enable and verify recovery
+### Download
+- [ ] Click a comment's attachment chip → file downloads
+- [ ] Click the sidebar's download icon for the same file → downloads too
+- [ ] Confirm no 401 in the network tab (this was a real bug: the original implementation used a plain `<a href>` which carries no auth token against the guarded download route — now fixed to fetch as an authenticated blob)
 
 ## 🐛 Troubleshooting
 
-### "Cannot find module" errors in build
-**Solution:** All TypeScript errors fixed. Rebuild with `npx nx serve ipm-be`
+### "Nest can't resolve dependencies (JwtService)" on startup
+**Cause:** `AttachmentsModule` didn't import `AuthModule`. **Fixed** — `AttachmentsModule` now imports both `PrismaModule` and `AuthModule`.
 
-### "Nest can't resolve dependencies" error
-**Solution:** Already fixed by importing `AuthModule` in `AttachmentsModule`
+### `GET /api/attachments/task/:taskId` (or `/case/:caseId`) returns 404
+**Cause:** usually a stale backend process still running old compiled code after a route was added. Restart the backend (`npx nx serve ipm-be`) — check `netstat -ano | grep :3000` first if unsure whether one is already running.
+
+### Uploaded file doesn't show up anywhere, but no visible error
+**Cause:** was a real bug — `uploadAttachment` used to set both `taskId` and `commentId` on the same row, which violates the DB's `attachments_exactly_one_parent` CHECK constraint and fails with Postgres error `23514`. **Fixed** — a comment-linked attachment now sets `commentId` only, and the listing queries join through the comment to find its task/case.
+
+### Download does nothing / 401 in console
+**Cause:** was a real bug — the download link used a plain `<a href>` with no auth header against a guarded route, and the backend didn't even have a download endpoint at first. **Fixed** — added `GET /api/attachments/download/:filePath` and switched the frontend to fetch it as an authenticated `Blob` via `HttpClient`.
 
 ### SharePoint upload fails with 404
 - [ ] Verify `SHAREPOINT_SITE_ID` and `SHAREPOINT_DRIVE_ID` are correct
@@ -125,57 +137,27 @@ SHAREPOINT_DRIVE_ID=<your-drive-id>
 - [ ] Re-authenticate with new secret if needed
 - [ ] Verify admin consent was granted
 
-### Files don't appear in SharePoint
-- [ ] Log into SharePoint directly
-- [ ] Check `/tasks/` folder exists
-- [ ] Verify your application account has write access
-- [ ] Check SharePoint recycle bin if files disappeared
-
-### Attachment button doesn't appear
-- [ ] Clear browser cache
-- [ ] Refresh the page
+### Attach button doesn't appear
+- [ ] Clear browser cache / hard refresh
 - [ ] Check browser console for JavaScript errors
-- [ ] Verify you're on a task detail page
+- [ ] Confirm you're looking at the comment composer on a task or case detail page (not inside a reply box — replies don't have their own attach button, only the top-level composer does)
 
 ## 📚 Documentation
 
-- **Complete Setup Guide:** `docs/ATTACHMENT_SETUP.md`
-- **Implementation Details:** `ATTACHMENTS_IMPLEMENTATION.md`
-- **Feature Summary:** This file
-
-## 🚀 What's Working Now
-
-✅ Backend is running  
-✅ File upload endpoint ready  
-✅ Attachment deletion endpoint ready  
-✅ Comment section UI updated  
-✅ Database schema in place  
-
-## ⏭️ What You Need To Do
-
-1. Configure Azure AD (Step 1-3)
-2. Get SharePoint IDs (Step 4)
-3. Update `.env` file (Step 5)
-4. Restart backend
-5. Test file upload (Step 7)
-
-## 📞 Support
-
-If you encounter issues:
-1. Check the troubleshooting section above
-2. Review `docs/ATTACHMENT_SETUP.md` for detailed instructions
-3. Check browser console for client-side errors
-4. Check backend logs for server-side errors
-5. Verify all environment variables are set correctly
+- **Local storage default:** `LOCAL_UPLOADS_GUIDE.md`
+- **SharePoint setup guide:** `docs/ATTACHMENT_SETUP.md`
+- **Full implementation details:** `ATTACHMENTS_IMPLEMENTATION.md`
+- **This file:** setup + testing checklist
 
 ## ✨ Feature Highlights
 
-- **Automatic Organization:** Files grouped by task ID in SharePoint
-- **Smart Permissions:** Only uploaders or admins can delete
-- **Safe Upload:** File type and size validation
-- **User Feedback:** Progress bars and error messages
-- **Responsive Design:** Works on desktop and tablet
+- Files are attached **as part of composing a comment** — no separate upload flow to think about
+- Works identically on **tasks and cases**
+- Each comment shows a small chip for its own attachments; the full list per task/case lives in the sidebar
+- Local storage by default, SharePoint by configuration — same code path either way
+- Downloads are authenticated (no more silent 401s)
+- Only the uploader or an admin can delete
 
 ---
 
-**Status:** ✅ Ready for configuration and testing
+**Status:** ✅ Working end-to-end on local storage. SharePoint is opt-in via `.env`.

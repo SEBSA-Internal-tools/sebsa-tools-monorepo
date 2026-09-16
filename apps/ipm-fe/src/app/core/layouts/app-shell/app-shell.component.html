@@ -268,10 +268,10 @@
             (click)="toggleProfileMenu()"
           >
             <div class="avatar-circle">
-              {{ (authService.currentUser()?.name || 'Hiruni').charAt(0).toUpperCase() }}
+              {{ (authService.currentUser()?.name || 'User').charAt(0).toUpperCase() }}
             </div>
             <div class="user-meta">
-              <span class="user-name">{{ authService.currentUser()?.name || 'Hiruni Wijethilaka' }}</span>
+              <span class="user-name">{{ authService.currentUser()?.name || 'Username' }}</span>
             </div>
             <span class="material-symbols-outlined dropdown-chevron" aria-hidden="true">expand_more</span>
           </button>

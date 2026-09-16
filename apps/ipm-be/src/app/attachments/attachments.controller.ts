@@ -6,6 +6,7 @@ import {
   Get,
   Param,
   Query,
+  Res,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -15,6 +16,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiOperation, ApiTags, ApiConsumes } from '@nestjs/swagger';
 import { AuthUser } from '@sebsa-pm-tool/shared-models';
 import type { Multer } from 'multer';
+import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { AttachmentsService } from './attachments.service';
@@ -62,6 +64,17 @@ export class AttachmentsController {
   @ApiOperation({ summary: 'Get all attachments for a case' })
   async getCaseAttachments(@Param('caseId', ParseUUIDPipe) caseId: string) {
     return this.attachments.getAttachmentsByCase(caseId);
+  }
+
+  @Get('download/:filePath')
+  @ApiOperation({ summary: 'Download an attachment file' })
+  async downloadFile(@Param('filePath') filePath: string, @Res() res: Response) {
+    const { buffer, fileName, mimeType } = await this.attachments.getFileForDownload(filePath);
+    res.set({
+      'Content-Type': mimeType,
+      'Content-Disposition': `attachment; filename="${encodeURIComponent(fileName)}"`,
+    });
+    res.send(buffer);
   }
 
   @Delete(':attachmentId')

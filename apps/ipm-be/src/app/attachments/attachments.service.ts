@@ -157,6 +157,24 @@ export class AttachmentsService {
     }));
   }
 
+  async getFileForDownload(
+    filePath: string,
+  ): Promise<{ buffer: Buffer; fileName: string; mimeType: string }> {
+    const attachment = await this.prisma.attachment.findFirst({ where: { filePath } });
+    if (!attachment) {
+      throw new NotFoundException('Attachment not found');
+    }
+
+    if (!this.useLocalStorage) {
+      throw new BadRequestException(
+        'This file is stored in SharePoint — open it there instead of downloading directly.',
+      );
+    }
+
+    const buffer = this.localStorage.getFileContent(filePath);
+    return { buffer, fileName: attachment.fileName, mimeType: attachment.mimeType };
+  }
+
   async deleteAttachment(attachmentId: string, user: AuthUser): Promise<void> {
     const attachment = await this.prisma.attachment.findUnique({
       where: { id: attachmentId },

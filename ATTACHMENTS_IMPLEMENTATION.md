@@ -1,80 +1,71 @@
 # Attachment Upload Feature - Implementation Summary
 
-**Implementation Date:** September 15, 2026  
-**Feature:** SharePoint attachment uploads integrated with task comments
+**Feature:** File attachments on task and case comments, stored locally by default with optional SharePoint integration.
 
 ## Overview
 
-Users can now attach files to task comments, which are automatically uploaded to SharePoint in a structured folder hierarchy organized by task ID.
+Users attach files while composing a comment (or reply) on a task or a case. Files upload right after the comment is posted, appear as a small chip under that comment, and are also listed in full in an "Attachments" section in the task/case sidebar. Storage backend (local disk vs. SharePoint) is chosen automatically based on configuration — no code changes required to switch.
 
 ## What Was Implemented
 
-### 1. Backend Services
+### 1. Backend Services (`apps/ipm-be/src/app/attachments/`)
 
-#### SharePoint Service (`apps/ipm-be/src/app/attachments/sharepoint.service.ts`)
-- Authenticates with Azure AD using client credentials flow
-- Caches access tokens (refreshed 5 minutes before expiry)
-- Uploads files to SharePoint drive
-- Auto-creates task-specific folders: `/tasks/{taskId}/`
-- Handles folder hierarchy creation
+#### `LocalStorageService`
+- Default storage backend — writes files to `<repo>/uploads/{tasks|cases}/{entityId}/{fileName}` (git-ignored)
+- Reads/deletes files, sanitizes file names, cleans up empty directories on delete
 
-#### Attachments Service (`apps/ipm-be/src/app/attachments/attachments.service.ts`)
-- Orchestrates file upload with SharePoint integration
-- Creates attachment records in PostgreSQL database
-- Manages attachment lifecycle (create, retrieve, delete)
-- Validates permissions (only uploader or admins can delete)
+#### `SharePointService`
+- Used instead of local storage once `SHAREPOINT_CLIENT_ID` is set in the environment
+- Authenticates with Azure AD via client credentials flow, caches the access token (refreshed 5 minutes before expiry)
+- Uploads to a SharePoint drive under `{tasks|cases}/{entityId}/{fileName}`, auto-creating folders as needed
 
-#### Attachments Controller (`apps/ipm-be/src/app/attachments/attachments.controller.ts`)
-- `POST /api/attachments/upload` - Upload file to task
-- `DELETE /api/attachments/:id` - Delete attachment
-- Both endpoints require JWT authentication
+#### `AttachmentsService`
+- Orchestrates upload: verifies the task/case exists, picks the active storage backend, then creates the DB record
+- **Respects the DB's `attachments_exactly_one_parent` CHECK constraint** — an attachment tied to a comment gets `commentId` set only (never `taskId`/`caseId` alongside it); a legacy/direct attachment gets exactly one of `taskId`/`caseId`
+- `getAttachmentsByTask` / `getAttachmentsByCase` — list all attachments for an entity by matching either a direct `taskId`/`caseId` OR via `comment.taskId`/`comment.caseId`, since comment-linked attachments don't carry the parent id directly
+- `getFileForDownload` — looks up an attachment by `filePath` and returns its bytes (local storage only — SharePoint-stored files must be opened in SharePoint)
+- `deleteAttachment` — uploader or admin only
 
-#### Attachments Module (`apps/ipm-be/src/app/attachments/attachments.module.ts`)
-- Exports `AttachmentsModule` for importing into main app
-- Imports: `PrismaModule`, `AuthModule`
-- Integrated into `AppModule`
+#### `AttachmentsController`
+- `POST /api/attachments/upload` — accepts either `taskId` or `caseId` (exactly one required) plus an optional `commentId`, multipart file, 50MB limit
+- `GET /api/attachments/task/:taskId` — all attachments for a task
+- `GET /api/attachments/case/:caseId` — all attachments for a case
+- `GET /api/attachments/download/:filePath` — streams the file back with correct `Content-Type`/`Content-Disposition`
+- `DELETE /api/attachments/:attachmentId`
+- All routes require JWT auth (`JwtAuthGuard`)
 
-### 2. Frontend Components
+#### `AttachmentsModule`
+- Imports `PrismaModule` and `AuthModule` (the latter needed because the controller's guard depends on `JwtService`)
+- Registered in `AppModule`
 
-#### File Upload Component (`apps/ipm-fe/src/app/core/components/file-upload/`)
-- Standalone Angular component with file picker UI
-- Validates file type and size before upload
-- Shows upload progress
-- Emits events for success/error handling
+### 2. Frontend
 
-**Features:**
-- File type validation (PDF, Word, Excel, Images, Text, CSV)
-- File size limit: 50MB
-- Real-time progress bar
-- User-friendly error messages
+#### `AttachmentsService` (`apps/ipm-fe/src/app/core/services/attachments.service.ts`)
+- `uploadAttachment(file, targetType, targetId, commentId?)` — `targetType` is `'TASK' | 'CASE'` (reuses `CommentTargetType`), picks the right query param
+- `getTaskAttachments(taskId)` / `getCaseAttachments(caseId)`
+- `deleteAttachment(attachmentId)`
+- `downloadFile(filePath)` — returns an `Observable<Blob>`, **not** a plain URL. The download route is authenticated, so the file must be fetched through `HttpClient` (which the auth interceptor attaches a bearer token to) rather than a raw `<a href>` click, which carries no auth header at all.
 
-#### Attachments Service (`apps/ipm-fe/src/app/core/services/attachments.service.ts`)
-- HTTP client wrapper for attachment endpoints
-- Handles file upload (multipart/form-data)
-- Manages attachment deletion
+#### Comment composer (`CommentSectionComponent`)
+- File picker lives inline in the composer (📎 button + hidden `<input type="file" multiple>`), not a separate upload button
+- Selected files are listed (with remove buttons) before posting
+- On `post()`, the comment is created first; once it succeeds, each selected file uploads tagged with that comment's id and the entity's own `targetType`/`targetId`
+- Each comment/reply that has attachments renders them as small clickable chips (`📎 filename.ext`) under its text — clicking a chip downloads that file
+- No delete-from-comment UI; attachment lifecycle (viewing the full list, deleting) lives in the sidebar component instead
 
-#### Comment Section Integration
-- Added `FileUploadComponent` to `CommentSectionComponent`
-- Displays upload button in comment composer area
-- Shows attachments section in each comment
-- Delete buttons for attachment management
-- Updated styles for attachment display
+#### `TaskAttachmentsComponent` (`apps/ipm-fe/src/app/core/components/task-attachments/`)
+- Generic despite the name — takes `targetType: CommentTargetType` (defaults to `'TASK'`) and `targetId`, so the same component is reused for both task and case detail pages
+- Lists every attachment for the entity (via the comment-inclusive queries above), with file icon by mime type, size, uploader, upload date, download and delete actions
+- Lives in the sidebar, placed after the Activity section on both `task-detail.page.html` and `case-detail.page.html`
 
 ### 3. Data Models
 
-#### Shared Models
-- `libs/shared-models/src/lib/attachments/attachment.models.ts` - NEW
-  - `AttachmentSummary`
-  - `CreateAttachmentRequest`
-  - `UploadAttachmentResponse`
-
-#### Updated Models
-- `CommentSummary` - Added optional `attachments` array
-- Both include: id, fileName, fileSize, mimeType, filePath, uploadedBy, createdAt
+- `libs/shared-models/src/lib/attachments/attachment.models.ts` — `AttachmentSummary`, `CreateAttachmentRequest`, `UploadAttachmentResponse`
+- `CommentSummary` (`libs/shared-models/src/lib/comments/comment.models.ts`) — has an optional `attachments` array (id, fileName, fileSize, mimeType, filePath, uploadedBy, createdAt), populated by the backend's `commentInclude` query
 
 ### 4. Database Schema
 
-The `Attachment` table already exists in Prisma schema with:
+The `Attachment` table already existed in the Prisma schema:
 ```prisma
 model Attachment {
   id           String   @id @default(uuid())
@@ -87,8 +78,7 @@ model Attachment {
   mimeType     String
   uploadedById String
   createdAt    DateTime @default(now())
-  
-  // Relations
+
   case       Case?    @relation(...)
   task       Task?    @relation(...)
   comment    Comment? @relation(...)
@@ -96,52 +86,47 @@ model Attachment {
 }
 ```
 
-**Indexes:**
-- `caseId`, `taskId`, `commentId` for fast lookups
+**Constraint:** a hand-added CHECK constraint (`attachments_exactly_one_parent`) requires exactly one of `caseId`/`taskId`/`commentId` to be non-null. This drove the design of `uploadAttachment`/`getAttachmentsByTask`/`getAttachmentsByCase` above — an early version of this feature set both `taskId` and `commentId` together and every comment-attached upload failed silently with a Postgres `23514` error until that was fixed.
 
-**Constraints:**
-- CHECK constraint: Exactly one of caseId/taskId/commentId is set
-- Foreign keys with cascade/restrict delete policies
+### 5. API Reference
 
-### 5. API Integration
-
-#### Upload Endpoint
+#### Upload
 ```
-POST /api/attachments/upload?taskId={uuid}&commentId={uuid}
+POST /api/attachments/upload?taskId={uuid}&commentId={uuid}   (or ?caseId={uuid}&commentId={uuid})
 Content-Type: multipart/form-data
+Authorization: Bearer {jwt_token}
+Body: file: File (binary)
 
-Headers:
-  Authorization: Bearer {jwt_token}
-
-Body:
-  file: File (binary)
-
-Response:
+Response 201:
 {
-  id: "uuid",
-  fileName: "document.pdf",
-  fileSize: 1024000,
-  mimeType: "application/pdf",
-  filePath: "tasks/{taskId}/document.pdf",
-  uploadedBy: { id: "user-id", name: "John Doe" },
-  createdAt: "2026-09-15T12:00:00Z"
+  id, fileName, fileSize, mimeType, filePath,
+  uploadedBy: { id, name },
+  createdAt
 }
 ```
 
-#### Delete Endpoint
+#### List
 ```
-DELETE /api/attachments/{attachmentId}
-
-Headers:
-  Authorization: Bearer {jwt_token}
-
-Response:
-{ message: "Attachment deleted successfully" }
+GET /api/attachments/task/:taskId
+GET /api/attachments/case/:caseId
+→ UploadAttachmentResponse[]
 ```
 
-## Configuration Required
+#### Download
+```
+GET /api/attachments/download/:filePath   (filePath URL-encoded, e.g. tasks%2F{taskId}%2Ffile.pdf)
+→ raw file bytes, Content-Disposition: attachment
+```
 
-### Environment Variables (`.env`)
+#### Delete
+```
+DELETE /api/attachments/:attachmentId
+→ { message: string }
+```
+
+## Configuration
+
+### Environment Variables (`.env`) — all optional, local storage is the default
 ```env
 SHAREPOINT_CLIENT_ID=<Azure AD Application ID>
 SHAREPOINT_CLIENT_SECRET=<Azure AD Client Secret>
@@ -149,131 +134,30 @@ SHAREPOINT_TENANT_ID=<Microsoft 365 Tenant ID>
 SHAREPOINT_SITE_ID=<SharePoint Site ID>
 SHAREPOINT_DRIVE_ID=<SharePoint Drive ID>
 ```
-
-### Azure AD Setup
-See `docs/ATTACHMENT_SETUP.md` for complete Azure AD registration steps
-
-## SharePoint Folder Structure
-
-After uploading files, the structure looks like:
-```
-📁 SharePoint Library Root
-├── 📁 tasks/
-│   ├── 📁 550e8400-e29b-41d4-a716-446655440000/
-│   │   ├── 📄 contract.pdf
-│   │   ├── 📄 quote.xlsx
-│   │   └── 📄 design.png
-│   ├── 📁 6ba7b810-9dad-11d1-80b4-00c04fd430c8/
-│   │   └── 📄 report.docx
-```
-
-## Files Modified
-
-### Backend
-- ✅ `apps/ipm-be/src/app/app.module.ts` - Added `AttachmentsModule` import
-- ✅ `apps/ipm-be/src/app/comments/comments.service.ts` - Includes attachments in responses
-
-### Frontend  
-- ✅ `apps/ipm-fe/src/app/core/components/comment-section/comment-section.component.ts` - Added attachment handling
-- ✅ `apps/ipm-fe/src/app/core/components/comment-section/comment-section.component.html` - Added file upload UI & attachment display
-- ✅ `apps/ipm-fe/src/app/core/components/comment-section/comment-section.component.scss` - Added attachment styles
-
-### Shared Models
-- ✅ `libs/shared-models/src/index.ts` - Export attachment models
-- ✅ `libs/shared-models/src/lib/comments/comment.models.ts` - Added attachments to CommentSummary
-
-### Configuration
-- ✅ `.env.example` - Added SharePoint variables
-- ✅ `docs/ATTACHMENT_SETUP.md` - Complete setup guide
+See `docs/ATTACHMENT_SETUP.md` for how to obtain each value, and `LOCAL_UPLOADS_GUIDE.md` for the local-storage default.
 
 ## Security Features
 
-1. **Authentication:** All endpoints require JWT token
-2. **Authorization:** Users can only delete their own attachments (admins can delete any)
-3. **File Validation:**
-   - Type whitelist: PDF, Word, Excel, Images, Text, CSV
-   - Size limit: 50MB
-   - Validated on both frontend and backend
-4. **Token Security:**
-   - Client secret stored in environment variables
-   - Never exposed to frontend
-   - Tokens cached with automatic refresh
+1. All attachment endpoints require a JWT
+2. Only the uploader or an admin (`ADMIN`/`SUPER_ADMIN`) can delete an attachment
+3. File validation on both frontend and backend: type whitelist (PDF, Word, Excel, PNG/JPEG/GIF, plain text, CSV), 50MB size limit
+4. SharePoint client secret lives only in backend env vars, never sent to the frontend
+5. Downloads go through an authenticated blob fetch, not a bare link — the browser never gets a URL that works without a valid session
 
-## Testing Checklist
+## Known Limitations / Follow-ups
 
-- [ ] Backend compiles without errors
-- [ ] SharePoint credentials configured
-- [ ] Navigate to task detail page
-- [ ] Click attachment icon in comments section
-- [ ] Upload a file
-- [ ] Verify file appears in Attachments section
-- [ ] Check SharePoint folder for organized files
-- [ ] Test deleting an attachment
-- [ ] Verify non-uploader cannot delete others' attachments
-
-## Performance Considerations
-
-- **Token Caching:** Reduces Azure AD authentication calls
-- **Folder Creation:** Cached folder paths prevent redundant API calls
-- **Database Indexes:** Fast lookups by taskId, caseId, commentId
-- **File Size Limit:** 50MB prevents excessive bandwidth usage
-
-## Error Handling
-
-### Frontend
-- File type validation with user-friendly messages
-- File size validation before upload
-- Upload progress tracking
-- Toast notifications for success/error
-
-### Backend
-- Missing task validation
-- SharePoint API error handling
-- Database constraint validation
-- Detailed error messages for debugging
-
-## Future Enhancement Opportunities
-
-1. **Virus Scanning:** Integration with antivirus API (Avast, Kaspersky)
-2. **File Preview:** Preview for PDFs and images
-3. **Bulk Upload:** Support multiple files at once
-4. **Drag & Drop:** Drag-and-drop upload interface
-5. **File Versioning:** Track file version history
-6. **Access Logs:** Track who downloaded which files
-7. **Expiration Policies:** Auto-delete old attachments
-8. **Quota Management:** Limit storage per task/project
-9. **Signed URLs:** Direct download links from frontend
+- **Download only works for local storage.** `getFileForDownload` throws for SharePoint-stored files; users must open those directly in SharePoint. Proxying/redirecting SharePoint downloads through the API is a reasonable next step if this becomes a pain point.
+- No virus scanning, file preview, drag-and-drop, versioning, or per-project storage quotas — none of these were requested; call these out if they come up.
 
 ## Troubleshooting
 
-### Backend won't start
-- Check all SharePoint environment variables are set
-- Verify Azure AD credentials are correct
-- Ensure PrismaModule is imported in AttachmentsModule
+### Backend won't start after pulling these changes
+- Confirm `AttachmentsModule` is imported in `AppModule` and that it imports `AuthModule` (the controller's `JwtAuthGuard` needs `JwtService`, which only `AuthModule` provides)
 
-### Upload fails silently
-- Check browser console for errors
-- Verify file meets size/type requirements
-- Ensure task ID is valid
-- Check SharePoint permissions
+### Upload succeeds but nothing shows up for the task/case
+- Check whether the attachment was created with `commentId` set (comment-linked) vs `taskId`/`caseId` directly — `getAttachmentsByTask`/`getAttachmentsByCase` need to query **both** paths (`OR: [{ taskId }, { comment: { taskId } }]`), since a comment-linked row never carries `taskId` itself
+- Check the backend log for a Postgres `23514` constraint violation — that means both a parent id and `commentId` were set on the same insert
 
-### Files not appearing in SharePoint
-- Verify drive ID is correct
-- Check application has `Files.ReadWrite.All` permission
-- Ensure folder creation succeeded (check manual folder in SharePoint)
-
-## Next Steps
-
-1. Set up Azure AD application (see `docs/ATTACHMENT_SETUP.md`)
-2. Configure environment variables in `.env`
-3. Restart backend service
-4. Test file upload functionality
-5. Monitor SharePoint folder for organization
-6. Gather user feedback and iterate
-
-## References
-
-- NestJS File Upload: https://docs.nestjs.com/techniques/file-upload
-- Microsoft Graph API: https://docs.microsoft.com/graph
-- Azure AD Authentication: https://docs.microsoft.com/en-us/azure/active-directory
-- Prisma Schema: https://www.prisma.io/docs/reference/api-reference/prisma-schema-reference
+### Download button/chip does nothing or errors
+- Confirm the request is going through `AttachmentsService.downloadFile()` (an authenticated blob fetch), not a plain anchor `href` — a direct link has no bearer token and will 401 against the guarded route
+- If SharePoint is configured, direct download isn't supported yet (see Known Limitations)

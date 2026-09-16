@@ -4,10 +4,11 @@ By default, attachment uploads are stored in a **local `/uploads` folder** that 
 
 ## ✅ Default Behavior (No Configuration Needed)
 
-When you upload a file:
-1. File is saved to `/uploads/tasks/{taskId}/{fileName}`
-2. File path is stored in database
-3. Attachment appears immediately in the comment
+Files are attached while composing a comment (or reply) on a task or case:
+1. Pick files with the 📎 button in the comment composer
+2. Post the comment — files upload right after the comment is created
+3. File path is stored in the database, linked to that comment
+4. The file shows up as a small chip under the comment, and in the entity's "Attachments" sidebar section
 
 **No SharePoint setup required!** 🎉
 
@@ -17,13 +18,16 @@ After uploading files, you'll see:
 ```
 your-repo/
 ├── uploads/                          ← NOT in Git
-│   └── tasks/
-│       ├── 550e8400-e29b-41d4.../
-│       │   ├── contract.pdf
-│       │   ├── quote.xlsx
-│       │   └── design.png
-│       └── 6ba7b810-9dad-11d1.../
-│           └── report.docx
+│   ├── tasks/
+│   │   ├── 550e8400-e29b-41d4.../
+│   │   │   ├── contract.pdf
+│   │   │   ├── quote.xlsx
+│   │   │   └── design.png
+│   │   └── 6ba7b810-9dad-11d1.../
+│   │       └── report.docx
+│   └── cases/
+│       └── 31bc5132-dd5f-4b18.../
+│           └── proposal.pdf
 ├── .gitignore                        ← /uploads listed here
 ├── apps/
 └── ...
@@ -47,6 +51,8 @@ When you're ready to use SharePoint:
 3. Restart the backend
 4. Future uploads go to SharePoint automatically
 5. Old files remain in `/uploads` folder (can be deleted manually)
+
+> **Note:** direct in-app download (the download button/chip) currently only works for locally-stored files. Files uploaded while SharePoint is active need to be opened from SharePoint directly — see [ATTACHMENT_SETUP_CHECKLIST.md](ATTACHMENT_SETUP_CHECKLIST.md) for details.
 
 ## 🧹 Cleaning Up
 
@@ -74,10 +80,11 @@ The system automatically detects which storage to use:
 
 ## 🔍 Finding Your Files
 
-Files are organized by task ID:
+Files are organized by the entity they're attached to:
 
 ```
 uploads/tasks/{taskId}/{fileName}
+uploads/cases/{caseId}/{fileName}
 ```
 
 Example:
@@ -106,7 +113,7 @@ For production, we strongly recommend:
 
 For local development:
 - [ ] No SharePoint setup needed
-- [ ] Just upload files and they appear
+- [ ] Attach a file while writing a comment and post it
 - [ ] Files stored in `/uploads` (not in Git)
 - [ ] Easy to test attachment features
 
@@ -118,26 +125,26 @@ When ready for SharePoint:
 
 ## ❓ FAQ
 
-**Q: Where are uploaded files stored?**  
-A: `/uploads/tasks/{taskId}/` in your local repo
+**Q: Where are uploaded files stored?**
+A: `/uploads/tasks/{taskId}/` or `/uploads/cases/{caseId}/` in your local repo
 
-**Q: Are they committed to Git?**  
+**Q: Are they committed to Git?**
 A: No, `/uploads` is in `.gitignore`
 
-**Q: Can multiple developers share uploads?**  
+**Q: Can multiple developers share uploads?**
 A: No, each has their own `/uploads` folder (by design)
 
-**Q: How do I migrate to SharePoint?**  
+**Q: How do I migrate to SharePoint?**
 A: Just configure env vars and restart - new uploads go to SharePoint
 
-**Q: What about old local files when switching to SharePoint?**  
+**Q: What about old local files when switching to SharePoint?**
 A: They stay in `/uploads`. Delete if not needed.
 
-**Q: Can I use both local and SharePoint?**  
+**Q: Can I use both local and SharePoint?**
 A: No, only one can be active. If SharePoint is configured, it's used.
 
 ---
 
 **Status:** ✅ Ready to upload files locally!
 
-No additional setup needed. Just use the attachment button in comments.
+No additional setup needed. Just attach a file while writing a comment on a task or case.

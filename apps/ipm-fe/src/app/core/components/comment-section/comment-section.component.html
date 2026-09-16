@@ -157,6 +157,22 @@
               </p>
             }
 
+            @if (comment.attachments && comment.attachments.length > 0) {
+              <div class="comment-attachment-chips">
+                @for (attachment of comment.attachments; track attachment.id) {
+                  <button
+                    type="button"
+                    class="attachment-chip"
+                    (click)="downloadAttachment(attachment.filePath, attachment.fileName)"
+                    [title]="attachment.fileName + ' (' + formatFileSize(attachment.fileSize) + ')'"
+                  >
+                    <span class="material-symbols-outlined">{{ getFileIcon(attachment.mimeType) }}</span>
+                    <span class="attachment-chip-name">{{ attachment.fileName }}</span>
+                  </button>
+                }
+              </div>
+            }
+
             <div class="comment-actions">
               <button type="button" class="btn-link" (click)="startReply(comment.id)">Reply</button>
               @if (comment.canModify) {
@@ -193,6 +209,23 @@
                       </div>
                     } @else {
                       <p class="comment-text">{{ reply.body }}</p>
+
+                      @if (reply.attachments && reply.attachments.length > 0) {
+                        <div class="comment-attachment-chips">
+                          @for (attachment of reply.attachments; track attachment.id) {
+                            <button
+                              type="button"
+                              class="attachment-chip"
+                              (click)="downloadAttachment(attachment.filePath, attachment.fileName)"
+                              [title]="attachment.fileName + ' (' + formatFileSize(attachment.fileSize) + ')'"
+                            >
+                              <span class="material-symbols-outlined">{{ getFileIcon(attachment.mimeType) }}</span>
+                              <span class="attachment-chip-name">{{ attachment.fileName }}</span>
+                            </button>
+                          }
+                        </div>
+                      }
+
                       @if (reply.canModify) {
                         <div class="comment-actions">
                           <button type="button" class="btn-link" (click)="startEdit(reply)">Edit</button>

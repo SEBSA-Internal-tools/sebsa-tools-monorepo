@@ -41,4 +41,12 @@ export class AttachmentsService {
   deleteAttachment(attachmentId: string): Observable<{ message: string }> {
     return this.http.delete<{ message: string }>(`/api/attachments/${attachmentId}`);
   }
+
+  /** Fetched as a blob (not a plain <a href>) so the auth interceptor can
+   *  attach the bearer token — the download route is guarded. */
+  downloadFile(filePath: string): Observable<Blob> {
+    return this.http.get(`/api/attachments/download/${encodeURIComponent(filePath)}`, {
+      responseType: 'blob',
+    });
+  }
 }

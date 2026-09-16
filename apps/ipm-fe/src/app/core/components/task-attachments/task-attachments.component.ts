@@ -57,11 +57,17 @@ export class TaskAttachmentsComponent implements OnChanges {
   }
 
   downloadFile(attachment: UploadAttachmentResponse): void {
-    // Create a download link
-    const link = document.createElement('a');
-    link.href = `/api/attachments/download/${encodeURIComponent(attachment.filePath)}`;
-    link.download = attachment.fileName;
-    link.click();
+    this.attachmentsService.downloadFile(attachment.filePath).subscribe({
+      next: (blob) => {
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = attachment.fileName;
+        link.click();
+        window.URL.revokeObjectURL(url);
+      },
+      error: () => this.toast.error('Failed to download file'),
+    });
   }
 
   deleteAttachment(attachmentId: string, fileName: string): void {

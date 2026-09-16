@@ -374,6 +374,28 @@ export class CommentSectionComponent implements OnChanges {
     return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
   }
 
+  protected getFileIcon(mimeType: string): string {
+    if (mimeType.startsWith('image/')) return 'image';
+    if (mimeType === 'application/pdf') return 'picture_as_pdf';
+    if (mimeType.includes('word') || mimeType.includes('document')) return 'description';
+    if (mimeType.includes('sheet') || mimeType.includes('excel')) return 'table_chart';
+    return 'attach_file';
+  }
+
+  protected downloadAttachment(filePath: string, fileName: string): void {
+    this.attachments.downloadFile(filePath).subscribe({
+      next: (blob) => {
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName;
+        link.click();
+        window.URL.revokeObjectURL(url);
+      },
+      error: () => this.toast.error('Failed to download file'),
+    });
+  }
+
   protected onFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     if (!input.files) return;
