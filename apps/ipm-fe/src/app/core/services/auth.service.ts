@@ -30,7 +30,12 @@ export class AuthService {
   }
 
   isAuthenticated(): boolean {
-    return !!window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
+    return !!this.getToken();
+  }
+
+  getToken(): string | null {
+    if (typeof window === 'undefined') return null;
+    return window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
   }
 
   /** Rehydrates `currentUser` from a stored token on app bootstrap; clears it if the token is stale. */

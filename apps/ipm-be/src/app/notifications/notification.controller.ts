@@ -6,9 +6,12 @@ import {
   Param,
   ParseUUIDPipe,
   Query,
+  Sse,
+  MessageEvent,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Observable } from 'rxjs';
 import { NotificationService } from './notification.service';
 import { FilterNotificationDto } from './dto/filter-notification.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -21,6 +24,11 @@ import { AuthUser } from '@sebsa-pm-tool/shared-models';
 @Controller('notifications')
 export class NotificationController {
   constructor(private readonly notificationService: NotificationService) {}
+
+  @Sse('stream')
+  streamNotifications(@CurrentUser() user: AuthUser): Observable<MessageEvent> {
+    return this.notificationService.getUserStream(user.id);
+  }
 
   @Get()
   async getUserNotifications(

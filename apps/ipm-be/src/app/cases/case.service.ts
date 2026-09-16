@@ -250,13 +250,32 @@ export class CaseService {
     const categoryChanged = dto.category !== undefined && dto.category !== existing.category;
     const assigneeChanged = assigneeIds !== undefined && newPrimaryAssigneeId !== oldPrimaryAssigneeId;
 
+    const previousAssigneeIds = await this.prisma.caseAssignee
+      .findMany({
+        where: { caseId: id },
+        select: { userId: true },
+      })
+      .then((rows) => rows.map((r) => r.userId));
+
+    const isDueDateChange =
+      dto.dueDate !== undefined &&
+      (dto.dueDate === null
+        ? existing.dueDate !== null
+        : !existing.dueDate || new Date(dto.dueDate).getTime() !== existing.dueDate.getTime());
+
+    const isStartDateChange =
+      dto.startDate !== undefined &&
+      (dto.startDate === null
+        ? existing.startDate !== null
+        : !existing.startDate || new Date(dto.startDate).getTime() !== existing.startDate.getTime());
+
     await this.prisma.$transaction(async (tx) => {
       await tx.case.update({
         where: { id },
         data: {
           ...restDto,
-          ...(dto.startDate && { startDate: new Date(dto.startDate) }),
-          ...(dto.dueDate && { dueDate: new Date(dto.dueDate) }),
+          ...(dto.startDate !== undefined && { startDate: dto.startDate ? new Date(dto.startDate) : null }),
+          ...(dto.dueDate !== undefined && { dueDate: dto.dueDate ? new Date(dto.dueDate) : null }),
           ...(assigneeIds && {
             assignees: { deleteMany: {}, createMany: { data: assigneeIds.map((userId) => ({ userId })) } },
           }),
@@ -310,14 +329,48 @@ export class CaseService {
       }
     });
 
-    if (dto.assigneeIds?.length) {
-      this.notificationService.notifyAssignees({
-        assigneeUserIds: dto.assigneeIds,
+    // Notify ONLY newly added assignees, not users who were already assigned
+    if (dto.assigneeIds) {
+      const newlyAddedAssignees = dto.assigneeIds.filter((userId) => !previousAssigneeIds.includes(userId));
+      if (newlyAddedAssignees.length > 0) {
+        this.notificationService.notifyAssignees({
+          assigneeUserIds: newlyAddedAssignees,
+          actorId: user.id,
+          actorName: user.name,
+          entityType: 'CASE',
+          entityId: id,
+          entityTitle: dto.title ?? existing.title,
+        }).catch(() => {});
+      }
+    }
+
+    // Notify assigned users about due date changes with the exact dates
+    const currentAssignees = dto.assigneeIds ?? previousAssigneeIds;
+    if (isDueDateChange && currentAssignees.length > 0) {
+      this.notificationService.notifyDateChange({
+        recipientUserIds: currentAssignees,
         actorId: user.id,
         actorName: user.name,
         entityType: 'CASE',
         entityId: id,
-        entityTitle: existing.title,
+        entityTitle: dto.title ?? existing.title,
+        dateField: 'due date',
+        oldDate: existing.dueDate,
+        newDate: dto.dueDate ? new Date(dto.dueDate) : null,
+      }).catch(() => {});
+    }
+
+    if (isStartDateChange && currentAssignees.length > 0) {
+      this.notificationService.notifyDateChange({
+        recipientUserIds: currentAssignees,
+        actorId: user.id,
+        actorName: user.name,
+        entityType: 'CASE',
+        entityId: id,
+        entityTitle: dto.title ?? existing.title,
+        dateField: 'start date',
+        oldDate: existing.startDate,
+        newDate: dto.startDate ? new Date(dto.startDate) : null,
       }).catch(() => {});
     }
 
@@ -382,6 +435,11 @@ export class CaseService {
     await this.assertCanEdit(kase.projectId, user);
     await this.assertAssigneesValid(assigneeIds, kase.projectId);
 
+    const existingAssignees = await this.prisma.caseAssignee
+      .findMany({ where: { caseId }, select: { userId: true } })
+      .then((rows) => rows.map((r) => r.userId));
+    const newlyAddedIds = assigneeIds.filter((id) => !existingAssignees.includes(id));
+
     const addedNames = await this.getUserNames(assigneeIds);
     const previousAssignees = await this.getAssigneeNames(caseId);
 
@@ -412,14 +470,16 @@ export class CaseService {
 
     await this.recordCategoryAssignmentIfChanged(caseId, kase.category, user.id);
 
-    this.notificationService.notifyAssignees({
-      assigneeUserIds: assigneeIds,
-      actorId: user.id,
-      actorName: user.name,
-      entityType: 'CASE',
-      entityId: caseId,
-      entityTitle: kase.title,
-    }).catch(() => {});
+    if (newlyAddedIds.length > 0) {
+      this.notificationService.notifyAssignees({
+        assigneeUserIds: newlyAddedIds,
+        actorId: user.id,
+        actorName: user.name,
+        entityType: 'CASE',
+        entityId: caseId,
+        entityTitle: kase.title,
+      }).catch(() => {});
+    }
 
     return this.findOne(caseId, user);
   }

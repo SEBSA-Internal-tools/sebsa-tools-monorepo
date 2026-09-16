@@ -167,27 +167,27 @@ export class CsoKpiDashboardTabComponent implements OnInit {
     const now = new Date();
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-    // TODO: replace dueDate with createdAt when backend provides it
     const newTasks = tasks.filter((t) => {
-      if (!t.dueDate) return false;
-      const d = new Date(t.dueDate);
-      return d >= sevenDaysAgo && d <= now;
+      const refDate = t.createdAt || t.updatedAt || t.dueDate;
+      if (!refDate) return false;
+      const d = new Date(refDate);
+      return !isNaN(d.getTime()) && d >= sevenDaysAgo && d <= now;
     });
 
     const criticalHighOpen = openTasks.filter((t) =>
-      ['CRITICAL', 'HIGH'].includes(t.priority),
+      ['CRITICAL', 'HIGH'].includes((t.priority || '').toUpperCase()),
     );
 
-    // TODO: replace dueDate proxy with createdAt-based age when available
     const avgAge =
       openTasks.length > 0
         ? Math.round(
             openTasks.reduce((sum, t) => {
-              const days = t.dueDate
+              const refDate = t.createdAt || t.updatedAt || t.dueDate;
+              const days = refDate
                 ? Math.max(
                     0,
                     Math.floor(
-                      (now.getTime() - new Date(t.dueDate).getTime()) / 86_400_000,
+                      (now.getTime() - new Date(refDate).getTime()) / 86_400_000,
                     ),
                   )
                 : 0;
@@ -196,19 +196,40 @@ export class CsoKpiDashboardTabComponent implements OnInit {
           )
         : 0;
 
-    // TODO: wire when backend provides slaStatus, csatScore, resolvedWithinSla
-    const slaRiskCount = 0;
-    const slaCompliancePct: number | null = null;
+    // Team vs Management scoped projects & customers count
+    const activeProjectIds = new Set(tasks.map((t) => t.projectId).filter(Boolean));
+    const activeCustomerNames = new Set(tasks.map((t) => t.customerName).filter(Boolean));
+
+    const projectsCount =
+      this.activeTab() === 'team'
+        ? activeProjectIds.size
+        : this.csoProjects().length;
+
+    const customersCount =
+      this.activeTab() === 'team'
+        ? activeCustomerNames.size
+        : this.activeCustomers().size;
+
+    // SLA Compliance: Percentage of cases completed on time or open and not overdue
+    const nonOverdueCount = tasks.filter((t) => {
+      if (!t.dueDate) return true;
+      const due = new Date(t.dueDate);
+      if (isNaN(due.getTime())) return true;
+      return t.statusLabel === 'done' || due >= now;
+    }).length;
+
+    const slaCompliancePct =
+      tasks.length > 0
+        ? Math.round((nonOverdueCount / tasks.length) * 100)
+        : 100;
 
     const slaLabel =
-      slaCompliancePct === null ? 'N/A'
-      : slaCompliancePct >= 90 ? 'Compliant'
+      slaCompliancePct >= 90 ? 'Compliant'
       : slaCompliancePct >= 70 ? 'At Risk'
       : 'Non-Compliant';
 
     const slaCls =
-      slaCompliancePct === null ? ''
-      : slaCompliancePct >= 90 ? 'compliant'
+      slaCompliancePct >= 90 ? 'compliant'
       : slaCompliancePct >= 70 ? 'at-risk'
       : 'non-compliant';
 
@@ -218,16 +239,16 @@ export class CsoKpiDashboardTabComponent implements OnInit {
       { id: 'closed',        title: 'Closed Cases',             value: closedTasks.length,        icon: 'check_circle',        accent: '#10b981' },
       { id: 'new7d',         title: 'New Cases (Last 7 Days)',   value: newTasks.length,           icon: 'new_releases',        accent: '#8b5cf6' },
       { id: 'critHigh',      title: 'Critical / High Open',     value: criticalHighOpen.length,   icon: 'priority_high',       accent: '#ef4444' },
-      { id: 'projects',      title: 'Active CSO Projects',      value: this.csoProjects().length, icon: 'business',            accent: '#f97316' },
+      { id: 'projects',      title: 'Active CSO Projects',      value: projectsCount,             icon: 'business',            accent: '#f97316' },
       { id: 'avgAge',        title: 'Average Case Age',         value: `${avgAge}d`,              icon: 'schedule',            accent: '#f59e0b' },
-      { id: 'customers',     title: 'Active Customers',         value: this.activeCustomers().size, icon: 'group',             accent: '#06b6d4' },
+      { id: 'customers',     title: 'Active Customers',         value: customersCount,            icon: 'group',             accent: '#06b6d4' },
       {
         id: 'slaCompliance',
         title: 'SLA Compliance %',
-        value: slaCompliancePct !== null ? `${slaCompliancePct}%` : 'N/A',
+        value: `${slaCompliancePct}%`,
         icon: 'verified',
         accent: '#10b981',
-        badge: slaCompliancePct !== null ? { label: slaLabel, cls: slaCls } : undefined,
+        badge: { label: slaLabel, cls: slaCls },
       },
     ];
   });
@@ -264,13 +285,13 @@ export class CsoKpiDashboardTabComponent implements OnInit {
     ];
 
     return buckets.map((b) => {
-      // TODO: replace dueDate with createdAt when backend provides it
       const count = openTasks.filter((t) => {
-        if (!t.dueDate) return false;
+        const refDate = t.createdAt || t.updatedAt || t.dueDate;
+        if (!refDate) return false;
         const age = Math.max(
           0,
           Math.floor(
-            (now.getTime() - new Date(t.dueDate).getTime()) / 86_400_000,
+            (now.getTime() - new Date(refDate).getTime()) / 86_400_000,
           ),
         );
         return age >= b.minDays && (b.maxDays === null || age <= b.maxDays);
@@ -296,10 +317,11 @@ export class CsoKpiDashboardTabComponent implements OnInit {
       priorities.forEach((p) => (data[b.label][p] = 0));
     });
 
-    // TODO: replace dueDate with createdAt when backend provides it
     openTasks.forEach((t) => {
-      if (!t.dueDate) return;
-      const d = new Date(t.dueDate);
+      const refDate = t.createdAt || t.updatedAt || t.dueDate;
+      if (!refDate) return;
+      const d = new Date(refDate);
+      if (isNaN(d.getTime())) return;
       const bucket = buckets.find((b) => d >= b.start && d < b.end);
       if (bucket) data[bucket.label][t.priority] = (data[bucket.label][t.priority] ?? 0) + 1;
     });
