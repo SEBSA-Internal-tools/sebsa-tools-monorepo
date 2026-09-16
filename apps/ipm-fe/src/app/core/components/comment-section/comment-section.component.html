@@ -8,6 +8,17 @@
 
   <!-- Composer -->
   <div class="composer">
+    <input
+      #fileInput
+      id="comment-file-input"
+      type="file"
+      multiple
+      class="file-input"
+      (change)="onFileSelected($event)"
+      accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.gif,.txt,.csv"
+      [disabled]="isSaving() || isUploadingFiles()"
+    />
+
     <div class="composer-field">
       <textarea
         #bodyInput
@@ -54,16 +65,55 @@
       </p>
     }
 
+    <!-- Selected files display -->
+    @if (selectedFiles().length > 0) {
+      <div class="selected-files">
+        <p class="files-label">Attachments:</p>
+        <div class="files-list">
+          @for (file of selectedFiles(); track file.name; let i = $index) {
+            <div class="file-item">
+              <span class="material-symbols-outlined">attach_file</span>
+              <span class="file-name">{{ file.name }}</span>
+              <span class="file-size">({{ formatFileSize(file.size) }})</span>
+              <button
+                type="button"
+                class="btn-remove"
+                (click)="removeFile(i)"
+                [disabled]="isSaving() || isUploadingFiles()"
+                title="Remove"
+              >
+                <span class="material-symbols-outlined">close</span>
+              </button>
+            </div>
+          }
+        </div>
+      </div>
+    }
+
     <div class="composer-actions">
+      <button
+        type="button"
+        class="btn-attach"
+        (click)="triggerFileInput()"
+        [disabled]="isSaving() || isUploadingFiles()"
+        title="Attach files"
+      >
+        <span class="material-symbols-outlined">attach_file</span>
+      </button>
+
       <span class="char-count">{{ newBody.length }} / {{ maxLength }}</span>
 
       <button
         type="button"
         class="sebsa-btn-primary"
-        [disabled]="!newBody.trim() || isSaving()"
+        [disabled]="!newBody.trim() || isSaving() || isUploadingFiles()"
         (click)="post()"
       >
-        Comment
+        @if (isUploadingFiles()) {
+          <span>Uploading…</span>
+        } @else {
+          <span>Comment</span>
+        }
       </button>
     </div>
   </div>
@@ -76,7 +126,7 @@
   <ol class="comment-list">
     @for (comment of thread(); track trackById($index, comment)) {
       <li class="comment-item">
-        <span class="avatar" [title]="comment.author.name">{{ initials(comment.author.name) }}</span>
+        <app-user-avatar class="avatar" [name]="comment.author.name" [avatarUrl]="comment.author.avatarUrl" size="sm" [title]="comment.author.name"></app-user-avatar>
 
         <div class="comment-body">
           <p class="comment-meta">
@@ -107,6 +157,22 @@
               </p>
             }
 
+            @if (comment.attachments && comment.attachments.length > 0) {
+              <div class="comment-attachment-chips">
+                @for (attachment of comment.attachments; track attachment.id) {
+                  <button
+                    type="button"
+                    class="attachment-chip"
+                    (click)="downloadAttachment(attachment.filePath, attachment.fileName)"
+                    [title]="attachment.fileName + ' (' + formatFileSize(attachment.fileSize) + ')'"
+                  >
+                    <span class="material-symbols-outlined">{{ getFileIcon(attachment.mimeType) }}</span>
+                    <span class="attachment-chip-name">{{ attachment.fileName }}</span>
+                  </button>
+                }
+              </div>
+            }
+
             <div class="comment-actions">
               <button type="button" class="btn-link" (click)="startReply(comment.id)">Reply</button>
               @if (comment.canModify) {
@@ -121,7 +187,7 @@
             <ol class="reply-list">
               @for (reply of comment.replies; track trackById($index, reply)) {
                 <li class="comment-item reply">
-                  <span class="avatar small" [title]="reply.author.name">{{ initials(reply.author.name) }}</span>
+                  <app-user-avatar class="avatar small" [name]="reply.author.name" [avatarUrl]="reply.author.avatarUrl" size="sm" [title]="reply.author.name"></app-user-avatar>
 
                   <div class="comment-body">
                     <p class="comment-meta">
@@ -143,6 +209,23 @@
                       </div>
                     } @else {
                       <p class="comment-text">{{ reply.body }}</p>
+
+                      @if (reply.attachments && reply.attachments.length > 0) {
+                        <div class="comment-attachment-chips">
+                          @for (attachment of reply.attachments; track attachment.id) {
+                            <button
+                              type="button"
+                              class="attachment-chip"
+                              (click)="downloadAttachment(attachment.filePath, attachment.fileName)"
+                              [title]="attachment.fileName + ' (' + formatFileSize(attachment.fileSize) + ')'"
+                            >
+                              <span class="material-symbols-outlined">{{ getFileIcon(attachment.mimeType) }}</span>
+                              <span class="attachment-chip-name">{{ attachment.fileName }}</span>
+                            </button>
+                          }
+                        </div>
+                      }
+
                       @if (reply.canModify) {
                         <div class="comment-actions">
                           <button type="button" class="btn-link" (click)="startEdit(reply)">Edit</button>

@@ -17,9 +17,10 @@ import { ProjectsService } from '../../projects/services/projects.service';
 import { SubtaskTypesService } from '../../../core/services/subtask-types.service';
 import { CustomSelectComponent } from '../../../core/components/custom-select/custom-select.component';
 import { CustomDatepickerComponent } from '../../../core/components/custom-datepicker/custom-datepicker.component';
+import { UserAvatarComponent } from '../../../core/components/user-avatar/user-avatar.component';
 import type { SubtaskType } from '@sebsa-pm-tool/shared-models';
 
-type AssigneeCandidate = { id: string; name: string; email: string };
+type AssigneeCandidate = { id: string; name: string; email: string; avatarUrl?: string | null };
 
 export interface SubtaskFormData {
   title: string;
@@ -36,7 +37,7 @@ export interface SubtaskFormData {
 @Component({
   standalone: true,
   selector: 'app-create-subtask-modal',
-  imports: [CommonModule, FormsModule, CustomSelectComponent, CustomDatepickerComponent],
+  imports: [CommonModule, FormsModule, CustomSelectComponent, CustomDatepickerComponent, UserAvatarComponent],
   templateUrl: './create-subtask-modal.component.html',
   styleUrl: './create-subtask-modal.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -188,12 +189,4 @@ export class CreateSubtaskModalComponent implements OnChanges {
     return this.availableAssignees().filter((user) => this.selectedAssigneeIds.includes(user.id));
   }
 
-  getUserInitials(name: string): string {
-    return name
-      .trim()
-      .split(/\s+/)
-      .slice(0, 2)
-      .map((part) => part.charAt(0).toUpperCase())
-      .join('');
-  }
 }

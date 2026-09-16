@@ -24,4 +24,14 @@ export class ProfileService {
   changePassword(dto: ChangePasswordDto): Observable<{ success: boolean; message: string }> {
     return this.http.post<{ success: boolean; message: string }>('/api/users/change-password', dto);
   }
+
+  uploadAvatar(image: Blob): Observable<UserProfileDto> {
+    const formData = new FormData();
+    formData.append('file', image, 'avatar.png');
+    return this.http.post<UserProfileDto>('/api/users/profile/avatar', formData);
+  }
+
+  removeAvatar(): Observable<UserProfileDto> {
+    return this.http.delete<UserProfileDto>('/api/users/profile/avatar');
+  }
 }

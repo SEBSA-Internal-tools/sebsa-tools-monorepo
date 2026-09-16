@@ -6,11 +6,16 @@ import { ProfileService } from '../../core/services/profile.service';
 import { AuthService } from '../../core/services/auth.service';
 import { DepartmentsService } from '../../core/services/departments.service';
 import { ToastService } from '../../core/services/toast.service';
+import { UserAvatarComponent } from '../../core/components/user-avatar/user-avatar.component';
+import { AvatarCropperModalComponent } from '../../core/components/avatar-cropper-modal/avatar-cropper-modal.component';
+
+const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
+const AVATAR_ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 
 @Component({
   selector: 'app-settings-page',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, UserAvatarComponent, AvatarCropperModalComponent],
   templateUrl: './settings.page.html',
   styleUrl: './settings.page.scss',
 })
@@ -24,6 +29,11 @@ export class SettingsPageComponent implements OnInit {
   readonly isLoadingProfile = signal<boolean>(false);
   readonly isSavingProfile = signal<boolean>(false);
   readonly isChangingPassword = signal<boolean>(false);
+  readonly isSavingAvatar = signal<boolean>(false);
+
+  // Avatar cropper state
+  readonly isCropperOpen = signal<boolean>(false);
+  readonly selectedAvatarFile = signal<File | null>(null);
 
   // Profile Data
   readonly profile = signal<UserProfileDto | null>(null);
@@ -52,6 +62,7 @@ export class SettingsPageComponent implements OnInit {
         systemRole: currentUser.systemRole,
         isActive: true,
         createdAt: new Date().toISOString(),
+        avatarUrl: currentUser.avatarUrl,
       });
       this.profileName = currentUser.name;
     }
@@ -109,6 +120,70 @@ export class SettingsPageComponent implements OnInit {
     });
   }
 
+  // --- Avatar Operations ---
+  triggerAvatarInput(): void {
+    document.querySelector<HTMLInputElement>('#avatar-file-input')?.click();
+  }
+
+  onAvatarFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0] ?? null;
+    input.value = '';
+    if (!file) return;
+
+    if (!AVATAR_ALLOWED_TYPES.includes(file.type)) {
+      this.toastService.error('Please choose a PNG, JPEG, or WEBP image.');
+      return;
+    }
+    if (file.size > AVATAR_MAX_BYTES) {
+      this.toastService.error('Image must be 5MB or smaller.');
+      return;
+    }
+
+    this.selectedAvatarFile.set(file);
+    this.isCropperOpen.set(true);
+  }
+
+  onCropperCancelled(): void {
+    this.isCropperOpen.set(false);
+    this.selectedAvatarFile.set(null);
+  }
+
+  onAvatarCropped(image: Blob): void {
+    this.isCropperOpen.set(false);
+    this.selectedAvatarFile.set(null);
+    this.isSavingAvatar.set(true);
+
+    this.profileService.uploadAvatar(image).subscribe({
+      next: (updated) => this.applyAvatarUpdate(updated, 'Profile picture updated successfully.'),
+      error: () => {
+        this.isSavingAvatar.set(false);
+        this.toastService.error('Failed to upload profile picture. Please try again.');
+      },
+    });
+  }
+
+  removeAvatar(): void {
+    this.isSavingAvatar.set(true);
+    this.profileService.removeAvatar().subscribe({
+      next: (updated) => this.applyAvatarUpdate(updated, 'Profile picture removed.'),
+      error: () => {
+        this.isSavingAvatar.set(false);
+        this.toastService.error('Failed to remove profile picture. Please try again.');
+      },
+    });
+  }
+
+  private applyAvatarUpdate(updated: UserProfileDto, message: string): void {
+    this.profile.set(updated);
+    const current = this.authService.currentUser();
+    if (current) {
+      this.authService.currentUser.set({ ...current, avatarUrl: updated.avatarUrl });
+    }
+    this.isSavingAvatar.set(false);
+    this.toastService.success(message);
+  }
+
   changePassword(): void {
     this.passwordError = '';
     if (!this.currentPassword) {
@@ -145,15 +220,6 @@ export class SettingsPageComponent implements OnInit {
           this.toastService.error(this.passwordError);
         },
       });
-  }
-
-  getInitials(name?: string | null): string {
-    if (!name) return 'U';
-    const parts = name.trim().split(' ');
-    if (parts.length >= 2) {
-      return (parts[0][0] + parts[1][0]).toUpperCase();
-    }
-    return name.slice(0, 2).toUpperCase();
   }
 
   getRoleBadgeClass(role?: string): string {

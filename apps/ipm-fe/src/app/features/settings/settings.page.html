@@ -24,8 +24,36 @@
       } @else {
         <!-- User Identity Overview Banner Card -->
         <section class="identity-banner-card sebsa-card">
-          <div class="avatar-large">
-            {{ getInitials(profile()?.name) }}
+          <div class="avatar-upload-wrapper">
+            <app-user-avatar [name]="profile()?.name || ''" [avatarUrl]="profile()?.avatarUrl" size="xl"></app-user-avatar>
+            <button
+              type="button"
+              class="avatar-edit-btn"
+              (click)="triggerAvatarInput()"
+              [disabled]="isSavingAvatar()"
+              title="Change profile picture"
+              aria-label="Change profile picture"
+            >
+              <span class="material-symbols-outlined" aria-hidden="true">photo_camera</span>
+            </button>
+            <input
+              id="avatar-file-input"
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              class="avatar-file-input"
+              (change)="onAvatarFileSelected($event)"
+              hidden
+            />
+            @if (profile()?.avatarUrl) {
+              <button
+                type="button"
+                class="avatar-remove-btn"
+                (click)="removeAvatar()"
+                [disabled]="isSavingAvatar()"
+              >
+                Remove photo
+              </button>
+            }
           </div>
           <div class="identity-info">
             <div class="identity-name-row">
@@ -245,4 +273,11 @@
       }
     </div>
   </div>
+
+  <app-avatar-cropper-modal
+    [isOpen]="isCropperOpen()"
+    [file]="selectedAvatarFile()"
+    (cropped)="onAvatarCropped($event)"
+    (cancelled)="onCropperCancelled()"
+  ></app-avatar-cropper-modal>
 </main>

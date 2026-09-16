@@ -118,7 +118,7 @@
             <div class="selected-members">
               @for (member of selectedMembers; track member.id) {
                 <div class="member-tag">
-                  <div class="member-avatar">{{ initials(member.name) }}</div>
+                  <app-user-avatar class="member-avatar" [name]="member.name" [avatarUrl]="member.avatarUrl" size="sm"></app-user-avatar>
                   <span class="member-name">{{ member.name }}</span>
                   <button
                     type="button"
@@ -142,7 +142,7 @@
                   class="member-option"
                   (click)="selectMember(member)"
                 >
-                  <div class="member-avatar">{{ initials(member.name) }}</div>
+                  <app-user-avatar class="member-avatar" [name]="member.name" [avatarUrl]="member.avatarUrl" size="sm"></app-user-avatar>
                   <span>{{ member.name }}</span>
                 </button>
               }

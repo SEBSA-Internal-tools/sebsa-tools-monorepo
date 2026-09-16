@@ -1,0 +1,36 @@
+.user-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  font-weight: 600;
+  color: #fff;
+  background: var(--brand-primary, #4f46e5);
+  overflow: hidden;
+
+  &.size-sm {
+    width: 28px;
+    height: 28px;
+    font-size: 0.7rem;
+  }
+
+  &.size-md {
+    width: 36px;
+    height: 36px;
+    font-size: 0.85rem;
+  }
+
+  &.size-lg {
+    width: 48px;
+    height: 48px;
+    font-size: 1rem;
+  }
+
+  &.size-xl {
+    width: 88px;
+    height: 88px;
+    font-size: 1.75rem;
+  }
+}

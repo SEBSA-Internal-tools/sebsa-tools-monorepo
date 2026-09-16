@@ -3,7 +3,9 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CommentSummary, CommentTargetType } from '@sebsa-pm-tool/shared-models';
 import { CommentsService } from '../../services/comments.service';
+import { AttachmentsService } from '../../services/attachments.service';
 import { ToastService } from '../../services/toast.service';
+import { UserAvatarComponent } from '../user-avatar/user-avatar.component';
 
 /** Matches the server-side cap in CreateCommentDto. */
 const BODY_MAX_LENGTH = 5000;
@@ -25,7 +27,7 @@ export interface MentionableUser {
 @Component({
   standalone: true,
   selector: 'app-comment-section',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, UserAvatarComponent],
   templateUrl: './comment-section.component.html',
   styleUrl: './comment-section.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -37,6 +39,7 @@ export class CommentSectionComponent implements OnChanges {
   @Input() mentionableUsers: MentionableUser[] = [];
 
   private readonly comments = inject(CommentsService);
+  private readonly attachments = inject(AttachmentsService);
   private readonly toast = inject(ToastService);
 
   protected readonly thread = signal<CommentSummary[]>([]);
@@ -63,6 +66,10 @@ export class CommentSectionComponent implements OnChanges {
 
   protected readonly editingId = signal<string | null>(null);
   protected editBody = '';
+
+  // File attachment state
+  protected selectedFiles = signal<File[]>([]);
+  protected isUploadingFiles = signal(false);
 
   ngOnChanges(): void {
     this.resetComposers();
@@ -103,18 +110,54 @@ export class CommentSectionComponent implements OnChanges {
         ...(this.activeMentionIds().length > 0 && { mentionedUserIds: this.activeMentionIds() }),
       })
       .subscribe({
-        next: () => {
+        next: (comment) => {
           this.newBody = '';
           this.insertedMentions.clear();
           this.closeMentions();
-          this.isSaving.set(false);
-          this.load();
+          this.uploadAttachmentsForComment(comment.id);
         },
         error: () => {
           this.toast.error('Could not post the comment.');
           this.isSaving.set(false);
         },
       });
+  }
+
+  private uploadAttachmentsForComment(commentId: string): void {
+    const files = this.selectedFiles();
+    if (files.length === 0) {
+      this.selectedFiles.set([]);
+      this.isSaving.set(false);
+      this.load();
+      return;
+    }
+
+    this.isUploadingFiles.set(true);
+    let uploadedCount = 0;
+
+    files.forEach((file) => {
+      this.attachments.uploadAttachment(file, this.targetType, this.targetId, commentId).subscribe({
+        next: () => {
+          uploadedCount++;
+          if (uploadedCount === files.length) {
+            this.selectedFiles.set([]);
+            this.isUploadingFiles.set(false);
+            this.isSaving.set(false);
+            this.load();
+          }
+        },
+        error: () => {
+          this.toast.error(`Failed to upload ${file.name}`);
+          uploadedCount++;
+          if (uploadedCount === files.length) {
+            this.selectedFiles.set([]);
+            this.isUploadingFiles.set(false);
+            this.isSaving.set(false);
+            this.load();
+          }
+        },
+      });
+    });
   }
 
   protected startReply(commentId: string): void {
@@ -324,6 +367,91 @@ export class CommentSectionComponent implements OnChanges {
     return comment.id;
   }
 
+  protected formatFileSize(bytes: number): string {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+  }
+
+  protected getFileIcon(mimeType: string): string {
+    if (mimeType.startsWith('image/')) return 'image';
+    if (mimeType === 'application/pdf') return 'picture_as_pdf';
+    if (mimeType.includes('word') || mimeType.includes('document')) return 'description';
+    if (mimeType.includes('sheet') || mimeType.includes('excel')) return 'table_chart';
+    return 'attach_file';
+  }
+
+  protected downloadAttachment(filePath: string, fileName: string): void {
+    this.attachments.downloadFile(filePath).subscribe({
+      next: (blob) => {
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName;
+        link.click();
+        window.URL.revokeObjectURL(url);
+      },
+      error: () => this.toast.error('Failed to download file'),
+    });
+  }
+
+  protected onFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    if (!input.files) return;
+
+    const files = Array.from(input.files);
+    const currentFiles = this.selectedFiles();
+
+    // Validate files
+    for (const file of files) {
+      if (file.size > 50 * 1024 * 1024) {
+        this.toast.error(`${file.name} exceeds 50MB limit`);
+        continue;
+      }
+      if (!this.isAllowedFileType(file.type)) {
+        this.toast.error(`${file.name} type not allowed`);
+        continue;
+      }
+
+      // Add to selected files if not duplicate
+      if (!currentFiles.some((f) => f.name === file.name)) {
+        currentFiles.push(file);
+      }
+    }
+
+    this.selectedFiles.set(currentFiles);
+    input.value = '';
+  }
+
+  private isAllowedFileType(mimeType: string): boolean {
+    const allowedTypes = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'image/png',
+      'image/jpeg',
+      'image/gif',
+      'text/plain',
+      'text/csv',
+    ];
+    return allowedTypes.includes(mimeType);
+  }
+
+  protected removeFile(index: number): void {
+    const files = this.selectedFiles();
+    files.splice(index, 1);
+    this.selectedFiles.set([...files]);
+  }
+
+  protected triggerFileInput(): void {
+    const input = document.querySelector<HTMLInputElement>('#comment-file-input');
+    input?.click();
+  }
+
   private resetComposers(): void {
     this.newBody = '';
     this.insertedMentions.clear();
@@ -332,5 +460,6 @@ export class CommentSectionComponent implements OnChanges {
     this.editBody = '';
     this.replyingTo.set(null);
     this.editingId.set(null);
+    this.selectedFiles.set([]);
   }
 }

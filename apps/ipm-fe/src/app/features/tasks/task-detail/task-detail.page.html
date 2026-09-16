@@ -420,6 +420,11 @@
         ></app-activity-feed>
       </div>
 
+      <!-- Attachments -->
+      <div class="meta-card">
+        <app-task-attachments targetType="TASK" [targetId]="task.id"></app-task-attachments>
+      </div>
+
       <!-- Labels -->
       @if (task.labels && task.labels.length > 0) {
         <div class="meta-card">

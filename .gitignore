@@ -55,3 +55,6 @@ docker/.env
 # local reference docs (working notes, functional specs) — never pushed
 MEMORY.md
 *.docx
+
+# local file uploads (development only)
+/uploads

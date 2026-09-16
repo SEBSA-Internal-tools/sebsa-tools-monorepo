@@ -12,6 +12,7 @@ export interface UserAdminSummary {
   /** Null = self-registered and awaiting admin approval; cannot log in yet. */
   approvedAt: string | null;
   createdAt: string;
+  avatarUrl?: string | null;
 }
 
 export interface CreateUserRequest {

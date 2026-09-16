@@ -230,6 +230,7 @@ model User {
   systemRole   SystemRole @default(REGULAR_USER)
   departmentId String
   isActive     Boolean    @default(true)
+  avatarUrl    String?
   /// Null = registered but not yet approved by an admin and cannot log in.
   /// Distinct from `isActive`, which governs an already-approved account
   /// being turned on/off later — the two states must not be conflated.

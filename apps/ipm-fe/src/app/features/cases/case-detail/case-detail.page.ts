@@ -18,6 +18,7 @@ import {
 } from '../../tasks/create-task/create-task-modal.component';
 import { ActivityFeedComponent } from '../../../core/components/activity-feed/activity-feed.component';
 import { CommentSectionComponent } from '../../../core/components/comment-section/comment-section.component';
+import { TaskAttachmentsComponent } from '../../../core/components/task-attachments/task-attachments.component';
 
 interface CaseEditDraft {
   title: string;
@@ -33,7 +34,7 @@ interface CaseEditDraft {
 @Component({
   standalone: true,
   selector: 'app-case-detail-page',
-  imports: [CommonModule, FormsModule, RouterLink, CreateTaskModalComponent, ActivityFeedComponent, CommentSectionComponent],
+  imports: [CommonModule, FormsModule, RouterLink, CreateTaskModalComponent, ActivityFeedComponent, CommentSectionComponent, TaskAttachmentsComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './case-detail.page.html',
   styleUrls: ['./case-detail.page.scss'],

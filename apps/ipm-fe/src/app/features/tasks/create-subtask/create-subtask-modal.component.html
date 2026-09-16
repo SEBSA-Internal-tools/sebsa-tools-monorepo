@@ -51,7 +51,7 @@
                 <div class="selected-assignees">
                   @for (user of selectedAssignees(); track user.id) {
                     <span class="selected-assignee-chip">
-                      <span class="chip-avatar">{{ getUserInitials(user.name) }}</span>
+                      <app-user-avatar class="chip-avatar" [name]="user.name" [avatarUrl]="user.avatarUrl" size="sm"></app-user-avatar>
                       <span class="chip-name">{{ user.name }}</span>
                       <button type="button" class="remove-assignee" (click)="removeAssignee(user.id, $event)" [attr.aria-label]="'Remove ' + user.name">
                         <span class="material-symbols-outlined">close</span>
@@ -84,7 +84,7 @@
                     } @else {
                       @for (user of getFilteredAssignees(); track user.id) {
                         <button type="button" class="assignee-option" [class.selected]="isAssigneeSelected(user.id)" (click)="toggleAssignee(user.id)">
-                          <span class="assignee-avatar">{{ getUserInitials(user.name) }}</span>
+                          <app-user-avatar class="assignee-avatar" [name]="user.name" [avatarUrl]="user.avatarUrl" size="sm"></app-user-avatar>
                           <span class="assignee-info">
                             <span class="assignee-name">{{ user.name }}</span>
                             @if (user.email) {

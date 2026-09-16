@@ -5,6 +5,7 @@ export interface CommentAuthor {
   id: string;
   name: string;
   email: string;
+  avatarUrl?: string | null;
 }
 
 export interface CommentMentionSummary {
@@ -28,6 +29,16 @@ export interface CommentSummary {
   updatedAt: string;
   /** Whether the requesting user may edit or delete this comment. */
   canModify: boolean;
+  /** Attachments uploaded to this comment. */
+  attachments?: Array<{
+    id: string;
+    fileName: string;
+    fileSize: number;
+    mimeType: string;
+    filePath: string;
+    uploadedBy: { id: string; name: string };
+    createdAt: string;
+  }>;
 }
 
 export interface CreateCommentRequest {

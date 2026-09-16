@@ -15,12 +15,13 @@ import {
   AssignUserModalComponent,
   AssignUserFormData,
 } from '../../../../components/modals/assign-user/assign-user-modal.component';
+import { UserAvatarComponent } from '../../../../../../core/components/user-avatar/user-avatar.component';
 import type { PrivilegeGroup, ProjectMemberSummary, ProjectRole } from '@sebsa-pm-tool/shared-models';
 
 @Component({
   standalone: true,
   selector: 'project-team',
-  imports: [CommonModule, FormsModule, AssignUserModalComponent],
+  imports: [CommonModule, FormsModule, AssignUserModalComponent, UserAvatarComponent],
   templateUrl: './project-team.component.html',
   styleUrl: './project-team.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -68,14 +69,6 @@ export class ProjectTeamComponent implements OnInit {
       next: (roles) => this.roles.set(roles),
       error: () => this.rolesErrorMessage.set('Failed to load roles.'),
     });
-  }
-
-  initials(name: string): string {
-    return name
-      .split(' ')
-      .map((n: string) => n[0])
-      .join('')
-      .toUpperCase();
   }
 
   onOpenModal(): void {

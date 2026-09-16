@@ -1,0 +1,5 @@
+@if (avatarUrl) {
+  <img class="user-avatar" [class]="'size-' + size" [src]="avatarUrl" [alt]="name" />
+} @else {
+  <div class="user-avatar user-avatar-initials" [class]="'size-' + size">{{ initials }}</div>
+}
