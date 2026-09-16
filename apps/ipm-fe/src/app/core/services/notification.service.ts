@@ -1,6 +1,7 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { DestroyRef, Injectable, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
+import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import {
   NotificationDto,
   NotificationFilterParams,
@@ -8,8 +9,8 @@ import {
   NotificationType,
   UnreadCountResponse,
 } from '@sebsa-pm-tool/shared-models';
-import { catchError, finalize, interval, Observable, of, Subscription, tap } from 'rxjs';
-import { AuthService } from './auth.service';
+import { catchError, finalize, Observable, of, shareReplay, tap } from 'rxjs';
+import { AuthService, AUTH_TOKEN_STORAGE_KEY } from './auth.service';
 import { ToastService } from './toast.service';
 
 @Injectable({
@@ -28,63 +29,162 @@ export class NotificationService {
   readonly totalCount = signal<number>(0);
   readonly isLoading = signal<boolean>(false);
 
-  private pollSubscription?: Subscription;
+  private eventSource: EventSource | null = null;
   private readonly knownNotificationIds = new Set<string>();
   private isFirstLoad = true;
+  private inFlightRecent$: Observable<NotificationListResponse> | null = null;
 
   constructor() {
-    this.initAutoPolling();
+    // Reactively connect/disconnect SSE stream when user logs in or out
+    toObservable(this.authService.currentUser)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((user) => {
+        if (user) {
+          this.refreshRecent();
+          this.connectEventStream();
+        } else {
+          this.disconnectEventStream();
+          this.notifications.set([]);
+          this.unreadCount.set(0);
+          this.totalCount.set(0);
+        }
+      });
 
     this.destroyRef.onDestroy(() => {
-      this.stopPolling();
+      this.disconnectEventStream();
     });
+
+    this.initVisibilityListener();
   }
 
   /**
-   * Initializes polling and reactive updates when the user is logged in.
+   * Opens a persistent Server-Sent Events (SSE) connection to receive real-time notifications
+   * without continuous background HTTP polling.
    */
-  private initAutoPolling(): void {
-    // Initial fetch if already logged in
-    if (this.authService.currentUser()) {
-      this.refreshRecent();
+  connectEventStream(): void {
+    if (typeof window === 'undefined' || typeof window.EventSource === 'undefined') return;
+
+    const token =
+      window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY) ||
+      (this.authService as unknown as { getToken?: () => string | null }).getToken?.();
+
+    if (!token || !this.authService.currentUser()) {
+      this.disconnectEventStream();
+      return;
     }
 
-    // Fast responsive polling every 15 seconds
-    this.pollSubscription = interval(15000).subscribe(() => {
-      if (this.authService.currentUser()) {
-        this.fetchUnreadCount().subscribe();
+    // Avoid duplicate connections if already open/connecting
+    if (this.eventSource && this.eventSource.readyState !== EventSource.CLOSED) {
+      return;
+    }
+
+    if (this.eventSource) {
+      this.disconnectEventStream();
+    }
+
+    const streamUrl = `${this.apiUrl}/stream?token=${encodeURIComponent(token)}`;
+    this.eventSource = new EventSource(streamUrl);
+
+    // Live notification pushed instantly from backend
+    this.eventSource.addEventListener('notification', (event: MessageEvent) => {
+      try {
+        const item: NotificationDto = JSON.parse(event.data);
+        if (!item || !item.id) return;
+        if (this.knownNotificationIds.has(item.id)) return;
+
+        this.knownNotificationIds.add(item.id);
+        this.notifications.update((list) => [item, ...list]);
+        this.unreadCount.update((c) => c + 1);
+        this.totalCount.update((t) => t + 1);
+
+        this.triggerLiveToast(item);
+      } catch (err) {
+        console.error('Failed to parse incoming notification stream event:', err);
       }
     });
 
-    // Instantly refresh when the user switches back to this browser tab/window
+    // Real-time unread count synchronization (e.g., when read in another tab)
+    this.eventSource.addEventListener('unread_count', (event: MessageEvent) => {
+      try {
+        const payload: { count: number } = JSON.parse(event.data);
+        if (typeof payload.count === 'number') {
+          this.unreadCount.set(payload.count);
+        }
+      } catch (err) {
+        console.error('Failed to parse unread_count stream event:', err);
+      }
+    });
+
+    // Keepalive ping from server
+    this.eventSource.addEventListener('ping', () => {
+      // Connection active
+    });
+
+    this.eventSource.onerror = () => {
+      // Browser automatically retries with backoff.
+      // If user logged out, close stream completely.
+      if (!this.authService.currentUser()) {
+        this.disconnectEventStream();
+      }
+    };
+  }
+
+  /**
+   * Closes the SSE connection cleanly.
+   */
+  disconnectEventStream(): void {
+    if (this.eventSource) {
+      this.eventSource.close();
+      this.eventSource = null;
+    }
+  }
+
+  /**
+   * Checks connection health when browser tab returns to focus.
+   */
+  private initVisibilityListener(): void {
+    if (typeof window === 'undefined') return;
+
     const onFocusOrVisible = () => {
       if (!document.hidden && this.authService.currentUser()) {
-        this.refreshRecent();
+        if (!this.eventSource || this.eventSource.readyState === EventSource.CLOSED) {
+          this.connectEventStream();
+          this.fetchUnreadCount().subscribe();
+        }
       }
     };
 
-    if (typeof window !== 'undefined') {
-      window.addEventListener('focus', onFocusOrVisible);
-      document.addEventListener('visibilitychange', onFocusOrVisible);
+    window.addEventListener('focus', onFocusOrVisible);
+    document.addEventListener('visibilitychange', onFocusOrVisible);
 
-      this.destroyRef.onDestroy(() => {
-        window.removeEventListener('focus', onFocusOrVisible);
-        document.removeEventListener('visibilitychange', onFocusOrVisible);
-      });
-    }
-  }
-
-  stopPolling(): void {
-    this.pollSubscription?.unsubscribe();
+    this.destroyRef.onDestroy(() => {
+      window.removeEventListener('focus', onFocusOrVisible);
+      document.removeEventListener('visibilitychange', onFocusOrVisible);
+    });
   }
 
   /**
-   * Refreshes the top notifications and unread badge count for the app shell bell dropdown.
+   * Refreshes recent notifications and unread badge count for the app shell dropdown.
+   * Deduplicates concurrent in-flight requests to avoid redundant duplicate API calls.
    */
-  refreshRecent(limit = 6): void {
-    if (!this.authService.currentUser()) return;
+  refreshRecent(limit = 6): Observable<NotificationListResponse> {
+    if (!this.authService.currentUser()) {
+      return of({ data: [], total: 0, unreadCount: 0 });
+    }
 
-    this.loadNotifications({ limit, offset: 0 }).subscribe();
+    if (this.inFlightRecent$) {
+      return this.inFlightRecent$;
+    }
+
+    this.inFlightRecent$ = this.loadNotifications({ limit, offset: 0 }).pipe(
+      finalize(() => {
+        this.inFlightRecent$ = null;
+      }),
+      shareReplay(1),
+    );
+
+    this.inFlightRecent$.subscribe();
+    return this.inFlightRecent$;
   }
 
   /**
@@ -115,15 +215,13 @@ export class NotificationService {
         this.totalCount.set(res.total);
         this.unreadCount.set(res.unreadCount);
       }),
-      catchError((err) => {
-        return of({ data: [], total: 0, unreadCount: 0 });
-      }),
+      catchError(() => of({ data: [], total: 0, unreadCount: 0 })),
       finalize(() => this.isLoading.set(false)),
     );
   }
 
   /**
-   * Checks for brand-new incoming unread notifications and pops up an interactive toast.
+   * Populates known IDs on first load and triggers toasts for any unseen items.
    */
   private handleIncomingNotifications(items: NotificationDto[]): void {
     if (this.isFirstLoad) {
@@ -133,45 +231,49 @@ export class NotificationService {
     }
 
     const newUnreadItems = items.filter((item) => !item.isRead && !this.knownNotificationIds.has(item.id));
-
-    // Register all incoming IDs so we don't pop up again
     items.forEach((item) => this.knownNotificationIds.add(item.id));
 
-    // Trigger interactive live toast for newly arrived notifications
     for (const item of newUnreadItems) {
-      const actionLabel =
-        item.relatedEntityType === 'TASK'
-          ? 'View Task'
-          : item.relatedEntityType === 'CASE'
-          ? 'View Case'
-          : item.relatedEntityType === 'PROJECT'
-          ? 'View Project'
-          : 'View';
-
-      const onAction = () => {
-        this.markAsRead(item.id).subscribe();
-        if (item.relatedEntityType === 'TASK' && item.relatedEntityId) {
-          this.router.navigate(['/tasks', item.relatedEntityId]);
-        } else if (item.relatedEntityType === 'CASE' && item.relatedEntityId) {
-          this.router.navigate(['/cases', item.relatedEntityId]);
-        } else if (item.relatedEntityType === 'PROJECT' && item.relatedEntityId) {
-          this.router.navigate(['/projects', item.relatedEntityId]);
-        } else if (item.relatedEntityType === 'SUBTASK') {
-          this.router.navigate(['/tasks']);
-        } else {
-          this.router.navigate(['/notifications']);
-        }
-      };
-
-      this.toastService.showInApp({
-        title: item.title,
-        message: item.message,
-        icon: this.getNotificationIcon(item.type),
-        actionLabel,
-        onAction,
-        duration: 6500,
-      });
+      this.triggerLiveToast(item);
     }
+  }
+
+  /**
+   * Displays an interactive live toast popup with one-click navigation to the target entity.
+   */
+  private triggerLiveToast(item: NotificationDto): void {
+    const actionLabel =
+      item.relatedEntityType === 'TASK'
+        ? 'View Task'
+        : item.relatedEntityType === 'CASE'
+        ? 'View Case'
+        : item.relatedEntityType === 'PROJECT'
+        ? 'View Project'
+        : 'View';
+
+    const onAction = () => {
+      this.markAsRead(item.id).subscribe();
+      if (item.relatedEntityType === 'TASK' && item.relatedEntityId) {
+        this.router.navigate(['/tasks', item.relatedEntityId]);
+      } else if (item.relatedEntityType === 'CASE' && item.relatedEntityId) {
+        this.router.navigate(['/cases', item.relatedEntityId]);
+      } else if (item.relatedEntityType === 'PROJECT' && item.relatedEntityId) {
+        this.router.navigate(['/projects', item.relatedEntityId]);
+      } else if (item.relatedEntityType === 'SUBTASK') {
+        this.router.navigate(['/tasks']);
+      } else {
+        this.router.navigate(['/notifications']);
+      }
+    };
+
+    this.toastService.showInApp({
+      title: item.title,
+      message: item.message,
+      icon: this.getNotificationIcon(item.type),
+      actionLabel,
+      onAction,
+      duration: 6500,
+    });
   }
 
   private getNotificationIcon(type: NotificationType): string {
@@ -194,7 +296,7 @@ export class NotificationService {
   }
 
   /**
-   * Lightweight poll for navbar badge count. Automatically syncs notifications if count changes.
+   * Fetches unread count on demand (used for initial baseline or manual refresh).
    */
   fetchUnreadCount(): Observable<UnreadCountResponse> {
     return this.http.get<UnreadCountResponse>(`${this.apiUrl}/unread-count`).pipe(

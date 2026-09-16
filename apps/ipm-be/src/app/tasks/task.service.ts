@@ -274,6 +274,27 @@ export class TaskService {
 
     const { assigneeIds, labelIds, ...restDto } = dto;
     const isStatusChange = !!dto.status && dto.status !== existing.status;
+
+    // Retrieve previous assignees to only notify genuinely newly added users
+    const previousAssigneeIds = await this.prisma.taskAssignee
+      .findMany({
+        where: { taskId: id },
+        select: { userId: true },
+      })
+      .then((rows) => rows.map((r) => r.userId));
+
+    const isDueDateChange =
+      dto.dueDate !== undefined &&
+      (dto.dueDate === null
+        ? existing.dueDate !== null
+        : !existing.dueDate || new Date(dto.dueDate).getTime() !== existing.dueDate.getTime());
+
+    const isStartDateChange =
+      dto.startDate !== undefined &&
+      (dto.startDate === null
+        ? existing.startDate !== null
+        : !existing.startDate || new Date(dto.startDate).getTime() !== existing.startDate.getTime());
+
     const changes = [
       ...this.activityLogs.buildFieldChanges(existing, restDto),
       ...(assigneeIds
@@ -289,8 +310,8 @@ export class TaskService {
         where: { id },
         data: {
           ...restDto,
-          ...(dto.startDate && { startDate: new Date(dto.startDate) }),
-          ...(dto.dueDate && { dueDate: new Date(dto.dueDate) }),
+          ...(dto.startDate !== undefined && { startDate: dto.startDate ? new Date(dto.startDate) : null }),
+          ...(dto.dueDate !== undefined && { dueDate: dto.dueDate ? new Date(dto.dueDate) : null }),
           ...(assigneeIds && {
             assignees: { deleteMany: {}, createMany: { data: assigneeIds.map((userId) => ({ userId })) } },
           }),
@@ -337,16 +358,54 @@ export class TaskService {
       ? await this.checkDependencyWarnings(id, dto.status as string)
       : [];
 
-    if (dto.assigneeIds?.length) {
-      this.notificationService.notifyAssignees({
-        assigneeUserIds: dto.assigneeIds,
+    // Notify ONLY newly added assignees, not users who were already assigned
+    if (dto.assigneeIds) {
+      const newlyAddedAssignees = dto.assigneeIds.filter((userId) => !previousAssigneeIds.includes(userId));
+      if (newlyAddedAssignees.length > 0) {
+        this.notificationService.notifyAssignees({
+          assigneeUserIds: newlyAddedAssignees,
+          actorId: user.id,
+          actorName: user.name,
+          entityType: 'TASK',
+          entityId: id,
+          entityTitle: dto.title ?? existing.title,
+        }).catch((err) => {
+          console.error('Failed to notify newly added assignees on task update:', err);
+        });
+      }
+    }
+
+    // Notify assigned users about due date changes with the exact dates
+    const currentAssignees = dto.assigneeIds ?? previousAssigneeIds;
+    if (isDueDateChange && currentAssignees.length > 0) {
+      this.notificationService.notifyDateChange({
+        recipientUserIds: currentAssignees,
         actorId: user.id,
         actorName: user.name,
         entityType: 'TASK',
         entityId: id,
-        entityTitle: existing.title,
+        entityTitle: dto.title ?? existing.title,
+        dateField: 'due date',
+        oldDate: existing.dueDate,
+        newDate: dto.dueDate ? new Date(dto.dueDate) : null,
       }).catch((err) => {
-        console.error('Failed to notify assignees on task update:', err);
+        console.error('Failed to notify due date change on task:', err);
+      });
+    }
+
+    if (isStartDateChange && currentAssignees.length > 0) {
+      this.notificationService.notifyDateChange({
+        recipientUserIds: currentAssignees,
+        actorId: user.id,
+        actorName: user.name,
+        entityType: 'TASK',
+        entityId: id,
+        entityTitle: dto.title ?? existing.title,
+        dateField: 'start date',
+        oldDate: existing.startDate,
+        newDate: dto.startDate ? new Date(dto.startDate) : null,
+      }).catch((err) => {
+        console.error('Failed to notify start date change on task:', err);
       });
     }
 
@@ -413,6 +472,11 @@ export class TaskService {
     await this.assertCanEdit(task.case.projectId, user);
     await this.assertAssigneesValid(assigneeIds, task.case.projectId);
 
+    const existingAssignees = await this.prisma.taskAssignee
+      .findMany({ where: { taskId }, select: { userId: true } })
+      .then((rows) => rows.map((r) => r.userId));
+    const newlyAddedIds = assigneeIds.filter((id) => !existingAssignees.includes(id));
+
     const addedNames = await this.getUserNames(assigneeIds);
     const previousAssignees = await this.getAssigneeNames(taskId);
 
@@ -441,14 +505,16 @@ export class TaskService {
       );
     });
 
-    this.notificationService.notifyAssignees({
-      assigneeUserIds: assigneeIds,
-      actorId: user.id,
-      actorName: user.name,
-      entityType: 'TASK',
-      entityId: taskId,
-      entityTitle: task.title,
-    }).catch(() => {});
+    if (newlyAddedIds.length > 0) {
+      this.notificationService.notifyAssignees({
+        assigneeUserIds: newlyAddedIds,
+        actorId: user.id,
+        actorName: user.name,
+        entityType: 'TASK',
+        entityId: taskId,
+        entityTitle: task.title,
+      }).catch(() => {});
+    }
 
     return this.findOne(taskId, user);
   }
