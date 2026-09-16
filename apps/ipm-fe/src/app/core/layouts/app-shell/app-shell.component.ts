@@ -147,11 +147,6 @@ export class AppShellComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    // Initial fetch if user is logged in
-    if (this.authService.currentUser()) {
-      this.notificationService.refreshRecent();
-    }
-
     // Auto-close mobile drawer when user navigates
     this.router.events
       .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))

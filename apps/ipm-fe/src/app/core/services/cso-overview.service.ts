@@ -23,6 +23,8 @@ export interface CsoTaskView {
   workflowStageName: string;
   assignee?: string;
   dueDate: string;
+  createdAt?: string;
+  updatedAt?: string;
   projectId: string;
   projectName: string;
   customerName?: string;
@@ -106,6 +108,8 @@ export class CsoOverviewService {
       workflowStageName: kase.type,
       assignee: kase.assignees?.map((a) => a.name).join(', ') || undefined,
       dueDate: kase.dueDate ?? '',
+      createdAt: kase.createdAt ?? undefined,
+      updatedAt: kase.updatedAt ?? undefined,
       projectId: kase.projectId,
       projectName: kase.project?.name ?? '',
       customerName,

@@ -111,6 +111,14 @@ export class SubtaskService {
     const { assigneeIds, ...restDto } = dto;
     const isStatusChange = !!dto.status && dto.status !== existing.status;
     const previousAssignees = existing.assignees.map((a) => a.user.name);
+    const previousAssigneeIds = existing.assignees.map((a) => a.user.id);
+
+    const isDueDateChange =
+      dto.dueDate !== undefined &&
+      (dto.dueDate === null
+        ? existing.dueDate !== null
+        : !existing.dueDate || new Date(dto.dueDate).getTime() !== existing.dueDate.getTime());
+
     const changes = [
       ...this.activityLogs.buildFieldChanges(existing, restDto),
       ...(assigneeIds
@@ -126,7 +134,9 @@ export class SubtaskService {
         where: { id },
         data: {
           ...restDto,
-          ...(dto.dueDate && { dueDate: new Date(dto.dueDate) }),
+          ...(dto.dueDate !== undefined && {
+            dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
+          }),
           ...(assigneeIds && {
             assignees: { deleteMany: {}, createMany: { data: assigneeIds.map((userId) => ({ userId })) } },
           }),
@@ -158,15 +168,39 @@ export class SubtaskService {
       return subtask;
     });
 
-    if (assigneeIds?.length) {
-      this.notificationService.notifyAssignees({
-        assigneeUserIds: assigneeIds,
+    // Only notify newly assigned users to avoid duplicate notifications on edits
+    if (assigneeIds) {
+      const newlyAddedAssignees = assigneeIds.filter((uid) => !previousAssigneeIds.includes(uid));
+      if (newlyAddedAssignees.length > 0) {
+        this.notificationService.notifyAssignees({
+          assigneeUserIds: newlyAddedAssignees,
+          actorId: user.id,
+          actorName: user.name,
+          entityType: 'SUBTASK',
+          entityId: id,
+          entityTitle: dto.title ?? existing.title,
+        }).catch((err) => {
+          console.error('Failed to notify newly added assignees on subtask update:', err);
+        });
+      }
+    }
+
+    // Notify assigned users about due date changes with the exact dates
+    const currentAssignees = assigneeIds ?? previousAssigneeIds;
+    if (isDueDateChange && currentAssignees.length > 0) {
+      this.notificationService.notifyDateChange({
+        recipientUserIds: currentAssignees,
         actorId: user.id,
         actorName: user.name,
         entityType: 'SUBTASK',
         entityId: id,
-        entityTitle: existing.title,
-      }).catch(() => {});
+        entityTitle: dto.title ?? existing.title,
+        dateField: 'due date',
+        oldDate: existing.dueDate,
+        newDate: dto.dueDate ? new Date(dto.dueDate) : null,
+      }).catch((err) => {
+        console.error('Failed to notify due date change on subtask:', err);
+      });
     }
 
     return this.toSubtask(updated);
@@ -201,6 +235,9 @@ export class SubtaskService {
     await this.assertCanEdit(existing.task.case.projectId, user);
     await this.assertAssigneesValid(assigneeIds, existing.task.case.projectId);
 
+    const existingAssigneeIds = existing.assignees.map((a) => a.user.id);
+    const newlyAddedIds = assigneeIds.filter((uid) => !existingAssigneeIds.includes(uid));
+
     const addedNames = await this.getUserNames(assigneeIds);
     const previousAssignees = existing.assignees.map((a) => a.user.name);
 
@@ -229,14 +266,16 @@ export class SubtaskService {
       );
     });
 
-    this.notificationService.notifyAssignees({
-      assigneeUserIds: assigneeIds,
-      actorId: user.id,
-      actorName: user.name,
-      entityType: 'SUBTASK',
-      entityId: id,
-      entityTitle: existing.title,
-    }).catch(() => {});
+    if (newlyAddedIds.length > 0) {
+      this.notificationService.notifyAssignees({
+        assigneeUserIds: newlyAddedIds,
+        actorId: user.id,
+        actorName: user.name,
+        entityType: 'SUBTASK',
+        entityId: id,
+        entityTitle: existing.title,
+      }).catch(() => {});
+    }
 
     return this.findOne(id, user);
   }

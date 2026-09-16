@@ -53,13 +53,13 @@
       <!-- ══════════════════════════════════════════════ -->
       <div class="kpi-grid">
         @for (card of kpiCards(); track card.id) {
-          <div class="kpi-card" [style.--accent]="card.accent">
+          <div class="kpi-card" [style.--accent]="card.accent" [title]="card.title + ': ' + card.value">
             <div class="kpi-icon-wrap">
               <span class="material-symbols-outlined">{{ card.icon }}</span>
             </div>
             <div class="kpi-body">
               <span class="kpi-value">{{ card.value }}</span>
-              <span class="kpi-label">{{ card.title }}</span>
+              <span class="kpi-label" [title]="card.title">{{ card.title }}</span>
               @if (card.badge) {
                 <span class="sla-badge" [class]="card.badge.cls">{{ card.badge.label }}</span>
               }
