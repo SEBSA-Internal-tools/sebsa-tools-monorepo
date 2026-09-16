@@ -267,9 +267,11 @@
             aria-label="User account menu"
             (click)="toggleProfileMenu()"
           >
-            <div class="avatar-circle">
-              {{ (authService.currentUser()?.name || 'User').charAt(0).toUpperCase() }}
-            </div>
+            <app-user-avatar
+              [name]="authService.currentUser()?.name || 'User'"
+              [avatarUrl]="authService.currentUser()?.avatarUrl"
+              size="md"
+            ></app-user-avatar>
             <div class="user-meta">
               <span class="user-name">{{ authService.currentUser()?.name || 'Username' }}</span>
             </div>

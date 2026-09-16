@@ -9,6 +9,7 @@ import { CreateCaseModalComponent, type CaseFormData } from '../../../features/c
 import { CasesService } from '../../services/cases.service';
 import { ToastService } from '../../services/toast.service';
 import { NotificationService } from '../../services/notification.service';
+import { UserAvatarComponent } from '../../components/user-avatar/user-avatar.component';
 import type { CreateCaseRequest, NotificationDto, NotificationType, SystemRole } from '@sebsa-pm-tool/shared-models';
 
 interface NavItem {
@@ -26,7 +27,7 @@ interface NavGroup {
 }
 
 @Component({
-  imports: [CommonModule, RouterLink, RouterLinkActive, RouterOutlet, ToastComponent, CreateCaseModalComponent],
+  imports: [CommonModule, RouterLink, RouterLinkActive, RouterOutlet, ToastComponent, CreateCaseModalComponent, UserAvatarComponent],
   selector: 'app-shell',
   templateUrl: './app-shell.component.html',
   styleUrl: './app-shell.component.scss',

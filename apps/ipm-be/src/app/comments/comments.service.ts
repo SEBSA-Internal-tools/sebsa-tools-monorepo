@@ -16,7 +16,7 @@ import { FilterCommentDto } from './dto/filter-comment.dto';
 const ADMIN_SYSTEM_ROLES: AuthUser['systemRole'][] = ['ADMIN', 'SUPER_ADMIN'];
 
 const commentInclude = {
-  author: { select: { id: true, name: true, email: true } },
+  author: { select: { id: true, name: true, email: true, avatarUrl: true } },
   mentions: { include: { mentionedUser: { select: { id: true, name: true } } } },
   attachments: {
     select: {

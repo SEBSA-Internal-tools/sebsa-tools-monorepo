@@ -5,6 +5,7 @@ import { CommentSummary, CommentTargetType } from '@sebsa-pm-tool/shared-models'
 import { CommentsService } from '../../services/comments.service';
 import { AttachmentsService } from '../../services/attachments.service';
 import { ToastService } from '../../services/toast.service';
+import { UserAvatarComponent } from '../user-avatar/user-avatar.component';
 
 /** Matches the server-side cap in CreateCommentDto. */
 const BODY_MAX_LENGTH = 5000;
@@ -26,7 +27,7 @@ export interface MentionableUser {
 @Component({
   standalone: true,
   selector: 'app-comment-section',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, UserAvatarComponent],
   templateUrl: './comment-section.component.html',
   styleUrl: './comment-section.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

@@ -14,6 +14,7 @@ import { FormsModule } from '@angular/forms';
 import { UsersService } from '../../../../../core/services/users.service';
 import { CustomersService } from '../../../../../core/services/customers.service';
 import { CustomSelectComponent } from '../../../../../core/components/custom-select/custom-select.component';
+import { UserAvatarComponent } from '../../../../../core/components/user-avatar/user-avatar.component';
 import type {
   Customer,
   Project,
@@ -55,7 +56,7 @@ const PROJECT_STATUS_OPTIONS: { value: ProjectStatus; label: string }[] = [
 @Component({
   standalone: true,
   selector: 'create-project-modal',
-  imports: [CommonModule, FormsModule, CustomSelectComponent],
+  imports: [CommonModule, FormsModule, CustomSelectComponent, UserAvatarComponent],
   templateUrl: './create-project-modal.component.html',
   styleUrl: './create-project-modal.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -144,14 +145,6 @@ export class CreateProjectModalComponent implements OnChanges {
 
   removeMember(memberId: string): void {
     this.selectedMembers = this.selectedMembers.filter((m) => m.id !== memberId);
-  }
-
-  initials(name: string): string {
-    return name
-      .split(' ')
-      .map((part) => part[0])
-      .join('')
-      .toUpperCase();
   }
 
   onCancel(): void {

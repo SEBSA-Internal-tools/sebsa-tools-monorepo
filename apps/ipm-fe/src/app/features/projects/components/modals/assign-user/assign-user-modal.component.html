@@ -95,9 +95,7 @@
           <div class="selected-users-list">
             @for (user of selectedUsers(); track user.id) {
               <div class="user-item">
-                <div class="user-avatar">
-                  {{ getUserInitials(user.name) }}
-                </div>
+                <app-user-avatar class="user-avatar" [name]="user.name" [avatarUrl]="user.avatarUrl" size="md"></app-user-avatar>
                 <div class="user-details">
                   <h4 class="user-name">{{ user.name }}</h4>
                   <p class="user-email">{{ user.email }}</p>

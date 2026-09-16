@@ -37,7 +37,7 @@
         <div class="team-card">
           <!-- Card Header -->
           <div class="card-header">
-            <div class="member-avatar">{{ initials(member.user.name) }}</div>
+            <app-user-avatar class="member-avatar" [name]="member.user.name" [avatarUrl]="member.user.avatarUrl" size="lg"></app-user-avatar>
             <button
               type="button"
               class="btn-remove-member"
@@ -80,7 +80,7 @@
             <tr>
               <td>
                 <div class="member-cell">
-                  <div class="list-member-avatar">{{ initials(member.user.name) }}</div>
+                  <app-user-avatar class="list-member-avatar" [name]="member.user.name" [avatarUrl]="member.user.avatarUrl" size="sm"></app-user-avatar>
                   <span>{{ member.user.name }}</span>
                 </div>
               </td>

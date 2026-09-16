@@ -30,7 +30,7 @@ import { ActivityLogsService } from '../activity-logs/activity-logs.service';
 const ADMIN_SYSTEM_ROLES: AuthUser['systemRole'][] = ['ADMIN', 'SUPER_ADMIN'];
 
 const memberInclude = {
-  user: { select: { id: true, name: true, email: true } },
+  user: { select: { id: true, name: true, email: true, avatarUrl: true } },
   role: { select: { id: true, name: true, privilegeGroup: { select: { isReadOnly: true } } } },
 } satisfies Prisma.ProjectMemberInclude;
 

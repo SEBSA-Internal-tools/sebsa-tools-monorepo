@@ -6,6 +6,7 @@ export interface AuthUser {
   email: string;
   systemRole: SystemRole;
   departmentId: string;
+  avatarUrl?: string | null;
 }
 
 export interface LoginRequest {

@@ -126,7 +126,7 @@
   <ol class="comment-list">
     @for (comment of thread(); track trackById($index, comment)) {
       <li class="comment-item">
-        <span class="avatar" [title]="comment.author.name">{{ initials(comment.author.name) }}</span>
+        <app-user-avatar class="avatar" [name]="comment.author.name" [avatarUrl]="comment.author.avatarUrl" size="sm" [title]="comment.author.name"></app-user-avatar>
 
         <div class="comment-body">
           <p class="comment-meta">
@@ -187,7 +187,7 @@
             <ol class="reply-list">
               @for (reply of comment.replies; track trackById($index, reply)) {
                 <li class="comment-item reply">
-                  <span class="avatar small" [title]="reply.author.name">{{ initials(reply.author.name) }}</span>
+                  <app-user-avatar class="avatar small" [name]="reply.author.name" [avatarUrl]="reply.author.avatarUrl" size="sm" [title]="reply.author.name"></app-user-avatar>
 
                   <div class="comment-body">
                     <p class="comment-meta">

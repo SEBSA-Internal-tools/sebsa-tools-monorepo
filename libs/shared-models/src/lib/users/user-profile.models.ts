@@ -9,6 +9,7 @@ export interface UserProfileDto {
   departmentName?: string;
   isActive: boolean;
   createdAt: string;
+  avatarUrl?: string | null;
 }
 
 export interface UpdateProfileDto {

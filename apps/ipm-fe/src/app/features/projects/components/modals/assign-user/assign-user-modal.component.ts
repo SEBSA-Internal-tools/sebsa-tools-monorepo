@@ -13,6 +13,7 @@ import { FormsModule } from '@angular/forms';
 import { UsersService } from '../../../../../core/services/users.service';
 import { ProjectsService } from '../../../services/projects.service';
 import { CustomSelectComponent } from '../../../../../core/components/custom-select/custom-select.component';
+import { UserAvatarComponent } from '../../../../../core/components/user-avatar/user-avatar.component';
 import type { ProjectRole, UserSummary } from '@sebsa-pm-tool/shared-models';
 
 export type AssignedUser = UserSummary;
@@ -25,7 +26,7 @@ export interface AssignUserFormData {
 @Component({
   standalone: true,
   selector: 'assign-user-modal',
-  imports: [CommonModule, FormsModule, CustomSelectComponent],
+  imports: [CommonModule, FormsModule, CustomSelectComponent, UserAvatarComponent],
   templateUrl: './assign-user-modal.component.html',
   styleUrl: './assign-user-modal.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -146,11 +147,4 @@ export class AssignUserModalComponent implements OnChanges {
     return emailRegex.test(email);
   }
 
-  getUserInitials(name: string): string {
-    return name
-      .split(' ')
-      .map((n: string) => n[0])
-      .join('')
-      .toUpperCase();
-  }
 }

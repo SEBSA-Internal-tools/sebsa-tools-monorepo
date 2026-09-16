@@ -32,6 +32,7 @@ export class UsersService {
       systemRole: user.systemRole as UserProfileDto['systemRole'],
       isActive: user.isActive,
       createdAt: user.createdAt.toISOString(),
+      avatarUrl: user.avatarUrl,
     };
   }
 
@@ -76,7 +77,7 @@ export class UsersService {
       },
       take: SEARCH_RESULT_LIMIT,
       orderBy: { name: 'asc' },
-      select: { id: true, name: true, email: true, departmentId: true },
+      select: { id: true, name: true, email: true, departmentId: true, avatarUrl: true },
     });
   }
 
@@ -154,6 +155,7 @@ export class UsersService {
     isActive: boolean;
     approvedAt: Date | null;
     createdAt: Date;
+    avatarUrl?: string | null;
   }): UserAdminSummary {
     return {
       id: user.id,
@@ -164,6 +166,7 @@ export class UsersService {
       isActive: user.isActive,
       approvedAt: user.approvedAt ? user.approvedAt.toISOString() : null,
       createdAt: user.createdAt.toISOString(),
+      avatarUrl: user.avatarUrl,
     };
   }
 }

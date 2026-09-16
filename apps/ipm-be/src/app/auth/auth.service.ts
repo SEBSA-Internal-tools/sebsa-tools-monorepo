@@ -102,6 +102,7 @@ export class AuthService {
     email: string;
     systemRole: string;
     departmentId: string;
+    avatarUrl?: string | null;
   }): AuthUser {
     return {
       id: user.id,
@@ -109,6 +110,7 @@ export class AuthService {
       email: user.email,
       systemRole: user.systemRole as AuthUser['systemRole'],
       departmentId: user.departmentId,
+      avatarUrl: user.avatarUrl,
     };
   }
 }

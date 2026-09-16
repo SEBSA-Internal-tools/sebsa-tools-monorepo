@@ -22,8 +22,9 @@ import {
 } from '../../projects/components/modals/priority-modal/priority-modal.component';
 import { CustomSelectComponent } from '../../../core/components/custom-select/custom-select.component';
 import { CustomDatepickerComponent } from '../../../core/components/custom-datepicker/custom-datepicker.component';
+import { UserAvatarComponent } from '../../../core/components/user-avatar/user-avatar.component';
 
-type AssigneeCandidate = { id: string; name: string; email: string };
+type AssigneeCandidate = { id: string; name: string; email: string; avatarUrl?: string | null };
 
 export interface TaskFormData {
   title: string;
@@ -54,6 +55,7 @@ export interface TaskFormData {
     PriorityModalComponent,
     CustomSelectComponent,
     CustomDatepickerComponent,
+    UserAvatarComponent,
   ],
   templateUrl: './create-task-modal.component.html',
   styleUrl: './create-task-modal.component.scss',
@@ -293,12 +295,4 @@ export class CreateTaskModalComponent implements OnChanges {
     return this.availableAssignees().filter((user) => this.selectedAssigneeIds.includes(user.id));
   }
 
-  getUserInitials(name: string): string {
-    return name
-      .trim()
-      .split(/\s+/)
-      .slice(0, 2)
-      .map((part) => part.charAt(0).toUpperCase())
-      .join('');
-  }
 }

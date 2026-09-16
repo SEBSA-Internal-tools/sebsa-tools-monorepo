@@ -16,7 +16,7 @@ export interface ProjectMemberSummary {
   userId: string;
   roleId: string;
   joinedAt: string;
-  user: Pick<UserSummary, 'id' | 'name' | 'email'>;
+  user: Pick<UserSummary, 'id' | 'name' | 'email' | 'avatarUrl'>;
   role: Pick<ProjectRole, 'id' | 'name'> & { privilegeGroup: Pick<PrivilegeGroup, 'isReadOnly'> };
 }
 
