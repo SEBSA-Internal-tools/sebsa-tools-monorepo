@@ -20,10 +20,10 @@ describe('canAccessWorkspace', () => {
     expect(canAccessWorkspace(REVIEWER, 'admin')).toBe(false);
   });
 
-  it('grants an admin all three workspaces, not just admin (spec FL 2.1-02)', () => {
+  it('grants an admin only the explicitly assigned admin workspace', () => {
     expect(canAccessWorkspace(ADMIN, 'admin')).toBe(true);
-    expect(canAccessWorkspace(ADMIN, 'developer')).toBe(true);
-    expect(canAccessWorkspace(ADMIN, 'reviewer')).toBe(true);
+    expect(canAccessWorkspace(ADMIN, 'developer')).toBe(false);
+    expect(canAccessWorkspace(ADMIN, 'reviewer')).toBe(false);
   });
 });
 
@@ -34,6 +34,10 @@ describe('accessibleWorkspaces', () => {
 
   it('unions the roles rather than picking a single highest one', () => {
     expect(accessibleWorkspaces(['Developer', 'Reviewer'])).toEqual(['developer', 'reviewer']);
+  });
+
+  it('does not infer Reviewer access for an Admin + Developer account', () => {
+    expect(accessibleWorkspaces(['Developer', 'Admin'])).toEqual(['developer', 'admin']);
   });
 
   it('returns nothing for a user with no roles', () => {

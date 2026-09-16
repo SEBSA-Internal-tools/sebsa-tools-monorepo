@@ -35,8 +35,8 @@ export const ROUTES = {
 } as const;
 
 export const WORKSPACE_ACCESS = {
-  developer: ['Developer', 'Admin'],
-  reviewer: ['Reviewer', 'Admin'],
+  developer: ['Developer'],
+  reviewer: ['Reviewer'],
   admin: ['Admin'],
 } as const satisfies Record<string, readonly Role[]>;
 

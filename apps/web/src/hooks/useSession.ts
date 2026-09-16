@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { isMockApiEnabled, MOCK_IDENTITY_KEY, setMockUserId } from '@/lib/apiClient.ts';
+import { setMockUserId } from '@/lib/apiClient.ts';
 import { clearUserStorage } from '@/lib/sessionStorage.ts';
 
 interface SessionState {
@@ -17,23 +17,6 @@ interface SessionState {
 }
 
 const AUTH_EVENT_KEY = 'sdp.auth-event';
-function clearMockIdentity(): void {
-  if (typeof window === 'undefined') return;
-  window.localStorage.removeItem(MOCK_IDENTITY_KEY);
-  window.sessionStorage.removeItem(MOCK_IDENTITY_KEY);
-}
-
-function storeMockIdentity(userId: string, remember: boolean): void {
-  if (!isMockApiEnabled || typeof window === 'undefined') return;
-  clearMockIdentity();
-  (remember ? window.localStorage : window.sessionStorage).setItem(MOCK_IDENTITY_KEY, userId);
-}
-
-function readMockIdentity(): string | null {
-  if (!isMockApiEnabled || typeof window === 'undefined') return null;
-  return window.sessionStorage.getItem(MOCK_IDENTITY_KEY) ?? window.localStorage.getItem(MOCK_IDENTITY_KEY);
-}
-
 export const useSession = create<SessionState>()((set, get) => ({
   userId: null,
   isAuthenticated: false,
@@ -41,8 +24,7 @@ export const useSession = create<SessionState>()((set, get) => ({
   didExpire: false,
   isExpired: false,
 
-  signIn: (userId, remember = false) => {
-    storeMockIdentity(userId, remember);
+  signIn: (userId) => {
     setMockUserId(userId);
     set({ userId, isAuthenticated: true, isChecking: false, didExpire: false, isExpired: false });
   },
@@ -57,7 +39,6 @@ export const useSession = create<SessionState>()((set, get) => ({
     const state = get();
     if (!state.isAuthenticated && !state.isChecking && state.didExpire === expired && !state.isExpired) return;
     clearUserStorage();
-    clearMockIdentity();
     setMockUserId(null);
     set({ userId: null, isAuthenticated: false, isChecking: false, didExpire: expired, isExpired: false });
     if (options?.broadcast !== false && typeof window !== 'undefined') {
@@ -68,7 +49,6 @@ export const useSession = create<SessionState>()((set, get) => ({
   expireSession: () => {
     if (get().isExpired) return;
     clearUserStorage();
-    clearMockIdentity();
     setMockUserId(null);
     set({ userId: null, isAuthenticated: false, isChecking: false, didExpire: true, isExpired: true });
   },
@@ -77,17 +57,18 @@ export const useSession = create<SessionState>()((set, get) => ({
   acknowledgeExpiry: () => set({ didExpire: false }),
 }));
 
-/** HttpOnly cookies are the source of truth, so every fresh page asks /auth/me. */
+/**
+ * HttpOnly cookies are the source of truth, so every fresh browser page starts
+ * unauthenticated and asks `/auth/me` to resolve the cookie-backed session.
+ */
 export function initialiseSession(): void {
-  const mockUserId = readMockIdentity();
   useSession.setState({
-    userId: mockUserId,
-    isAuthenticated: mockUserId !== null,
+    userId: null,
+    isAuthenticated: false,
     isChecking: true,
     didExpire: false,
     isExpired: false,
   });
-  setMockUserId(mockUserId);
   listenForAuthEvents();
 }
 

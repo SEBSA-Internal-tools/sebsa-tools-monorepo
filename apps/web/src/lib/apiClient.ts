@@ -4,8 +4,8 @@ import { apiErrorSchema } from '@sdp/contracts';
 /**
  * The single HTTP seam between the application and its data.
  *
- * This layer issues real `fetch` calls to relative URLs. Development can use
- * MSW or the Vite proxy; production sends the same requests to NestJS.
+ * This layer issues real `fetch` calls to relative URLs. In development the
+ * Vite proxy forwards them to NestJS; production serves the same `/api` URLs.
  *
  * Responses are parsed through the Zod schema the caller supplies. That costs
  * microseconds against a network round-trip and buys the thing most likely to
@@ -15,9 +15,9 @@ import { apiErrorSchema } from '@sdp/contracts';
  */
 
 const API_BASE = '/api';
-const USE_MOCK_API = import.meta.env.DEV && import.meta.env['VITE_USE_MOCK_API'] !== 'false';
-export const isMockApiEnabled = USE_MOCK_API;
-export const MOCK_IDENTITY_KEY = 'sdp.mock-user-id';
+// MSW is a unit-test boundary only. Browser builds must always authenticate
+// against NestJS so a seeded/mock identity can never become a real session.
+const USE_MOCK_API = import.meta.env.MODE === 'test';
 
 export class ApiError extends Error {
   readonly statusCode: number;
@@ -62,31 +62,23 @@ export class ApiContractError extends Error {
 }
 
 /**
- * Development mocks only. Identifies the caller to MSW so handlers can filter
+ * Unit tests only. Identifies the caller to MSW so handlers can filter
  * server-side (for example
  * excluding a reviewer's own submissions from the Available queue) instead of
  * the UI hiding rows it should never have received.
  *
- * The identity is **read from storage on every request** rather than cached in
- * this module. It used to be a module-level `let` primed once at boot, and that
- * was a real bug: Vite HMR re-evaluates the module and resets it to `null` while
- * React state survives, so every subsequent request went out unauthenticated
- * while the UI still believed it was signed in — surfacing as an authentication
- * error minutes after launch.
- *
- * `setMockUserId` is an explicit override used by the unit-test harness. Real
- * authentication never reads this value and relies only on HttpOnly cookies.
+ * `setMockUserId` is an explicit override used by the unit-test harness. It is
+ * ignored outside Vitest; real authentication relies only on HttpOnly cookies.
  */
 let identityOverride: string | null = null;
 
 export function setMockUserId(userId: string | null): void {
+  if (!USE_MOCK_API) return;
   identityOverride = userId;
 }
 
 function callerIdentity(): string | null {
-  if (identityOverride !== null) return identityOverride;
-  if (!USE_MOCK_API || typeof window === 'undefined') return null;
-  return window.sessionStorage.getItem(MOCK_IDENTITY_KEY) ?? window.localStorage.getItem(MOCK_IDENTITY_KEY);
+  return USE_MOCK_API ? identityOverride : null;
 }
 
 /**
@@ -285,7 +277,7 @@ function readCookie(name: string): string | undefined {
  * from NestJS must stay a plain 404.
  */
 function isMockDetached(response: Response): boolean {
-  if (!import.meta.env.DEV) return false;
+  if (!USE_MOCK_API) return false;
   if (response.status !== 404) return false;
 
   const contentType = response.headers.get('content-type') ?? '';

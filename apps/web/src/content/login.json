@@ -28,7 +28,6 @@
     "invalidCredentials": "Invalid email or password.",
     "success": "Signed in as {name}",
     "signedOut": "You have been signed out.",
-    "ssoUnavailable": "Single sign-on goes live in Phase 2. Use a demo account for now."
-  },
-  "demoHint": "Demo · any seeded user · password Sebsa@2026"
+    "ssoUnavailable": "Single sign-on is not available yet. Use your registered account."
+  }
 }

@@ -12,8 +12,9 @@ import { WORKSPACE_ACCESS, WORKSPACE_ORDER, type WorkspaceKey } from '@/config/r
  * Pure functions with no React import, so the same rules can be unit-tested
  * directly and ported to the NestJS `PolicyGuard` in Phase 2.
  *
- * Roles are ADDITIVE. A user holding Developer + Reviewer sees both workspaces;
- * an Admin sees all three. There is no "highest role wins" ranking.
+ * Roles are ADDITIVE and explicit. Each role grants only its matching
+ * workspace, so Admin + Developer grants those two workspaces but does not
+ * silently grant Reviewer access.
  */
 
 export function canAccessWorkspace(roles: readonly Role[], workspace: WorkspaceKey): boolean {

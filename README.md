@@ -4,21 +4,21 @@ An Nx monorepo. **`apps/web`** is the frontend shell hosting several internal
 applications — the **Code Review Portal** (spec `SPL/OPS/FO-001`) is the
 first; **Delivery** and **Wiki** follow in later phases and are already
 registered as navigable shells so the portal registry stays exercised.
-**`apps/api`** is an early-stage NestJS scaffold (config module + health
-check only — not yet wired to the frontend). **`apps/web-e2e`** holds the
+**`apps/api`** is the NestJS + Prisma API used by the frontend, including
+cookie-based JWT authentication and RBAC. **`apps/web-e2e`** holds the
 Playwright suite, and **`packages/contracts`** / **`packages/types`** are
 shared, framework-free packages consumed by the frontend.
 
 ```bash
 npm install
 npm run dev          # nx run-many -t dev — starts every app with a dev target
-npm run dev:web       # just the frontend — http://localhost:5175, seeded mock data, no backend needed
-npm run dev:api       # just the API scaffold — http://localhost:3000
+npm run dev:web       # just the frontend — http://localhost:5175; expects the API on port 3000
+npm run dev:api       # just the NestJS API — http://localhost:3000
 ```
 
-No `.env` file is required for `apps/web`. Development defaults to mock mode;
-a production build defaults to `live` so fixtures can never ship by accident.
-`apps/api` does need one — see [Environment](#environment).
+The web app always uses the real `/api` endpoints. Browser mocks are disabled;
+MSW fixtures are retained only for isolated unit tests. `apps/api` needs its
+database and authentication environment values — see [Environment](#environment).
 
 Nx also builds a project graph from these packages; `npm run graph` (or
 `npx nx graph`) opens an interactive view of what depends on what.
@@ -37,8 +37,8 @@ cached.
 | Script                            | What it does                                                                                                  |
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------- |
 | `npm run dev`                     | `nx run-many -t dev` — Vite dev server (web) + esbuild watch (api)                                            |
-| `npm run dev:web`                 | `nx run @sdp/web:dev` — just the frontend, MSW intercepting `/api/*`                                          |
-| `npm run dev:api`                 | `nx run @sdp/api:dev` — just the NestJS scaffold                                                              |
+| `npm run dev:web`                 | `nx run @sdp/web:dev` — frontend with `/api/*` proxied to NestJS                                              |
+| `npm run dev:api`                 | `nx run @sdp/api:dev` — the NestJS API                                                                        |
 | `npm run build`                   | `nx run-many -t build` — type-check and build every project                                                   |
 | `npm run build:web`               | `nx run @sdp/web:build` — `tsc -b` then `vite build`                                                          |
 | `npm run build:api`               | `nx run @sdp/api:build` — esbuild bundle                                                                      |
@@ -190,11 +190,11 @@ responses against it and the MSW handlers validate requests against it, so contr
 loudly in development rather than shipping. Form schemas live in the owning feature's `domain/` and
 are built by `.pick()`/`.extend()` from a contract — never by redeclaring the shape.
 
-### Authorization is decided by the server, even in mock mode
+### Authentication and authorization are decided by the server
 
-The MSW handlers check roles and ownership and return real 401/403/409 responses. Self-review
-exclusion, concurrent task pick, and admin-only deletion are enforced there. The UI's role gating
-shapes what a user sees; it does not secure anything.
+NestJS authenticates the HttpOnly JWT cookies and enforces roles and ownership. The UI's role
+gating shapes what a user sees; it does not secure anything. MSW handlers model those responses
+only inside unit tests.
 
 ### Strings live in `apps/web/src/content`
 
@@ -218,14 +218,9 @@ tinted text with `opacity` pushed every feedback tone below 4.5:1.
 
 ### `apps/web`
 
-No `.env` file exists or is needed — mock mode is the dev default.
-
-| Variable               | Default                          | Purpose                                    |
-| ---------------------- | -------------------------------- | ------------------------------------------ |
-| `VITE_API_MODE`        | `mock` in dev, `live` in a build | `mock` boots MSW in the browser            |
-| `VITE_API_BASE_URL`    | `/api`                           | Prefixed to every `apiClient` request      |
-| `VITE_APP_NAME`        | SEBSA Service Delivery Portal    |                                            |
-| `VITE_ENABLE_DEVTOOLS` | on in dev                        | React Query devtools and the user switcher |
+No frontend authentication secret or token setting is required. The browser
+calls relative `/api` URLs; Vite proxies them to `http://localhost:3000` during
+development. JWT access and refresh tokens remain in HttpOnly cookies.
 
 ### `apps/api`
 

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import credentials from './data/credentials.json';
-import loginContent from '@/content/login.json';
 import { db } from './db.ts';
 
 /**
@@ -27,13 +26,4 @@ describe('demo credentials', () => {
     expect(new Set(listed).size).toBe(listed.length);
   });
 
-  /**
-   * The hint on the login page spells the password out literally, because
-   * application code must not import from `mocks/`. This is what stops the two
-   * drifting apart and leaving the screen advertising a password that no longer
-   * works.
-   */
-  it('advertises the real password on the login page', () => {
-    expect(loginContent.demoHint).toContain(credentials.password);
-  });
 });

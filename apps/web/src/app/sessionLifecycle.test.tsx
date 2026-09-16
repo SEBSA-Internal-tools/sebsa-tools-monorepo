@@ -36,8 +36,19 @@ function renderApp(initialPath = '/') {
   };
 }
 
-function seedStoredSession(): void {
-  window.localStorage.setItem(KEY, USER);
+function seedCookieSession(): void {
+  setMockUserId(USER);
+}
+
+function seedActiveSession(): void {
+  seedCookieSession();
+  useSession.setState({
+    userId: USER,
+    isAuthenticated: true,
+    isChecking: false,
+    didExpire: false,
+    isExpired: false,
+  });
 }
 
 beforeEach(() => {
@@ -54,12 +65,13 @@ beforeEach(() => {
   });
 });
 
-describe('booting from a stored session', () => {
-  it('restores a live session before the first render', async () => {
-    seedStoredSession();
+describe('booting from a cookie-backed session', () => {
+  it('restores a live session through /auth/me', async () => {
+    seedCookieSession();
     initialiseSession();
 
-    expect(useSession.getState().isAuthenticated).toBe(true);
+    expect(useSession.getState().isAuthenticated).toBe(false);
+    expect(useSession.getState().isChecking).toBe(true);
 
     const { router } = renderApp('/');
     await waitFor(() => {
@@ -76,8 +88,7 @@ describe('booting from a stored session', () => {
    * bare user id and a session lived forever — this is the case that proves the
    * two-hour limit is real rather than decorative.
    */
-  it('refuses a session that has already expired, and lands on login', async () => {
-    window.localStorage.removeItem(KEY);
+  it('lands on login when /auth/me finds no cookie-backed session', async () => {
     initialiseSession();
 
     expect(useSession.getState().isAuthenticated).toBe(false);
@@ -89,28 +100,14 @@ describe('booting from a stored session', () => {
     });
   });
 
-  /**
-   * The bug that produced the reported error screen.
-   *
-   * `apiClient` used to hold the identity in a module-level `let`, primed once
-   * at boot. Vite HMR resets that while React state survives, so every later
-   * request went out anonymous while the UI still believed it was signed in.
-   * Reading storage per request is what fixes it — this asserts the fix by
-   * clearing the override and checking requests still authenticate.
-   */
-  it('authenticates from storage even when the in-memory override is lost', async () => {
-    seedStoredSession();
+  /** Browser storage is never accepted as proof of authentication. */
+  it('ignores a forged browser-storage identity', async () => {
+    window.localStorage.setItem(KEY, USER);
     initialiseSession();
 
-    // Simulate the module reset: the override is gone, storage is not.
-    setMockUserId(null);
-
-    renderApp('/');
-
-    // The account chip renders only once `/api/auth/me` has authenticated —
-    // which, with the override gone, it can only do by reading storage.
-    expect(await screen.findByRole('button', { name: /account menu/i })).toBeInTheDocument();
-    expect(screen.queryByText(/authentication failed/i)).toBeNull();
+    const { router } = renderApp('/');
+    await waitFor(() => expect(router.state.location.pathname).toBe('/login'));
+    expect(useSession.getState().isAuthenticated).toBe(false);
   });
 });
 
@@ -146,8 +143,7 @@ describe('a session rejected mid-flight', () => {
    * in place of the layout and the test would simply not find the screen either.
    */
   it('explains the expiry instead of crashing into the error boundary', async () => {
-    seedStoredSession();
-    initialiseSession();
+    seedActiveSession();
     rejectTheSession();
 
     const { router } = renderApp('/crp/developer');
@@ -173,8 +169,7 @@ describe('a session rejected mid-flight', () => {
     // person to sign in on a shared browser inherited a stranger's task.
     window.sessionStorage.setItem('sdp.taskDraft', JSON.stringify({ state: { crimId: 'CRIM-1' } }));
 
-    seedStoredSession();
-    initialiseSession();
+    seedActiveSession();
     rejectTheSession();
 
     renderApp('/crp/developer');
@@ -184,8 +179,7 @@ describe('a session rejected mid-flight', () => {
   });
 
   it('goes to the login form, with its notice, when the user asks', async () => {
-    seedStoredSession();
-    initialiseSession();
+    seedActiveSession();
     rejectTheSession();
 
     const { router, user } = renderApp('/crp/developer');
