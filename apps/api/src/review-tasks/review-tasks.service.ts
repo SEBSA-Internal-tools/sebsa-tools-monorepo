@@ -19,6 +19,7 @@ import { formatTaskCode } from './task-code.js';
 const taskInclude = {
   customer: true,
   developer: true,
+  currentReviewer: true,
   taskTypes: { include: { taskType: true } },
   developerChecklist: {
     include: {
@@ -31,15 +32,17 @@ const taskInclude = {
   },
 } satisfies Prisma.TaskInclude;
 
+type TaskWithRelations = Prisma.TaskGetPayload<{ include: typeof taskInclude }>;
+
 @Injectable()
 export class ReviewTasksService {
   constructor(private readonly prisma: PrismaService) {}
 
-  findAll(user: AuthenticatedUser) {
+  async findAll(user: AuthenticatedUser) {
     const isAdmin = user.roles.includes('ADMIN');
     const canDevelop = user.roles.includes('DEVELOPER');
     const canReview = user.roles.includes('REVIEWER');
-    return this.prisma.task.findMany({
+    const tasks = await this.prisma.task.findMany({
       ...(isAdmin
         ? {}
         : { where: {
@@ -56,6 +59,10 @@ export class ReviewTasksService {
       include: taskInclude,
       orderBy: { createdAt: 'desc' },
     });
+    return {
+      items: tasks.map((task) => this.toResponse(task)),
+      pagination: { page: 1, pageSize: Math.max(tasks.length, 1), total: tasks.length },
+    };
   }
 
   async findOne(id: string, user: AuthenticatedUser) {
@@ -67,7 +74,7 @@ export class ReviewTasksService {
         (task.currentReviewerId === user.id ||
           (task.status === TaskStatus.SUBMITTED && task.developerId !== user.id)));
     if (!mayRead) throw new ForbiddenException('You cannot access this review task');
-    return task;
+    return this.toResponse(task);
   }
 
   private async getTask(id: string) {
@@ -97,53 +104,63 @@ export class ReviewTasksService {
                 `Developer ${developerId} was not found`,
               );
 
-            await this.validateChecklist(
-              tx,
-              dto.taskTypeIds,
-              dto.checklistAnswers,
-            );
+            const hasChecklist = this.hasChecklistPayload(dto);
+            const checklistCompleted = hasChecklist
+              ? await this.validateChecklist(tx, dto.taskTypeIds!, dto.checklistAnswers!)
+              : false;
             const aggregate = await tx.task.aggregate({
               where: { customerId: dto.customerId },
               _max: { customerSequenceNo: true },
             });
             const sequence = (aggregate._max.customerSequenceNo ?? 0) + 1;
-            const now = new Date();
-            return tx.task.create({
+            const created = await tx.task.create({
               data: {
                 taskCode: formatTaskCode(customer.name, sequence),
                 customerSequenceNo: sequence,
-                title: `${customer.name} - ${dto.crimId.trim()}`,
+                title: this.taskTitle(customer.name, dto.crimId, dto.version),
                 crimId: dto.crimId.trim(),
                 version: dto.version?.trim() ?? null,
                 priority: dto.priority,
-                status: TaskStatus.SUBMITTED,
-                checklistCompleted: true,
-                submittedAt: now,
+                status: TaskStatus.DRAFT,
+                checklistCompleted,
                 customerId: dto.customerId,
                 developerId,
-                taskTypes: {
-                  create: dto.taskTypeIds.map((taskTypeId) => ({ taskTypeId })),
-                },
-                developerChecklist: {
-                  create: {
-                    developerId,
-                    additionalRemarks: dto.additionalRemarks?.trim() ?? null,
-                    status: ChecklistStatus.COMPLETED,
-                    checkedDate: now,
-                    completedAt: now,
-                    answers: { create: dto.checklistAnswers },
-                  },
-                },
+                ...(hasChecklist
+                  ? {
+                      ...(dto.taskTypeIds!.length > 0
+                        ? {
+                            taskTypes: {
+                              create: dto.taskTypeIds!.map((taskTypeId) => ({ taskTypeId })),
+                            },
+                          }
+                        : {}),
+                      developerChecklist: {
+                        create: {
+                          developerId,
+                          additionalRemarks: dto.additionalRemarks?.trim() ?? null,
+                          status: checklistCompleted
+                            ? ChecklistStatus.COMPLETED
+                            : ChecklistStatus.DRAFT,
+                          checkedDate: checklistCompleted ? new Date() : null,
+                          completedAt: checklistCompleted ? new Date() : null,
+                          ...(dto.checklistAnswers!.length > 0
+                            ? { answers: { create: dto.checklistAnswers! } }
+                            : {}),
+                        },
+                      },
+                    }
+                  : {}),
                 statusHistory: {
                   create: {
-                    newStatus: TaskStatus.SUBMITTED,
+                    newStatus: TaskStatus.DRAFT,
                     changedBy: developerId,
-                    remarks: 'Task and developer checklist submitted',
+                    remarks: 'Draft task created',
                   },
                 },
               },
               include: taskInclude,
             });
+            return this.toResponse(created);
           },
           { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
         );
@@ -178,18 +195,13 @@ export class ReviewTasksService {
               customer: true,
             },
           });
-          if (!existing?.developerChecklist)
+          if (!existing)
             throw new NotFoundException(`Review task ${id} was not found`);
 
-          const taskTypeIds =
-            dto.taskTypeIds ??
-            existing.taskTypes.map(({ taskTypeId }) => taskTypeId);
-          const checklistAnswers =
-            dto.checklistAnswers ??
-            existing.developerChecklist.answers.map(
-              ({ questionId, answer }) => ({ questionId, answer }),
-            );
-          await this.validateChecklist(tx, taskTypeIds, checklistAnswers);
+          const hasChecklist = this.hasChecklistPayload(dto);
+          const checklistCompleted = hasChecklist
+            ? await this.validateChecklist(tx, dto.taskTypeIds!, dto.checklistAnswers!)
+            : existing.checklistCompleted;
 
           const developerId = existing.developerId;
 
@@ -215,57 +227,77 @@ export class ReviewTasksService {
             taskCode = formatTaskCode(customer.name, customerSequenceNo);
           }
 
-          if (dto.taskTypeIds)
+          if (hasChecklist)
             await tx.taskTaskType.deleteMany({ where: { taskId: id } });
-          if (dto.taskTypeIds)
+          if (hasChecklist && dto.taskTypeIds!.length > 0)
             await tx.taskTaskType.createMany({
-              data: taskTypeIds.map((taskTypeId) => ({
+              data: dto.taskTypeIds!.map((taskTypeId) => ({
                 taskId: id,
                 taskTypeId,
               })),
             });
-          if (dto.checklistAnswers || dto.taskTypeIds) {
+          if (hasChecklist && existing.developerChecklist) {
             await tx.checklistAnswer.deleteMany({
               where: { checklistId: existing.developerChecklist.id },
             });
-            await tx.checklistAnswer.createMany({
-              data: checklistAnswers.map((answer) => ({
-                ...answer,
-                checklistId: existing.developerChecklist!.id,
-              })),
-            });
+            if (dto.checklistAnswers!.length > 0) {
+              await tx.checklistAnswer.createMany({
+                data: dto.checklistAnswers!.map((answer) => ({
+                  ...answer,
+                  checklistId: existing.developerChecklist!.id,
+                })),
+              });
+            }
           }
 
           const crimId = dto.crimId?.trim() ?? existing.crimId;
-          await tx.developerChecklist.update({
-            where: { id: existing.developerChecklist.id },
-            data: {
+          if (hasChecklist) {
+            const checklistData = {
               developerId,
-              ...(dto.additionalRemarks === undefined
-                ? {}
-                : { additionalRemarks: dto.additionalRemarks?.trim() ?? null }),
-              status: ChecklistStatus.COMPLETED,
-              checkedDate: new Date(),
-              completedAt: new Date(),
-            },
-          });
-          return tx.task.update({
+              additionalRemarks: dto.additionalRemarks?.trim() ?? null,
+              status: checklistCompleted ? ChecklistStatus.COMPLETED : ChecklistStatus.DRAFT,
+              checkedDate: checklistCompleted ? new Date() : null,
+              completedAt: checklistCompleted ? new Date() : null,
+            } as const;
+            if (existing.developerChecklist) {
+              await tx.developerChecklist.update({
+                where: { id: existing.developerChecklist.id },
+                data: checklistData,
+              });
+            } else {
+              await tx.developerChecklist.create({
+                data: {
+                  ...checklistData,
+                  taskId: id,
+                  ...(dto.checklistAnswers!.length > 0
+                    ? { answers: { create: dto.checklistAnswers! } }
+                    : {}),
+                },
+              });
+            }
+          }
+          const updated = await tx.task.update({
             where: { id },
             data: {
               customerId,
               customerSequenceNo,
               taskCode,
-              title: `${customerName} - ${crimId}`,
+              title: this.taskTitle(
+                customerName,
+                crimId,
+                dto.version === undefined ? existing.version : dto.version,
+              ),
               crimId,
               ...(dto.version === undefined
                 ? {}
                 : { version: dto.version?.trim() ?? null }),
               ...(dto.priority === undefined ? {} : { priority: dto.priority }),
               developerId,
-              checklistCompleted: true,
+              ...(hasChecklist ? { checklistCompleted } : {}),
             },
             include: taskInclude,
           });
+          return this.toResponse(updated);
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
       );
@@ -300,11 +332,110 @@ export class ReviewTasksService {
     }
   }
 
+  async submit(id: string, user: AuthenticatedUser) {
+    const task = await this.getTask(id);
+    if (!user.roles.includes('ADMIN') && task.developerId !== user.id) {
+      throw new ForbiddenException('You cannot submit this review task');
+    }
+    if (task.status !== TaskStatus.DRAFT) {
+      throw new ConflictException('Only a draft task can be submitted');
+    }
+    if (!task.checklistCompleted) {
+      throw new BadRequestException('Complete the quality checklist before submitting');
+    }
+
+    const submitted = await this.prisma.$transaction(async (tx) => {
+      const now = new Date();
+      const updated = await tx.task.update({
+        where: { id },
+        data: {
+          status: TaskStatus.SUBMITTED,
+          submittedAt: now,
+          currentReviewCycle: Math.max(task.currentReviewCycle, 1),
+          statusHistory: {
+            create: {
+              oldStatus: TaskStatus.DRAFT,
+              newStatus: TaskStatus.SUBMITTED,
+              changedBy: user.id,
+              remarks: 'Task submitted for review',
+            },
+          },
+        },
+        include: taskInclude,
+      });
+      return updated;
+    });
+    return this.toResponse(submitted);
+  }
+
+  private hasChecklistPayload(dto: UpdateReviewTaskDto): boolean {
+    const hasTaskTypes = dto.taskTypeIds !== undefined;
+    const hasAnswers = dto.checklistAnswers !== undefined;
+    if (hasTaskTypes !== hasAnswers) {
+      throw new BadRequestException(
+        'taskTypeIds and checklistAnswers must be provided together',
+      );
+    }
+    return hasTaskTypes;
+  }
+
+  private taskTitle(
+    customerName: string,
+    crimId: string,
+    version: string | null | undefined,
+  ): string {
+    const suffix = version?.trim();
+    return `${customerName} - ${crimId.trim()}${suffix ? ` ${suffix}` : ''}`;
+  }
+
+  private toResponse(task: TaskWithRelations) {
+    const status = {
+      DRAFT: 'Draft',
+      SUBMITTED: 'Submitted',
+      IN_REVIEW: 'InReview',
+      CHANGES_REQUESTED: 'ChangesRequested',
+      RESUBMITTED: 'ReSubmitted',
+      APPROVED: 'Approved',
+      DELIVERED: 'Delivered',
+      CANCELLED: 'Cancelled',
+    }[task.status];
+    const priority = {
+      LOW: 'Low',
+      MEDIUM: 'Medium',
+      HIGH: 'High',
+    }[task.priority];
+    return {
+      id: task.id,
+      taskCode: task.taskCode,
+      title: task.title,
+      crimId: task.crimId,
+      version: task.version,
+      customerId: task.customerId,
+      priority,
+      status,
+      reviewCycle: Math.max(task.currentReviewCycle, 1),
+      developerId: task.developerId,
+      reviewerId: task.currentReviewerId,
+      taskTypeIds: task.taskTypes.map(({ taskTypeId }) => String(taskTypeId)),
+      isChecklistComplete: task.checklistCompleted,
+      isHandedOver: false,
+      noteToReviewer: null,
+      createdAt: task.createdAt.toISOString(),
+      submittedAt: task.submittedAt?.toISOString() ?? null,
+      updatedAt: task.updatedAt.toISOString(),
+      customerName: task.customer.name,
+      customerCode: task.customer.code,
+      customerColor: task.customer.color ?? '#64748b',
+      developerName: task.developer.fullName,
+      reviewerName: task.currentReviewer?.fullName ?? null,
+    };
+  }
+
   private async validateChecklist(
     tx: Prisma.TransactionClient,
     taskTypeIds: number[],
     answers: ChecklistAnswerDto[],
-  ): Promise<void> {
+  ): Promise<boolean> {
     const taskTypes = await tx.taskType.findMany({
       where: { id: { in: taskTypeIds }, isActive: true },
       select: { id: true },
@@ -336,13 +467,12 @@ export class ReviewTasksService {
     const answeredIds = new Set(answers.map(({ questionId }) => questionId));
     const missing = [...requiredIds].filter((id) => !answeredIds.has(id));
     const invalid = [...answeredIds].filter((id) => !requiredIds.has(id));
-    if (missing.length || invalid.length) {
+    if (invalid.length) {
       throw new BadRequestException({
-        message:
-          'Checklist answers must exactly match all applicable active questions',
-        missingQuestionIds: missing,
+        message: 'Checklist answers must match applicable active questions',
         invalidQuestionIds: invalid,
       });
     }
+    return taskTypeIds.length > 0 && missing.length === 0;
   }
 }

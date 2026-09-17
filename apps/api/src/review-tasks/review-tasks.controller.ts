@@ -24,7 +24,7 @@ import { Roles } from '../auth/decorators/roles.decorator.js';
 import type { AuthenticatedUser } from '../auth/auth.types.js';
 
 @ApiTags('Review Tasks')
-@Controller('review-tasks')
+@Controller(['review-tasks', 'tasks'])
 export class ReviewTasksController {
   constructor(private readonly tasks: ReviewTasksService) {}
   @Get() @ApiOkResponse() findAll(@CurrentUser() user: AuthenticatedUser) {
@@ -49,6 +49,12 @@ export class ReviewTasksController {
   ) {
     return this.tasks.update(id, dto, user);
   }
+  @Post(':id/submit') @Roles('DEVELOPER', 'ADMIN') @ApiOkResponse() submit(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.tasks.submit(id, user);
+  }
   @Delete(':id')
   @Roles('ADMIN')
   @HttpCode(HttpStatus.NO_CONTENT)
@@ -57,4 +63,3 @@ export class ReviewTasksController {
     await this.tasks.remove(id);
   }
 }
-

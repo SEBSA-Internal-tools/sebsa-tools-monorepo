@@ -373,18 +373,16 @@ describe('Quality Checklist complete functional QA', () => {
 
     const { user, router } = renderRoute('/crp/developer/tasks/new/details');
 
-    const nextBtn = await screen.findByRole('button', {
-      name: /next: quality checklist/i,
+    const saveDraft = await screen.findByRole('button', {
+      name: /save draft/i,
     });
-    await user.click(nextBtn);
+    await user.click(saveDraft);
 
-    // Should self-heal by creating a new task and advancing to checklist without 404 toast error
+    // Save Draft should self-heal by creating a replacement without duplicating it.
     await waitFor(() => {
-      expect(router.state.location.pathname).toBe('/crp/developer/tasks/new/checklist');
+      expect(useTaskDraft.getState().taskId).not.toBe('task-non-existent-999');
     });
-
-    const state = useTaskDraft.getState();
-    expect(state.taskId).not.toBe('task-non-existent-999');
-    expect(state.taskId).toBeTruthy();
+    expect(router.state.location.pathname).toBe('/crp/developer/tasks/new/details');
+    expect(useTaskDraft.getState().taskId).toBeTruthy();
   });
 });

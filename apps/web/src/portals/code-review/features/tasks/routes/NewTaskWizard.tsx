@@ -33,7 +33,6 @@ import { checklistProgress } from '../domain/checklistRules.ts';
 import {
   useChecklistTemplate,
   useCreateTask,
-  useSaveChecklist,
   useSubmitTask,
   useTask,
   useTaskChecklist,
@@ -146,7 +145,6 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
   const effectiveTaskId = draft.taskId ?? editTaskId ?? '';
   const createTask = useCreateTask();
   const updateTask = useUpdateTask(effectiveTaskId);
-  const saveChecklist = useSaveChecklist(effectiveTaskId);
   const submitTask = useSubmitTask(effectiveTaskId);
 
   const progress = useMemo(
@@ -224,7 +222,7 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
 
   if (
     currentStep !== 'details' &&
-    ((!isEditMode && draft.taskId === null) || !canLeaveStep('details', missing))
+    !canLeaveStep('details', missing)
   ) {
     return <Navigate to={getStepUrl('details')} replace />;
   }
@@ -254,8 +252,7 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
     return <Navigate to={getStepUrl('checklist')} replace />;
   }
 
-  const isBusy =
-    createTask.isPending || updateTask.isPending || saveChecklist.isPending || submitTask.isPending;
+  const isBusy = createTask.isPending || updateTask.isPending || submitTask.isPending;
 
   const steps: Step[] = TASK_WIZARD_STEPS.map((id, index) => ({
     id,
@@ -284,26 +281,45 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
   /**
    * Persists whatever the current step owns, then reports the task id.
    *
-   * Step 1 creates the task on first save and patches it thereafter, so leaving
-   * and returning does not produce a second draft. Steps 2 and 3 need a task to
-   * attach to, which is why the create has to have happened first.
+   * Save Draft writes details (and any checklist work on later steps). Moving
+   * from Details to Checklist does not persist anything; moving from Checklist
+   * to Review sends both records in one create/update request.
    */
-  async function persist({ saveAll = false }: { saveAll?: boolean } = {}): Promise<string | null> {
+  async function persist({ includeChecklist = false } = {}): Promise<string | null> {
     try {
       let taskId = draft.taskId;
-      let createdNow = taskId === null;
+      let shouldCreate = taskId === null;
+      const applicableQuestionIds = new Set(
+        (template ?? []).flatMap((category) =>
+          category.questions
+            .filter(
+              (question) =>
+                question.isActive &&
+                question.appliesTo.some((taskTypeId) => draft.taskTypeIds.includes(taskTypeId)),
+            )
+            .map((question) => question.id),
+        ),
+      );
+      const checklistAnswers = draft.answers.filter((answer) =>
+        applicableQuestionIds.has(answer.questionId),
+      );
+      const payload = {
+        customerId: draft.customerId,
+        crimId: draft.crimId.trim(),
+        version: draft.version.trim(),
+        priority: draft.priority,
+        ...(includeChecklist
+          ? {
+              taskTypeIds: [...draft.taskTypeIds],
+              checklistAnswers: checklistAnswers.map((entry) => ({ ...entry })),
+              additionalRemarks: draft.remarks.trim(),
+            }
+          : {}),
+      };
 
-      if (!createdNow && taskId !== null) {
+      if (!shouldCreate && taskId !== null) {
         try {
-          const updated = await updateTask.mutateAsync({
-            customerId: draft.customerId,
-            crimId: draft.crimId.trim(),
-            version: draft.version.trim(),
-            priority: draft.priority,
-            ...(currentStep === 'review' || saveAll
-              ? { noteToReviewer: draft.remarks.trim() }
-              : {}),
-          });
+          const updated = await updateTask.mutateAsync(payload);
           if (draft.createdAt === null && updated?.createdAt) {
             draft.setTaskId(updated.id, updated.taskCode, updated.createdAt, updated.submittedAt);
           }
@@ -311,57 +327,19 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
           // If the server draft was lost (e.g. mock DB reset, deleted task, or server restart returning 404),
           // self-heal by creating the task fresh on the server instead of getting stuck.
           if (updateError instanceof ApiError && updateError.statusCode === 404) {
-            createdNow = true;
+            shouldCreate = true;
           } else {
             throw updateError;
           }
         }
       }
 
-      if (createdNow) {
-        const created = await createTask.mutateAsync({
-          customerId: draft.customerId,
-          crimId: draft.crimId.trim(),
-          version: draft.version.trim(),
-          priority: draft.priority,
-        });
+      if (shouldCreate) {
+        const created = await createTask.mutateAsync(payload);
         taskId = created.id;
         draft.setTaskId(created.id, created.taskCode, created.createdAt, created.submittedAt);
       }
-
-      // A mutation hook created before POST still points at an empty task id, so
-      // a just-created step-1 draft stops after POST and saves its checklist on
-      // the next render. Every later step already has the issued id.
-      if (!createdNow && (currentStep !== 'details' || saveAll)) {
-        const snapshot = {
-          taskTypeIds: [...draft.taskTypeIds],
-          answers: draft.answers.map((entry) => ({ ...entry })),
-          remarks: draft.remarks,
-        };
-        const saved = await saveChecklist.mutateAsync(snapshot);
-
-        /*
-         * PUT is a full replacement. Mirror the server's applicable-only
-         * answer set after Save so a deselected type cannot reappear locally
-         * with answers the server has already removed. If the user edited the
-         * form while the request was pending, keep those newer local changes.
-         */
-        const latest = useTaskDraft.getState();
-        if (
-          JSON.stringify(latest.taskTypeIds) === JSON.stringify(snapshot.taskTypeIds) &&
-          JSON.stringify(latest.answers) === JSON.stringify(snapshot.answers) &&
-          latest.remarks === snapshot.remarks
-        ) {
-          latest.hydrate({
-            taskTypeIds: saved.taskTypeIds,
-            answers: saved.answers.map(({ questionId, answer }) => ({
-              questionId,
-              answer,
-            })),
-            remarks: saved.remarks,
-          });
-        }
-      }
+      if (includeChecklist) draft.hydrate({ answers: checklistAnswers });
 
       return taskId;
     } catch (cause) {
@@ -376,8 +354,10 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
       return;
     }
 
-    const taskId = await persist();
-    if (taskId === null) return;
+    if (currentStep === 'checklist') {
+      const taskId = await persist({ includeChecklist: true });
+      if (taskId === null) return;
+    }
 
     setShowErrors(false);
     const next = TASK_WIZARD_STEPS[stepIndex + 1];
@@ -385,7 +365,7 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
   }
 
   async function handleSaveDraft() {
-    const taskId = await persist({ saveAll: true });
+    const taskId = await persist({ includeChecklist: currentStep !== 'details' });
     if (taskId === null) return;
     toast.success(common.actions.saveDraft);
   }
@@ -408,7 +388,7 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
     // Re-save the whole draft before submit. This protects a refreshed or
     // manually addressed review URL from presenting locally complete data while
     // the server still holds an older, incomplete checklist.
-    const taskId = await persist({ saveAll: true });
+    const taskId = await persist({ includeChecklist: true });
     if (taskId === null) return;
 
     try {
@@ -580,7 +560,12 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
             isLoading={isBusy}
             // Saving needs enough to create a task: the server derives the title
             // and the task code from exactly these fields.
-            disabled={draft.customerId === '' || draft.crimId.trim() === ''}
+            disabled={
+              draft.customerId === '' ||
+              draft.crimId.trim() === '' ||
+              draft.version.trim() === '' ||
+              draft.priority === undefined
+            }
           >
             {tasks.wizard.saveDraft}
           </Button>

@@ -171,6 +171,63 @@ function touch(task: Task): void {
   task.updatedAt = new Date().toISOString();
 }
 
+const taskPersistenceDraftSchema = taskDraftSchema.extend({
+  taskTypeIds: checklistDraftSchema.shape.taskTypeIds.optional(),
+  checklistAnswers: checklistDraftSchema.shape.answers.optional(),
+  additionalRemarks: checklistDraftSchema.shape.remarks.optional(),
+});
+
+function persistCombinedChecklist(
+  task: Task,
+  developerId: string,
+  draft: {
+    taskTypeIds: string[];
+    checklistAnswers: { questionId: string; answer: 'Yes' | 'No' | 'NA' }[];
+    additionalRemarks?: string | undefined;
+  },
+): void {
+  const answered = new Map(
+    draft.checklistAnswers.map((entry) => [entry.questionId, entry.answer]),
+  );
+  const applicable = db.checklistTemplate
+    .filter((category) => category.isActive)
+    .flatMap((category) =>
+      category.questions
+        .filter(
+          (question) =>
+            question.isActive &&
+            question.appliesTo.some((id) => draft.taskTypeIds.includes(id)),
+        )
+        .map((question) => ({ question, categoryName: category.name })),
+    );
+  const now = new Date().toISOString();
+  const checklist: TaskChecklist = {
+    id: findChecklist(task.id)?.id ?? `cl-${task.id}`,
+    taskId: task.id,
+    taskTypeIds: draft.taskTypeIds,
+    answers: applicable
+      .filter(({ question }) => answered.has(question.id))
+      .map(({ question, categoryName }, index) => ({
+        questionId: question.id,
+        answer: answered.get(question.id) ?? 'NA',
+        questionText: question.text,
+        categoryName,
+        order: index,
+      })),
+    remarks: draft.additionalRemarks ?? '',
+    isComplete:
+      applicable.length > 0 && applicable.every(({ question }) => answered.has(question.id)),
+    checkedDate: now,
+    developerId,
+  };
+  const index = db.checklists.findIndex((candidate) => candidate.taskId === task.id);
+  if (index === -1) db.checklists.push(checklist);
+  else db.checklists[index] = checklist;
+  task.taskTypeIds = draft.taskTypeIds;
+  task.isChecklistComplete = checklist.isComplete;
+  touch(task);
+}
+
 /** The first Zod message, which is what the user needs — not the whole tree. */
 function firstIssue(error: z.ZodError): string {
   return error.issues[0]?.message ?? 'That request was not valid.';
@@ -510,7 +567,7 @@ export const handlers: HttpHandler[] = [
       return errorResponse(403, 'FORBIDDEN', 'You do not have access to this workspace.');
     }
 
-    const parsed = taskDraftSchema.safeParse(await request.json());
+    const parsed = taskPersistenceDraftSchema.safeParse(await request.json());
     if (!parsed.success) {
       return errorResponse(422, 'VALIDATION_FAILED', 'Check the highlighted fields.');
     }
@@ -543,6 +600,13 @@ export const handlers: HttpHandler[] = [
     };
 
     db.tasks.push(task);
+    if (parsed.data.taskTypeIds !== undefined && parsed.data.checklistAnswers !== undefined) {
+      persistCombinedChecklist(task, user.id, {
+        taskTypeIds: parsed.data.taskTypeIds,
+        checklistAnswers: parsed.data.checklistAnswers,
+        additionalRemarks: parsed.data.additionalRemarks,
+      });
+    }
     recordEvent({
       taskId: task.id,
       kind: 'Created',
@@ -571,7 +635,7 @@ export const handlers: HttpHandler[] = [
       return errorResponse(409, 'INVALID_STATE', 'This task can no longer be edited.');
     }
 
-    const parsed = taskDraftSchema.partial().safeParse(await request.json());
+    const parsed = taskPersistenceDraftSchema.partial().safeParse(await request.json());
     if (!parsed.success) {
       return errorResponse(422, 'VALIDATION_FAILED', 'Check the highlighted fields.');
     }
@@ -596,6 +660,14 @@ export const handlers: HttpHandler[] = [
       task.version,
     );
     touch(task);
+
+    if (parsed.data.taskTypeIds !== undefined && parsed.data.checklistAnswers !== undefined) {
+      persistCombinedChecklist(task, user.id, {
+        taskTypeIds: parsed.data.taskTypeIds,
+        checklistAnswers: parsed.data.checklistAnswers,
+        additionalRemarks: parsed.data.additionalRemarks,
+      });
+    }
 
     return HttpResponse.json(toListItem(task));
   }),

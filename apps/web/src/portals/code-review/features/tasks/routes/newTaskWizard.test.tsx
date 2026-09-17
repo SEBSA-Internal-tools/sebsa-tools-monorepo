@@ -161,7 +161,7 @@ describe('New Review Task wizard', () => {
     expect(await screen.findByDisplayValue(`${customer.name} - CRIM-848 V2`)).toBeInTheDocument();
   });
 
-  it('advances to the checklist once step 1 is complete, and creates the task', async () => {
+  it('advances to the checklist without creating a task', async () => {
     const { router, user } = renderWizard();
 
     await chooseCustomer(user, sampleCustomer().name);
@@ -172,9 +172,7 @@ describe('New Review Task wizard', () => {
       expect(router.state.location.pathname).toBe('/crp/developer/tasks/new/checklist');
     });
 
-    // The task was persisted on leaving step 1, so returning does not create a
-    // second draft.
-    expect(useTaskDraft.getState().taskId).not.toBeNull();
+    expect(useTaskDraft.getState().taskId).toBeNull();
   });
 
   it('shows no checklist questions until a task type is selected', async () => {

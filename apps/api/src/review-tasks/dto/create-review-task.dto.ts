@@ -1,8 +1,7 @@
 import { ChecklistAnswerValue, TaskPriority } from '@prisma/client';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type, type TransformFnParams } from 'class-transformer';
 import {
-  ArrayMinSize,
   ArrayUnique,
   IsArray,
   IsEnum,
@@ -17,12 +16,25 @@ import {
   ValidateNested,
 } from 'class-validator';
 
+function normalizeChecklistAnswer({ value }: TransformFnParams): unknown {
+  const answer: unknown = value;
+  if (answer === 'Yes') return ChecklistAnswerValue.YES;
+  if (answer === 'No') return ChecklistAnswerValue.NO;
+  return answer;
+}
+
+function normalizePriority({ value }: TransformFnParams): unknown {
+  const priority: unknown = value;
+  return typeof priority === 'string' ? priority.toUpperCase() : priority;
+}
+
 export class ChecklistAnswerDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID()
   questionId!: string;
 
   @ApiProperty({ enum: ChecklistAnswerValue })
+  @Transform(normalizeChecklistAnswer)
   @IsEnum(ChecklistAnswerValue)
   answer!: ChecklistAnswerValue;
 }
@@ -46,26 +58,28 @@ export class CreateReviewTaskDto {
   version?: string | null;
 
   @ApiProperty({ enum: TaskPriority })
+  @Transform(normalizePriority)
   @IsEnum(TaskPriority)
   priority!: TaskPriority;
 
-  @ApiProperty({ type: [Number], minItems: 1 })
+  @ApiPropertyOptional({ type: [Number] })
+  @IsOptional()
+  @Type(() => Number)
   @IsArray()
-  @ArrayMinSize(1)
   @ArrayUnique()
   @IsInt({ each: true })
   @Min(1, { each: true })
-  taskTypeIds!: number[];
+  taskTypeIds?: number[];
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   additionalRemarks?: string | null;
 
-  @ApiProperty({ type: [ChecklistAnswerDto] })
+  @ApiPropertyOptional({ type: [ChecklistAnswerDto] })
+  @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => ChecklistAnswerDto)
-  checklistAnswers!: ChecklistAnswerDto[];
+  checklistAnswers?: ChecklistAnswerDto[];
 }
-

@@ -61,11 +61,17 @@ export function useTaskEvents(taskId: string | undefined) {
 /* Mutations                                                                   */
 /* -------------------------------------------------------------------------- */
 
+export type TaskPersistenceDraft = TaskDraft & {
+  taskTypeIds?: ChecklistDraft['taskTypeIds'];
+  checklistAnswers?: ChecklistDraft['answers'];
+  additionalRemarks?: string;
+};
+
 export function useCreateTask() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (draft: TaskDraft) => api.post('/tasks', taskListItemSchema, draft),
+    mutationFn: (draft: TaskPersistenceDraft) => api.post('/tasks', taskListItemSchema, draft),
     onSuccess: (task) => {
       queryClient.setQueryData(taskKeys.detail(task.id), task);
       void queryClient.invalidateQueries({ queryKey: taskKeys.lists() });
@@ -77,7 +83,7 @@ export function useUpdateTask(taskId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (draft: Partial<TaskDraft>) =>
+    mutationFn: (draft: Partial<TaskPersistenceDraft>) =>
       api.patch(`/tasks/${taskId}`, taskListItemSchema, draft),
     onSuccess: (task) => {
       queryClient.setQueryData(taskKeys.detail(task.id), task);
