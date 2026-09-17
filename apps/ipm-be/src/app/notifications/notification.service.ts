@@ -63,6 +63,12 @@ export class NotificationService {
       userId,
       ...(filterDto.isRead !== undefined && { isRead: filterDto.isRead }),
       ...(filterDto.type && { type: filterDto.type }),
+      ...(filterDto.category === 'UNREAD' && { isRead: false }),
+      ...(filterDto.category === 'ASSIGNMENTS' && { type: NotificationType.TASK_ASSIGNED }),
+      ...(filterDto.category === 'STATUS_CHANGE' && { type: NotificationType.STATUS_CHANGE }),
+      ...(filterDto.category === 'DEADLINES' && {
+        type: { in: [NotificationType.DUE_DATE_REMINDER, NotificationType.OVERDUE_ALERT] },
+      }),
     };
 
     const [data, total, unreadCount] = await Promise.all([
@@ -90,6 +96,29 @@ export class NotificationService {
       where: { userId, isRead: false },
     });
     return { count };
+  }
+
+  async getNotificationCounts(userId: string) {
+    const [all, unread, assignments, statusUpdates, deadlines] = await Promise.all([
+      this.prisma.notification.count({ where: { userId } }),
+      this.prisma.notification.count({ where: { userId, isRead: false } }),
+      this.prisma.notification.count({ where: { userId, type: NotificationType.TASK_ASSIGNED } }),
+      this.prisma.notification.count({ where: { userId, type: NotificationType.STATUS_CHANGE } }),
+      this.prisma.notification.count({
+        where: {
+          userId,
+          type: { in: [NotificationType.DUE_DATE_REMINDER, NotificationType.OVERDUE_ALERT] },
+        },
+      }),
+    ]);
+
+    return {
+      all,
+      unread,
+      assignments,
+      statusUpdates,
+      deadlines,
+    };
   }
 
   async markAsRead(userId: string, id: string) {

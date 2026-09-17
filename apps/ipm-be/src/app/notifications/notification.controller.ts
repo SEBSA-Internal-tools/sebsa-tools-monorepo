@@ -43,6 +43,11 @@ export class NotificationController {
     return this.notificationService.getUnreadCount(user.id);
   }
 
+  @Get('counts')
+  async getCounts(@CurrentUser() user: AuthUser) {
+    return this.notificationService.getNotificationCounts(user.id);
+  }
+
   @Patch('read-all')
   async markAllAsRead(@CurrentUser() user: AuthUser) {
     return this.notificationService.markAllAsRead(user.id);

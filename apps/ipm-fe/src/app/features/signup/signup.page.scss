@@ -193,6 +193,31 @@
         box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
       }
     }
+
+    &.has-custom-select {
+      .input-icon {
+        z-index: 2;
+      }
+
+      app-custom-select {
+        width: 100%;
+
+        ::ng-deep .custom-select-trigger {
+          padding-left: 40px;
+          min-height: 48px;
+          border-radius: 4px;
+          border-color: #d1d5db;
+          background-color: #ffffff;
+          font-size: 0.95rem;
+
+          &:focus-visible,
+          .custom-select-wrapper.open & {
+            border-color: #d92561;
+            box-shadow: 0 0 0 3px rgba(217, 37, 97, 0.1);
+          }
+        }
+      }
+    }
   }
 }
 
