@@ -20,6 +20,7 @@ export class NotificationsPageComponent implements OnInit {
   readonly activeTab = signal<FilterTab>('ALL');
 
   ngOnInit(): void {
+    this.notificationService.fetchCounts().subscribe();
     this.loadData();
   }
 
@@ -30,21 +31,15 @@ export class NotificationsPageComponent implements OnInit {
 
   loadData(): void {
     const tab = this.activeTab();
-    if (tab === 'UNREAD') {
-      this.notificationService.loadNotifications({ isRead: false, limit: 50 }).subscribe();
-    } else if (tab === 'ASSIGNMENTS') {
-      this.notificationService.loadNotifications({ type: 'TASK_ASSIGNED', limit: 50 }).subscribe();
-    } else if (tab === 'STATUS_CHANGE') {
-      this.notificationService.loadNotifications({ type: 'STATUS_CHANGE', limit: 50 }).subscribe();
-    } else if (tab === 'DEADLINES') {
-      this.notificationService.loadNotifications({ type: 'DUE_DATE_REMINDER', limit: 50 }).subscribe();
-    } else {
-      this.notificationService.loadNotifications({ limit: 50 }).subscribe();
-    }
+    this.notificationService.loadNotifications({ category: tab, limit: 50 }).subscribe();
   }
 
   filteredNotifications(): NotificationDto[] {
-    return this.notificationService.notifications();
+    const list = this.notificationService.notifications();
+    if (this.activeTab() === 'UNREAD') {
+      return list.filter((item) => !item.isRead);
+    }
+    return list;
   }
 
   markAsRead(id: string): void {

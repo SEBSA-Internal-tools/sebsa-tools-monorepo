@@ -5,13 +5,14 @@ import { CreateUserResponse, Department, SystemRole, UserAdminSummary } from '@s
 import { AuthService } from '../../../core/services/auth.service';
 import { DepartmentsService } from '../../../core/services/departments.service';
 import { UserAdminService } from '../../../core/services/user-admin.service';
+import { CustomSelectComponent } from '../../../core/components/custom-select/custom-select.component';
 
 const ALL_SYSTEM_ROLE_OPTIONS: SystemRole[] = ['REGULAR_USER', 'EXECUTIVE', 'ADMIN', 'SUPER_ADMIN'];
 
 @Component({
   standalone: true,
   selector: 'app-admin-users-page',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, CustomSelectComponent],
   templateUrl: './admin-users.page.html',
   styleUrl: './admin-users.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

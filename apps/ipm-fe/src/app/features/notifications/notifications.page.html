@@ -37,7 +37,7 @@
       (click)="setTab('ALL')"
     >
       <span>All</span>
-      <span class="tab-badge">{{ notificationService.totalCount() }}</span>
+      <span class="tab-badge">{{ notificationService.counts().all }}</span>
     </button>
 
     <button
@@ -47,9 +47,7 @@
       (click)="setTab('UNREAD')"
     >
       <span>Unread</span>
-      @if (notificationService.unreadCount() > 0) {
-        <span class="tab-badge">{{ notificationService.unreadCount() }}</span>
-      }
+      <span class="tab-badge">{{ notificationService.counts().unread }}</span>
     </button>
 
     <button
@@ -59,6 +57,7 @@
       (click)="setTab('ASSIGNMENTS')"
     >
       <span>Assignments</span>
+      <span class="tab-badge">{{ notificationService.counts().assignments }}</span>
     </button>
 
     <button
@@ -68,6 +67,7 @@
       (click)="setTab('STATUS_CHANGE')"
     >
       <span>Status Updates</span>
+      <span class="tab-badge">{{ notificationService.counts().statusUpdates }}</span>
     </button>
 
     <button
@@ -77,6 +77,7 @@
       (click)="setTab('DEADLINES')"
     >
       <span>Deadlines & Reminders</span>
+      <span class="tab-badge">{{ notificationService.counts().deadlines }}</span>
     </button>
   </div>
 

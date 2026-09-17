@@ -25,6 +25,8 @@ import {
 import { ActivityFeedComponent } from '../../../core/components/activity-feed/activity-feed.component';
 import { CommentSectionComponent } from '../../../core/components/comment-section/comment-section.component';
 import { TaskAttachmentsComponent } from '../../../core/components/task-attachments/task-attachments.component';
+import { CustomSelectComponent } from '../../../core/components/custom-select/custom-select.component';
+import { CustomDatepickerComponent } from '../../../core/components/custom-datepicker/custom-datepicker.component';
 
 interface TaskEditDraft {
   title: string;
@@ -42,7 +44,17 @@ interface TaskEditDraft {
 @Component({
   standalone: true,
   selector: 'app-task-detail-page',
-  imports: [CommonModule, FormsModule, RouterLink, CreateSubtaskModalComponent, ActivityFeedComponent, CommentSectionComponent, TaskAttachmentsComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    RouterLink,
+    CreateSubtaskModalComponent,
+    ActivityFeedComponent,
+    CommentSectionComponent,
+    TaskAttachmentsComponent,
+    CustomSelectComponent,
+    CustomDatepickerComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './task-detail.page.html',
   styleUrls: ['./task-detail.page.scss'],
@@ -87,6 +99,11 @@ export class TaskDetailPageComponent implements OnInit {
 
   // --- Add-dependency mini-form state ---
   newDependencyType: TaskDependencyType = 'BLOCKS';
+  readonly dependencyTypeOptions: Array<{ value: TaskDependencyType; label: string }> = [
+    { value: 'BLOCKS', label: 'Blocks' },
+    { value: 'RELATES_TO', label: 'Relates To' },
+    { value: 'DUPLICATE_OF', label: 'Duplicate Of' },
+  ];
   dependencyTaskSearch = '';
   selectedDependencyTaskId = '';
   availableDependencyTasks = signal<Array<{ id: string; title: string }>>([]);

@@ -6,11 +6,12 @@ import { FormsModule } from '@angular/forms';
 import { Department } from '@sebsa-pm-tool/shared-models';
 import { AuthService } from '../../core/services/auth.service';
 import { DepartmentsService } from '../../core/services/departments.service';
+import { CustomSelectComponent } from '../../core/components/custom-select/custom-select.component';
 
 @Component({
   standalone: true,
   selector: 'app-signup-page',
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, CustomSelectComponent],
   templateUrl: './signup.page.html',
   styleUrls: ['./signup.page.scss'],
 })
