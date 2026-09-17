@@ -20,7 +20,7 @@ export const cvTemplateSource = `
     <tr>
       <td style="width: 100px; vertical-align: top;">
         {{#if avatar}}
-        <div style="width: 85px; height: 105px; border-radius: 6px; background-image: url('{{avatar}}'); background-size: cover; background-position: center; background-repeat: no-repeat; display: block;"></div>
+        <div data-cv-profile-image-url="{{avatar}}" style="width: 85px; height: 105px; border-radius: 6px; background-image: url('{{avatar}}'); background-size: cover; background-position: center; background-repeat: no-repeat; display: block;"></div>
         {{else}}
         <div style="width: 85px; height: 105px; border-radius: 6px; border: 2px solid #E2E8F0; background-color: #F7FAFC; display: flex; align-items: center; justify-content: center;">
           <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-label="Generic profile icon">

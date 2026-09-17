@@ -102,6 +102,20 @@ export async function fetchImageBuffer(url: string): Promise<Buffer | null> {
  * reference SEBSA template's plain `{{profileImage}}` placeholder.
  */
 export function createImageModule(imageBuffer: Buffer) {
+  const dimensions = getRasterImageDimensions(imageBuffer);
+  const maxSizeEmu = 914400 * 1.2;
+  let widthEmu = maxSizeEmu;
+  let heightEmu = maxSizeEmu;
+
+  if (dimensions) {
+    const aspectRatio = dimensions.width / dimensions.height;
+    if (aspectRatio > 1) {
+      heightEmu = maxSizeEmu / aspectRatio;
+    } else {
+      widthEmu = maxSizeEmu * aspectRatio;
+    }
+  }
+
   return new ImageModule({
     centered: false,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -120,8 +134,62 @@ export function createImageModule(imageBuffer: Buffer) {
       return imageBuffer;
     },
     getSize() {
-      // EMUs (914400 EMU = 1 inch). 1.2in x 1.2in.
-      return [914400 * 1.2, 914400 * 1.2];
+      // EMUs (914400 EMU = 1 inch). Fit inside 1.2in without changing the source aspect ratio.
+      return [widthEmu, heightEmu];
     },
   });
+}
+
+interface RasterImageDimensions {
+  width: number;
+  height: number;
+}
+
+/** Reads dimensions directly from the supported original JPEG/PNG bytes without re-encoding. */
+export function getRasterImageDimensions(buffer: Buffer): RasterImageDimensions | null {
+  // PNG IHDR stores width/height as unsigned big-endian integers at byte offsets 16 and 20.
+  if (
+    buffer.length >= 24 &&
+    buffer[0] === 0x89 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x4e &&
+    buffer[3] === 0x47
+  ) {
+    const width = buffer.readUInt32BE(16);
+    const height = buffer.readUInt32BE(20);
+    return width > 0 && height > 0 ? { width, height } : null;
+  }
+
+  // Walk JPEG segments until a Start Of Frame marker containing the dimensions is found.
+  if (buffer.length >= 4 && buffer[0] === 0xff && buffer[1] === 0xd8) {
+    let offset = 2;
+    while (offset + 8 < buffer.length) {
+      if (buffer[offset] !== 0xff) {
+        offset += 1;
+        continue;
+      }
+
+      const marker = buffer[offset + 1];
+      offset += 2;
+      if (marker === 0xd8 || marker === 0xd9 || (marker >= 0xd0 && marker <= 0xd7)) continue;
+      if (offset + 2 > buffer.length) break;
+
+      const segmentLength = buffer.readUInt16BE(offset);
+      if (segmentLength < 2 || offset + segmentLength > buffer.length) break;
+
+      const isStartOfFrame =
+        marker >= 0xc0 &&
+        marker <= 0xcf &&
+        ![0xc4, 0xc8, 0xcc].includes(marker);
+      if (isStartOfFrame && segmentLength >= 7) {
+        const height = buffer.readUInt16BE(offset + 3);
+        const width = buffer.readUInt16BE(offset + 5);
+        return width > 0 && height > 0 ? { width, height } : null;
+      }
+
+      offset += segmentLength;
+    }
+  }
+
+  return null;
 }
