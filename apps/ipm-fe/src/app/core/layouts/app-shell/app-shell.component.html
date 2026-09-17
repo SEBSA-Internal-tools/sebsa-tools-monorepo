@@ -113,12 +113,20 @@
           <div class="mobile-search-input-wrap">
             <span class="material-symbols-outlined search-icon" aria-hidden="true">search</span>
             <input
+              #globalSearchInput
               type="search"
               placeholder="Search tasks, projects..."
               class="search-input"
               aria-label="Global search"
               autofocus
+              (input)="onSearchInput($event)"
+              (keydown)="onSearchKeydown($event)"
             />
+            @if (hasSearchQuery()) {
+              <button type="button" class="search-clear-btn" aria-label="Clear search" (click)="clearSearch()">
+                <span class="material-symbols-outlined" aria-hidden="true">close</span>
+              </button>
+            }
           </div>
           <button
             type="button"
@@ -148,11 +156,21 @@
           <div class="search-container">
             <span class="material-symbols-outlined search-icon" aria-hidden="true">search</span>
             <input
+              #globalSearchInput
               type="search"
               placeholder="Search tasks, projects..."
               class="search-input"
               aria-label="Global search"
+              (input)="onSearchInput($event)"
+              (keydown)="onSearchKeydown($event)"
             />
+            @if (hasSearchQuery()) {
+              <button type="button" class="search-clear-btn" aria-label="Clear search" (click)="clearSearch()">
+                <span class="material-symbols-outlined" aria-hidden="true">close</span>
+              </button>
+            } @else {
+              <kbd class="search-shortcut-hint">{{ isMac ? '⌘K' : 'Ctrl K' }}</kbd>
+            }
           </div>
         </div>
 

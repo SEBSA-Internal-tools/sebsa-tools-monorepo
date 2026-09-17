@@ -1,23 +1,58 @@
 <div class="login-container">
-  <div class="left-panel">
+  <div class="left-panel" (mousemove)="onPanelMouseMove($event)" (mouseleave)="onPanelMouseLeave()">
+    <div class="panel-glow"></div>
+    @if (spotlightEnabled) {
+      <div
+        class="cursor-spotlight"
+        [class.active]="spotlightActive()"
+        [style.left.%]="spotlightX()"
+        [style.top.%]="spotlightY()"
+      ></div>
+    }
     <div class="brand-content">
       <img src="/sebsa-logo.svg" alt="SEBSA Logo" class="brand-logo" />
       <div class="brand-dash"></div>
       <h1>Internal Project Management</h1>
       <p>Orchestrating complexity with precision and clarity.</p>
+
+      <ul class="feature-list">
+        <li>
+          <span class="material-symbols-outlined">task_alt</span>
+          <span>Track tasks, milestones &amp; cases in real time</span>
+        </li>
+        <li>
+          <span class="material-symbols-outlined">groups</span>
+          <span>Collaborate across teams from one workspace</span>
+        </li>
+        <li>
+          <span class="material-symbols-outlined">verified_user</span>
+          <span>Enterprise-grade security for SEBSA data</span>
+        </li>
+      </ul>
     </div>
   </div>
-  
+
   <div class="right-panel">
     <div class="login-form-container">
       <h2>Welcome back</h2>
-      <p class="subtitle">Sign in to your SEBSA account</p>
+      <p class="subtitle">Sign in to your SEBSA account to continue</p>
+
       @if (hasError()) {
-        <div class="error-alert">
-          <span class="material-symbols-outlined error-icon">error</span>
-          <div class="error-text">
+        <div class="alert alert-error" role="alert">
+          <span class="material-symbols-outlined alert-icon">error</span>
+          <div class="alert-text">
             <strong>Authentication Failed</strong>
             <span>{{ errorMessage() }}</span>
+          </div>
+        </div>
+      }
+
+      @if (showMicrosoftNotice()) {
+        <div class="alert alert-info" role="status">
+          <span class="material-symbols-outlined alert-icon">info</span>
+          <div class="alert-text">
+            <strong>Coming soon</strong>
+            <span>Sign in with Microsoft will be available in a future update.</span>
           </div>
         </div>
       }
@@ -33,9 +68,10 @@
               tabindex="1"
               name="email"
               [(ngModel)]="email"
-              autocomplete="current-email"
+              autocomplete="username"
               placeholder="user@sebsaworld.com"
               [class.error-input]="hasError()"
+              required
             />
           </div>
         </div>
@@ -49,13 +85,24 @@
             <span class="material-symbols-outlined input-icon">lock</span>
             <input
               id="password"
-              type="password"
+              [type]="showPassword() ? 'text' : 'password'"
               tabindex="2"
               name="password"
               [(ngModel)]="password"
               placeholder="••••••••"
               autocomplete="current-password"
+              [class.error-input]="hasError()"
+              required
             />
+            <button
+              type="button"
+              class="password-toggle"
+              tabindex="-1"
+              (click)="togglePasswordVisibility()"
+              [attr.aria-label]="showPassword() ? 'Hide password' : 'Show password'"
+            >
+              <span class="material-symbols-outlined">{{ showPassword() ? 'visibility_off' : 'visibility' }}</span>
+            </button>
           </div>
 
           <div class="label-row-right">
@@ -65,14 +112,36 @@
           </div>
         </div>
 
-        <button type="submit" tabindex="4" class="sign-in-button">Sign In</button>
+        <button type="submit" tabindex="4" class="sign-in-button" [disabled]="isSubmitting()">
+          @if (isSubmitting()) {
+            <span class="spinner"></span>
+            <span>Signing in…</span>
+          } @else {
+            <span>Sign In</span>
+          }
+        </button>
       </form>
+
+      <div class="divider">
+        <span>or continue with</span>
+      </div>
+
+      <button type="button" class="microsoft-button" tabindex="5" (click)="loginWithMicrosoft()">
+        <svg class="ms-logo" viewBox="0 0 21 21" width="18" height="18" aria-hidden="true">
+          <rect x="1" y="1" width="9" height="9" fill="#F25022" />
+          <rect x="11" y="1" width="9" height="9" fill="#7FBA00" />
+          <rect x="1" y="11" width="9" height="9" fill="#00A4EF" />
+          <rect x="11" y="11" width="9" height="9" fill="#FFB900" />
+        </svg>
+        <span>Sign in with Microsoft</span>
+        <span class="soon-badge">Coming soon</span>
+      </button>
 
       <div class="login-footer">
         <p>Don't have an account? <a routerLink="/register">Sign up</a></p>
         <p>Access is restricted to SEBSA employees.<br />Contact your System Administrator for account creation.</p>
       </div>
-      
+
       <div class="copyright">
         &copy; {{ currentYear }} SEBSA (Pvt) Ltd. All rights reserved.
       </div>
