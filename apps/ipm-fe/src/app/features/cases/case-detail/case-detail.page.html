@@ -170,13 +170,27 @@
               <span class="material-symbols-outlined">calendar_today</span>
               Dates
             </h4>
-            <div class="meta-row">
+            <div class="meta-row meta-row-datepicker">
               <span class="meta-label">Start Date</span>
-              <input type="date" class="meta-value-input" [(ngModel)]="draft.startDate" (ngModelChange)="markDirty()" />
+              <div class="meta-datepicker-wrap">
+                <app-custom-datepicker
+                  [(ngModel)]="draft.startDate"
+                  (ngModelChange)="markDirty()"
+                  placeholder="Select start date"
+                  ariaLabel="Start date"
+                ></app-custom-datepicker>
+              </div>
             </div>
-            <div class="meta-row">
+            <div class="meta-row meta-row-datepicker">
               <span class="meta-label">Due Date</span>
-              <input type="date" class="meta-value-input" [(ngModel)]="draft.dueDate" (ngModelChange)="markDirty()" />
+              <div class="meta-datepicker-wrap">
+                <app-custom-datepicker
+                  [(ngModel)]="draft.dueDate"
+                  (ngModelChange)="markDirty()"
+                  placeholder="Select due date"
+                  ariaLabel="Due date"
+                ></app-custom-datepicker>
+              </div>
             </div>
           </div>
 
@@ -216,12 +230,15 @@
               <span class="material-symbols-outlined">person</span>
               Assignee
             </h4>
-            <select class="assignee-select" [(ngModel)]="draft.assigneeId" (ngModelChange)="markDirty()">
-              <option value="">Unassigned</option>
-              @for (user of availableAssignees(); track user.id) {
-                <option [value]="user.id">{{ user.name }}</option>
-              }
-            </select>
+            <app-custom-select
+              [(ngModel)]="draft.assigneeId"
+              (ngModelChange)="markDirty()"
+              [options]="availableAssignees()"
+              defaultOptionLabel="Unassigned"
+              defaultOptionValue=""
+              placeholder="Unassigned"
+              ariaLabel="Assignee"
+            ></app-custom-select>
           </div>
 
           <div class="meta-card">

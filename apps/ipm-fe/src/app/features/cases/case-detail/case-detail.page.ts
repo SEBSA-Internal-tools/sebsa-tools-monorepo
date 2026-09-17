@@ -19,6 +19,8 @@ import {
 import { ActivityFeedComponent } from '../../../core/components/activity-feed/activity-feed.component';
 import { CommentSectionComponent } from '../../../core/components/comment-section/comment-section.component';
 import { TaskAttachmentsComponent } from '../../../core/components/task-attachments/task-attachments.component';
+import { CustomSelectComponent } from '../../../core/components/custom-select/custom-select.component';
+import { CustomDatepickerComponent } from '../../../core/components/custom-datepicker/custom-datepicker.component';
 
 interface CaseEditDraft {
   title: string;
@@ -34,7 +36,17 @@ interface CaseEditDraft {
 @Component({
   standalone: true,
   selector: 'app-case-detail-page',
-  imports: [CommonModule, FormsModule, RouterLink, CreateTaskModalComponent, ActivityFeedComponent, CommentSectionComponent, TaskAttachmentsComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    RouterLink,
+    CreateTaskModalComponent,
+    ActivityFeedComponent,
+    CommentSectionComponent,
+    TaskAttachmentsComponent,
+    CustomSelectComponent,
+    CustomDatepickerComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './case-detail.page.html',
   styleUrls: ['./case-detail.page.scss'],

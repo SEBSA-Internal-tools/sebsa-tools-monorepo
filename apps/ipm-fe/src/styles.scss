@@ -905,6 +905,10 @@ input[type="date"] {
   }
 }
 
+.modal-body {
+  overflow-x: hidden !important;
+}
+
 @media (max-width: 768px) {
   /* Global responsive horizontal scrolling for HTML data tables */
   .sebsa-table,

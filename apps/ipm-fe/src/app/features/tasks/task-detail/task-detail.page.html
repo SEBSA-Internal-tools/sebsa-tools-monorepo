@@ -298,11 +298,12 @@
 
         <!-- Add Dependency form -->
         <div class="add-dependency-form">
-          <select [(ngModel)]="newDependencyType" class="dependency-type-select">
-            <option value="BLOCKS">Blocks</option>
-            <option value="RELATES_TO">Relates To</option>
-            <option value="DUPLICATE_OF">Duplicate Of</option>
-          </select>
+          <app-custom-select
+            [(ngModel)]="newDependencyType"
+            [options]="dependencyTypeOptions"
+            customClass="dependency-type-custom-select"
+            ariaLabel="Dependency type"
+          ></app-custom-select>
 
           @if (selectedDependencyTaskId) {
             <div class="project-display">
@@ -359,16 +360,18 @@
           </span>
           Dates
         </h4>
-        <div class="meta-row">
+        <div class="meta-row meta-row-datepicker">
           <span class="meta-label">
             Due Date
           </span>
-          <input
-            type="date"
-            class="meta-value-input"
-            [(ngModel)]="draft.dueDate"
-            (ngModelChange)="markDirty()"
-          />
+          <div class="meta-datepicker-wrap">
+            <app-custom-datepicker
+              [(ngModel)]="draft.dueDate"
+              (ngModelChange)="markDirty()"
+              placeholder="Select due date"
+              ariaLabel="Due date"
+            ></app-custom-datepicker>
+          </div>
         </div>
         @if (task.reminderLeadMinutes) {
           <div class="meta-row">
@@ -393,16 +396,15 @@
           </span>
           Assignee
         </h4>
-        <select
-          class="assignee-select"
+        <app-custom-select
           [(ngModel)]="draft.assigneeId"
           (ngModelChange)="markDirty()"
-        >
-          <option value="">Unassigned</option>
-          @for (user of availableAssignees(); track user.id) {
-            <option [value]="user.id">{{ user.name }}</option>
-          }
-        </select>
+          [options]="availableAssignees()"
+          defaultOptionLabel="Unassigned"
+          defaultOptionValue=""
+          placeholder="Unassigned"
+          ariaLabel="Assignee"
+        ></app-custom-select>
       </div>
 
       <!-- Activity -->

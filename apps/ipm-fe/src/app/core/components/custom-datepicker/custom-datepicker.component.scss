@@ -22,15 +22,15 @@
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 14px;
-  min-height: 40px;
+  gap: 8px;
+  padding: 8px 12px;
+  min-height: 38px;
   border-radius: 10px;
   border: 1px solid var(--border-default, #e2e8f0);
   background-color: var(--surface-muted, #f8fafc);
   color: var(--text-heading, #0f172a);
   font-family: var(--font-body, 'Inter', sans-serif);
-  font-size: 0.875rem;
+  font-size: 0.86rem;
   font-weight: 500;
   cursor: pointer;
   outline: none;
@@ -47,6 +47,11 @@
     box-shadow: var(--shadow-glow-focus, 0 0 0 3px rgba(112, 0, 255, 0.15));
   }
 
+  &.has-value .trigger-text {
+    font-weight: 600;
+    color: var(--text-heading, #0f172a);
+  }
+
   &.disabled {
     opacity: 0.6;
     cursor: not-allowed;
@@ -55,7 +60,7 @@
 }
 
 .trigger-icon {
-  font-size: 18px;
+  font-size: 17px;
   color: var(--text-secondary, #64748b);
   flex-shrink: 0;
 }
@@ -69,6 +74,7 @@
 
   &.placeholder {
     color: var(--text-muted, #94a3b8);
+    font-weight: 400;
   }
 }
 
@@ -83,9 +89,10 @@
   cursor: pointer;
   border-radius: 4px;
   transition: all 0.15s ease;
+  flex-shrink: 0;
 
   .material-symbols-outlined {
-    font-size: 16px;
+    font-size: 15px;
   }
 
   &:hover {
@@ -95,7 +102,7 @@
 }
 
 .trigger-chevron {
-  font-size: 18px;
+  font-size: 17px;
   color: var(--text-secondary, #64748b);
   transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   flex-shrink: 0;
@@ -115,7 +122,7 @@
   left: 0;
   z-index: 1200;
   width: 300px;
-  max-width: 100vw;
+  max-width: min(300px, 90vw);
   box-sizing: border-box;
   background: var(--surface-card, #ffffff);
   border: 1px solid var(--border-default, #e2e8f0);
@@ -124,6 +131,11 @@
   padding: 14px;
   animation: pickerFadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
   user-select: none;
+
+  .custom-datepicker-wrapper.align-right & {
+    left: auto !important;
+    right: 0 !important;
+  }
 }
 
 @keyframes pickerFadeIn {
@@ -258,10 +270,11 @@
   }
 
   &.selected {
-    background-color: var(--brand-primary, #7000ff) !important;
-    color: #ffffff !important;
+    background-color: color-mix(in srgb, var(--brand-primary, #7000ff) 22%, transparent) !important;
+    border: 1.5px solid var(--brand-primary, #7000ff) !important;
+    color: var(--brand-primary-300, #c084fc) !important;
     font-weight: 700;
-    box-shadow: 0 2px 8px rgba(112, 0, 255, 0.35);
+    box-shadow: 0 0 10px rgba(112, 0, 255, 0.25);
   }
 
   &:disabled {
@@ -374,10 +387,23 @@
   &.btn-today {
     background: var(--surface-muted, #f8fafc);
     color: var(--text-heading, #0f172a);
+    font-weight: 600;
 
     &:hover {
       background: var(--brand-primary-100, #f3e8ff);
       color: var(--brand-primary, #7000ff);
+    }
+
+    [data-theme='dark'] &,
+    .dark-theme &,
+    .theme-dark & {
+      background: rgba(255, 255, 255, 0.08);
+      color: #ffffff;
+
+      &:hover {
+        background: var(--brand-primary);
+        color: #ffffff;
+      }
     }
   }
 
@@ -396,27 +422,71 @@
 // =============================================================================
 @media (max-width: 640px) {
   .datepicker-trigger {
-    min-height: 44px;
-    font-size: 16px;
-    padding: 10px 14px;
+    min-height: 40px;
+    font-size: 0.92rem;
+    padding: 8px 12px;
   }
 
   .datepicker-popup {
-    width: 100%;
-    max-width: 320px;
-    left: 0;
-    right: 0;
-    margin: 0 auto;
-    padding: 14px 12px;
+    width: 100% !important;
+    max-width: 100% !important;
+    left: 0 !important;
+    right: 0 !important;
+    margin: 0 !important;
+    padding: 10px 8px;
+    box-sizing: border-box;
+    border-radius: 14px;
+  }
+
+  .calendar-header {
+    margin-bottom: 8px;
+    padding: 0;
+
+    .month-year-btn {
+      font-size: 0.85rem;
+      padding: 4px 6px;
+    }
+
+    .nav-btn {
+      width: 28px;
+      height: 28px;
+      .material-symbols-outlined {
+        font-size: 16px;
+      }
+    }
+  }
+
+  .weekdays-row {
+    gap: 1px;
+    margin-bottom: 4px;
+  }
+
+  .weekday-cell {
+    font-size: 0.68rem;
+    padding: 2px 0;
+  }
+
+  .days-grid {
+    gap: 2px;
+    margin-bottom: 8px;
   }
 
   .day-cell {
-    min-height: 38px;
-    font-size: 0.9rem;
+    aspect-ratio: 1;
+    min-height: 0;
+    height: auto;
+    width: 100%;
+    font-size: 0.8rem;
+    border-radius: 6px;
+  }
+
+  .month-cell {
+    padding: 8px 4px;
+    font-size: 0.78rem;
   }
 
   .footer-action-btn {
-    padding: 8px 10px;
-    font-size: 0.85rem;
+    padding: 6px 8px;
+    font-size: 0.78rem;
   }
 }

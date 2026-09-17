@@ -10,8 +10,8 @@
   <div class="modal-container">
     <div class="modal-header">
       <div class="header-content">
-        <p class="header-label">ADD SUBTASK</p>
-        <h2>{{ taskTitle }}</h2>
+        <p class="header-label">CREATE NEW SUBTASK</p>
+        <h2>What needs to be done?</h2>
       </div>
       <button type="button" class="close-btn" (click)="onCancel()" title="Close" aria-label="Close dialog">
         <span class="material-symbols-outlined" aria-hidden="true">close</span>
@@ -20,6 +20,13 @@
 
     <div class="modal-body">
       <div class="form-grid">
+        <div class="form-group full-width">
+          <div class="form-label">Task</div>
+          <div class="project-display">
+            <span class="project-name">{{ taskTitle }}</span>
+          </div>
+        </div>
+
         <div class="form-group full-width">
           <label for="subtaskTitle" class="form-label">
             Subtask Title <span class="required">*</span>
@@ -141,7 +148,7 @@
 
     <div class="modal-footer">
       <button type="button" class="btn-cancel" (click)="onCancel()">Cancel</button>
-      <button type="button" class="btn-create" (click)="onSubmit()">Add subtask</button>
+      <button type="button" class="btn-create" (click)="onSubmit()">Create subtask</button>
     </div>
   </div>
 }

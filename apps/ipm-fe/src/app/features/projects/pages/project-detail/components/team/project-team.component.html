@@ -137,15 +137,13 @@
           <tr>
             <td>{{ role.name }}</td>
             <td>
-              <select
-                class="role-group-select"
+              <app-custom-select
                 [ngModel]="role.privilegeGroup.id"
                 (ngModelChange)="reassignRole(role, $event)"
-              >
-                @for (group of privilegeGroups(); track group.id) {
-                  <option [value]="group.id">{{ group.name }}</option>
-                }
-              </select>
+                [options]="privilegeGroups()"
+                placeholder="Select privilege group"
+                ariaLabel="Privilege Group"
+              ></app-custom-select>
             </td>
           </tr>
         }
@@ -159,12 +157,13 @@
         placeholder="New role name"
         [(ngModel)]="newRoleName"
       />
-      <select class="role-group-select" [(ngModel)]="newRoleGroupId">
-        <option value="" disabled>Select a privilege group&hellip;</option>
-        @for (group of privilegeGroups(); track group.id) {
-          <option [value]="group.id">{{ group.name }}</option>
-        }
-      </select>
+      <app-custom-select
+        [(ngModel)]="newRoleGroupId"
+        [options]="privilegeGroups()"
+        placeholder="Select a privilege group..."
+        ariaLabel="Privilege group"
+        customClass="create-role-select"
+      ></app-custom-select>
       <button type="button" class="btn-create-role" (click)="createRole()">
         <span class="material-symbols-outlined">add</span>
         Create Custom Role
