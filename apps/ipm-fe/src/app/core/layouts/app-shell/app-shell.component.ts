@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, HostListener, inject, OnInit } from '@angular/core';
+import { Component, ElementRef, HostListener, inject, OnInit, signal, ViewChild } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { filter } from 'rxjs';
 import { ThemeService } from '../../services/theme.service';
@@ -136,14 +136,55 @@ export class AppShellComponent implements OnInit {
   protected isProfileMenuOpen = false;
   protected isNotificationMenuOpen = false;
 
+  @ViewChild('globalSearchInput') private globalSearchInputRef?: ElementRef<HTMLInputElement>;
+  protected readonly hasSearchQuery = signal(false);
+  protected readonly isMac =
+    typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+
   protected openMobileSearch(): void {
     this.isMobileSearchOpen = true;
     this.isProfileMenuOpen = false;
     this.isNotificationMenuOpen = false;
+    this.hasSearchQuery.set(false);
   }
 
   protected closeMobileSearch(): void {
     this.isMobileSearchOpen = false;
+    this.hasSearchQuery.set(false);
+  }
+
+  protected onSearchInput(event: Event): void {
+    this.hasSearchQuery.set((event.target as HTMLInputElement).value.length > 0);
+  }
+
+  protected onSearchKeydown(event: KeyboardEvent): void {
+    if (event.key !== 'Escape') return;
+
+    const input = event.target as HTMLInputElement;
+    if (input.value) {
+      this.clearSearch();
+    } else {
+      input.blur();
+    }
+  }
+
+  protected clearSearch(): void {
+    const input = this.globalSearchInputRef?.nativeElement;
+    if (input) {
+      input.value = '';
+      input.focus();
+    }
+    this.hasSearchQuery.set(false);
+  }
+
+  /** Cmd/Ctrl+K jumps straight into the search bar, mirroring the shortcut users
+   * already expect from Linear/Notion/GitHub-style command palettes. */
+  @HostListener('document:keydown', ['$event'])
+  protected onGlobalKeydown(event: KeyboardEvent): void {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+      event.preventDefault();
+      this.globalSearchInputRef?.nativeElement.focus();
+    }
   }
 
   ngOnInit(): void {
