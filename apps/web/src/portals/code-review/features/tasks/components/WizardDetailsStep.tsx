@@ -10,7 +10,7 @@ import { formatDate } from '@/lib/formatters.ts';
 import { useCurrentUser } from '@/hooks/useCurrentUser.ts';
 import common from '@/content/common.json';
 import tasks from '@/content/tasks.json';
-import { useCustomers } from '../api/queries.ts';
+import { useCustomers, useNextTaskId } from '../api/queries.ts';
 import { deriveTitle } from '../domain/taskRules.ts';
 import { useTaskDraft } from '../hooks/useTaskDraft.ts';
 
@@ -163,6 +163,7 @@ export function SystemInformationPanel({ className }: { className?: string } = {
   const draft = useTaskDraft();
   const { data: user } = useCurrentUser();
   const { data: customers } = useCustomers();
+  const nextTaskId = useNextTaskId(draft.taskId === null ? draft.customerId : '');
 
   const customerName = customers?.find((c) => c.id === draft.customerId)?.name ?? '';
   const derivedTitle =
@@ -176,7 +177,11 @@ export function SystemInformationPanel({ className }: { className?: string } = {
       icon: <Hash className="size-4 text-violet-600" />,
       label: tasks.detail.fields.taskId,
       value:
-        draft.taskId === null ? (
+        draft.taskId === null && nextTaskId.data ? (
+          <span className="text-ink-800 rounded-md border border-line bg-canvas px-2 py-0.5 font-mono text-xs font-semibold">
+            {nextTaskId.data.taskCode}
+          </span>
+        ) : draft.taskId === null ? (
           <span className="text-xs font-medium text-ink-400">
             {tasks.wizard.details.taskIdPending}
           </span>

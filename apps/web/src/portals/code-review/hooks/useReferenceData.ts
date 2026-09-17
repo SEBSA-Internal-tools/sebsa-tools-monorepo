@@ -1,6 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { z } from 'zod';
-import { checklistCategorySchema, customerSchema, taskTypeRecordSchema } from '@sdp/contracts';
+import {
+  checklistCategorySchema,
+  customerSchema,
+  nextTaskIdSchema,
+  taskTypeRecordSchema,
+} from '@sdp/contracts';
 import { api } from '@/lib/apiClient.ts';
 import { taskKeys } from './useTasks.ts';
 
@@ -24,6 +29,16 @@ export function useCustomers() {
     queryKey: taskKeys.customers(),
     queryFn: ({ signal }) => api.get('/customers', z.array(customerSchema), { signal }),
     staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useNextTaskId(customerId: string) {
+  return useQuery({
+    queryKey: taskKeys.nextTaskId(customerId),
+    queryFn: ({ signal }) =>
+      api.get(`/customers/${customerId}/next-task-id`, nextTaskIdSchema, { signal }),
+    enabled: customerId !== '',
+    staleTime: 0,
   });
 }
 

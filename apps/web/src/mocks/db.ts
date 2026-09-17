@@ -80,7 +80,7 @@ interface Database {
   checklists: TaskChecklist[];
   events: TaskEvent[];
   /**
-   * Per-customer task number, the counter behind `AASL-019` (plan risk R2).
+   * Per-customer task number, the counter behind `CUSTOMER-19` (plan risk R2).
    *
    * Kept as its own map rather than derived from `tasks` by max(): deleting a
    * task must not make the next create reuse its number, and Phase 2 models this
@@ -438,9 +438,9 @@ export function findChecklist(taskId: string): TaskChecklist | undefined {
 }
 
 /**
- * Issues the next per-customer task number, e.g. `AASL-019`.
+ * Issues the next per-customer task number, e.g. `CUSTOMER-01`.
  *
- * Padded to three digits to match the seed data. In Phase 2 this whole function
+ * Padded to at least two digits. In production this whole function
  * collapses into one `UPDATE customer_sequences … RETURNING next_no` inside the
  * create transaction; the point of writing it as a single mutation here is that
  * the mock cannot accidentally model a race the real system will not have.
@@ -449,7 +449,9 @@ export function issueTaskCode(customerId: string): string {
   const customer = findCustomer(customerId);
   const next = (db.sequences[customerId] ?? 0) + 1;
   db.sequences[customerId] = next;
-  return `${customer?.code ?? 'TASK'}-${String(next).padStart(3, '0')}`;
+  const normalized = customer?.name.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '') ?? '';
+  const prefix = normalized === '' ? 'TASK' : normalized;
+  return `${prefix}-${String(next).padStart(2, '0')}`;
 }
 
 export function recordEvent(event: Omit<TaskEvent, 'id' | 'actorName'>): TaskEvent {

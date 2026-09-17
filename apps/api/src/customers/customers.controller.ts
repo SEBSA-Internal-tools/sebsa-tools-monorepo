@@ -30,6 +30,11 @@ export class CustomersController {
   @Get() @ApiOkResponse() findAll() {
     return this.customers.findAll();
   }
+  @Get(':id/next-task-id') @ApiOkResponse() nextTaskId(
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.customers.nextTaskId(id);
+  }
   @Get(':id') @ApiOkResponse() findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.customers.findOne(id);
   }
@@ -53,4 +58,3 @@ export class CustomersController {
     await this.customers.remove(id);
   }
 }
-

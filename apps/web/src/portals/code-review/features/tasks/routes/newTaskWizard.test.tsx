@@ -65,6 +65,12 @@ async function chooseCustomer(user: ReturnType<typeof userEvent.setup>, name: st
   await user.click(await screen.findByRole('option', { name }));
 }
 
+function sampleCustomer() {
+  const customer = db.customers[0];
+  if (!customer) throw new Error('seed has no sample customer');
+  return customer;
+}
+
 beforeEach(() => {
   signInForTest(DEVELOPER);
   useTaskDraft.getState().reset();
@@ -116,7 +122,7 @@ describe('New Review Task wizard', () => {
   it('enables Next only once step 1 is satisfied', async () => {
     const { user } = renderWizard();
 
-    await chooseCustomer(user, 'AASL');
+    await chooseCustomer(user, sampleCustomer().name);
     expect(await screen.findByRole('button', { name: /next: quality checklist/i })).toHaveAttribute(
       'aria-disabled',
       'true',
@@ -131,20 +137,34 @@ describe('New Review Task wizard', () => {
     });
   });
 
+  it('loads the selected customer next Task ID into System Information', async () => {
+    const { user } = renderWizard();
+    const customer = sampleCustomer();
+    const expectedSequence = (db.sequences[customer.id] ?? 0) + 1;
+    const expectedPrefix = customer.name.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '');
+
+    await chooseCustomer(user, customer.name);
+
+    expect(
+      await screen.findByText(`${expectedPrefix}-${String(expectedSequence).padStart(2, '0')}`),
+    ).toBeInTheDocument();
+  });
+
   it('previews the derived title as the fields are filled (FL 2.5-01)', async () => {
     const { user } = renderWizard();
 
-    await chooseCustomer(user, 'AASL');
+    const customer = sampleCustomer();
+    await chooseCustomer(user, customer.name);
     await user.type(await screen.findByLabelText(/crim id/i), 'CRIM-848');
     await user.type(await screen.findByLabelText(/version/i), 'V2');
 
-    expect(await screen.findByDisplayValue('AASL - CRIM-848 V2')).toBeInTheDocument();
+    expect(await screen.findByDisplayValue(`${customer.name} - CRIM-848 V2`)).toBeInTheDocument();
   });
 
   it('advances to the checklist once step 1 is complete, and creates the task', async () => {
     const { router, user } = renderWizard();
 
-    await chooseCustomer(user, 'AASL');
+    await chooseCustomer(user, sampleCustomer().name);
     await user.type(await screen.findByLabelText(/crim id/i), 'CRIM-999');
     await user.click(screen.getByRole('button', { name: /next/i }));
 
@@ -308,8 +328,8 @@ describe('New Review Task wizard', () => {
      */
     useTaskDraft.getState().hydrate({
       taskId: 't-existing',
-      taskCode: 'AASL-999',
-      customerId: 'c-aasl',
+      taskCode: 'CUSTOMER-999',
+      customerId: 'sample-customer',
       crimId: 'CRIM-OLD',
     });
 

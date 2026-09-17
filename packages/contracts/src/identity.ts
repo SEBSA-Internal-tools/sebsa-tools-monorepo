@@ -42,7 +42,7 @@ export type UpdateUserInput = z.infer<typeof updateUserInputSchema>;
 /* -------------------------------------------------------------------------- */
 
 /**
- * `code` is the short badge shown in grids (AASL, SEMCO, BLOM, AIM) and is the
+ * `code` is the short badge shown in grids and is the
  * prefix of every Task ID for that customer — see `taskCode` in task.ts.
  */
 export const customerSchema = z.object({
@@ -55,6 +55,12 @@ export const customerSchema = z.object({
   isActive: z.boolean(),
 });
 export type Customer = z.infer<typeof customerSchema>;
+
+export const nextTaskIdSchema = z.object({
+  taskCode: z.string().min(1),
+  sequence: z.number().int().positive(),
+});
+export type NextTaskId = z.infer<typeof nextTaskIdSchema>;
 
 export const createCustomerInputSchema = z.object({
   name: z.string().trim().min(1, 'Customer name is required'),

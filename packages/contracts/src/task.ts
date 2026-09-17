@@ -10,8 +10,8 @@ export const taskSchema = z.object({
   id: idSchema,
 
   /**
-   * Human-facing identifier, e.g. "AASL-019". Format is
-   * `<customer.code>-<zero-padded per-customer sequence>` (spec §2.2.3 seq 1).
+   * Human-facing identifier, e.g. "CUSTOMER-01". Format is
+   * `<normalized customer name>-<zero-padded per-customer sequence>`.
    * Generated server-side inside the create transaction — never by the client,
    * because the sequence is a shared counter (plan risk R2).
    */

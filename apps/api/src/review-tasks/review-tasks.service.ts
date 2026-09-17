@@ -14,6 +14,7 @@ import type {
 } from './dto/create-review-task.dto.js';
 import type { UpdateReviewTaskDto } from './dto/update-review-task.dto.js';
 import type { AuthenticatedUser } from '../auth/auth.types.js';
+import { formatTaskCode } from './task-code.js';
 
 const taskInclude = {
   customer: true,
@@ -109,9 +110,9 @@ export class ReviewTasksService {
             const now = new Date();
             return tx.task.create({
               data: {
-                taskCode: `${customer.code}-${String(sequence).padStart(4, '0')}`,
+                taskCode: formatTaskCode(customer.name, sequence),
                 customerSequenceNo: sequence,
-                title: `${customer.code} - ${dto.crimId.trim()}`,
+                title: `${customer.name} - ${dto.crimId.trim()}`,
                 crimId: dto.crimId.trim(),
                 version: dto.version?.trim() ?? null,
                 priority: dto.priority,
@@ -193,7 +194,7 @@ export class ReviewTasksService {
           const developerId = existing.developerId;
 
           let customerId = existing.customerId;
-          let customerCode = existing.customer.code;
+          let customerName = existing.customer.name;
           let customerSequenceNo = existing.customerSequenceNo;
           let taskCode = existing.taskCode;
           if (dto.customerId && dto.customerId !== existing.customerId) {
@@ -209,9 +210,9 @@ export class ReviewTasksService {
               _max: { customerSequenceNo: true },
             });
             customerId = customer.id;
-            customerCode = customer.code;
+            customerName = customer.name;
             customerSequenceNo = (aggregate._max.customerSequenceNo ?? 0) + 1;
-            taskCode = `${customer.code}-${String(customerSequenceNo).padStart(4, '0')}`;
+            taskCode = formatTaskCode(customer.name, customerSequenceNo);
           }
 
           if (dto.taskTypeIds)
@@ -254,7 +255,7 @@ export class ReviewTasksService {
               customerId,
               customerSequenceNo,
               taskCode,
-              title: `${customerCode} - ${crimId}`,
+              title: `${customerName} - ${crimId}`,
               crimId,
               ...(dto.version === undefined
                 ? {}

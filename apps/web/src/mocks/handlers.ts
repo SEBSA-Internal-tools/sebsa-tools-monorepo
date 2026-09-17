@@ -333,6 +333,19 @@ export const handlers: HttpHandler[] = [
     return HttpResponse.json(db.customers);
   }),
 
+  http.get('/api/customers/:customerId/next-task-id', async ({ params }) => {
+    await delay(LATENCY_MS);
+    const customer = findCustomer(String(params['customerId']));
+    if (!customer) return errorResponse(404, 'NOT_FOUND', 'Customer not found.');
+    const sequence = (db.sequences[customer.id] ?? 0) + 1;
+    const normalized = customer.name.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '');
+    const prefix = normalized === '' ? 'TASK' : normalized;
+    return HttpResponse.json({
+      taskCode: `${prefix}-${String(sequence).padStart(2, '0')}`,
+      sequence,
+    });
+  }),
+
   /* ----------------------------------------------------------------- tasks */
 
   /**
@@ -1521,8 +1534,8 @@ export const handlers: HttpHandler[] = [
      * `code` is deliberately NOT editable.
      *
      * It is the prefix of every Task ID already issued for this customer
-     * (AASL-019). Changing it would either rewrite historical identifiers or
-     * leave the grid showing two prefixes for one customer.
+     * (for example, CUSTOMER-19). Changing it would either rewrite historical
+     * identifiers or leave the grid showing two prefixes for one customer.
      */
     if (parsed.data.name !== undefined) customer.name = parsed.data.name;
     if (parsed.data.description !== undefined) customer.description = parsed.data.description;
