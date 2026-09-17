@@ -141,7 +141,10 @@
                 [class.other-month]="!day.isCurrentMonth"
                 [class.today]="day.isToday"
                 [class.selected]="day.isSelected"
+                [class.disabled-date]="day.isDisabled"
                 [disabled]="day.isDisabled"
+                [attr.aria-disabled]="day.isDisabled"
+                [attr.title]="day.isDisabled ? (isDueDateField() ? 'Past dates cannot be selected for due date' : 'Date is unavailable') : null"
                 (click)="selectDay(day, $event)"
               >
                 {{ day.dayNumber }}
@@ -160,6 +163,14 @@
         >
           Clear
         </button>
+
+        @if (isDueDateField()) {
+          <span class="due-date-notice" title="Only today and future dates are selectable for due date">
+            <span class="material-symbols-outlined notice-icon">event_available</span>
+            <span>Today & future only</span>
+          </span>
+        }
+
         <button
           type="button"
           class="footer-action-btn btn-today"

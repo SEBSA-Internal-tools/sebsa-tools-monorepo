@@ -368,6 +368,7 @@
             <app-custom-datepicker
               [(ngModel)]="draft.dueDate"
               (ngModelChange)="markDirty()"
+              [isDueDate]="true"
               placeholder="Select due date"
               ariaLabel="Due date"
             ></app-custom-datepicker>

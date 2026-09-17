@@ -63,6 +63,7 @@ export class CustomDatepickerComponent implements ControlValueAccessor {
   @Input() ariaLabel = 'Date picker';
   @Input() customClass = '';
   @Input() disabled = false;
+  @Input() isDueDate = false;
   @Input() min = '';
   @Input() max = '';
   @Input() align: 'left' | 'right' | 'auto' = 'auto';
@@ -374,7 +375,21 @@ export class CustomDatepickerComponent implements ControlValueAccessor {
     return '';
   }
 
-  private isDateDisabled(dateStr: string): boolean {
+  readonly isDueDateField = computed(() => {
+    if (this.isDueDate) return true;
+    const label = (this.ariaLabel || '').toLowerCase();
+    const placeholder = (this.placeholder || '').toLowerCase();
+    return label.includes('due') || placeholder.includes('due');
+  });
+
+  get todayString(): string {
+    return this.formatDate(new Date());
+  }
+
+  isDateDisabled(dateStr: string): boolean {
+    if (this.isDueDateField() && dateStr < this.todayString) {
+      return true;
+    }
     if (this.min && dateStr < this.min) return true;
     if (this.max && dateStr > this.max) return true;
     return false;
