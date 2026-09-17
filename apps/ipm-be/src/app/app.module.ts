@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { PrismaModule } from '@sebsa-pm-tool/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -38,6 +40,8 @@ import { AttachmentsModule } from './attachments/attachments.module';
         abortEarly: false,
       },
     }),
+    // Global ceiling per IP. Auth routes tighten this further with @Throttle.
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
     ScheduleModule.forRoot(),
     PrismaModule,
     AuthModule,
@@ -60,6 +64,6 @@ import { AttachmentsModule } from './attachments/attachments.module';
     AttachmentsModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}

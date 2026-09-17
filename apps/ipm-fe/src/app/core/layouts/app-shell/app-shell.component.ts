@@ -12,6 +12,8 @@ import { NotificationService } from '../../services/notification.service';
 import { UserAvatarComponent } from '../../components/user-avatar/user-avatar.component';
 import type { CreateCaseRequest, NotificationDto, NotificationType, SystemRole } from '@sebsa-pm-tool/shared-models';
 
+const SIDEBAR_COLLAPSED_KEY = 'ipm-fe.sidebar.collapsed';
+
 interface NavItem {
   label: string;
   icon: string;
@@ -43,7 +45,7 @@ export class AppShellComponent implements OnInit {
   private readonly navigationItems: NavItem[] = [
     { label: 'Dashboard', icon: 'home', path: '/dashboard' },
     { label: 'Assigned Works', icon: 'assignment_ind', path: '/tasks' },
-    { label: 'Projects', icon: 'favorite', path: '/projects' },
+    { label: 'Projects', icon: 'folder_open', path: '/projects' },
     { label: 'Customers', icon: 'domain', path: '/customers', hiddenForRoles: ['REGULAR_USER'] },
     { label: 'CSO', icon: 'groups', path: '/cso' },
     { label: 'Calendar', icon: 'calendar_month', path: '/calendar' },
@@ -124,12 +126,18 @@ export class AppShellComponent implements OnInit {
   }
 
   protected toggleGroup(group: NavGroup): void {
+    if (this.isSidebarCollapsed) {
+      this.toggleSidebarCollapsed();
+      this.manuallyToggledGroups.set(group.label, true);
+      return;
+    }
     this.manuallyToggledGroups.set(group.label, !this.isGroupExpanded(group));
   }
 
   private readonly manuallyToggledGroups = new Map<string, boolean>();
 
   protected isMobileSidebarOpen = false;
+  protected isSidebarCollapsed = false;
   protected isMobileSearchOpen = false;
   protected isTaskModalOpen = false;
   protected lastCreatedTask: CaseFormData | null = null;
@@ -147,12 +155,27 @@ export class AppShellComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    try {
+      this.isSidebarCollapsed = window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true';
+    } catch {
+      this.isSidebarCollapsed = false;
+    }
+
     // Auto-close mobile drawer when user navigates
     this.router.events
       .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))
       .subscribe(() => {
         this.closeMobileSidebar();
       });
+  }
+
+  protected toggleSidebarCollapsed(): void {
+    this.isSidebarCollapsed = !this.isSidebarCollapsed;
+    try {
+      window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(this.isSidebarCollapsed));
+    } catch {
+      // Private browsing or blocked storage: the preference just won't persist.
+    }
   }
 
   protected toggleMobileSidebar(): void {

@@ -123,13 +123,27 @@
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02);
 }
 
-.controls-row {
+// Search, filter selects and the count chip all sit on one line and wrap
+// together once the row runs out of width.
+.toolbar-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+  gap: 10px;
   flex-wrap: wrap;
   width: 100%;
+
+  // app-custom-select sets width:100% on its own host, which would make each
+  // select claim a whole line in a wrapping flex row. Size the host here instead.
+  app-custom-select {
+    flex: 0 1 170px;
+    width: auto;
+    min-width: 140px;
+  }
+
+  .item-count-chip {
+    margin-left: auto;
+    white-space: nowrap;
+  }
 }
 
 .item-count-chip {
@@ -158,18 +172,7 @@
   }
 }
 
-.filter-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  width: 100%;
 
-  app-custom-select,
-  .filter-select-wrapper {
-    min-width: 170px;
-  }
-}
 
 .filter-select {
   appearance: none;
@@ -232,7 +235,8 @@
   background: var(--surface-muted);
   border: 1px solid var(--border-default);
   border-radius: 10px;
-  min-width: 320px;
+  flex: 1 1 240px;
+  min-width: 220px;
   transition: all 0.2s ease;
 
   &:focus-within {
@@ -637,21 +641,10 @@
     gap: 16px;
   }
 
-  .controls-row {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 12px;
-  }
-
-  .search-box {
-    min-width: 100%;
-    width: 100%;
-  }
-
-  .filter-row {
+  .toolbar-row {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 8px;
+    gap: 10px;
     width: 100%;
 
     app-custom-select,
@@ -665,6 +658,15 @@
       width: 100%;
       justify-content: center;
     }
+
+    .item-count-chip {
+      margin-left: 0;
+    }
+  }
+
+  .search-box {
+    min-width: 100%;
+    width: 100%;
   }
 }
 

@@ -9,6 +9,9 @@
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 
+// Keep in step with PASSWORD_SALT_ROUNDS in apps/ipm-be/src/app/auth/password.ts.
+const SALT_ROUNDS = 12;
+
 const prisma = new PrismaClient();
 
 const TEST_ADMIN_EMAIL = 'admin@sebsa.com';
@@ -24,7 +27,7 @@ async function main() {
     create: { name: 'Engineering' },
   });
 
-  const adminPasswordHash = await bcrypt.hash(TEST_ADMIN_PASSWORD, 10);
+  const adminPasswordHash = await bcrypt.hash(TEST_ADMIN_PASSWORD, SALT_ROUNDS);
   await prisma.user.upsert({
     where: { email: TEST_ADMIN_EMAIL },
     update: {},
@@ -39,7 +42,7 @@ async function main() {
     },
   });
 
-  const superAdminPasswordHash = await bcrypt.hash(TEST_SUPER_ADMIN_PASSWORD, 10);
+  const superAdminPasswordHash = await bcrypt.hash(TEST_SUPER_ADMIN_PASSWORD, SALT_ROUNDS);
   await prisma.user.upsert({
     where: { email: TEST_SUPER_ADMIN_EMAIL },
     update: {},

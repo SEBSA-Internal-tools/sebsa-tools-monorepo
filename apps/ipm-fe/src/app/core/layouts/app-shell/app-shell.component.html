@@ -12,6 +12,7 @@
   <aside
     class="sidebar"
     [class.mobile-open]="isMobileSidebarOpen"
+    [class.collapsed]="isSidebarCollapsed"
     aria-label="Primary navigation"
   >
     <section class="brand-block">
@@ -24,11 +25,24 @@
       >
         <span class="material-symbols-outlined" aria-hidden="true">close</span>
       </button>
+
+      <button
+        type="button"
+        class="sidebar-collapse-btn"
+        [attr.aria-label]="isSidebarCollapsed ? 'Expand navigation menu' : 'Collapse navigation menu'"
+        [attr.aria-expanded]="!isSidebarCollapsed"
+        [title]="isSidebarCollapsed ? 'Expand menu' : 'Collapse menu'"
+        (click)="toggleSidebarCollapsed()"
+      >
+        <span class="material-symbols-outlined" aria-hidden="true">
+          {{ isSidebarCollapsed ? 'chevron_right' : 'chevron_left' }}
+        </span>
+      </button>
     </section>
 
     <button type="button" class="btn-primary new-task-button" aria-haspopup="dialog" [attr.aria-expanded]="isTaskModalOpen" (click)="openTaskModal()">
       <span class="material-symbols-outlined button-icon" aria-hidden="true">add</span>
-      <span>New Case</span>
+      <span class="button-label">New Case</span>
     </button>
 
     <nav class="nav-list">
@@ -38,6 +52,7 @@
           [routerLink]="item.path"
           routerLinkActive="active"
           [routerLinkActiveOptions]="{ exact: true }"
+          [title]="isSidebarCollapsed ? item.label : ''"
           (click)="closeMobileSidebar()"
         >
           <span class="nav-icon" aria-hidden="true">
@@ -54,6 +69,7 @@
             class="nav-item nav-group-toggle"
             [class.active]="isGroupActive(group)"
             [attr.aria-expanded]="isGroupExpanded(group)"
+            [title]="isSidebarCollapsed ? group.label : ''"
             (click)="toggleGroup(group)"
           >
             <span class="nav-icon" aria-hidden="true">

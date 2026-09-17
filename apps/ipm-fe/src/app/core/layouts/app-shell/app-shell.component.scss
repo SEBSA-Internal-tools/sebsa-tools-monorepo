@@ -200,6 +200,78 @@
   }
 }
 
+// Desktop collapse: the sidebar narrows to an icon rail. Labels are hidden
+// rather than removed, so tooltips and screen readers still reach them.
+.sidebar-collapse-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin-left: auto;
+  flex-shrink: 0;
+  border-radius: 8px;
+  border: none;
+  background: rgba(255, 255, 255, 0.08);
+  color: #cbd5e1;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.16);
+    color: #ffffff;
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(196, 181, 253, 0.6);
+  }
+
+  .material-symbols-outlined {
+    font-size: 20px;
+  }
+}
+
+.sidebar.collapsed {
+  width: 78px;
+  min-width: 78px;
+  max-width: 78px;
+  padding-left: 12px;
+  padding-right: 12px;
+
+  .sidebar-logo-mask,
+  .nav-label,
+  .nav-chevron,
+  .button-label,
+  .nav-submenu {
+    display: none;
+  }
+
+  .brand-block {
+    justify-content: center;
+  }
+
+  .sidebar-collapse-btn {
+    margin-left: 0;
+  }
+
+  .nav-item {
+    justify-content: center;
+    gap: 0;
+    padding: 10px 0;
+  }
+
+  .new-task-button {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .settings-item {
+    justify-content: center;
+  }
+}
+
 .nav-group {
   display: flex;
   flex-direction: column;
@@ -1077,4 +1149,4 @@
     height: 36px;
     font-size: 0.9rem;
   }
-}
+}
