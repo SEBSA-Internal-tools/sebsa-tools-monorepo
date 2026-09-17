@@ -40,9 +40,19 @@ export interface UnreadCountResponse {
   count: number;
 }
 
+export interface NotificationCountsDto {
+  all: number;
+  unread: number;
+  assignments: number;
+  statusUpdates: number;
+  deadlines: number;
+}
+
 export interface NotificationFilterParams {
   isRead?: boolean;
   type?: NotificationType;
+  category?: 'ALL' | 'UNREAD' | 'ASSIGNMENTS' | 'STATUS_CHANGE' | 'DEADLINES';
   limit?: number;
   offset?: number;
 }
+

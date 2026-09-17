@@ -19,6 +19,10 @@ export class FilterNotificationDto {
   @IsEnum(NotificationType)
   type?: NotificationType;
 
+  @ApiPropertyOptional({ description: 'Filter by notification category (ALL, UNREAD, ASSIGNMENTS, STATUS_CHANGE, DEADLINES)' })
+  @IsOptional()
+  category?: string;
+
   @ApiPropertyOptional({ minimum: 1, default: 1 })
   @IsOptional()
   @Type(() => Number)
