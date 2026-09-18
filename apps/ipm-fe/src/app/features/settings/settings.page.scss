@@ -41,7 +41,7 @@
     font-size: 0.8125rem;
     font-weight: 600;
     color: var(--brand-primary, #7000ff);
-    background: rgba(112, 0, 255, 0.08);
+    background: var(--brand-primary-50, #faf5ff);
     padding: 4px 12px;
     border-radius: 9999px;
     margin-bottom: 8px;
@@ -145,7 +145,6 @@
     flex-shrink: 0;
 
     app-user-avatar {
-      box-shadow: 0 4px 14px rgba(112, 0, 255, 0.3);
       border-radius: 50%;
     }
 
@@ -548,7 +547,7 @@
   transition: all 0.2s ease;
 
   &:hover:not(:disabled) {
-    background: var(--surface-card, #ffffff);
+    background: var(--color-surface-glass-hover, #eef1f6);
     border-color: var(--border-strong, #cbd5e1);
   }
 
