@@ -119,7 +119,7 @@ describe('New Review Task wizard', () => {
     });
   });
 
-  it('enables Next only once step 1 is satisfied', async () => {
+  it('enables Next only after the valid task details are saved as a draft', async () => {
     const { user } = renderWizard();
 
     await chooseCustomer(user, sampleCustomer().name);
@@ -129,7 +129,15 @@ describe('New Review Task wizard', () => {
     );
 
     await user.type(await screen.findByLabelText(/crim id/i), 'CRIM-1');
+    await user.type(await screen.findByLabelText(/version/i), 'V1');
+    expect(screen.getByRole('button', { name: /next: quality checklist/i })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
+
+    await user.click(screen.getByRole('button', { name: /save draft/i }));
     await waitFor(() => {
+      expect(useTaskDraft.getState().taskId).not.toBeNull();
       expect(screen.getByRole('button', { name: /next: quality checklist/i })).toHaveAttribute(
         'aria-disabled',
         'false',
@@ -161,18 +169,27 @@ describe('New Review Task wizard', () => {
     expect(await screen.findByDisplayValue(`${customer.name} - CRIM-848 V2`)).toBeInTheDocument();
   });
 
-  it('advances to the checklist without creating a task', async () => {
+  it('advances to the checklist without duplicating the saved draft', async () => {
     const { router, user } = renderWizard();
 
     await chooseCustomer(user, sampleCustomer().name);
     await user.type(await screen.findByLabelText(/crim id/i), 'CRIM-999');
+    await user.type(await screen.findByLabelText(/version/i), 'V1');
+    await user.click(screen.getByRole('button', { name: /save draft/i }));
+    await waitFor(() => {
+      expect(useTaskDraft.getState().taskId).not.toBeNull();
+    });
+    const savedTaskId = useTaskDraft.getState().taskId;
+    const taskCount = db.tasks.length;
+
     await user.click(screen.getByRole('button', { name: /next/i }));
 
     await waitFor(() => {
       expect(router.state.location.pathname).toBe('/crp/developer/tasks/new/checklist');
     });
 
-    expect(useTaskDraft.getState().taskId).toBeNull();
+    expect(useTaskDraft.getState().taskId).toBe(savedTaskId);
+    expect(db.tasks).toHaveLength(taskCount);
   });
 
   it('shows no checklist questions until a task type is selected', async () => {

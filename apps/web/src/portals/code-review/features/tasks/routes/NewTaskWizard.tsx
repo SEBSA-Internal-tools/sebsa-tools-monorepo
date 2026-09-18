@@ -222,7 +222,7 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
 
   if (
     currentStep !== 'details' &&
-    !canLeaveStep('details', missing)
+    ((!isEditMode && draft.taskId === null) || !canLeaveStep('details', missing))
   ) {
     return <Navigate to={getStepUrl('details')} replace />;
   }
@@ -276,7 +276,9 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
   }));
 
   const blockedCount = requirementsForStep(currentStep, missing).length;
-  const canAdvance = canLeaveStep(currentStep, missing);
+  const canAdvance =
+    canLeaveStep(currentStep, missing) &&
+    (currentStep !== 'details' || isEditMode || draft.taskId !== null);
 
   /**
    * Persists whatever the current step owns, then reports the task id.

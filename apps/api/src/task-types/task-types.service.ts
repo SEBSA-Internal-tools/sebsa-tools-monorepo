@@ -8,13 +8,17 @@ import type { UpdateTaskTypeDto } from './dto/update-task-type.dto.js';
 export class TaskTypesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  findAll() {
-    return this.prisma.taskType.findMany({
-      include: {
-        _count: { select: { tasks: true, checklistSections: true } },
-      },
+  async findAll(includeInactive = false) {
+    const taskTypes = await this.prisma.taskType.findMany({
+      where: includeInactive ? {} : { isActive: true },
       orderBy: { name: 'asc' },
     });
+    return taskTypes.map((taskType, index) => ({
+      id: String(taskType.id),
+      name: taskType.name,
+      order: index + 1,
+      isActive: taskType.isActive,
+    }));
   }
 
   async findOne(id: number) {

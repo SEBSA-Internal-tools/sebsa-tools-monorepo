@@ -5,6 +5,44 @@ import { PrismaService } from '../prisma/prisma.service.js';
 export class ChecklistsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  async findTemplate(includeInactive = false) {
+    const sections = await this.prisma.checklistSection.findMany({
+      where: {
+        ...(includeInactive ? {} : { isActive: true }),
+        taskTypes: {
+          some: includeInactive ? {} : { taskType: { isActive: true } },
+        },
+      },
+      include: {
+        taskTypes: {
+          where: includeInactive ? {} : { taskType: { isActive: true } },
+          orderBy: { displayOrder: 'asc' },
+        },
+        questions: {
+          where: includeInactive ? {} : { isActive: true },
+          orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
+        },
+      },
+    });
+
+    return sections
+      .map((section) => ({
+        id: section.id,
+        name: section.name,
+        order: Math.min(...section.taskTypes.map(({ displayOrder }) => displayOrder)),
+        isActive: section.isActive,
+        questions: section.questions.map((question) => ({
+          id: question.id,
+          categoryId: section.id,
+          text: question.questionText,
+          order: question.displayOrder,
+          appliesTo: section.taskTypes.map(({ taskTypeId }) => String(taskTypeId)),
+          isActive: question.isActive,
+        })),
+      }))
+      .sort((left, right) => left.order - right.order || left.name.localeCompare(right.name));
+  }
+
   async findForTaskTypes(taskTypeIds: number[]) {
     const taskTypes = await this.prisma.taskType.findMany({
       where: { id: { in: taskTypeIds }, isActive: true },
@@ -68,4 +106,3 @@ export class ChecklistsService {
     return { taskTypes, sections };
   }
 }
-
