@@ -1,0 +1,185 @@
+<section class="configuration-panel">
+  @if (errorMessage()) {
+    <p class="panel-error">
+      <span class="material-symbols-outlined">error</span>
+      {{ errorMessage() }}
+    </p>
+  }
+
+  @if (!canEdit()) {
+    <p class="panel-notice">
+      <span class="material-symbols-outlined">lock</span>
+      These lists are managed by a Super Admin. You have read-only access.
+    </p>
+  }
+
+  <div class="panel-body">
+    <!-- List picker -->
+    <nav class="list-nav" aria-label="Configuration lists">
+      @for (list of lists; track list.kind) {
+        <button
+          type="button"
+          class="list-nav-item"
+          [class.active]="activeKind() === list.kind"
+          [attr.aria-pressed]="activeKind() === list.kind"
+          (click)="selectKind(list.kind)"
+        >
+          <span class="material-symbols-outlined" aria-hidden="true">{{ list.icon }}</span>
+          <span class="list-nav-label">{{ list.title }}</span>
+          <span class="list-nav-count">{{ optionsFor(list.kind).length }}</span>
+        </button>
+      }
+    </nav>
+
+    <!-- Selected list -->
+    <div class="list-detail">
+      <header class="list-header">
+        <div>
+          <h3 class="list-title">{{ activeList.title }}</h3>
+          <p class="list-description">{{ activeList.description }}</p>
+        </div>
+
+        @if (canEdit() && !isAdding() && !editingId()) {
+          <button type="button" class="sebsa-btn-primary" (click)="startAdd()">
+            <span class="material-symbols-outlined">add</span>
+            Add entry
+          </button>
+        }
+      </header>
+
+      @if (isAdding() || editingId()) {
+        <div class="editor">
+          <div class="editor-fields">
+            <div class="editor-field grow">
+              <label for="config-label">Name</label>
+              <input
+                id="config-label"
+                type="text"
+                [(ngModel)]="draft.label"
+                maxlength="60"
+                placeholder="e.g. In Review"
+                (keyup.enter)="save()"
+              />
+            </div>
+
+            <div class="editor-field">
+              <label for="config-color">Colour</label>
+              <input id="config-color" type="color" [(ngModel)]="draft.color" />
+            </div>
+          </div>
+
+          @if (activeList.isStatusList) {
+            <div class="editor-flags">
+              <label class="flag">
+                <input type="checkbox" [(ngModel)]="draft.isCompleted" />
+                <span>Counts as completed</span>
+              </label>
+              <label class="flag">
+                <input type="checkbox" [(ngModel)]="draft.isCancelled" />
+                <span>Counts as cancelled</span>
+              </label>
+              <p class="flag-hint">
+                Used by dashboards and rollups instead of matching on the name.
+              </p>
+            </div>
+          }
+
+          <div class="editor-actions">
+            <button type="button" class="sebsa-btn-primary" [disabled]="!draft.label.trim()" (click)="save()">
+              {{ editingId() ? 'Save changes' : 'Add entry' }}
+            </button>
+            <button type="button" class="btn-ghost" (click)="cancelEdit()">Cancel</button>
+          </div>
+        </div>
+      }
+
+      @if (isLoading() && options().length === 0) {
+        <p class="panel-status">Loading configuration…</p>
+      }
+
+      <ul class="option-list">
+        @for (option of optionsFor(activeKind()); track trackById($index, option)) {
+          <li
+            class="option-row"
+            [class.inactive]="!option.isActive"
+            [class.dragging]="draggingId() === option.id"
+            [class.drop-target]="dropTargetId() === option.id"
+            [attr.draggable]="canEdit() && isReorderable ? true : null"
+            (dragstart)="onDragStart(option)"
+            (dragend)="onDragEnd()"
+            (dragover)="onDragOver($event, option)"
+            (drop)="onDrop($event, option)"
+          >
+            @if (canEdit() && isReorderable) {
+              <span class="drag-handle" aria-hidden="true" title="Drag to reorder">
+                <span class="material-symbols-outlined">drag_indicator</span>
+              </span>
+            }
+
+            <span class="option-swatch" [style.background]="option.color || 'var(--status-neutral-solid)'"></span>
+
+            <div class="option-text">
+              <span class="option-label">
+                {{ option.label }}
+                @if (option.isDefault) {
+                  <span class="option-badge default">Default</span>
+                }
+                @if (!option.isActive) {
+                  <span class="option-badge muted">Hidden</span>
+                }
+                @if (option.isCompleted) {
+                  <span class="option-badge success">Completed</span>
+                }
+                @if (option.isCancelled) {
+                  <span class="option-badge danger">Cancelled</span>
+                }
+              </span>
+              <span class="option-key" [title]="'Referenced in code as ' + option.key">{{ option.key }}</span>
+            </div>
+
+            @if (canEdit()) {
+              <div class="option-actions">
+                @if (!option.isDefault) {
+                  <button type="button" class="btn-link" (click)="setDefault(option)">Set default</button>
+                }
+
+                <button type="button" class="icon-btn" (click)="startEdit(option)" aria-label="Edit" title="Edit">
+                  <span class="material-symbols-outlined">edit</span>
+                </button>
+
+                <button
+                  type="button"
+                  class="icon-btn"
+                  (click)="toggleActive(option)"
+                  [attr.aria-label]="option.isActive ? 'Hide' : 'Show'"
+                  [title]="option.isActive ? 'Hide from selection' : 'Show in selection'"
+                >
+                  <span class="material-symbols-outlined">
+                    {{ option.isActive ? 'visibility' : 'visibility_off' }}
+                  </span>
+                </button>
+
+                @if (!option.isSystem) {
+                  <button type="button" class="icon-btn danger" (click)="remove(option)" aria-label="Delete" title="Delete">
+                    <span class="material-symbols-outlined">delete</span>
+                  </button>
+                } @else {
+                  <span class="option-locked" title="Built-in entries are referenced by the application and cannot be deleted">
+                    <span class="material-symbols-outlined">lock</span>
+                  </span>
+                }
+              </div>
+            }
+          </li>
+        } @empty {
+          @if (!isLoading()) {
+            <li class="option-empty">
+              <span class="material-symbols-outlined">tune</span>
+              <p>Nothing configured yet.</p>
+            </li>
+          }
+        }
+      </ul>
+    </div>
+  </div>
+</section>

@@ -8,8 +8,7 @@ type TabType =
   | 'calendar'
   | 'sprint'
   | 'team'
-  | 'activity'
-  | 'configuration';
+  | 'activity';
 
 interface Tab {
   id: TabType;
@@ -38,7 +37,6 @@ export class ProjectNavTabsComponent {
     { id: 'sprint', label: 'Sprint', icon: 'sprint' },
     { id: 'team', label: 'Team', icon: 'groups' },
     { id: 'activity', label: 'Activity', icon: 'history' },
-    { id: 'configuration', label: 'Configuration', icon: 'settings' },
   ];
 
   onTabClick(tab: TabType): void {

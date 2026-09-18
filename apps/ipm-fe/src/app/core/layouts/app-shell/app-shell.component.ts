@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, ElementRef, HostListener, inject, OnInit, signal, ViewChild } from '@angular/core';
+import { Component, HostListener, inject, OnInit } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { filter } from 'rxjs';
 import { ThemeService } from '../../services/theme.service';
@@ -11,6 +11,8 @@ import { ToastService } from '../../services/toast.service';
 import { NotificationService } from '../../services/notification.service';
 import { UserAvatarComponent } from '../../components/user-avatar/user-avatar.component';
 import type { CreateCaseRequest, NotificationDto, NotificationType, SystemRole } from '@sebsa-pm-tool/shared-models';
+
+const SIDEBAR_COLLAPSED_KEY = 'ipm-fe.sidebar.collapsed';
 
 interface NavItem {
   label: string;
@@ -43,7 +45,7 @@ export class AppShellComponent implements OnInit {
   private readonly navigationItems: NavItem[] = [
     { label: 'Dashboard', icon: 'home', path: '/dashboard' },
     { label: 'Assigned Works', icon: 'assignment_ind', path: '/tasks' },
-    { label: 'Projects', icon: 'favorite', path: '/projects' },
+    { label: 'Projects', icon: 'folder_open', path: '/projects' },
     { label: 'Customers', icon: 'domain', path: '/customers', hiddenForRoles: ['REGULAR_USER'] },
     { label: 'CSO', icon: 'groups', path: '/cso' },
     { label: 'Calendar', icon: 'calendar_month', path: '/calendar' },
@@ -69,15 +71,9 @@ export class AppShellComponent implements OnInit {
           onlyForRoles: ['SUPER_ADMIN'],
         },
         {
-          label: 'Task Types',
-          icon: 'category',
-          path: '/admin/task-types',
-          onlyForRoles: ['SUPER_ADMIN'],
-        },
-        {
-          label: 'Subtask Types',
-          icon: 'subdirectory_arrow_right',
-          path: '/admin/subtask-types',
+          label: 'Configuration',
+          icon: 'tune',
+          path: '/admin/configuration',
           onlyForRoles: ['SUPER_ADMIN'],
         },
         {
@@ -124,76 +120,51 @@ export class AppShellComponent implements OnInit {
   }
 
   protected toggleGroup(group: NavGroup): void {
+    if (this.isSidebarCollapsed) {
+      this.toggleSidebarCollapsed();
+      this.manuallyToggledGroups.set(group.label, true);
+      return;
+    }
     this.manuallyToggledGroups.set(group.label, !this.isGroupExpanded(group));
   }
 
   private readonly manuallyToggledGroups = new Map<string, boolean>();
 
   protected isMobileSidebarOpen = false;
-  protected isMobileSearchOpen = false;
+  protected isSidebarCollapsed = false;
   protected isTaskModalOpen = false;
   protected lastCreatedTask: CaseFormData | null = null;
   protected isProfileMenuOpen = false;
   protected isNotificationMenuOpen = false;
 
-  @ViewChild('globalSearchInput') private globalSearchInputRef?: ElementRef<HTMLInputElement>;
-  protected readonly hasSearchQuery = signal(false);
-  protected readonly isMac =
-    typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 
-  protected openMobileSearch(): void {
-    this.isMobileSearchOpen = true;
-    this.isProfileMenuOpen = false;
-    this.isNotificationMenuOpen = false;
-    this.hasSearchQuery.set(false);
-  }
 
-  protected closeMobileSearch(): void {
-    this.isMobileSearchOpen = false;
-    this.hasSearchQuery.set(false);
-  }
 
-  protected onSearchInput(event: Event): void {
-    this.hasSearchQuery.set((event.target as HTMLInputElement).value.length > 0);
-  }
 
-  protected onSearchKeydown(event: KeyboardEvent): void {
-    if (event.key !== 'Escape') return;
 
-    const input = event.target as HTMLInputElement;
-    if (input.value) {
-      this.clearSearch();
-    } else {
-      input.blur();
-    }
-  }
-
-  protected clearSearch(): void {
-    const input = this.globalSearchInputRef?.nativeElement;
-    if (input) {
-      input.value = '';
-      input.focus();
-    }
-    this.hasSearchQuery.set(false);
-  }
-
-  /** Cmd/Ctrl+K jumps straight into the search bar, mirroring the shortcut users
-   * already expect from Linear/Notion/GitHub-style command palettes. */
-  @HostListener('document:keydown', ['$event'])
-  protected onGlobalKeydown(event: KeyboardEvent): void {
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
-      event.preventDefault();
-      this.globalSearchInputRef?.nativeElement.focus();
-    }
-  }
 
   ngOnInit(): void {
+    try {
+      this.isSidebarCollapsed = window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true';
+    } catch {
+      this.isSidebarCollapsed = false;
+    }
+
     // Auto-close mobile drawer when user navigates
     this.router.events
       .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))
       .subscribe(() => {
         this.closeMobileSidebar();
       });
+  }
+
+  protected toggleSidebarCollapsed(): void {
+    this.isSidebarCollapsed = !this.isSidebarCollapsed;
+    try {
+      window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(this.isSidebarCollapsed));
+    } catch {
+      // Private browsing or blocked storage: the preference just won't persist.
+    }
   }
 
   protected toggleMobileSidebar(): void {

@@ -3,6 +3,7 @@ import { PrismaService } from '@sebsa-pm-tool/core';
 import { AuthUser, CreateUserResponse, UserAdminSummary, UserProfileDto, UserSummary } from '@sebsa-pm-tool/shared-models';
 import { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import { hashPassword } from '../auth/password';
 import { randomBytes } from 'crypto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
@@ -52,7 +53,7 @@ export class UsersService {
       throw new BadRequestException('Current password does not match our records.');
     }
 
-    const newHash = await bcrypt.hash(dto.newPassword, 10);
+    const newHash = await hashPassword(dto.newPassword);
     await this.prisma.user.update({
       where: { id: userId },
       data: { passwordHash: newHash },
@@ -121,7 +122,7 @@ export class UsersService {
     // a random temporary password is generated and returned exactly once
     // for the admin to relay, rather than storing/emailing it anywhere.
     const temporaryPassword = randomBytes(TEMP_PASSWORD_BYTES).toString('base64url');
-    const passwordHash = await bcrypt.hash(temporaryPassword, 10);
+    const passwordHash = await hashPassword(temporaryPassword);
 
     const user = await this.prisma.user.create({
       data: {

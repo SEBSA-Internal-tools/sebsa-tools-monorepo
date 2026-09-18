@@ -5,6 +5,9 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../core/services/auth.service';
 
+/** Start warning about a lockout at this many attempts left. */
+const LOW_ATTEMPTS_WARNING = 3;
+
 @Component({
   standalone: true,
   selector: 'app-login-page',
@@ -61,7 +64,7 @@ export class LoginPageComponent {
       error: (error: HttpErrorResponse) => {
         this.hasError.set(true);
         this.isSubmitting.set(false);
-        this.errorMessage.set(error.error?.message ?? 'Invalid email or password.');
+        this.errorMessage.set(this.describeLoginError(error));
       },
     });
   }
@@ -74,5 +77,21 @@ export class LoginPageComponent {
   loginWithMicrosoft() {
     this.showMicrosoftNotice.set(true);
     setTimeout(() => this.showMicrosoftNotice.set(false), 4000);
+  }
+
+  /** The API sends a ready-made message when rate limited; otherwise warn once
+   * the remaining attempts get low so a lockout is not a surprise. */
+  private describeLoginError(error: HttpErrorResponse): string {
+    const message = error.error?.message ?? 'Invalid email or password.';
+    if (error.status === 429) {
+      return message;
+    }
+
+    const remaining = Number(error.headers?.get('X-RateLimit-Remaining'));
+    if (Number.isFinite(remaining) && remaining > 0 && remaining <= LOW_ATTEMPTS_WARNING) {
+      return `${message} ${remaining} ${remaining === 1 ? 'attempt' : 'attempts'} remaining before a temporary lock.`;
+    }
+
+    return message;
   }
 }
