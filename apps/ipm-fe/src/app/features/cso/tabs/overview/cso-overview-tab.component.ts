@@ -99,6 +99,25 @@ export class CsoOverviewTabComponent implements OnInit {
     });
   }
 
+  protected hasActiveFilters(): boolean {
+    return !!(
+      this.selectedProjectId ||
+      this.selectedCustomerId ||
+      this.selectedPriority ||
+      this.selectedStatus ||
+      this.selectedAssigneeId
+    );
+  }
+
+  protected clearFilters(): void {
+    this.selectedProjectId = '';
+    this.selectedCustomerId = '';
+    this.selectedPriority = '';
+    this.selectedStatus = '';
+    this.selectedAssigneeId = '';
+    this.applyFilters();
+  }
+
   openTaskModal(): void {
     this.isTaskModalOpen = true;
   }

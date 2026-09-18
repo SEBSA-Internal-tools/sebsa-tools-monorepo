@@ -40,6 +40,18 @@
       ariaLabel="Filter by Status"
       customClass="filter-select"
     ></app-custom-select>
+
+    @if (hasActiveFilters()) {
+      <button
+        type="button"
+        class="clear-filters-btn"
+        (click)="clearFilters()"
+        title="Reset active filters"
+      >
+        <span class="material-symbols-outlined">filter_alt_off</span>
+        <span class="clear-btn-text">Clear</span>
+      </button>
+    }
   </div>
 
   <div class="results-card">

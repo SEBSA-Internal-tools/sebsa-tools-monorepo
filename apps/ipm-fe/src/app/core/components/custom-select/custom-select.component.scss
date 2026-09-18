@@ -196,4 +196,53 @@
   .custom-select-dropdown {
     max-height: 200px;
   }
+
+  // Filter toolbar compact overrides on mobile
+  .custom-select-wrapper.filter-select,
+  .custom-select-wrapper.filter-select-wrapper,
+  .custom-select-wrapper.compact-select {
+    .custom-select-trigger {
+      min-height: 36px;
+      height: 36px;
+      font-size: 0.76rem;
+      padding: 4px 8px;
+      gap: 4px;
+
+      .trigger-label {
+        font-size: 0.76rem;
+        line-height: 1.2;
+      }
+
+      .select-chevron {
+        font-size: 16px;
+      }
+    }
+
+    .dropdown-option-item {
+      min-height: 36px;
+      font-size: 0.8rem;
+      padding: 8px 10px;
+    }
+  }
+}
+
+@media (max-width: 480px) {
+  .custom-select-wrapper.filter-select,
+  .custom-select-wrapper.filter-select-wrapper,
+  .custom-select-wrapper.compact-select {
+    .custom-select-trigger {
+      min-height: 34px;
+      height: 34px;
+      font-size: 0.72rem;
+      padding: 3px 6px;
+
+      .trigger-label {
+        font-size: 0.72rem;
+      }
+
+      .select-chevron {
+        font-size: 15px;
+      }
+    }
+  }
 }

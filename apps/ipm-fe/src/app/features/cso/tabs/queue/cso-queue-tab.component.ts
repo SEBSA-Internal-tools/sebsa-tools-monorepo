@@ -92,6 +92,21 @@ export class CsoQueueTabComponent implements OnChanges {
     });
   }
 
+  protected hasActiveFilters(): boolean {
+    return !!(
+      this.selectedProjectId ||
+      this.selectedCustomerId ||
+      this.selectedStatus
+    );
+  }
+
+  protected clearFilters(): void {
+    this.selectedProjectId = '';
+    this.selectedCustomerId = '';
+    this.selectedStatus = '';
+    this.applyFilters();
+  }
+
   openTaskModal(): void {
     this.isCaseModalOpen = true;
   }

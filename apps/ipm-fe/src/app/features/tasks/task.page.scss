@@ -219,7 +219,12 @@
     flex: 1 1 0;
     min-width: 110px;
     max-width: 170px;
+  }
+}
 
+:host ::ng-deep {
+  .filters-horizontal-row,
+  .filter-row {
     .custom-select-trigger {
       height: 40px;
       min-height: 40px;
@@ -717,7 +722,24 @@
       flex: 1 1 0;
       min-width: 0;
       max-width: none;
+    }
 
+    .clear-filters-btn {
+      height: 38px;
+      min-height: 38px;
+      padding: 0 10px;
+      font-size: 0.78rem;
+      flex-shrink: 0;
+
+      .clear-btn-text {
+        display: none;
+      }
+    }
+  }
+
+  :host ::ng-deep {
+    .filters-horizontal-row,
+    .filter-row {
       .custom-select-trigger {
         height: 38px;
         min-height: 38px;
@@ -738,24 +760,14 @@
         max-width: 220px;
       }
 
-      &:last-child,
-      &:nth-last-child(2) {
+      app-custom-select:last-child,
+      app-custom-select:nth-last-child(2),
+      .filter-select-wrapper:last-child,
+      .filter-select-wrapper:nth-last-child(2) {
         .custom-select-dropdown {
           left: auto;
           right: 0;
         }
-      }
-    }
-
-    .clear-filters-btn {
-      height: 38px;
-      min-height: 38px;
-      padding: 0 10px;
-      font-size: 0.78rem;
-      flex-shrink: 0;
-
-      .clear-btn-text {
-        display: none;
       }
     }
   }
@@ -803,6 +815,20 @@
     app-custom-select,
     .filter-select-wrapper,
     .filter-select {
+      flex: 1 1 0;
+      min-width: 0;
+    }
+
+    .clear-filters-btn {
+      height: 36px;
+      min-height: 36px;
+      padding: 0 8px;
+    }
+  }
+
+  :host ::ng-deep {
+    .filters-horizontal-row,
+    .filter-row {
       .custom-select-trigger {
         height: 36px;
         min-height: 36px;
@@ -817,12 +843,6 @@
           font-size: 16px;
         }
       }
-    }
-
-    .clear-filters-btn {
-      height: 36px;
-      min-height: 36px;
-      padding: 0 8px;
     }
   }
 }

@@ -54,25 +54,85 @@ $desktop: 1024px;
 
 .filter-bar {
   display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  flex-wrap: nowrap;
+  position: relative;
+  z-index: 20;
   margin-bottom: 20px;
+  overflow: visible;
+
+  app-custom-select {
+    flex: 1 1 0;
+    min-width: 100px;
+    max-width: 240px;
+
+    .filter-select {
+      width: 100%;
+    }
+  }
+
+  .clear-filters-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 38px;
+    min-height: 38px;
+    padding: 0 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border-default, #e2e8f0);
+    background: transparent;
+    color: var(--text-secondary, #64748b);
+    font-family: var(--font-body, 'Inter', sans-serif);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: all 0.2s ease;
+
+    .material-symbols-outlined {
+      font-size: 16px;
+    }
+
+    &:hover {
+      border-color: var(--status-error-solid, #ef4444);
+      color: var(--status-error-fg, #dc2626);
+      background: var(--status-error-bg, rgba(239, 68, 68, 0.08));
+    }
+  }
 }
 
-.filter-select {
-  padding: 8px 12px;
-  border: var(--border-glass);
-  border-radius: 8px;
-  background: var(--color-surface-glass);
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-  font-family: 'Sora', sans-serif;
-  min-width: 160px;
+:host ::ng-deep {
+  .filter-bar {
+    .custom-select-trigger {
+      height: 38px;
+      min-height: 38px;
+      padding: 6px 10px 6px 12px;
+      font-size: 0.82rem;
+      border-radius: 8px;
+      border: 1px solid var(--border-default, #e2e8f0);
+      background-color: var(--surface-card, #ffffff);
+      color: var(--text-heading, #0f172a);
+      transition: all 0.2s ease;
 
-  &:focus {
-    outline: none;
-    border: var(--border-glass-active);
-    background: var(--color-surface-bright);
+      &:hover:not(:disabled) {
+        border-color: var(--border-strong, #cbd5e1);
+        background-color: var(--surface-muted, #f8fafc);
+      }
+
+      .trigger-label {
+        font-size: 0.82rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .select-chevron {
+        font-size: 18px;
+      }
+    }
   }
 }
 
@@ -236,10 +296,94 @@ $desktop: 1024px;
 
 @media (max-width: $tablet) {
   .filter-bar {
-    flex-direction: column;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    flex-wrap: nowrap;
+    overflow: visible;
+
+    app-custom-select {
+      flex: 1 1 0;
+      min-width: 0;
+      max-width: none;
+    }
+
+    .clear-filters-btn {
+      height: 36px;
+      min-height: 36px;
+      padding: 0 8px;
+      font-size: 0.75rem;
+
+      .clear-btn-text {
+        display: none;
+      }
+    }
   }
 
-  .filter-select {
-    width: 100%;
+  :host ::ng-deep {
+    .filter-bar {
+      .custom-select-trigger {
+        height: 36px;
+        min-height: 36px;
+        padding: 4px 6px;
+        font-size: 0.74rem;
+
+        .trigger-label {
+          font-size: 0.74rem;
+          line-height: 1.2;
+        }
+
+        .select-chevron {
+          font-size: 15px;
+        }
+      }
+
+      .custom-select-dropdown {
+        min-width: 140px;
+        max-width: 220px;
+        font-size: 0.8rem;
+      }
+
+      app-custom-select:last-child,
+      app-custom-select:nth-last-child(2) {
+        .custom-select-dropdown {
+          left: auto;
+          right: 0;
+        }
+      }
+    }
+  }
+}
+
+@media (max-width: 480px) {
+  .filter-bar {
+    gap: 4px;
+
+    .clear-filters-btn {
+      height: 34px;
+      min-height: 34px;
+      padding: 0 6px;
+    }
+  }
+
+  :host ::ng-deep {
+    .filter-bar {
+      .custom-select-trigger {
+        height: 34px;
+        min-height: 34px;
+        padding: 3px 4px;
+        font-size: 0.7rem;
+
+        .trigger-label {
+          font-size: 0.7rem;
+        }
+
+        .select-chevron {
+          font-size: 14px;
+        }
+      }
+    }
   }
 }
