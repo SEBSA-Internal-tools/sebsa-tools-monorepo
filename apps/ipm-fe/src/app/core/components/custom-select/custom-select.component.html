@@ -18,7 +18,7 @@
     [attr.aria-label]="ariaLabel || placeholder"
     (click)="toggleOpen($event)"
   >
-    <span class="trigger-label">{{ displayLabel() }}</span>
+    <span class="trigger-label" [title]="displayLabel()">{{ displayLabel() }}</span>
     <span
       class="material-symbols-outlined select-chevron"
       [class.rotated]="isOpen()"
@@ -41,7 +41,7 @@
           [attr.aria-selected]="isOptionSelected(defaultOptionValue)"
           (click)="selectDefaultOption()"
         >
-          <span class="option-label">{{ defaultOptionLabel }}</span>
+          <span class="option-label" [title]="defaultOptionLabel">{{ defaultOptionLabel }}</span>
           @if (isOptionSelected(defaultOptionValue)) {
             <span class="material-symbols-outlined check-icon">check</span>
           }
@@ -62,7 +62,7 @@
               opt.icon
             }}</span>
           }
-          <span class="option-label">{{ opt.label }}</span>
+          <span class="option-label" [title]="opt.label">{{ opt.label }}</span>
           @if (opt.badge) {
             <span class="option-badge">{{ opt.badge }}</span>
           }

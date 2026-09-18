@@ -30,6 +30,9 @@ export interface SelectOptionItem<T = unknown> {
   selector: 'app-custom-select',
   imports: [CommonModule, FormsModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {
+    '[class.dropdown-open]': 'isOpen()',
+  },
   providers: [
     {
       provide: NG_VALUE_ACCESSOR,

@@ -4,6 +4,11 @@
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
+
+  &.dropdown-open,
+  &:has(.custom-select-wrapper.open) {
+    z-index: 1000 !important;
+  }
 }
 
 .custom-select-wrapper {
@@ -11,6 +16,10 @@
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
+
+  &.open {
+    z-index: 1000;
+  }
 }
 
 .custom-select-trigger {
