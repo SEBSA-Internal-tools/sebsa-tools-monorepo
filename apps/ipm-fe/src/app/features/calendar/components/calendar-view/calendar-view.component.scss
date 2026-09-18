@@ -792,6 +792,98 @@
     white-space: nowrap;
   }
 
+  .card-related-tasks {
+    margin: 6px 0;
+    padding: 5px 6px;
+    background-color: var(--surface-muted);
+    border-radius: 6px;
+    border: 1px solid var(--border-subtle);
+
+    .related-tasks-header {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 9.5px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+      margin-bottom: 4px;
+    }
+
+    .related-tasks-list {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .related-task-chip {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      color: var(--text-primary);
+      background-color: var(--surface-card);
+      border: 1px solid var(--border-default);
+      padding: 2px 5px;
+      border-radius: 4px;
+      min-width: 0;
+      cursor: pointer;
+      transition: all 0.15s ease;
+
+      &:hover {
+        border-color: var(--brand-primary);
+        background-color: var(--surface-muted);
+        transform: translateY(-1px);
+
+        .icon-chip-arrow {
+          opacity: 1;
+          transform: translateX(1px);
+        }
+      }
+
+      &.is-subtask {
+        padding-left: 8px;
+        opacity: 0.85;
+      }
+
+      .sub-dot {
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        flex-shrink: 0;
+      }
+
+      .sub-title {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        flex: 1;
+      }
+
+      .sub-assignee {
+        font-size: 8.5px;
+        color: var(--text-muted);
+        flex-shrink: 0;
+      }
+
+      .icon-chip-arrow {
+        font-size: 11px;
+        color: var(--brand-primary);
+        opacity: 0;
+        transition: all 0.15s ease;
+        flex-shrink: 0;
+      }
+    }
+
+    .related-more-chip {
+      font-size: 9px;
+      color: var(--brand-primary);
+      font-weight: 600;
+      padding-left: 2px;
+    }
+  }
+
   .card-meta-bottom {
     display: flex;
     align-items: center;
@@ -929,6 +1021,102 @@
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+
+    .agenda-related-section {
+      margin-top: 8px;
+      padding: 6px 10px;
+      background-color: var(--surface-muted);
+      border-radius: 8px;
+      border: 1px solid var(--border-subtle);
+
+      .agenda-related-header {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 10px;
+        font-weight: 700;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+        margin-bottom: 6px;
+      }
+
+      .agenda-related-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 6px;
+      }
+
+      .agenda-task-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        background-color: var(--surface-card);
+        border: 1px solid var(--border-default);
+        border-radius: 6px;
+        padding: 4px 8px;
+        font-size: 11.5px;
+        min-width: 0;
+        cursor: pointer;
+        transition: all 0.15s ease;
+
+        &:hover {
+          border-color: var(--brand-primary);
+          background-color: var(--surface-card);
+          box-shadow: var(--shadow-sm);
+          transform: translateY(-1px);
+
+          .sub-arrow-icon {
+            opacity: 1;
+            transform: translateX(2px);
+          }
+        }
+
+        &.is-subtask {
+          opacity: 0.9;
+        }
+
+        .sub-type-icon {
+          font-size: 14px;
+          color: var(--text-muted);
+          flex-shrink: 0;
+        }
+
+        .sub-task-title {
+          flex: 1;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          font-weight: 500;
+          color: var(--text-primary);
+        }
+
+        .sub-task-status {
+          font-size: 9px;
+          font-weight: 600;
+          padding: 1px 5px;
+          border-radius: 6px;
+          flex-shrink: 0;
+        }
+
+        .sub-task-assignee {
+          font-size: 10px;
+          color: var(--text-secondary);
+          display: flex;
+          align-items: center;
+          gap: 2px;
+          flex-shrink: 0;
+        }
+
+        .sub-arrow-icon {
+          font-size: 14px;
+          color: var(--brand-primary);
+          opacity: 0;
+          transition: all 0.15s ease;
+          flex-shrink: 0;
+        }
+      }
     }
   }
 
@@ -1214,6 +1402,54 @@
       }
     }
 
+    .flyout-related-tasks {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin: 6px 0;
+      padding: 4px 8px;
+      background-color: var(--surface-muted);
+      border-radius: 6px;
+
+      .related-label {
+        font-size: 10px;
+        font-weight: 700;
+        color: var(--text-secondary);
+      }
+
+      .flyout-task-chip {
+        font-size: 10px;
+        color: var(--text-primary);
+        background-color: var(--surface-card);
+        border: 1px solid var(--border-default);
+        padding: 2px 7px;
+        border-radius: 4px;
+        max-width: 150px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        transition: all 0.15s ease;
+
+        &:hover {
+          border-color: var(--brand-primary);
+          color: var(--brand-primary);
+          background-color: var(--surface-muted);
+          transform: translateY(-1px);
+        }
+      }
+
+      .flyout-more-chip {
+        font-size: 9.5px;
+        color: var(--brand-primary);
+        font-weight: 600;
+      }
+    }
+
     &:hover .action-hint-link {
       transform: translateX(2px);
     }
@@ -1317,6 +1553,93 @@
           font-size: 12px; font-weight: 600; color: var(--text-primary);
           display: flex; align-items: center; gap: 4px;
           overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+      }
+    }
+
+    .drawer-tasks-section {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 4px;
+
+      .section-heading {
+        margin: 0;
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+      }
+
+      .drawer-tasks-list {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .drawer-task-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 7px 10px;
+        background-color: var(--surface-muted);
+        border: 1px solid var(--border-default);
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+
+        &:hover {
+          border-color: var(--brand-primary);
+          background-color: var(--surface-card);
+          box-shadow: var(--shadow-sm);
+          transform: translateX(2px);
+
+          .row-action-icon {
+            opacity: 1;
+            transform: translateX(2px);
+          }
+        }
+
+        &.is-subtask {
+          padding-left: 18px;
+        }
+
+        .row-icon {
+          font-size: 15px;
+          color: var(--text-muted);
+          flex-shrink: 0;
+        }
+
+        .row-info {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          gap: 1px;
+          min-width: 0;
+
+          .row-title {
+            font-size: 11.5px;
+            font-weight: 600;
+            color: var(--text-primary);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+
+          .row-assignee {
+            font-size: 10px;
+            color: var(--text-muted);
+          }
+        }
+
+        .row-action-icon {
+          font-size: 14px;
+          color: var(--brand-primary);
+          opacity: 0.4;
+          transition: all 0.15s ease;
+          flex-shrink: 0;
         }
       }
     }

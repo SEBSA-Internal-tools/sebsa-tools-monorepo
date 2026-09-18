@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ProjectsService } from '../../services/projects.service';
 import { CasesService } from '../../../../core/services/cases.service';
-import { TasksService } from '../../../../core/services/tasks.service';
+import { TasksService, type TaskView } from '../../../../core/services/tasks.service';
 import { AuthService } from '../../../../core/services/auth.service';
 import { ToastService } from '../../../../core/services/toast.service';
 import { ProjectDetailHeaderComponent } from './components/header/project-detail-header.component';
@@ -83,10 +83,22 @@ export class ProjectDetailPageComponent implements OnInit {
     const tasks = this.tasksService.tasks();
     const filteredCases = projId ? cases.filter((c) => c.projectId === projId) : cases;
     const filteredTasks = projId ? tasks.filter((t) => t.projectId === projId) : tasks;
-    return [
-      ...filteredCases.map((c) => caseToCalendarItem(c)),
-      ...filteredTasks.map((t) => taskToCalendarItem(t)),
-    ];
+
+    // Group tasks under their parent Cases
+    const tasksByCase = new Map<string, TaskView[]>();
+    for (const t of filteredTasks) {
+      if (t.caseId) {
+        const bucket = tasksByCase.get(t.caseId) || [];
+        bucket.push(t);
+        tasksByCase.set(t.caseId, bucket);
+      }
+    }
+
+    // Only Cases are scheduled items on the calendar
+    return filteredCases.map((c) => {
+      const caseTasks = tasksByCase.get(c.id) || [];
+      return caseToCalendarItem(c, caseTasks);
+    });
   });
 
   readonly calendarKpis = computed<CalendarKPI[]>(() => {
@@ -100,7 +112,7 @@ export class ProjectDetailPageComponent implements OnInit {
 
     return [
       {
-        label: 'Total Scheduled Tasks',
+        label: 'Total Scheduled Cases',
         value: total,
         icon: 'calendar_month',
         colorVariant: 'primary',
@@ -112,13 +124,13 @@ export class ProjectDetailPageComponent implements OnInit {
         colorVariant: 'warning',
       },
       {
-        label: 'In Progress Tasks',
+        label: 'In Progress Cases',
         value: inProgress,
         icon: 'pending_actions',
         colorVariant: 'purple',
       },
       {
-        label: 'Overdue Tasks',
+        label: 'Overdue Cases',
         value: overdue,
         icon: 'error',
         colorVariant: 'error',
@@ -163,13 +175,13 @@ export class ProjectDetailPageComponent implements OnInit {
     }
   }
 
+  onCaseClicked(item: CalendarItem): void {
+    const caseId = item.caseId || item.id;
+    this.router.navigate(['/cases', caseId]);
+  }
+
   onTaskClicked(item: CalendarItem): void {
-    const isCase = this.casesService.cases().some((c) => c.id === item.id) || (item.raw && typeof item.raw === 'object' && 'isCsoLabeled' in item.raw);
-    if (isCase) {
-      this.router.navigate(['/cases', item.id]);
-    } else {
-      this.router.navigate(['/tasks', item.id]);
-    }
+    this.onCaseClicked(item);
   }
 
   onAddTaskClick(): void {
