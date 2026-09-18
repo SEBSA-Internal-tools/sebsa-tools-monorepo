@@ -8,6 +8,21 @@ export type CalendarDensity = 'compact' | 'comfortable';
 export type QuickPresetFilter = 'all' | 'my-tasks' | 'overdue' | 'blocked';
 export type CalendarDateMode = 'dueDate' | 'startDate' | 'createdAt';
 
+export interface CalendarSubItem {
+  id: string;
+  title: string;
+  type: 'TASK' | 'SUBTASK';
+  taskId?: string;
+  caseId?: string;
+  status: string;
+  priority?: string;
+  dueDate?: string;
+  assignee?: string;
+  assigneeId?: string;
+  assigneeIds?: string[];
+  isOverdue?: boolean;
+}
+
 export interface CalendarItem {
   id: string;
   title: string;
@@ -34,6 +49,9 @@ export interface CalendarItem {
   storyPoints?: number | null;
   isOverdue?: boolean;
   isBlocked?: boolean;
+  tasksCount?: number;
+  subtasksCount?: number;
+  relatedTasks?: CalendarSubItem[];
   raw?: unknown;
 }
 
@@ -190,9 +208,9 @@ export function taskToCalendarItem(t: TaskSummary | TaskView): CalendarItem {
 
 /**
  * Adapter function converting backend CaseView to CalendarItem so parent Cases
- * are fully represented in the Calendar views and filters.
+ * are fully represented in the Calendar views and filters with their associated tasks & subtasks.
  */
-export function caseToCalendarItem(c: CaseView): CalendarItem {
+export function caseToCalendarItem(c: CaseView, tasksForCase: TaskView[] = []): CalendarItem {
   const dueDateStr = normalizeDateToKey(c.dueDate);
   const startDateStr = normalizeDateToKey(c.startDate);
   const createdAtStr = normalizeDateToKey(c.createdAt || c.updatedAt);
@@ -203,6 +221,71 @@ export function caseToCalendarItem(c: CaseView): CalendarItem {
   const isDone = statusUpper === 'DONE' || statusUpper === 'CANCELLED';
   const isOverdue = !!dueDateStr && !isDone && dueDateStr < todayStr;
   const isBlocked = statusUpper === 'BLOCKED';
+
+  const relatedTasks: CalendarSubItem[] = [];
+  const allAssigneeIds = new Set<string>(c.assigneeIds || []);
+  const allAssigneeNames = new Set<string>(c.assignee ? [c.assignee] : []);
+
+  for (const t of tasksForCase) {
+    if (t.assigneeIds) {
+      t.assigneeIds.forEach((id) => allAssigneeIds.add(id));
+    }
+    if (t.assignee) {
+      allAssigneeNames.add(t.assignee);
+    }
+    const tDueDateStr = normalizeDateToKey(t.dueDate);
+    const tStatusUpper = (t.status || '').toUpperCase();
+    const tIsDone = tStatusUpper === 'DONE' || tStatusUpper === 'CANCELLED';
+    const tIsOverdue = !!tDueDateStr && !tIsDone && tDueDateStr < todayStr;
+
+    relatedTasks.push({
+      id: t.id,
+      title: t.title,
+      type: 'TASK',
+      taskId: t.id,
+      caseId: c.id,
+      status: t.status,
+      priority: t.priority,
+      dueDate: tDueDateStr,
+      assignee: t.assignee,
+      assigneeIds: t.assigneeIds,
+      isOverdue: tIsOverdue,
+    });
+
+    if (t.subtasks && Array.isArray(t.subtasks)) {
+      for (const st of t.subtasks) {
+        const stAssigneeIds = (st.assignees || []).map((a) => a.id);
+        const stAssigneeName = (st.assignees || []).map((a) => a.name).join(', ');
+
+        for (const aId of stAssigneeIds) {
+          allAssigneeIds.add(aId);
+        }
+        for (const a of st.assignees || []) {
+          if (a.name) allAssigneeNames.add(a.name);
+        }
+
+        const stDueDateStr = normalizeDateToKey(st.dueDate);
+        const stStatusUpper = (st.status || '').toUpperCase();
+        const stIsDone = stStatusUpper === 'DONE' || stStatusUpper === 'CANCELLED';
+        const stIsOverdue = !!stDueDateStr && !stIsDone && stDueDateStr < todayStr;
+
+        relatedTasks.push({
+          id: st.id,
+          title: st.title,
+          type: 'SUBTASK',
+          taskId: st.taskId || t.id,
+          caseId: c.id,
+          status: st.status,
+          dueDate: stDueDateStr,
+          assignee: stAssigneeName || undefined,
+          assigneeIds: stAssigneeIds,
+          isOverdue: stIsOverdue,
+        });
+      }
+    }
+  }
+
+  const combinedAssignees = Array.from(allAssigneeNames).join(', ');
 
   return {
     id: c.id,
@@ -221,13 +304,16 @@ export function caseToCalendarItem(c: CaseView): CalendarItem {
     projectName: c.projectName,
     caseId: c.id,
     caseTitle: c.title,
-    assignee: c.assignee,
-    assigneeId: c.assigneeIds && c.assigneeIds.length > 0 ? c.assigneeIds[0] : undefined,
-    assigneeIds: c.assigneeIds || [],
+    assignee: combinedAssignees || c.assignee,
+    assigneeId: c.assigneeIds && c.assigneeIds.length > 0 ? c.assigneeIds[0] : (allAssigneeIds.size > 0 ? Array.from(allAssigneeIds)[0] : undefined),
+    assigneeIds: Array.from(allAssigneeIds),
     description: c.description ?? '',
     caseNumber: c.id.length > 8 ? `CASE-${c.id.slice(0, 4).toUpperCase()}` : c.id,
     isOverdue,
     isBlocked,
+    tasksCount: tasksForCase.length || c.taskCount || 0,
+    subtasksCount: relatedTasks.filter((r) => r.type === 'SUBTASK').length,
+    relatedTasks,
     raw: c,
   };
 }

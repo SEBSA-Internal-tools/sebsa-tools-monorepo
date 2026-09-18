@@ -3,10 +3,10 @@
       <header class="sebsa-page-header">
         <div class="header-content-wrap">
           <div>
-            <span class="sebsa-eyebrow">TASK TRACKING & SCHEDULING</span>
-            <h1 class="sebsa-page-title">Task Calendar</h1>
+            <span class="sebsa-eyebrow">CASE TRACKING & SCHEDULING</span>
+            <h1 class="sebsa-page-title">Case Calendar</h1>
             <p class="sebsa-page-desc">
-              Track deadlines, scheduled execution, and deliverables across all active customer projects.
+              Track deadlines, scheduled execution, and deliverables across all active customer cases.
             </p>
           </div>
 
@@ -28,15 +28,15 @@
               class="btn-refresh"
               [class.spinning]="isLoading()"
               (click)="loadTasks(true)"
-              title="Refresh calendar tasks"
+              title="Refresh calendar cases"
             >
               <span class="material-symbols-outlined">refresh</span>
             </button>
 
-            <!-- Schedule Task Button -->
-            <button type="button" class="btn-header-primary" (click)="onCreateTaskClicked()">
+            <!-- Create Case Button -->
+            <button type="button" class="btn-header-primary" (click)="onCreateCaseClicked()">
               <span class="material-symbols-outlined">add</span>
-              <span>Schedule Task</span>
+              <span>Create Case</span>
             </button>
           </div>
         </div>
@@ -70,14 +70,14 @@
         }
       </section>
 
-      <!-- Standalone Calendar Component Connected to Real Tasks Data -->
+      <!-- Standalone Calendar Component Connected to Cases Data -->
       <main>
         <app-calendar-view
-          [items]="calendarTasks()"
+          [items]="calendarCases()"
           [loading]="isLoading()"
           [currentUserId]="authService.currentUser()?.id"
           [currentUserName]="authService.currentUser()?.name"
-          (itemClick)="onTaskClicked($event)"
+          (itemClick)="onCaseClicked($event)"
           (createClick)="onCreateForDate($event)"
         ></app-calendar-view>
       </main>

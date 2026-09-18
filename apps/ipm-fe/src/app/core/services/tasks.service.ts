@@ -4,6 +4,7 @@ import { BehaviorSubject, Observable, tap, map, of, finalize, shareReplay } from
 import {
   CreateTaskDependencyRequest,
   CreateTaskRequest,
+  Subtask,
   Task as BackendTask,
   TaskDependenciesView,
   TaskStatus,
@@ -47,6 +48,7 @@ export interface TaskView {
   category?: TaskCategory | null;
   taskTypeName?: string;
   subtaskCount?: number;
+  subtasks?: Subtask[];
   isCsoLabeled?: boolean;
 }
 
@@ -115,8 +117,9 @@ export class TasksService {
 
   loadAllTasks(projectId?: string, force = false): Observable<TaskView[]> {
     const cacheKey = projectId ? `project_${projectId}` : '__ALL_TASKS__';
-    if (!force && this.inFlightLoads.has(cacheKey)) {
-      return this.inFlightLoads.get(cacheKey)!;
+    const existing$ = this.inFlightLoads.get(cacheKey);
+    if (!force && existing$) {
+      return existing$;
     }
 
     let params = new HttpParams();
@@ -263,6 +266,10 @@ export class TasksService {
     const assignee = task.assignees?.map((a) => a.name).join(', ') || undefined;
     const assigneeIds = task.assignees?.map((a) => a.id) || [];
     const projectName = 'project' in task.case && task.case.project ? task.case.project.name : undefined;
+    const subtasks =
+      'subtasks' in task && Array.isArray(task.subtasks)
+        ? (task.subtasks as unknown as Subtask[])
+        : undefined;
     return {
       id: task.id,
       title: task.title,
@@ -285,6 +292,7 @@ export class TasksService {
       category: task.category,
       taskTypeName: task.taskType?.name,
       subtaskCount: task.subtaskCount,
+      subtasks,
       isCsoLabeled: task.case.isCsoLabeled,
     };
   }

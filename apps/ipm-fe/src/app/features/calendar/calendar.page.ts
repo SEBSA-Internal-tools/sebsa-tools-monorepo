@@ -72,31 +72,45 @@ export class CalendarPageComponent implements OnInit, OnDestroy {
   });
 
   // Client-side instant filtering based on selected project
-  // Avoids firing heavy duplicate backend API calls when user switches project dropdown
-  readonly calendarTasks = computed<CalendarItem[]>(() => {
+  // Groups tasks and subtasks under their parent Cases for clean, structured display
+  readonly calendarCases = computed<CalendarItem[]>(() => {
     const selectedId = this.selectedProjectId();
     const tasks = this.rawTasks();
     const cases = this.rawCases();
     const filteredTasks = selectedId ? tasks.filter((t) => t.projectId === selectedId) : tasks;
     const filteredCases = selectedId ? cases.filter((c) => c.projectId === selectedId) : cases;
-    return [
-      ...filteredCases.map((c) => caseToCalendarItem(c)),
-      ...filteredTasks.map((t) => taskToCalendarItem(t)),
-    ];
+
+    const tasksByCase = new Map<string, TaskView[]>();
+
+    for (const t of filteredTasks) {
+      if (t.caseId) {
+        const bucket = tasksByCase.get(t.caseId) || [];
+        bucket.push(t);
+        tasksByCase.set(t.caseId, bucket);
+      }
+    }
+
+    return filteredCases.map((c) => {
+      const caseTasks = tasksByCase.get(c.id) || [];
+      return caseToCalendarItem(c, caseTasks);
+    });
   });
 
+  // Backward-compatibility alias
+  readonly calendarTasks = this.calendarCases;
+
   readonly kpiMetrics = computed<CalendarKPI[]>(() => {
-    const tasks = this.calendarTasks();
-    const total = tasks.length;
-    const inProgress = tasks.filter((t) => t.status === 'IN_PROGRESS').length;
-    const urgentOrHigh = tasks.filter(
-      (t) => t.priority === 'Urgent' || t.priority === 'High'
+    const cases = this.calendarCases();
+    const total = cases.length;
+    const inProgress = cases.filter((c) => c.status === 'IN_PROGRESS').length;
+    const urgentOrHigh = cases.filter(
+      (c) => c.priority === 'Urgent' || c.priority === 'High'
     ).length;
-    const overdue = tasks.filter((t) => t.isOverdue).length;
+    const overdue = cases.filter((c) => c.isOverdue).length;
 
     return [
       {
-        label: 'Total Scheduled Tasks',
+        label: 'Total Scheduled Cases',
         value: total,
         icon: 'calendar_month',
         colorVariant: 'primary',
@@ -108,13 +122,13 @@ export class CalendarPageComponent implements OnInit, OnDestroy {
         colorVariant: 'warning',
       },
       {
-        label: 'In Progress Tasks',
+        label: 'In Progress Cases',
         value: inProgress,
         icon: 'pending_actions',
         colorVariant: 'purple',
       },
       {
-        label: 'Overdue Tasks',
+        label: 'Overdue Cases',
         value: overdue,
         icon: 'error',
         colorVariant: 'error',
@@ -171,13 +185,13 @@ export class CalendarPageComponent implements OnInit, OnDestroy {
     this.selectedProjectId.set(projectId);
   }
 
+  onCaseClicked(item: CalendarItem): void {
+    const caseId = item.caseId || item.id;
+    this.router.navigate(['/cases', caseId]);
+  }
+
   onTaskClicked(item: CalendarItem): void {
-    const isCase = this.rawCases().some((c) => c.id === item.id) || (item.raw && typeof item.raw === 'object' && 'isCsoLabeled' in item.raw);
-    if (isCase) {
-      this.router.navigate(['/cases', item.id]);
-    } else {
-      this.router.navigate(['/tasks', item.id]);
-    }
+    this.onCaseClicked(item);
   }
 
   onCreateForDate(date: Date): void {
@@ -188,13 +202,17 @@ export class CalendarPageComponent implements OnInit, OnDestroy {
     this.isCreateCaseOpen.set(true);
   }
 
-  onCreateTaskClicked(): void {
+  onCreateCaseClicked(): void {
     const today = new Date();
     const y = today.getFullYear();
     const m = String(today.getMonth() + 1).padStart(2, '0');
     const d = String(today.getDate()).padStart(2, '0');
     this.createCaseDueDate.set(`${y}-${m}-${d}`);
     this.isCreateCaseOpen.set(true);
+  }
+
+  onCreateTaskClicked(): void {
+    this.onCreateCaseClicked();
   }
 
   onCreateCaseSubmit(formData: CaseFormData): void {

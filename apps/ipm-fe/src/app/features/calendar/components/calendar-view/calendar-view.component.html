@@ -54,7 +54,7 @@
         <span class="material-symbols-outlined search-icon">search</span>
         <input
           type="text"
-          placeholder="Filter tasks..."
+          placeholder="Filter cases..."
           [(ngModel)]="searchQuery"
           class="search-input"
         />
@@ -126,7 +126,7 @@
         [class.active]="quickPreset() === 'all'"
         (click)="setQuickPreset('all')"
       >
-        <span>All Tasks</span>
+        <span>All Cases</span>
         <span class="preset-badge">{{ presetCounts().total }}</span>
       </button>
 
@@ -137,7 +137,7 @@
         (click)="setQuickPreset('my-tasks')"
       >
         <span class="material-symbols-outlined icon-sm">person</span>
-        <span>My Tasks</span>
+        <span>My Cases</span>
         <span class="preset-badge">{{ presetCounts().myTasks }}</span>
       </button>
 
@@ -399,7 +399,7 @@
             <div class="week-col-header">
               <div class="col-day-name">{{ day.date.toLocaleDateString('default', { weekday: 'short' }) }}</div>
               <div class="col-day-number" [class.today-badge]="day.isToday">{{ day.dayNumber }}</div>
-              <div class="col-count-chip">{{ day.items.length === 1 ? '1 task' : day.items.length + ' tasks' }}</div>
+              <div class="col-count-chip">{{ day.items.length === 1 ? '1 case' : day.items.length + ' cases' }}</div>
             </div>
 
             <!-- Column Body / Cards -->
@@ -423,7 +423,7 @@
                         <span class="card-case-id font-mono">{{ item.caseNumber }}</span>
                       }
                       <span class="badge-type" [ngClass]="getTypeClass(item.type)">
-                        {{ item.type || 'TASK' }}
+                        {{ item.type || 'CASE' }}
                       </span>
                     </div>
 
@@ -445,6 +445,38 @@
                     </div>
                   }
 
+                  <!-- Associated tasks / subtasks underneath the case in Week view -->
+                  @if (item.relatedTasks && item.relatedTasks.length > 0) {
+                    <div class="card-related-tasks">
+                      <div class="related-tasks-header">
+                        <span class="material-symbols-outlined icon-xs">task_alt</span>
+                        <span>Tasks ({{ item.relatedTasks.length }})</span>
+                      </div>
+                      <div class="related-tasks-list">
+                        @for (sub of item.relatedTasks.slice(0, 3); track sub.id) {
+                          <div
+                            class="related-task-chip"
+                            [class.is-subtask]="sub.type === 'SUBTASK'"
+                            [title]="(sub.type === 'SUBTASK' ? 'Subtask: ' : 'Task: ') + sub.title + ' (Click to view)'"
+                            (click)="navigateToSubItem(sub, $event)"
+                            role="button"
+                            tabindex="0"
+                          >
+                            <span class="sub-dot" [ngClass]="getPriorityClass(sub.priority)"></span>
+                            <span class="sub-title">{{ sub.title }}</span>
+                            @if (sub.assignee) {
+                              <span class="sub-assignee">{{ sub.assignee }}</span>
+                            }
+                            <span class="material-symbols-outlined icon-chip-arrow">arrow_forward</span>
+                          </div>
+                        }
+                        @if (item.relatedTasks.length > 3) {
+                          <span class="related-more-chip">+{{ item.relatedTasks.length - 3 }} more</span>
+                        }
+                      </div>
+                    </div>
+                  }
+
                   <div class="card-meta-bottom">
                     <span class="status-pill" [ngClass]="getStatusClass(item.status)">
                       {{ getStatusLabel(item.status) }}
@@ -462,14 +494,14 @@
 
               @if (day.items.length === 0) {
                 <div class="week-empty-slot">
-                  <span class="empty-text">No tasks scheduled</span>
+                  <span class="empty-text">No cases scheduled</span>
                   <button
                     type="button"
                     class="btn-add-schedule"
                     (click)="triggerCreateForDate(day.date, $event)"
                   >
                     <span class="material-symbols-outlined">add</span>
-                    <span>Schedule</span>
+                    <span>Schedule Case</span>
                   </button>
                 </div>
               }
@@ -486,8 +518,8 @@
       @if (agendaGroups().length === 0) {
         <div class="agenda-empty-state">
           <span class="material-symbols-outlined empty-icon">event_busy</span>
-          <h3>No Scheduled Tasks Found</h3>
-          <p>No tasks match your current active filters or date filter.</p>
+          <h3>No Scheduled Cases Found</h3>
+          <p>No cases match your current active filters or date filter.</p>
           <button type="button" class="btn-clear-filters" (click)="resetFilters()">
             Clear Filters
           </button>
@@ -500,7 +532,7 @@
             <div class="agenda-group-header">
               <span class="material-symbols-outlined group-calendar-icon">calendar_month</span>
               <h3 class="agenda-group-title">{{ group.label }}</h3>
-              <span class="agenda-group-badge">{{ group.items.length === 1 ? '1 task' : group.items.length + ' tasks' }}</span>
+              <span class="agenda-group-badge">{{ group.items.length === 1 ? '1 case' : group.items.length + ' cases' }}</span>
             </div>
 
             <div class="agenda-items-list">
@@ -544,6 +576,41 @@
                           <span class="subtext-desc">{{ item.description | slice:0:70 }}...</span>
                         }
                       </div>
+
+                      <!-- Agenda associated tasks & subtasks section -->
+                      @if (item.relatedTasks && item.relatedTasks.length > 0) {
+                        <div class="agenda-related-section">
+                          <div class="agenda-related-header">
+                            <span class="material-symbols-outlined icon-xs">account_tree</span>
+                            <span>Associated Tasks & Subtasks ({{ item.relatedTasks.length }}):</span>
+                          </div>
+                          <div class="agenda-related-grid">
+                            @for (sub of item.relatedTasks; track sub.id) {
+                              <div
+                                class="agenda-task-item"
+                                [class.is-subtask]="sub.type === 'SUBTASK'"
+                                [title]="(sub.type === 'SUBTASK' ? 'Subtask: ' : 'Task: ') + sub.title + ' (Click to view)'"
+                                (click)="navigateToSubItem(sub, $event)"
+                                role="button"
+                                tabindex="0"
+                              >
+                                <span class="material-symbols-outlined sub-type-icon">
+                                  {{ sub.type === 'SUBTASK' ? 'subdirectory_arrow_right' : 'check_box' }}
+                                </span>
+                                <span class="sub-task-title" [title]="sub.title">{{ sub.title }}</span>
+                                <span class="sub-task-status" [ngClass]="getStatusClass(sub.status)">{{ getStatusLabel(sub.status) }}</span>
+                                @if (sub.assignee) {
+                                  <span class="sub-task-assignee">
+                                    <span class="material-symbols-outlined icon-xs">person</span>
+                                    {{ sub.assignee }}
+                                  </span>
+                                }
+                                <span class="material-symbols-outlined sub-arrow-icon">arrow_forward</span>
+                              </div>
+                            }
+                          </div>
+                        </div>
+                      }
                     </div>
                   </div>
 
@@ -562,7 +629,7 @@
                         {{ item.assignee }}
                       </span>
                     }
-                    <button type="button" class="btn-inspect-arrow" aria-label="View task">
+                    <button type="button" class="btn-inspect-arrow" aria-label="View case">
                       <span class="material-symbols-outlined">arrow_forward</span>
                     </button>
                   </div>
@@ -594,7 +661,7 @@
               </h4>
               <span class="flyout-subtitle">
                 <span class="count-badge">{{ day.items.length }}</span>
-                <span>{{ day.items.length === 1 ? 'task scheduled' : 'tasks scheduled' }}</span>
+                <span>{{ day.items.length === 1 ? 'case scheduled' : 'cases scheduled' }}</span>
               </span>
             </div>
           </div>
@@ -620,7 +687,7 @@
                 <div class="badge-group-left">
                   <span class="badge-type" [ngClass]="getTypeClass(item.type)">
                     <span class="material-symbols-outlined icon-xs">{{ getTypeIcon(item.type) }}</span>
-                    <span>{{ item.type || 'TASK' }}</span>
+                    <span>{{ item.type || 'CASE' }}</span>
                   </span>
                   @if (item.caseNumber) {
                     <span class="pill-case-id font-mono">{{ item.caseNumber }}</span>
@@ -653,6 +720,30 @@
                 <h5 class="flyout-item-title" [title]="item.title">{{ item.title }}</h5>
               </div>
 
+              <!-- Associated Tasks preview in Flyout -->
+              @if (item.relatedTasks && item.relatedTasks.length > 0) {
+                <div class="flyout-related-tasks">
+                  <span class="related-label">Tasks ({{ item.relatedTasks.length }}):</span>
+                  @for (sub of item.relatedTasks.slice(0, 4); track sub.id) {
+                    <span
+                      class="flyout-task-chip"
+                      [title]="(sub.type === 'SUBTASK' ? 'Subtask: ' : 'Task: ') + sub.title + ' (Click to view)'"
+                      (click)="navigateToSubItem(sub, $event)"
+                      role="button"
+                      tabindex="0"
+                    >
+                      <span class="material-symbols-outlined icon-xs">
+                        {{ sub.type === 'SUBTASK' ? 'subdirectory_arrow_right' : 'check_box' }}
+                      </span>
+                      <span>{{ sub.title }}</span>
+                    </span>
+                  }
+                  @if (item.relatedTasks.length > 4) {
+                    <span class="flyout-more-chip">+{{ item.relatedTasks.length - 4 }} more</span>
+                  }
+                </div>
+              }
+
               <!-- Card Bottom: Assignee, Active Date Mode, & Action Hint -->
               <div class="flyout-card-footer-row">
                 <div class="footer-meta-left">
@@ -681,7 +772,7 @@
           @if (day.items.length === 0) {
             <div class="flyout-empty-state">
               <span class="material-symbols-outlined icon-lg">event_available</span>
-              <p>No tasks scheduled for this date.</p>
+              <p>No cases scheduled for this date.</p>
             </div>
           }
         </div>
@@ -693,13 +784,12 @@
             (click)="triggerCreateForDate(day.date, $event); closeDayFlyout()"
           >
             <span class="material-symbols-outlined">add</span>
-            <span>Schedule Task on This Day</span>
+            <span>Schedule Case on This Day</span>
           </button>
         </footer>
       </div>
     </div>
   }
-
 
   <!-- 4. Zero-Click Hover Micro-Preview Popover (Month & Week Only) -->
   @if (hoveredItem(); as hovered) {
@@ -714,7 +804,7 @@
             <span class="hover-case-id font-mono">{{ hovered.item.caseNumber }}</span>
           }
           <span class="badge-type" [ngClass]="getTypeClass(hovered.item.type)">
-            {{ hovered.item.type || 'TASK' }}
+            {{ hovered.item.type || 'CASE' }}
           </span>
         </div>
         @if (hovered.item.isOverdue) {
@@ -766,11 +856,23 @@
             </span>
           </div>
         }
+
+        @if (hovered.item.relatedTasks && hovered.item.relatedTasks.length > 0) {
+          <div class="hover-meta-row">
+            <span class="meta-label">
+              <span class="material-symbols-outlined icon-xs">task_alt</span>
+              Tasks:
+            </span>
+            <span class="meta-value">
+              {{ hovered.item.relatedTasks.length }} associated
+            </span>
+          </div>
+        }
       </div>
     </div>
   }
 
-  <!-- 5. Sleek Focused Side Panel for Task Inspection -->
+  <!-- 5. Sleek Focused Side Panel for Case Inspection -->
   @if (selectedItem(); as item) {
     <div
       class="drawer-backdrop"
@@ -782,10 +884,10 @@
       <div class="drawer-panel" role="document">
         <header class="drawer-header">
           <div class="drawer-header-left">
-            <span class="drawer-case-id font-mono">{{ item.caseNumber || 'TASK' }}</span>
+            <span class="drawer-case-id font-mono">{{ item.caseNumber || 'CASE' }}</span>
             <span class="badge-type" [ngClass]="getTypeClass(item.type)">
               <span class="material-symbols-outlined type-icon-sm">{{ getTypeIcon(item.type) }}</span>
-              <span>{{ item.type || 'TASK' }}</span>
+              <span>{{ item.type || 'CASE' }}</span>
             </span>
             @if (item.isOverdue) {
               <span class="overdue-tag">⚠️ OVERDUE</span>
@@ -842,6 +944,39 @@
             }
           </div>
 
+          <!-- Associated tasks section inside side panel -->
+          @if (item.relatedTasks && item.relatedTasks.length > 0) {
+            <div class="drawer-tasks-section">
+              <h4 class="section-heading">Associated Tasks & Subtasks ({{ item.relatedTasks.length }})</h4>
+              <div class="drawer-tasks-list">
+                @for (sub of item.relatedTasks; track sub.id) {
+                  <div
+                    class="drawer-task-row"
+                    [class.is-subtask]="sub.type === 'SUBTASK'"
+                    (click)="navigateToSubItem(sub, $event)"
+                    role="button"
+                    tabindex="0"
+                    title="Click to open details"
+                  >
+                    <span class="material-symbols-outlined row-icon">
+                      {{ sub.type === 'SUBTASK' ? 'subdirectory_arrow_right' : 'task_alt' }}
+                    </span>
+                    <div class="row-info">
+                      <span class="row-title" [title]="sub.title">{{ sub.title }}</span>
+                      @if (sub.assignee) {
+                        <span class="row-assignee">{{ sub.assignee }}</span>
+                      }
+                    </div>
+                    <span class="status-pill" [ngClass]="getStatusClass(sub.status)">
+                      {{ getStatusLabel(sub.status) }}
+                    </span>
+                    <span class="material-symbols-outlined row-action-icon">arrow_forward</span>
+                  </div>
+                }
+              </div>
+            </div>
+          }
+
           <!-- Brief description preview if available -->
           @if (item.description) {
             <div class="drawer-description-section">
@@ -857,7 +992,7 @@
           </button>
           <button type="button" class="btn-primary" (click)="navigateToCase(item)">
             <span class="material-symbols-outlined">open_in_new</span>
-            <span>Open Task Details</span>
+            <span>Open Case Details</span>
           </button>
         </footer>
       </div>
