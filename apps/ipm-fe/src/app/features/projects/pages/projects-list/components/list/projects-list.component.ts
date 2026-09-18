@@ -61,7 +61,7 @@ export class ProjectsListComponent {
   get statusSelectOptions(): { value: string; label: string }[] {
     return this.statusOptions.map((status) => ({
       value: status,
-      label: `${this.statusLabels[status]} (${this.getStatusCount(status)})`,
+      label: this.statusLabels[status],
     }));
   }
 

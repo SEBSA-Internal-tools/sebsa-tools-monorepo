@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, Input, OnChanges, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Input, OnChanges, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import type { CreateCaseRequest, ProjectSummary, TaskCategory } from '@sebsa-pm-tool/shared-models';
@@ -27,7 +27,7 @@ type StatusFilter = '' | 'new' | 'todo' | 'inprogress' | 'done';
   styleUrl: './cso-queue-tab.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class CsoQueueTabComponent implements OnChanges {
+export class CsoQueueTabComponent implements OnInit, OnChanges {
   /** Which queue this instance renders — fixed for the lifetime of the tab. */
   @Input({ required: true }) category!: TaskCategory;
 
@@ -48,16 +48,18 @@ export class CsoQueueTabComponent implements OnChanges {
   protected readonly availableCustomers = computed<{ id: string; name: string }[]>(() => {
     const byId = new Map<string, string>();
     for (const project of this.csoProjects()) {
-      byId.set(project.customer.id, project.customer.name);
+      if (project.customer?.id && project.customer?.name) {
+        byId.set(project.customer.id, project.customer.name);
+      }
     }
     return [...byId.entries()]
       .map(([id, name]) => ({ id, name }))
       .sort((a, b) => a.name.localeCompare(b.name));
   });
 
-  protected selectedProjectId = '';
-  protected selectedCustomerId = '';
-  protected selectedStatus: StatusFilter = '';
+  protected readonly selectedProjectId = signal('');
+  protected readonly selectedCustomerId = signal('');
+  protected readonly selectedStatus = signal<StatusFilter>('');
 
   protected readonly statusFilterOptions = [
     { value: 'new', label: 'New' },
@@ -70,12 +72,20 @@ export class CsoQueueTabComponent implements OnChanges {
   protected errorMessage = '';
 
   protected readonly filteredTasks = computed<CsoQueueTaskView[]>(() => {
-    const status = this.selectedStatus;
+    const status = this.selectedStatus();
     if (!status) return this.tasks();
     return this.tasks().filter((task) => task.statusLabel === status);
   });
 
+  ngOnInit(): void {
+    this.loadData();
+  }
+
   ngOnChanges(): void {
+    this.loadData();
+  }
+
+  private loadData(): void {
     this.projectsService.getProjects().subscribe({ next: (p) => this.availableProjects.set(p) });
     this.applyFilters();
   }
@@ -87,9 +97,24 @@ export class CsoQueueTabComponent implements OnChanges {
   applyFilters(): void {
     this.csoTaskQueueService.load({
       category: this.category,
-      projectId: this.selectedProjectId || undefined,
-      customerId: this.selectedCustomerId || undefined,
+      projectId: this.selectedProjectId() || undefined,
+      customerId: this.selectedCustomerId() || undefined,
     });
+  }
+
+  protected hasActiveFilters(): boolean {
+    return !!(
+      this.selectedProjectId() ||
+      this.selectedCustomerId() ||
+      this.selectedStatus()
+    );
+  }
+
+  protected clearFilters(): void {
+    this.selectedProjectId.set('');
+    this.selectedCustomerId.set('');
+    this.selectedStatus.set('');
+    this.applyFilters();
   }
 
   openTaskModal(): void {

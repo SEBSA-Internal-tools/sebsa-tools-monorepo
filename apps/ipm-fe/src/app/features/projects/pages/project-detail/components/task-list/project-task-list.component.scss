@@ -14,12 +14,22 @@
   border: 1px solid var(--app-border);
   border-radius: 8px;
   flex-wrap: wrap;
+  position: relative;
+  z-index: 25;
+  overflow: visible;
 }
 
 .sort-controls {
   display: flex;
   align-items: center;
   gap: 8px;
+  position: relative;
+  z-index: 25;
+
+  app-custom-select {
+    min-width: 140px;
+    width: 160px;
+  }
 }
 
 .sort-label {
