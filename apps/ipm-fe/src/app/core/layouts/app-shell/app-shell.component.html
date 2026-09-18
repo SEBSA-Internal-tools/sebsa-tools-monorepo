@@ -114,224 +114,150 @@
 
   <!-- Right Content Viewport with Fixed Top Header -->
   <div class="content-wrapper">
-    <header class="top-navbar" [class.search-open]="isMobileSearchOpen">
-      @if (isMobileSearchOpen) {
-        <!-- Mobile Expanded Search Bar -->
-        <div class="mobile-search-bar">
-          <button
-            type="button"
-            class="mobile-search-back-btn"
-            aria-label="Close search"
-            (click)="closeMobileSearch()"
-          >
-            <span class="material-symbols-outlined" aria-hidden="true">arrow_back</span>
-          </button>
-          <div class="mobile-search-input-wrap">
-            <span class="material-symbols-outlined search-icon" aria-hidden="true">search</span>
-            <input
-              #globalSearchInput
-              type="search"
-              placeholder="Search tasks, projects..."
-              class="search-input"
-              aria-label="Global search"
-              autofocus
-              (input)="onSearchInput($event)"
-              (keydown)="onSearchKeydown($event)"
-            />
-            @if (hasSearchQuery()) {
-              <button type="button" class="search-clear-btn" aria-label="Clear search" (click)="clearSearch()">
-                <span class="material-symbols-outlined" aria-hidden="true">close</span>
-              </button>
-            }
-          </div>
-          <button
-            type="button"
-            class="mobile-search-close-btn"
-            aria-label="Close search"
-            (click)="closeMobileSearch()"
-          >
-            <span class="material-symbols-outlined" aria-hidden="true">close</span>
-          </button>
-        </div>
-      } @else {
-        <!-- Column 1: Left Header Slot with Mobile Hamburger Menu Trigger -->
-        <div class="navbar-left">
-          <button
-            type="button"
-            class="mobile-menu-btn"
-            aria-label="Open navigation menu"
-            [attr.aria-expanded]="isMobileSidebarOpen"
-            (click)="toggleMobileSidebar()"
-          >
-            <span class="material-symbols-outlined" aria-hidden="true">menu</span>
-          </button>
-        </div>
+    <header class="top-navbar">
+      <!-- Left: mobile hamburger -->
+      <div class="navbar-left">
+        <button
+          type="button"
+          class="mobile-menu-btn"
+          aria-label="Open navigation menu"
+          [attr.aria-expanded]="isMobileSidebarOpen"
+          (click)="toggleMobileSidebar()"
+        >
+          <span class="material-symbols-outlined" aria-hidden="true">menu</span>
+        </button>
+      </div>
+      <!-- Right: header actions -->
+      <div class="navbar-actions">
+        <!-- Theme Toggle -->
+        <button
+          type="button"
+          class="action-btn theme-toggle-btn"
+          [attr.aria-label]="themeService.buttonLabel"
+          (click)="toggleTheme()"
+        >
+          <span class="material-symbols-outlined" aria-hidden="true">{{ themeService.iconName }}</span>
+        </button>
 
-        <!-- Column 2: Centered Search Bar -->
-        <div class="navbar-center">
-          <div class="search-container">
-            <span class="material-symbols-outlined search-icon" aria-hidden="true">search</span>
-            <input
-              #globalSearchInput
-              type="search"
-              placeholder="Search tasks, projects..."
-              class="search-input"
-              aria-label="Global search"
-              (input)="onSearchInput($event)"
-              (keydown)="onSearchKeydown($event)"
-            />
-            @if (hasSearchQuery()) {
-              <button type="button" class="search-clear-btn" aria-label="Clear search" (click)="clearSearch()">
-                <span class="material-symbols-outlined" aria-hidden="true">close</span>
-              </button>
-            } @else {
-              <kbd class="search-shortcut-hint">{{ isMac ? 'âŒ˜K' : 'Ctrl K' }}</kbd>
-            }
-          </div>
-        </div>
+      <!-- Notification Bell with Dropdown -->
+      <div class="notification-menu-wrapper">
+        <button
+          type="button"
+          class="notification-bell-btn"
+          aria-haspopup="dialog"
+          [attr.aria-expanded]="isNotificationMenuOpen"
+          aria-label="Notifications"
+          (click)="toggleNotificationMenu()"
+        >
+          <span class="material-symbols-outlined" aria-hidden="true">notifications</span>
+          @if (notificationService.unreadCount() > 0) {
+            <span class="notification-badge">
+              {{ notificationService.unreadCount() > 99 ? '99+' : notificationService.unreadCount() }}
+            </span>
+          }
+        </button>
 
-        <!-- Column 3: Right Header Actions -->
-        <div class="navbar-actions">
-          <!-- Mobile Search Button -->
-          <button
-            type="button"
-            class="action-btn mobile-search-btn"
-            aria-label="Open search"
-            (click)="openMobileSearch()"
-          >
-            <span class="material-symbols-outlined" aria-hidden="true">search</span>
-          </button>
-
-          <!-- Theme Toggle -->
-          <button
-            type="button"
-            class="action-btn theme-toggle-btn"
-            [attr.aria-label]="themeService.buttonLabel"
-            (click)="toggleTheme()"
-          >
-            <span class="material-symbols-outlined" aria-hidden="true">{{ themeService.iconName }}</span>
-          </button>
-
-        <!-- Notification Bell with Dropdown -->
-        <div class="notification-menu-wrapper">
-          <button
-            type="button"
-            class="notification-bell-btn"
-            aria-haspopup="dialog"
-            [attr.aria-expanded]="isNotificationMenuOpen"
-            aria-label="Notifications"
-            (click)="toggleNotificationMenu()"
-          >
-            <span class="material-symbols-outlined" aria-hidden="true">notifications</span>
-            @if (notificationService.unreadCount() > 0) {
-              <span class="notification-badge">
-                {{ notificationService.unreadCount() > 99 ? '99+' : notificationService.unreadCount() }}
-              </span>
-            }
-          </button>
-
-          <!-- Notification Dropdown Panel -->
-          @if (isNotificationMenuOpen) {
-            <div class="notification-menu" role="dialog" aria-label="Notifications">
-              <div class="notification-menu-header">
-                <div class="notification-menu-header-left">
-                  <span class="notification-menu-title">Notifications</span>
-                  @if (notificationService.unreadCount() > 0) {
-                    <span class="notification-menu-count">
-                      {{ notificationService.unreadCount() }} new
-                    </span>
-                  }
-                </div>
+        <!-- Notification Dropdown Panel -->
+        @if (isNotificationMenuOpen) {
+          <div class="notification-menu" role="dialog" aria-label="Notifications">
+            <div class="notification-menu-header">
+              <div class="notification-menu-header-left">
+                <span class="notification-menu-title">Notifications</span>
                 @if (notificationService.unreadCount() > 0) {
+                  <span class="notification-menu-count">
+                    {{ notificationService.unreadCount() }} new
+                  </span>
+                }
+              </div>
+              @if (notificationService.unreadCount() > 0) {
+                <button
+                  type="button"
+                  class="notification-mark-all-btn"
+                  (click)="markAllNotificationsRead($event)"
+                >
+                  Mark all read
+                </button>
+              }
+            </div>
+
+            @if (notificationService.notifications().length > 0) {
+              <div class="notification-menu-list">
+                @for (item of notificationService.notifications(); track item.id) {
                   <button
                     type="button"
-                    class="notification-mark-all-btn"
-                    (click)="markAllNotificationsRead($event)"
+                    class="notification-menu-item"
+                    [class.unread]="!item.isRead"
+                    (click)="handleNotificationClick(item)"
                   >
-                    Mark all read
+                    <span class="notification-item-icon material-symbols-outlined" aria-hidden="true">
+                      {{ getNotificationIcon(item.type) }}
+                    </span>
+                    <div class="notification-item-body">
+                      <span class="notification-item-title">{{ item.title }}</span>
+                      <span class="notification-item-detail">{{ item.message }}</span>
+                      <span class="notification-item-time">{{ formatRelativeTime(item.createdAt) }}</span>
+                    </div>
+                    @if (!item.isRead) {
+                      <span class="notification-item-dot" aria-hidden="true"></span>
+                    }
                   </button>
                 }
               </div>
-
-              @if (notificationService.notifications().length > 0) {
-                <div class="notification-menu-list">
-                  @for (item of notificationService.notifications(); track item.id) {
-                    <button
-                      type="button"
-                      class="notification-menu-item"
-                      [class.unread]="!item.isRead"
-                      (click)="handleNotificationClick(item)"
-                    >
-                      <span class="notification-item-icon material-symbols-outlined" aria-hidden="true">
-                        {{ getNotificationIcon(item.type) }}
-                      </span>
-                      <div class="notification-item-body">
-                        <span class="notification-item-title">{{ item.title }}</span>
-                        <span class="notification-item-detail">{{ item.message }}</span>
-                        <span class="notification-item-time">{{ formatRelativeTime(item.createdAt) }}</span>
-                      </div>
-                      @if (!item.isRead) {
-                        <span class="notification-item-dot" aria-hidden="true"></span>
-                      }
-                    </button>
-                  }
-                </div>
-              } @else {
-                <div class="notification-menu-empty">
-                  <span class="material-symbols-outlined" aria-hidden="true">notifications_off</span>
-                  <span>You're all caught up</span>
-                </div>
-              }
-
-              <div class="notification-menu-footer">
-                <button type="button" class="notification-view-all-btn" (click)="goToAllNotifications()">
-                  View all notifications
-                </button>
+            } @else {
+              <div class="notification-menu-empty">
+                <span class="material-symbols-outlined" aria-hidden="true">notifications_off</span>
+                <span>You're all caught up</span>
               </div>
-            </div>
-          }
-        </div>
+            }
 
-        <!-- User Profile Chip Pill -->
-        <div class="profile-menu-wrapper">
-          <button
-            type="button"
-            class="user-profile-chip"
-            [attr.aria-expanded]="isProfileMenuOpen"
-            aria-label="User account menu"
-            (click)="toggleProfileMenu()"
-          >
-            <app-user-avatar
-              [name]="authService.currentUser()?.name || 'User'"
-              [avatarUrl]="authService.currentUser()?.avatarUrl"
-              size="md"
-            ></app-user-avatar>
-            <div class="user-meta">
-              <span class="user-name">{{ authService.currentUser()?.name || 'Username' }}</span>
-            </div>
-            <span class="material-symbols-outlined dropdown-chevron" aria-hidden="true">expand_more</span>
-          </button>
-
-          <!-- User Profile Dropdown Menu -->
-          @if (isProfileMenuOpen) {
-            <div class="profile-menu">
-              <div class="profile-menu-header">
-                <span class="profile-menu-name">{{ authService.currentUser()?.name || 'Hiruni Wijethilaka' }}</span>
-                <span class="profile-menu-email">{{ authService.currentUser()?.email || 'hiruni@sebsa.com' }}</span>
-              </div>
-              <a class="profile-menu-item" routerLink="/settings" (click)="isProfileMenuOpen = false">
-                <span class="material-symbols-outlined" aria-hidden="true">manage_accounts</span>
-                <span>Account Settings</span>
-              </a>
-              <button type="button" class="profile-menu-item logout" (click)="logout()">
-                <span class="material-symbols-outlined" aria-hidden="true">logout</span>
-                <span>Logout</span>
+            <div class="notification-menu-footer">
+              <button type="button" class="notification-view-all-btn" (click)="goToAllNotifications()">
+                View all notifications
               </button>
             </div>
-          }
-        </div>
+          </div>
+        }
       </div>
-    }
+
+      <!-- User Profile Chip Pill -->
+      <div class="profile-menu-wrapper">
+        <button
+          type="button"
+          class="user-profile-chip"
+          [attr.aria-expanded]="isProfileMenuOpen"
+          aria-label="User account menu"
+          (click)="toggleProfileMenu()"
+        >
+          <app-user-avatar
+            [name]="authService.currentUser()?.name || 'User'"
+            [avatarUrl]="authService.currentUser()?.avatarUrl"
+            size="md"
+          ></app-user-avatar>
+          <div class="user-meta">
+            <span class="user-name">{{ authService.currentUser()?.name || 'Username' }}</span>
+          </div>
+          <span class="material-symbols-outlined dropdown-chevron" aria-hidden="true">expand_more</span>
+        </button>
+
+        <!-- User Profile Dropdown Menu -->
+        @if (isProfileMenuOpen) {
+          <div class="profile-menu">
+            <div class="profile-menu-header">
+              <span class="profile-menu-name">{{ authService.currentUser()?.name || 'Hiruni Wijethilaka' }}</span>
+              <span class="profile-menu-email">{{ authService.currentUser()?.email || 'hiruni@sebsa.com' }}</span>
+            </div>
+            <a class="profile-menu-item" routerLink="/settings" (click)="isProfileMenuOpen = false">
+              <span class="material-symbols-outlined" aria-hidden="true">manage_accounts</span>
+              <span>Account Settings</span>
+            </a>
+            <button type="button" class="profile-menu-item logout" (click)="logout()">
+              <span class="material-symbols-outlined" aria-hidden="true">logout</span>
+              <span>Logout</span>
+            </button>
+          </div>
+        }
+      </div>
+      </div>
   </header>
 
     <section class="page-content">
