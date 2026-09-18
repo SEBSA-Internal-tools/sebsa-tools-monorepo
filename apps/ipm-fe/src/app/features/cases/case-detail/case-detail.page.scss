@@ -989,7 +989,40 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 12px;
     font-size: 0.85rem;
+
+    &.meta-row-datepicker {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 6px;
+      width: 100%;
+
+      .meta-label {
+        font-size: 0.8rem;
+        font-weight: 500;
+        color: var(--text-secondary);
+      }
+
+      .meta-datepicker-wrap {
+        width: 100%;
+        max-width: 100%;
+
+        ::ng-deep .datepicker-trigger {
+          width: 100%;
+          min-height: 36px;
+          padding: 6px 12px;
+          border-radius: 9px;
+          font-size: 0.84rem;
+          background-color: var(--surface-card);
+
+          .trigger-text {
+            font-weight: 600;
+            color: var(--text-heading);
+          }
+        }
+      }
+    }
   }
 
   .meta-label {

@@ -115,20 +115,21 @@
         </div>
         <div class="form-group">
           <label class="form-label">Department</label>
-          <select [(ngModel)]="departmentId" class="form-input">
-            <option value="" disabled>Select a department&hellip;</option>
-            @for (department of departments(); track department.id) {
-              <option [value]="department.id">{{ department.name }}</option>
-            }
-          </select>
+          <app-custom-select
+            [(ngModel)]="departmentId"
+            [options]="departments()"
+            placeholder="Select a department..."
+            ariaLabel="Department"
+          ></app-custom-select>
         </div>
         <div class="form-group">
           <label class="form-label">System Role</label>
-          <select [(ngModel)]="systemRole" class="form-input">
-            @for (role of systemRoleOptions; track role) {
-              <option [value]="role">{{ role }}</option>
-            }
-          </select>
+          <app-custom-select
+            [(ngModel)]="systemRole"
+            [options]="systemRoleOptions"
+            placeholder="Select system role"
+            ariaLabel="System Role"
+          ></app-custom-select>
         </div>
       </div>
       <div class="modal-footer">

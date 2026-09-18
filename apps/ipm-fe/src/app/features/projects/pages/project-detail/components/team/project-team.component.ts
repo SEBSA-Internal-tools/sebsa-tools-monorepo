@@ -16,12 +16,13 @@ import {
   AssignUserFormData,
 } from '../../../../components/modals/assign-user/assign-user-modal.component';
 import { UserAvatarComponent } from '../../../../../../core/components/user-avatar/user-avatar.component';
+import { CustomSelectComponent } from '../../../../../../core/components/custom-select/custom-select.component';
 import type { PrivilegeGroup, ProjectMemberSummary, ProjectRole } from '@sebsa-pm-tool/shared-models';
 
 @Component({
   standalone: true,
   selector: 'project-team',
-  imports: [CommonModule, FormsModule, AssignUserModalComponent, UserAvatarComponent],
+  imports: [CommonModule, FormsModule, AssignUserModalComponent, UserAvatarComponent, CustomSelectComponent],
   templateUrl: './project-team.component.html',
   styleUrl: './project-team.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

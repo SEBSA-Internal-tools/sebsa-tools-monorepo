@@ -63,8 +63,10 @@ export class CustomDatepickerComponent implements ControlValueAccessor {
   @Input() ariaLabel = 'Date picker';
   @Input() customClass = '';
   @Input() disabled = false;
+  @Input() isDueDate = false;
   @Input() min = '';
   @Input() max = '';
+  @Input() align: 'left' | 'right' | 'auto' = 'auto';
 
   @Input()
   get value(): string {
@@ -79,6 +81,7 @@ export class CustomDatepickerComponent implements ControlValueAccessor {
   @Output() dateChange = new EventEmitter<string>();
 
   readonly isOpen = signal(false);
+  readonly isRightAligned = signal(false);
   readonly currentValue = signal<string>(''); // YYYY-MM-DD
   readonly viewYear = signal<number>(new Date().getFullYear());
   readonly viewMonth = signal<number>(new Date().getMonth()); // 0-11
@@ -219,9 +222,38 @@ export class CustomDatepickerComponent implements ControlValueAccessor {
     if (!this.isOpen()) {
       this.syncViewWithDate(this.currentValue());
       this.showMonthYearPicker.set(false);
+      this.updateAlignment();
       this.isOpen.set(true);
     } else {
       this.close();
+    }
+  }
+
+  private updateAlignment(): void {
+    if (this.align === 'right') {
+      this.isRightAligned.set(true);
+      return;
+    }
+    if (this.align === 'left') {
+      this.isRightAligned.set(false);
+      return;
+    }
+    if (typeof window !== 'undefined') {
+      const el = this.elementRef.nativeElement as HTMLElement;
+      const rect = el.getBoundingClientRect();
+
+      // Check nearest modal, card, or dialog parent container
+      const container = el.closest('.modal-container, .modal-body, .workspace-card, .meta-card, [role="dialog"], .task-detail-card') as HTMLElement | null;
+      if (container) {
+        const parentRect = container.getBoundingClientRect();
+        // If opening ~300px from rect.left would overflow the container's right boundary (with 16px buffer)
+        const wouldOverflowContainer = (rect.left + 300) > (parentRect.right - 16);
+        this.isRightAligned.set(wouldOverflowContainer);
+        return;
+      }
+
+      const wouldOverflowRight = rect.left + 310 > window.innerWidth;
+      this.isRightAligned.set(wouldOverflowRight);
     }
   }
 
@@ -343,7 +375,21 @@ export class CustomDatepickerComponent implements ControlValueAccessor {
     return '';
   }
 
-  private isDateDisabled(dateStr: string): boolean {
+  readonly isDueDateField = computed(() => {
+    if (this.isDueDate) return true;
+    const label = (this.ariaLabel || '').toLowerCase();
+    const placeholder = (this.placeholder || '').toLowerCase();
+    return label.includes('due') || placeholder.includes('due');
+  });
+
+  get todayString(): string {
+    return this.formatDate(new Date());
+  }
+
+  isDateDisabled(dateStr: string): boolean {
+    if (this.isDueDateField() && dateStr < this.todayString) {
+      return true;
+    }
     if (this.min && dateStr < this.min) return true;
     if (this.max && dateStr > this.max) return true;
     return false;

@@ -43,14 +43,15 @@
 
         <div class="form-group">
           <label>Department</label>
-          <div class="input-wrapper">
+          <div class="input-wrapper has-custom-select">
             <span class="material-symbols-outlined input-icon">apartment</span>
-            <select tabindex="3" name="departmentId" [(ngModel)]="departmentId">
-              <option value="" disabled selected>Select a department</option>
-              <option *ngFor="let department of departments()" [value]="department.id">
-                {{ department.name }}
-              </option>
-            </select>
+            <app-custom-select
+              [(ngModel)]="departmentId"
+              [options]="departments()"
+              placeholder="Select a department"
+              ariaLabel="Department"
+              customClass="signup-custom-select"
+            ></app-custom-select>
           </div>
         </div>
 

@@ -3,6 +3,7 @@ import { DestroyRef, Injectable, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import {
+  NotificationCountsDto,
   NotificationDto,
   NotificationFilterParams,
   NotificationListResponse,
@@ -27,11 +28,17 @@ export class NotificationService {
   readonly notifications = signal<NotificationDto[]>([]);
   readonly unreadCount = signal<number>(0);
   readonly totalCount = signal<number>(0);
+  readonly counts = signal<NotificationCountsDto>({
+    all: 0,
+    unread: 0,
+    assignments: 0,
+    statusUpdates: 0,
+    deadlines: 0,
+  });
   readonly isLoading = signal<boolean>(false);
 
   private eventSource: EventSource | null = null;
   private readonly knownNotificationIds = new Set<string>();
-  private isFirstLoad = true;
   private inFlightRecent$: Observable<NotificationListResponse> | null = null;
 
   constructor() {
@@ -40,13 +47,22 @@ export class NotificationService {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((user) => {
         if (user) {
+          this.fetchCounts().subscribe();
           this.refreshRecent();
           this.connectEventStream();
         } else {
           this.disconnectEventStream();
+          this.knownNotificationIds.clear();
           this.notifications.set([]);
           this.unreadCount.set(0);
           this.totalCount.set(0);
+          this.counts.set({
+            all: 0,
+            unread: 0,
+            assignments: 0,
+            statusUpdates: 0,
+            deadlines: 0,
+          });
         }
       });
 
@@ -109,6 +125,7 @@ export class NotificationService {
         const payload: { count: number } = JSON.parse(event.data);
         if (typeof payload.count === 'number') {
           this.unreadCount.set(payload.count);
+          this.counts.update((c) => ({ ...c, unread: payload.count }));
         }
       } catch (err) {
         console.error('Failed to parse unread_count stream event:', err);
@@ -164,6 +181,28 @@ export class NotificationService {
   }
 
   /**
+   * Fetches the complete aggregated notification counts for all tabs.
+   */
+  fetchCounts(): Observable<NotificationCountsDto> {
+    return this.http.get<NotificationCountsDto>(`${this.apiUrl}/counts`).pipe(
+      tap((counts) => {
+        this.counts.set(counts);
+        this.totalCount.set(counts.all);
+        this.unreadCount.set(counts.unread);
+      }),
+      catchError(() =>
+        of({
+          all: 0,
+          unread: 0,
+          assignments: 0,
+          statusUpdates: 0,
+          deadlines: 0,
+        }),
+      ),
+    );
+  }
+
+  /**
    * Refreshes recent notifications and unread badge count for the app shell dropdown.
    * Deduplicates concurrent in-flight requests to avoid redundant duplicate API calls.
    */
@@ -200,6 +239,9 @@ export class NotificationService {
     if (filter.type) {
       params = params.set('type', filter.type);
     }
+    if (filter.category) {
+      params = params.set('category', filter.category);
+    }
     if (filter.limit !== undefined) {
       params = params.set('limit', filter.limit.toString());
     }
@@ -210,32 +252,18 @@ export class NotificationService {
 
     return this.http.get<NotificationListResponse>(this.apiUrl, { params }).pipe(
       tap((res) => {
-        this.handleIncomingNotifications(res.data);
+        res.data.forEach((item) => this.knownNotificationIds.add(item.id));
         this.notifications.set(res.data);
-        this.totalCount.set(res.total);
+        if (!filter.category || filter.category === 'ALL') {
+          this.totalCount.set(res.total);
+          this.counts.update((c) => ({ ...c, all: res.total }));
+        }
         this.unreadCount.set(res.unreadCount);
+        this.counts.update((c) => ({ ...c, unread: res.unreadCount }));
       }),
       catchError(() => of({ data: [], total: 0, unreadCount: 0 })),
       finalize(() => this.isLoading.set(false)),
     );
-  }
-
-  /**
-   * Populates known IDs on first load and triggers toasts for any unseen items.
-   */
-  private handleIncomingNotifications(items: NotificationDto[]): void {
-    if (this.isFirstLoad) {
-      items.forEach((item) => this.knownNotificationIds.add(item.id));
-      this.isFirstLoad = false;
-      return;
-    }
-
-    const newUnreadItems = items.filter((item) => !item.isRead && !this.knownNotificationIds.has(item.id));
-    items.forEach((item) => this.knownNotificationIds.add(item.id));
-
-    for (const item of newUnreadItems) {
-      this.triggerLiveToast(item);
-    }
   }
 
   /**
@@ -303,6 +331,7 @@ export class NotificationService {
       tap((res) => {
         const prev = this.unreadCount();
         this.unreadCount.set(res.count);
+        this.counts.update((c) => ({ ...c, unread: res.count }));
         if (res.count !== prev) {
           this.loadNotifications({ limit: 6, offset: 0 }).subscribe();
         }
@@ -319,8 +348,10 @@ export class NotificationService {
       list.map((item) => (item.id === id ? { ...item, isRead: true, readAt: new Date().toISOString() } : item)),
     );
     this.unreadCount.update((c) => Math.max(0, c - 1));
+    this.counts.update((c) => ({ ...c, unread: Math.max(0, c.unread - 1) }));
 
     return this.http.patch<NotificationDto>(`${this.apiUrl}/${id}/read`, {}).pipe(
+      tap(() => this.fetchCounts().subscribe()),
       catchError(() => {
         this.refreshRecent();
         return of(null);
@@ -336,8 +367,10 @@ export class NotificationService {
       list.map((item) => ({ ...item, isRead: true, readAt: new Date().toISOString() })),
     );
     this.unreadCount.set(0);
+    this.counts.update((c) => ({ ...c, unread: 0 }));
 
     return this.http.patch<{ count: number }>(`${this.apiUrl}/read-all`, {}).pipe(
+      tap(() => this.fetchCounts().subscribe()),
       catchError(() => {
         this.refreshRecent();
         return of({ count: 0 });
@@ -349,7 +382,8 @@ export class NotificationService {
    * Deletes/dismisses a notification.
    */
   deleteNotification(id: string): Observable<{ success: boolean }> {
-    const wasUnread = this.notifications().find((n) => n.id === id)?.isRead === false;
+    const target = this.notifications().find((n) => n.id === id);
+    const wasUnread = target?.isRead === false;
 
     this.notifications.update((list) => list.filter((item) => item.id !== id));
     this.totalCount.update((t) => Math.max(0, t - 1));
@@ -358,6 +392,7 @@ export class NotificationService {
     }
 
     return this.http.delete<{ success: boolean }>(`${this.apiUrl}/${id}`).pipe(
+      tap(() => this.fetchCounts().subscribe()),
       catchError(() => {
         this.refreshRecent();
         return of({ success: false });

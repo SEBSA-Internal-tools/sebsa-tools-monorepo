@@ -21,6 +21,7 @@ import type {
   CalendarDay,
   CalendarDensity,
   CalendarItem,
+  CalendarSubItem,
   CalendarViewMode,
   DayWorkloadPip,
   QuickPresetFilter,
@@ -52,6 +53,7 @@ export class CalendarViewComponent implements OnInit, AfterViewInit, OnDestroy {
 
   // Outputs
   readonly itemClick = output<CalendarItem>();
+  readonly subItemClick = output<CalendarSubItem>();
   readonly dayClick = output<Date>();
   readonly createClick = output<Date>();
   readonly viewChange = output<CalendarViewMode>();
@@ -697,11 +699,23 @@ export class CalendarViewComponent implements OnInit, AfterViewInit, OnDestroy {
 
   navigateToCase(item: CalendarItem): void {
     this.closeDrawer();
-    const isCase = (item.raw && typeof item.raw === 'object' && 'isCsoLabeled' in item.raw) || item.caseNumber?.startsWith('CASE-');
-    if (isCase) {
-      this.router.navigate(['/cases', item.id]);
-    } else {
-      this.router.navigate(['/tasks', item.id]);
+    const caseId = item.caseId || item.id;
+    this.router.navigate(['/cases', caseId]);
+  }
+
+  navigateToSubItem(sub: CalendarSubItem, event?: Event): void {
+    if (event) {
+      event.stopPropagation();
+    }
+    this.closeDrawer();
+    this.subItemClick.emit(sub);
+    if (sub.type === 'TASK') {
+      this.router.navigate(['/tasks', sub.id]);
+    } else if (sub.type === 'SUBTASK') {
+      const targetId = sub.taskId || sub.id;
+      this.router.navigate(['/tasks', targetId]);
+    } else if (sub.caseId) {
+      this.router.navigate(['/cases', sub.caseId]);
     }
   }
 
