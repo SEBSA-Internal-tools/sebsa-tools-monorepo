@@ -1,48 +1,48 @@
-import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import {
-  CreateTaskComplexityLevelRequest,
-  CreateTaskTypeRequest,
-  TaskComplexityLevel,
-  TaskType,
-  UpdateTaskComplexityLevelRequest,
-  UpdateTaskTypeRequest,
-} from '@sebsa-pm-tool/shared-models';
-import { Observable } from 'rxjs';
+import { Observable, map } from 'rxjs';
+import { ConfigScope, TaskComplexityLevel, TaskType } from '@sebsa-pm-tool/shared-models';
+import { ConfigOptionsService } from './config-options.service';
 
+/**
+ * Task types now live in the shared configuration table. This keeps the older
+ * `{ id, name }` shape the task screens expect, so callers do not need to know
+ * they are reading config options.
+ */
 @Injectable({ providedIn: 'root' })
 export class TaskTypesService {
-  private readonly http = inject(HttpClient);
+  private readonly configOptions = inject(ConfigOptionsService);
 
-  list(): Observable<TaskType[]> {
-    return this.http.get<TaskType[]>('/api/task-types');
+  list(scope: ConfigScope = 'GLOBAL'): Observable<TaskType[]> {
+    return this.configOptions.list(scope, { kind: 'TASK_TYPE' }).pipe(
+      map((options) =>
+        options.map((option) => ({
+          id: option.id,
+          name: option.label,
+          description: null,
+          order: option.order,
+          isActive: option.isActive,
+        })),
+      ),
+    );
   }
 
-  create(dto: CreateTaskTypeRequest): Observable<TaskType> {
-    return this.http.post<TaskType>('/api/task-types', dto);
-  }
-
-  update(id: string, dto: UpdateTaskTypeRequest): Observable<TaskType> {
-    return this.http.patch<TaskType>(`/api/task-types/${id}`, dto);
-  }
-
-  remove(id: string): Observable<void> {
-    return this.http.delete<void>(`/api/task-types/${id}`);
-  }
-
-  createComplexityLevel(taskTypeId: string, dto: CreateTaskComplexityLevelRequest): Observable<TaskComplexityLevel> {
-    return this.http.post<TaskComplexityLevel>(`/api/task-types/${taskTypeId}/complexity-levels`, dto);
-  }
-
-  updateComplexityLevel(
+  /** Complexity levels are child entries of their task type. */
+  listComplexityLevels(
     taskTypeId: string,
-    levelId: string,
-    dto: UpdateTaskComplexityLevelRequest,
-  ): Observable<TaskComplexityLevel> {
-    return this.http.patch<TaskComplexityLevel>(`/api/task-types/${taskTypeId}/complexity-levels/${levelId}`, dto);
-  }
-
-  removeComplexityLevel(taskTypeId: string, levelId: string): Observable<void> {
-    return this.http.delete<void>(`/api/task-types/${taskTypeId}/complexity-levels/${levelId}`);
+    scope: ConfigScope = 'GLOBAL',
+  ): Observable<TaskComplexityLevel[]> {
+    return this.configOptions
+      .list(scope, { kind: 'COMPLEXITY_LEVEL', parentId: taskTypeId })
+      .pipe(
+        map((options) =>
+          options.map((option) => ({
+            id: option.id,
+            taskTypeId,
+            name: option.label,
+            color: option.color,
+            order: option.order,
+          })),
+        ),
+      );
   }
 }

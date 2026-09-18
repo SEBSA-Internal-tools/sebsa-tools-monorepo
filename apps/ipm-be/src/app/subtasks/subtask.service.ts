@@ -12,7 +12,7 @@ const ADMIN_SYSTEM_ROLES: AuthUser['systemRole'][] = ['ADMIN', 'SUPER_ADMIN'];
 const subtaskInclude = {
   assignees: { include: { user: { select: { id: true, name: true, email: true } } } },
   createdBy: { select: { id: true, name: true } },
-  subtaskType: { select: { id: true, name: true } },
+  subtaskType: { select: { id: true, label: true } },
 } satisfies Prisma.SubtaskInclude;
 
 type SubtaskWithDetail = Prisma.SubtaskGetPayload<{ include: typeof subtaskInclude }>;
@@ -374,7 +374,9 @@ export class SubtaskService {
 
   private async assertSubtaskTypeValid(subtaskTypeId: string | undefined): Promise<void> {
     if (!subtaskTypeId) return;
-    const type = await this.prisma.subtaskType.findFirst({ where: { id: subtaskTypeId, isActive: true } });
+    const type = await this.prisma.configOption.findFirst({
+      where: { id: subtaskTypeId, kind: 'SUBTASK_TYPE', isActive: true },
+    });
     if (!type) {
       throw new NotFoundException('Subtask type does not exist or is inactive.');
     }
@@ -412,7 +414,10 @@ export class SubtaskService {
       dueDate: subtask.dueDate ? subtask.dueDate.toISOString() : null,
       jiraStatusLabel: subtask.jiraStatusLabel,
       subtaskTypeId: subtask.subtaskTypeId,
-      subtaskType: subtask.subtaskType,
+      subtaskType: subtask.subtaskType && {
+        id: subtask.subtaskType.id,
+        name: subtask.subtaskType.label,
+      },
       assignees: subtask.assignees.map((a) => a.user),
       createdBy: subtask.createdBy,
       createdAt: subtask.createdAt.toISOString(),

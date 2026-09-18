@@ -4,7 +4,7 @@ What is in place, what is not, and what must be true before production traffic.
 Written against the code as it stands — anything unimplemented is listed as a gap
 rather than described as if it were done.
 
-Last reviewed: 2026-09-09.
+Last reviewed: 2026-09-10.
 
 ---
 
@@ -15,7 +15,10 @@ JWT bearer tokens, HS256, signed with `JWT_SECRET` and expiring after
 every request instead of trusting the token payload, so deactivating or
 soft-deleting an account takes effect immediately rather than at token expiry.
 
-Passwords are hashed with bcrypt. Self-registration is restricted to the domains
+Passwords are hashed with bcrypt at cost factor 12 (`auth/password.ts`, the
+single source for that number). A hash written at a lower cost is transparently
+re-hashed on the owner's next successful login, so raising the factor does not
+strand existing accounts. Self-registration is restricted to the domains
 in `SIGNUP_ALLOWED_EMAIL_DOMAINS`, and a registered account cannot log in until
 an admin sets `approvedAt` — `isActive` is a separate switch for disabling an
 already-approved account.
@@ -67,59 +70,94 @@ users outside it.
 
 ---
 
+## Hardening in place
+
+### Transport and response headers
+
+`helmet` runs on every API response. In production that includes HSTS
+(`max-age=31536000; includeSubDomains; preload`) and a `default-src 'self'` CSP;
+outside production CSP is off so Swagger UI keeps working.
+
+**The CSP that matters most for XSS is not this one.** helmet here protects API
+responses. The Angular app's `index.html` is served by whatever hosts the static
+build, and the CSP on *that* response is what constrains scripts in the browser.
+Set it at the static host or the reverse proxy — `script-src 'self'` at minimum.
+
+### API documentation
+
+Swagger is mounted only when `NODE_ENV !== 'production'`. A browsable map of
+every endpoint and DTO is free reconnaissance and does not belong on a public
+host.
+
+### Rate limiting
+
+`ThrottlerGuard` is registered globally at 100 requests per minute per IP.
+`POST /api/auth/login` and `POST /api/auth/register` are tightened to 5 per
+minute, which leaves room for a mistyped password but not for credential
+stuffing.
+
+`TRUST_PROXY` must be set to `"true"` when the app runs behind a load balancer,
+or every request appears to come from the proxy and one bucket covers all users.
+It defaults to `false`: trusting `X-Forwarded-For` without a proxy in front lets
+a client spoof the header and bypass the limiter entirely.
+
+Application throttling does not stop volumetric DDoS — by then the traffic has
+already cost you bandwidth. That belongs at the CDN/WAF or load balancer.
+
+### Secret hygiene
+
+`JWT_SECRET` must be at least 32 characters, and in production Joi rejects the
+shipped placeholder by value — a length check alone accepted it, since the
+placeholder is 34 characters long. The app refuses to boot rather than running
+with a known secret.
+
+---
+
 ## Open gaps
 
-These are real and unaddressed. Each needs a decision before go-live.
-
-### 1. No security headers (`helmet` not installed)
-
-The API returns no `Content-Security-Policy`, `Strict-Transport-Security`,
-`X-Content-Type-Options` or `Referrer-Policy`. Fix: `npm i helmet` and
-`app.use(helmet())` in `main.ts`. Requires a dependency, so it has not been
-added unilaterally.
-
-### 2. No rate limiting — brute force and DDoS
-
-Nothing throttles `POST /api/auth/login`, so password guessing is unbounded, and
-no endpoint has a request ceiling. Fix: `@nestjs/throttler` with a strict limit
-on the auth routes and a global default elsewhere. Application-level throttling
-does not stop volumetric DDoS — that belongs at the CDN/WAF or load balancer,
-which is a hosting decision.
-
-### 3. JWT stored in `localStorage`
+### 1. JWT stored in `localStorage`
 
 Readable by any script on the origin, so a single XSS becomes full account
 takeover. There is no XSS vector in the code today, which is what makes this
-tolerable rather than safe. The stronger pattern is an httpOnly, `Secure`,
-`SameSite=Strict` refresh cookie with a short-lived in-memory access token —
-that change also reintroduces the CSRF requirement noted above.
+tolerable rather than safe.
 
-### 4. bcrypt cost factor is 10
+The stronger pattern is an httpOnly, `Secure`, `SameSite=Strict` refresh cookie
+with a short-lived in-memory access token. That reintroduces CSRF, so it needs
+CSRF tokens at the same time. It touches token issuance, the auth interceptor,
+`AuthService` and CORS credentials — deliberately deferred until after release
+rather than changed days before it.
 
-`auth.service.ts` hashes at 10 rounds. Current OWASP guidance is 12 or higher.
-Raising it affects new hashes only; existing users would need a rehash-on-login
-path.
+### 2. Production secrets not yet rotated
 
-### 5. Secrets
+The code now refuses the placeholder, but real values still need generating and
+storing:
 
-`.env` is gitignored and no secret has ever been committed (verified with
-`git log -S`). But `JWT_SECRET` is still the placeholder
-`change-me-to-a-long-random-string`, and the live Jira API token and database
-password sit in plaintext on developer machines. Before go-live: generate a
-strong `JWT_SECRET`, rotate the Jira token and database password, and move
-production values into the host's secret store rather than a file.
+```bash
+node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
+```
 
-### 6. Transport
+Also rotate the Jira API token and the Neon database password, and move
+production values into the host's secret store rather than a file. Changing
+`JWT_SECRET` invalidates every issued token, so do it at deploy, not mid-day.
 
-TLS is terminated by the host, not the application. Confirm HTTPS is enforced
-with HTTP redirected, HSTS is set (comes with helmet), and `CORS_ORIGIN` is
-pinned to the exact production origin rather than a wildcard.
+### 3. Dependency vulnerabilities
 
-### 7. No automated security checking in CI
+`npm audit --omit=dev` reports 16 production advisories. Assessed 2026-09-10:
+
+- **axios** — upgraded to 1.20.0, clearing ten advisories including prototype
+  pollution and two DoS paths.
+- **@angular/\*** — two high advisories, neither reachable here: the i18n XSS
+  needs Angular i18n (not used) and the `HttpTransferCache` poisoning needs
+  SSR/hydration (not used). A patch bump to 21.2.23 closes both and is safe to
+  take when there is time to regression-test the UI.
+- **@nestjs/\***, **prisma**, **multer** — npm's only "fix" is a major
+  *downgrade*, which would be worse than the advisory. Leave them.
+
+### 4. No automated security checking in CI
 
 `bitbucket-pipelines.yml` is still a placeholder and there are no GitHub
-workflows, so nothing runs `npm audit`, dependency scanning, or the lint suite
-on a pull request.
+workflows, so nothing runs `npm audit`, dependency scanning, or lint on a pull
+request. Every check in this document is currently manual.
 
 ---
 

@@ -15,7 +15,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ProjectsService } from '../../projects/services/projects.service';
 import { TaskTypesService } from '../../../core/services/task-types.service';
-import type { TaskCategory, TaskType } from '@sebsa-pm-tool/shared-models';
+import type { TaskCategory, TaskComplexityLevel, TaskType } from '@sebsa-pm-tool/shared-models';
 import {
   PriorityModalComponent,
   PriorityFormData,
@@ -96,6 +96,7 @@ export class CreateTaskModalComponent implements OnChanges {
 
   readonly availableAssignees = signal<AssigneeCandidate[]>([]);
   readonly availableTaskTypes = signal<TaskType[]>([]);
+  private readonly complexityLevels = signal<TaskComplexityLevel[]>([]);
   readonly isLoadingUsers = signal(false);
   readonly userError = signal('');
   readonly isAssigneeDropdownOpen = signal(false);
@@ -119,11 +120,25 @@ export class CreateTaskModalComponent implements OnChanges {
   onTaskTypeSelect(taskTypeId: string): void {
     this.selectedTaskTypeId = taskTypeId;
     this.selectedComplexityLevelId = '';
+    this.loadComplexityLevels(taskTypeId);
   }
 
   availableComplexityLevels() {
-    const type = this.availableTaskTypes().find((t) => t.id === this.selectedTaskTypeId);
-    return type?.complexityLevels ?? [];
+    return this.complexityLevels();
+  }
+
+  /** Complexity levels are child config entries, so they are fetched for the
+   * chosen task type rather than arriving nested with it. */
+  private loadComplexityLevels(taskTypeId: string): void {
+    if (!taskTypeId) {
+      this.complexityLevels.set([]);
+      return;
+    }
+
+    this.taskTypesService.listComplexityLevels(taskTypeId).subscribe({
+      next: (levels) => this.complexityLevels.set(levels),
+      error: () => this.complexityLevels.set([]),
+    });
   }
 
   @HostListener('document:click', ['$event'])

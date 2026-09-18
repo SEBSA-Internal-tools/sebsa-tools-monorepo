@@ -1,25 +1,9 @@
-/** Global, Super-Admin-managed Subtask Type — separate list from TaskType,
- * a different level of the Case -> Task -> Subtask hierarchy. */
+/** A subtask type as the subtask screens consume it — a view over the
+ * `SUBTASK_TYPE` entries in the shared configuration table. */
 export interface SubtaskType {
   id: string;
   name: string;
   description: string | null;
   order: number;
   isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface CreateSubtaskTypeRequest {
-  name: string;
-  description?: string;
-  order?: number;
-  isActive?: boolean;
-}
-
-export interface UpdateSubtaskTypeRequest {
-  name?: string;
-  description?: string;
-  order?: number;
-  isActive?: boolean;
 }

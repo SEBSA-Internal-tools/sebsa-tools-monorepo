@@ -15,6 +15,7 @@ import type {
   TaskStatus,
   TaskStatusHistoryEntry,
   TaskType,
+  TaskComplexityLevel,
   Subtask,
   UpdateTaskRequest,
 } from '@sebsa-pm-tool/shared-models';
@@ -90,6 +91,7 @@ export class TaskDetailPageComponent implements OnInit {
   availablePriorities = signal<Array<{ id: string; name: string; color: string | null; order: number }>>([]);
   availableAssignees = signal<Array<{ id: string; name: string }>>([]);
   availableTaskTypes = signal<TaskType[]>([]);
+  private readonly complexityLevels = signal<TaskComplexityLevel[]>([]);
 
   readonly statuses = TASK_STATUSES;
   statusHistory = signal<TaskStatusHistoryEntry[]>([]);
@@ -172,11 +174,25 @@ export class TaskDetailPageComponent implements OnInit {
     this.draft.taskTypeId = taskTypeId;
     this.draft.complexityLevelId = '';
     this.markDirty();
+    this.loadComplexityLevels(taskTypeId);
   }
 
   availableComplexityLevels() {
-    const type = this.availableTaskTypes().find((t) => t.id === this.draft.taskTypeId);
-    return type?.complexityLevels ?? [];
+    return this.complexityLevels();
+  }
+
+  /** Complexity levels are child config entries, fetched for the chosen task
+   * type rather than arriving nested with it. */
+  private loadComplexityLevels(taskTypeId: string | undefined): void {
+    if (!taskTypeId) {
+      this.complexityLevels.set([]);
+      return;
+    }
+
+    this.taskTypesService.listComplexityLevels(taskTypeId).subscribe({
+      next: (levels) => this.complexityLevels.set(levels),
+      error: () => this.complexityLevels.set([]),
+    });
   }
 
   private loadStatusHistory(taskId: string): void {

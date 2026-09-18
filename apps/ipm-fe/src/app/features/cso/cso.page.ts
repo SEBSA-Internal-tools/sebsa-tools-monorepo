@@ -5,6 +5,7 @@ import { CsoDashboardTabComponent } from './tabs/dashboard/cso-dashboard-tab.com
 import { CsoOverviewTabComponent } from './tabs/overview/cso-overview-tab.component';
 import { CsoQueueTabComponent } from './tabs/queue/cso-queue-tab.component';
 import { CsoNavTabsComponent } from './components/nav-tabs/cso-nav-tabs.component';
+import { ConfigurationPanelComponent } from '../../core/components/configuration-panel/configuration-panel.component';
 
 @Component({
   standalone: true,
@@ -16,13 +17,15 @@ import { CsoNavTabsComponent } from './components/nav-tabs/cso-nav-tabs.componen
     CsoDashboardTabComponent,
     CsoOverviewTabComponent,
     CsoQueueTabComponent,
+    ConfigurationPanelComponent,
   ],
   templateUrl: './cso.page.html',
   styleUrl: './cso.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CsoPageComponent {
-  protected activeTab: 'dashboard' | 'cso-board' | 'overview' | 'queue' = 'dashboard';
+  protected activeTab: 'dashboard' | 'cso-board' | 'overview' | 'queue' | 'configuration' =
+    'dashboard';
   /** Sub-tab within the Queue tab. */
   protected activeQueueTab: 'functional' | 'technical' = 'functional';
 

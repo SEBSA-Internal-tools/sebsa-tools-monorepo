@@ -92,6 +92,14 @@ export const appRoutes: Route[] = [
 					import('./features/activity/activity-log.page').then((m) => m.ActivityLogPageComponent),
 			},
 			{
+				path: 'admin/configuration',
+				canActivate: [superAdminGuard],
+				loadComponent: () =>
+					import('./features/admin/configuration/configuration.page').then(
+						(m) => m.ConfigurationPageComponent
+					),
+			},
+			{
 				path: 'admin/audit-logs',
 				canActivate: [superAdminGuard],
 				loadComponent: () =>
@@ -103,22 +111,6 @@ export const appRoutes: Route[] = [
 				loadComponent: () =>
 					import('./features/admin/privilege-groups/privilege-groups.page').then(
 						(m) => m.PrivilegeGroupsPageComponent
-					),
-			},
-			{
-				path: 'admin/task-types',
-				canActivate: [superAdminGuard],
-				loadComponent: () =>
-					import('./features/admin/task-types/task-types.page').then(
-						(m) => m.TaskTypesPageComponent
-					),
-			},
-			{
-				path: 'admin/subtask-types',
-				canActivate: [superAdminGuard],
-				loadComponent: () =>
-					import('./features/admin/subtask-types/subtask-types.page').then(
-						(m) => m.SubtaskTypesPageComponent
 					),
 			},
 			{

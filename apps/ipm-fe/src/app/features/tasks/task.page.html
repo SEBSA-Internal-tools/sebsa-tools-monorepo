@@ -38,8 +38,8 @@
   <!-- TAB 1: Assigned Tasks Section -->
   @if (activeTab() === 'tasks') {
     <article class="workspace-card list-card" role="tabpanel" aria-label="Assigned Tasks">
-      <!-- Search Bar & Task Count Control Row -->
-      <div class="controls-row">
+      <!-- Search, filters and count share one row -->
+      <div class="toolbar-row">
         <div class="search-box">
           <span class="material-symbols-outlined search-icon">search</span>
           <input
@@ -61,17 +61,6 @@
           }
         </div>
 
-        <div class="item-count-chip">
-          <span>Assigned Tasks:</span>
-          <span class="badge">{{ filteredTasks().length }}</span>
-          @if (filteredTasks().length !== tasks().length) {
-            <span class="total-subtext">(of {{ tasks().length }})</span>
-          }
-        </div>
-      </div>
-
-      <!-- Task Filters Row -->
-      <div class="filter-row">
         <app-custom-select
           [options]="caseSelectOptions()"
           [ngModel]="selectedCaseId()"
@@ -105,6 +94,14 @@
             <span>Clear filters</span>
           </button>
         }
+
+        <div class="item-count-chip">
+          <span>Assigned Tasks:</span>
+          <span class="badge">{{ filteredTasks().length }}</span>
+          @if (filteredTasks().length !== tasks().length) {
+            <span class="total-subtext">(of {{ tasks().length }})</span>
+          }
+        </div>
       </div>
 
       <!-- Error State -->
@@ -221,8 +218,8 @@
   <!-- TAB 2: Assigned Cases Section -->
   @if (activeTab() === 'cases') {
     <article class="workspace-card list-card" role="tabpanel" aria-label="Assigned Cases">
-      <!-- Search Bar & Case Count Control Row -->
-      <div class="controls-row">
+      <!-- Search, filters and count share one row -->
+      <div class="toolbar-row">
         <div class="search-box">
           <span class="material-symbols-outlined search-icon">search</span>
           <input
@@ -244,17 +241,6 @@
           }
         </div>
 
-        <div class="item-count-chip">
-          <span>Assigned Cases:</span>
-          <span class="badge">{{ filteredCases().length }}</span>
-          @if (filteredCases().length !== cases().length) {
-            <span class="total-subtext">(of {{ cases().length }})</span>
-          }
-        </div>
-      </div>
-
-      <!-- Case Filters Row -->
-      <div class="filter-row">
         <app-custom-select
           [options]="projectSelectOptions()"
           [ngModel]="selectedProjectId()"
@@ -297,6 +283,14 @@
             <span>Clear filters</span>
           </button>
         }
+
+        <div class="item-count-chip">
+          <span>Assigned Cases:</span>
+          <span class="badge">{{ filteredCases().length }}</span>
+          @if (filteredCases().length !== cases().length) {
+            <span class="total-subtext">(of {{ cases().length }})</span>
+          }
+        </div>
       </div>
 
       <!-- Error State -->
