@@ -38,8 +38,8 @@
   <!-- TAB 1: Assigned Tasks Section -->
   @if (activeTab() === 'tasks') {
     <article class="workspace-card list-card" role="tabpanel" aria-label="Assigned Tasks">
-      <!-- Search Bar & Task Count Control Row -->
-      <div class="controls-row">
+      <!-- Horizontal Unified Filter & Control Bar -->
+      <div class="assigned-toolbar">
         <div class="search-box">
           <span class="material-symbols-outlined search-icon">search</span>
           <input
@@ -61,50 +61,54 @@
           }
         </div>
 
+        <div class="filters-horizontal-row">
+          <app-custom-select
+            [options]="caseSelectOptions()"
+            [ngModel]="selectedCaseId()"
+            (ngModelChange)="selectedCaseId.set($event)"
+            placeholder="All Parent Cases"
+            customClass="filter-select-wrapper"
+            ariaLabel="Filter by Case"
+          ></app-custom-select>
+
+          <app-custom-select
+            [options]="taskStatusSelectOptions()"
+            [ngModel]="selectedTaskStatus()"
+            (ngModelChange)="selectedTaskStatus.set($event)"
+            placeholder="All Statuses"
+            customClass="filter-select-wrapper"
+            ariaLabel="Filter by Status"
+          ></app-custom-select>
+
+          <app-custom-select
+            [options]="taskPrioritySelectOptions()"
+            [ngModel]="selectedTaskPriority()"
+            (ngModelChange)="selectedTaskPriority.set($event)"
+            placeholder="All Priorities"
+            customClass="filter-select-wrapper"
+            ariaLabel="Filter by Priority"
+          ></app-custom-select>
+
+          @if (hasActiveTaskFilters()) {
+            <button
+              type="button"
+              class="clear-filters-btn"
+              (click)="clearTaskFilters()"
+              title="Reset active filters"
+            >
+              <span class="material-symbols-outlined">filter_alt_off</span>
+              <span class="clear-btn-text">Clear filters</span>
+            </button>
+          }
+        </div>
+
         <div class="item-count-chip">
-          <span>Assigned Tasks:</span>
+          <span class="count-label">Assigned Tasks:</span>
           <span class="badge">{{ filteredTasks().length }}</span>
           @if (filteredTasks().length !== tasks().length) {
             <span class="total-subtext">(of {{ tasks().length }})</span>
           }
         </div>
-      </div>
-
-      <!-- Task Filters Row -->
-      <div class="filter-row">
-        <app-custom-select
-          [options]="caseSelectOptions()"
-          [ngModel]="selectedCaseId()"
-          (ngModelChange)="selectedCaseId.set($event)"
-          placeholder="All Parent Cases"
-          customClass="filter-select-wrapper"
-          ariaLabel="Filter by Case"
-        ></app-custom-select>
-
-        <app-custom-select
-          [options]="taskStatusSelectOptions()"
-          [ngModel]="selectedTaskStatus()"
-          (ngModelChange)="selectedTaskStatus.set($event)"
-          placeholder="All Statuses"
-          customClass="filter-select-wrapper"
-          ariaLabel="Filter by Status"
-        ></app-custom-select>
-
-        <app-custom-select
-          [options]="taskPrioritySelectOptions()"
-          [ngModel]="selectedTaskPriority()"
-          (ngModelChange)="selectedTaskPriority.set($event)"
-          placeholder="All Priorities"
-          customClass="filter-select-wrapper"
-          ariaLabel="Filter by Priority"
-        ></app-custom-select>
-
-        @if (hasActiveTaskFilters()) {
-          <button type="button" class="clear-filters-btn" (click)="clearTaskFilters()">
-            <span class="material-symbols-outlined">filter_alt_off</span>
-            <span>Clear filters</span>
-          </button>
-        }
       </div>
 
       <!-- Error State -->
@@ -221,8 +225,8 @@
   <!-- TAB 2: Assigned Cases Section -->
   @if (activeTab() === 'cases') {
     <article class="workspace-card list-card" role="tabpanel" aria-label="Assigned Cases">
-      <!-- Search Bar & Case Count Control Row -->
-      <div class="controls-row">
+      <!-- Horizontal Unified Filter & Control Bar -->
+      <div class="assigned-toolbar">
         <div class="search-box">
           <span class="material-symbols-outlined search-icon">search</span>
           <input
@@ -244,59 +248,63 @@
           }
         </div>
 
+        <div class="filters-horizontal-row">
+          <app-custom-select
+            [options]="projectSelectOptions()"
+            [ngModel]="selectedProjectId()"
+            (ngModelChange)="selectedProjectId.set($event)"
+            placeholder="All Projects"
+            customClass="filter-select-wrapper"
+            ariaLabel="Filter by Project"
+          ></app-custom-select>
+
+          <app-custom-select
+            [options]="caseStatusSelectOptions()"
+            [ngModel]="selectedCaseStatus()"
+            (ngModelChange)="selectedCaseStatus.set($event)"
+            placeholder="All Statuses"
+            customClass="filter-select-wrapper"
+            ariaLabel="Filter by Status"
+          ></app-custom-select>
+
+          <app-custom-select
+            [options]="caseTypeSelectOptions()"
+            [ngModel]="selectedCaseType()"
+            (ngModelChange)="selectedCaseType.set($event)"
+            placeholder="All Types"
+            customClass="filter-select-wrapper"
+            ariaLabel="Filter by Type"
+          ></app-custom-select>
+
+          <app-custom-select
+            [options]="casePrioritySelectOptions()"
+            [ngModel]="selectedCasePriority()"
+            (ngModelChange)="selectedCasePriority.set($event)"
+            placeholder="All Priorities"
+            customClass="filter-select-wrapper"
+            ariaLabel="Filter by Priority"
+          ></app-custom-select>
+
+          @if (hasActiveCaseFilters()) {
+            <button
+              type="button"
+              class="clear-filters-btn"
+              (click)="clearCaseFilters()"
+              title="Reset active filters"
+            >
+              <span class="material-symbols-outlined">filter_alt_off</span>
+              <span class="clear-btn-text">Clear filters</span>
+            </button>
+          }
+        </div>
+
         <div class="item-count-chip">
-          <span>Assigned Cases:</span>
+          <span class="count-label">Assigned Cases:</span>
           <span class="badge">{{ filteredCases().length }}</span>
           @if (filteredCases().length !== cases().length) {
             <span class="total-subtext">(of {{ cases().length }})</span>
           }
         </div>
-      </div>
-
-      <!-- Case Filters Row -->
-      <div class="filter-row">
-        <app-custom-select
-          [options]="projectSelectOptions()"
-          [ngModel]="selectedProjectId()"
-          (ngModelChange)="selectedProjectId.set($event)"
-          placeholder="All Projects"
-          customClass="filter-select-wrapper"
-          ariaLabel="Filter by Project"
-        ></app-custom-select>
-
-        <app-custom-select
-          [options]="caseStatusSelectOptions()"
-          [ngModel]="selectedCaseStatus()"
-          (ngModelChange)="selectedCaseStatus.set($event)"
-          placeholder="All Statuses"
-          customClass="filter-select-wrapper"
-          ariaLabel="Filter by Status"
-        ></app-custom-select>
-
-        <app-custom-select
-          [options]="caseTypeSelectOptions()"
-          [ngModel]="selectedCaseType()"
-          (ngModelChange)="selectedCaseType.set($event)"
-          placeholder="All Types"
-          customClass="filter-select-wrapper"
-          ariaLabel="Filter by Type"
-        ></app-custom-select>
-
-        <app-custom-select
-          [options]="casePrioritySelectOptions()"
-          [ngModel]="selectedCasePriority()"
-          (ngModelChange)="selectedCasePriority.set($event)"
-          placeholder="All Priorities"
-          customClass="filter-select-wrapper"
-          ariaLabel="Filter by Priority"
-        ></app-custom-select>
-
-        @if (hasActiveCaseFilters()) {
-          <button type="button" class="clear-filters-btn" (click)="clearCaseFilters()">
-            <span class="material-symbols-outlined">filter_alt_off</span>
-            <span>Clear filters</span>
-          </button>
-        }
       </div>
 
       <!-- Error State -->
