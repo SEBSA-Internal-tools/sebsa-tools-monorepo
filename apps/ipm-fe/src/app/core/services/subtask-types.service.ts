@@ -1,25 +1,25 @@
-import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { CreateSubtaskTypeRequest, SubtaskType, UpdateSubtaskTypeRequest } from '@sebsa-pm-tool/shared-models';
-import { Observable } from 'rxjs';
+import { Observable, map } from 'rxjs';
+import { ConfigScope, SubtaskType } from '@sebsa-pm-tool/shared-models';
+import { ConfigOptionsService } from './config-options.service';
 
+/** Subtask types read from the shared configuration table, mapped to the
+ * `{ id, name }` shape the subtask screens expect. */
 @Injectable({ providedIn: 'root' })
 export class SubtaskTypesService {
-  private readonly http = inject(HttpClient);
+  private readonly configOptions = inject(ConfigOptionsService);
 
-  list(): Observable<SubtaskType[]> {
-    return this.http.get<SubtaskType[]>('/api/subtask-types');
-  }
-
-  create(dto: CreateSubtaskTypeRequest): Observable<SubtaskType> {
-    return this.http.post<SubtaskType>('/api/subtask-types', dto);
-  }
-
-  update(id: string, dto: UpdateSubtaskTypeRequest): Observable<SubtaskType> {
-    return this.http.patch<SubtaskType>(`/api/subtask-types/${id}`, dto);
-  }
-
-  remove(id: string): Observable<void> {
-    return this.http.delete<void>(`/api/subtask-types/${id}`);
+  list(scope: ConfigScope = 'GLOBAL'): Observable<SubtaskType[]> {
+    return this.configOptions.list(scope, { kind: 'SUBTASK_TYPE' }).pipe(
+      map((options) =>
+        options.map((option) => ({
+          id: option.id,
+          name: option.label,
+          description: null,
+          order: option.order,
+          isActive: option.isActive,
+        })),
+      ),
+    );
   }
 }

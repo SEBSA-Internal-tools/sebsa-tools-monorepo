@@ -51,8 +51,8 @@ const taskSummarySelect = {
     },
   },
   priority: { select: { id: true, name: true, color: true } },
-  taskType: { select: { id: true, name: true } },
-  complexityLevel: { select: { id: true, name: true, color: true } },
+  taskType: { select: { id: true, label: true } },
+  complexityLevel: { select: { id: true, label: true, color: true } },
   assignees: { select: { user: { select: { id: true, name: true, email: true } } } },
 } satisfies Prisma.TaskSelect;
 
@@ -68,8 +68,8 @@ const taskDetailInclude = {
   },
   case: { select: { id: true, title: true, type: true, projectId: true, isCsoLabeled: true } },
   priority: { select: { id: true, name: true, color: true } },
-  taskType: { select: { id: true, name: true } },
-  complexityLevel: { select: { id: true, name: true, color: true } },
+  taskType: { select: { id: true, label: true } },
+  complexityLevel: { select: { id: true, label: true, color: true } },
 } satisfies Prisma.TaskInclude;
 
 type TaskWithDetail = Prisma.TaskGetPayload<{ include: typeof taskDetailInclude }>;
@@ -978,18 +978,24 @@ export class TaskService {
     complexityLevelId: string | undefined,
   ): Promise<void> {
     if (taskTypeId) {
-      const taskType = await this.prisma.taskType.findFirst({ where: { id: taskTypeId, isActive: true } });
+      const taskType = await this.prisma.configOption.findFirst({
+        where: { id: taskTypeId, kind: 'TASK_TYPE', isActive: true },
+      });
       if (!taskType) {
         throw new BadRequestException('Task type does not exist or is inactive.');
       }
     }
     if (!complexityLevelId) return;
 
-    const level = await this.prisma.taskComplexityLevel.findUnique({ where: { id: complexityLevelId } });
+    // Complexity levels are child rows of their task type, so the parent link
+    // is what proves the pairing is valid.
+    const level = await this.prisma.configOption.findFirst({
+      where: { id: complexityLevelId, kind: 'COMPLEXITY_LEVEL' },
+    });
     if (!level) {
       throw new BadRequestException('Complexity level does not exist.');
     }
-    if (!taskTypeId || level.taskTypeId !== taskTypeId) {
+    if (!taskTypeId || level.parentId !== taskTypeId) {
       throw new BadRequestException('Complexity level does not belong to the selected task type.');
     }
   }
@@ -1046,9 +1052,13 @@ export class TaskService {
       jiraStatusLabel: task.jiraStatusLabel,
       category: task.category,
       taskTypeId: task.taskTypeId,
-      taskType: task.taskType,
+      taskType: task.taskType && { id: task.taskType.id, name: task.taskType.label },
       complexityLevelId: task.complexityLevelId,
-      complexityLevel: task.complexityLevel,
+      complexityLevel: task.complexityLevel && {
+        id: task.complexityLevel.id,
+        name: task.complexityLevel.label,
+        color: task.complexityLevel.color,
+      },
       case: task.case,
       priority: task.priority,
       assignees: task.assignees.map((a) => a.user),
@@ -1067,9 +1077,13 @@ export class TaskService {
       jiraStatusLabel: task.jiraStatusLabel,
       category: task.category,
       taskTypeId: task.taskTypeId,
-      taskType: task.taskType,
+      taskType: task.taskType && { id: task.taskType.id, name: task.taskType.label },
       complexityLevelId: task.complexityLevelId,
-      complexityLevel: task.complexityLevel,
+      complexityLevel: task.complexityLevel && {
+        id: task.complexityLevel.id,
+        name: task.complexityLevel.label,
+        color: task.complexityLevel.color,
+      },
       case: task.case,
       priority: task.priority,
       startDate: task.startDate ? task.startDate.toISOString() : null,

@@ -51,6 +51,9 @@
 
             <cso-queue-tab [category]="activeQueueCategory"></cso-queue-tab>
           }
+          @case ('configuration') {
+            <app-configuration-panel scope="CSO"></app-configuration-panel>
+          }
         }
       </div>
     </div>

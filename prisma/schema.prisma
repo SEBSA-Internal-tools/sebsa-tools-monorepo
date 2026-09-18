@@ -496,66 +496,6 @@ model Label {
   @@map("labels")
 }
 
-/// Global, Super-Admin-managed list of Task Types (e.g. "Support Task",
-/// "Development Task", "Bug") — unlike ProjectPriority/Label this is not
-/// scoped per project, matching how PrivilegeGroup is a single system-wide
-/// library every project draws from. Each type owns its own complexity
-/// scale (see TaskComplexityLevel) since "Support Task" and "Development
-/// Task" complexity are scored independently, on the same 1-5 structure.
-model TaskType {
-  id          String   @id @default(uuid())
-  name        String   @unique
-  description String?
-  order       Int
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  complexityLevels TaskComplexityLevel[]
-  tasks            Task[]
-
-  @@map("task_types")
-}
-
-/// A single rung (1-5, Basic..Very High by default, but Super-Admin
-/// editable — name/color/order can all be changed) on one TaskType's own
-/// complexity scale. Mirrors ProjectPriority's shape (name/color/order)
-/// but is scoped to a TaskType instead of a Project.
-model TaskComplexityLevel {
-  id         String   @id @default(uuid())
-  taskTypeId String
-  name       String
-  color      String?
-  order      Int
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  taskType TaskType @relation(fields: [taskTypeId], references: [id], onDelete: Cascade)
-  tasks    Task[]
-
-  @@unique([taskTypeId, name])
-  @@unique([taskTypeId, order])
-  @@index([taskTypeId])
-  @@map("task_complexity_levels")
-}
-
-/// Global, Super-Admin-managed list of Subtask Types — separate from
-/// TaskType (a Subtask is a different level of the hierarchy with its own
-/// vocabulary), same "single system-wide library" pattern.
-model SubtaskType {
-  id          String   @id @default(uuid())
-  name        String   @unique
-  description String?
-  order       Int
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  subtasks Subtask[]
-
-  @@map("subtask_types")
-}
-
 // ---------------------------------------------------------------------------
 // Cases
 // ---------------------------------------------------------------------------
@@ -738,8 +678,8 @@ model Task {
 
   case            Case                 @relation(fields: [caseId], references: [id], onDelete: Cascade)
   priority        ProjectPriority      @relation(fields: [priorityId], references: [id], onDelete: Restrict)
-  taskType        TaskType?            @relation(fields: [taskTypeId], references: [id], onDelete: SetNull)
-  complexityLevel TaskComplexityLevel? @relation(fields: [complexityLevelId], references: [id], onDelete: SetNull)
+  taskType        ConfigOption? @relation("TaskType", fields: [taskTypeId], references: [id], onDelete: SetNull)
+  complexityLevel ConfigOption? @relation("TaskComplexityLevel", fields: [complexityLevelId], references: [id], onDelete: SetNull)
   createdBy       User                 @relation("TaskCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
 
   subtasks      Subtask[]
@@ -869,7 +809,7 @@ model Subtask {
   deletedAt       DateTime?
 
   task        Task         @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  subtaskType SubtaskType? @relation(fields: [subtaskTypeId], references: [id], onDelete: SetNull)
+  subtaskType ConfigOption? @relation("SubtaskType", fields: [subtaskTypeId], references: [id], onDelete: SetNull)
   createdBy   User         @relation("SubtaskCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
 
   assignees SubtaskAssignee[]
@@ -1107,4 +1047,79 @@ model ApiToken {
 
   @@index([userId])
   @@map("api_tokens")
+}
+
+// ---------------------------------------------------------------------------
+// Global configuration
+// ---------------------------------------------------------------------------
+
+/// Which projects a configuration row applies to. CSO projects draw from their
+/// own list; every other project draws from GLOBAL.
+enum ConfigScope {
+  GLOBAL
+  CSO
+}
+
+/// The list a ConfigOption belongs to. One table rather than nine near-identical
+/// ones: every kind is managed the same way by the same screen and the same
+/// endpoints, and adding a tenth list later costs one enum value.
+enum ConfigKind {
+  PROJECT_TYPE
+  PROJECT_STATUS
+  CASE_TYPE
+  CASE_STATUS
+  TASK_STATUS
+  SUBTASK_STATUS
+  TASK_TYPE
+  SUBTASK_TYPE
+  COMPLEXITY_LEVEL
+  PRIORITY
+}
+
+/// A single entry in one of the configurable lists, editable by Super Admin.
+///
+/// `key` is the stable identifier application logic matches on and never
+/// changes once written; `label` is what admins rename. Seeded rows carry the
+/// original enum value as their key, so existing behaviour keeps working while
+/// the display side becomes configurable.
+model ConfigOption {
+  id    String      @id @default(uuid())
+  kind  ConfigKind
+  scope ConfigScope
+  key   String
+  label String
+
+  color String?
+  order Int
+
+  isActive  Boolean @default(true)
+  isDefault Boolean @default(false)
+
+  /// Semantic flags let logic ask "is this finished?" instead of hardcoding a
+  /// key, so an admin-created status can behave correctly without a code change.
+  isCompleted Boolean @default(false)
+  isCancelled Boolean @default(false)
+
+  /// Seeded rows are referenced by application logic, so they can be renamed,
+  /// recoloured, reordered and deactivated — but never deleted.
+  isSystem Boolean @default(false)
+
+  /// Set for entries that belong to another entry — a complexity level under
+  /// its task type. Null for top-level list entries.
+  parentId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  parent   ConfigOption?  @relation("ConfigOptionChildren", fields: [parentId], references: [id], onDelete: Cascade)
+  children ConfigOption[] @relation("ConfigOptionChildren")
+
+  typedTasks       Task[]    @relation("TaskType")
+  complexityTasks  Task[]    @relation("TaskComplexityLevel")
+  typedSubtasks    Subtask[] @relation("SubtaskType")
+
+  @@unique([kind, scope, key])
+  @@index([kind, scope, isActive])
+  @@index([parentId])
+  @@map("config_options")
 }

@@ -41,6 +41,8 @@ async function bootstrap() {
 
   app.enableCors({
     origin: configService.get<string>('app.corsOrigin'),
+    // Lets the client read how many attempts remain before it is throttled.
+    exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset', 'Retry-After'],
   });
 
   // Lets PrismaService.onModuleDestroy() disconnect gracefully on SIGTERM/SIGINT.

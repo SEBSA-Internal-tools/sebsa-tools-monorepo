@@ -71,15 +71,9 @@ export class AppShellComponent implements OnInit {
           onlyForRoles: ['SUPER_ADMIN'],
         },
         {
-          label: 'Task Types',
-          icon: 'category',
-          path: '/admin/task-types',
-          onlyForRoles: ['SUPER_ADMIN'],
-        },
-        {
-          label: 'Subtask Types',
-          icon: 'subdirectory_arrow_right',
-          path: '/admin/subtask-types',
+          label: 'Configuration',
+          icon: 'tune',
+          path: '/admin/configuration',
           onlyForRoles: ['SUPER_ADMIN'],
         },
         {
@@ -138,21 +132,10 @@ export class AppShellComponent implements OnInit {
 
   protected isMobileSidebarOpen = false;
   protected isSidebarCollapsed = false;
-  protected isMobileSearchOpen = false;
   protected isTaskModalOpen = false;
   protected lastCreatedTask: CaseFormData | null = null;
   protected isProfileMenuOpen = false;
   protected isNotificationMenuOpen = false;
-
-  protected openMobileSearch(): void {
-    this.isMobileSearchOpen = true;
-    this.isProfileMenuOpen = false;
-    this.isNotificationMenuOpen = false;
-  }
-
-  protected closeMobileSearch(): void {
-    this.isMobileSearchOpen = false;
-  }
 
   ngOnInit(): void {
     try {

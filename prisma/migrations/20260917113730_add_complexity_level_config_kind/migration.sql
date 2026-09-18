@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "ConfigKind" ADD VALUE 'COMPLEXITY_LEVEL';
