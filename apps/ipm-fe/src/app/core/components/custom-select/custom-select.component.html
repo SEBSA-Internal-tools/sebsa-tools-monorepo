@@ -36,13 +36,13 @@
         <button
           type="button"
           class="dropdown-option-item"
-          [class.selected]="currentValue() === defaultOptionValue"
+          [class.selected]="isOptionSelected(defaultOptionValue)"
           role="option"
-          [attr.aria-selected]="currentValue() === defaultOptionValue"
-          (click)="selectOption(defaultOptionValue)"
+          [attr.aria-selected]="isOptionSelected(defaultOptionValue)"
+          (click)="selectDefaultOption()"
         >
           <span class="option-label">{{ defaultOptionLabel }}</span>
-          @if (currentValue() === defaultOptionValue) {
+          @if (isOptionSelected(defaultOptionValue)) {
             <span class="material-symbols-outlined check-icon">check</span>
           }
         </button>
@@ -52,9 +52,9 @@
         <button
           type="button"
           class="dropdown-option-item"
-          [class.selected]="currentValue() === opt.value"
+          [class.selected]="isOptionSelected(opt.value)"
           role="option"
-          [attr.aria-selected]="currentValue() === opt.value"
+          [attr.aria-selected]="isOptionSelected(opt.value)"
           (click)="selectOption(opt.value)"
         >
           @if (opt.icon) {
@@ -66,7 +66,7 @@
           @if (opt.badge) {
             <span class="option-badge">{{ opt.badge }}</span>
           }
-          @if (currentValue() === opt.value) {
+          @if (isOptionSelected(opt.value)) {
             <span class="material-symbols-outlined check-icon">check</span>
           }
         </button>

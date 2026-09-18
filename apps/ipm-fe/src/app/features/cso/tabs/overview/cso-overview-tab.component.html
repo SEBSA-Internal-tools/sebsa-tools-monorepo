@@ -13,8 +13,8 @@
 
   <div class="filter-bar">
     <app-custom-select
-      [(ngModel)]="selectedProjectId"
-      (change)="applyFilters()"
+      [ngModel]="selectedProjectId()"
+      (ngModelChange)="selectedProjectId.set($event); applyFilters()"
       [options]="csoProjects()"
       defaultOptionLabel="All Projects"
       defaultOptionValue=""
@@ -23,8 +23,8 @@
     ></app-custom-select>
 
     <app-custom-select
-      [(ngModel)]="selectedCustomerId"
-      (change)="applyFilters()"
+      [ngModel]="selectedCustomerId()"
+      (ngModelChange)="selectedCustomerId.set($event); applyFilters()"
       [options]="availableCustomers()"
       defaultOptionLabel="All Customers"
       defaultOptionValue=""
@@ -33,9 +33,9 @@
     ></app-custom-select>
 
     <app-custom-select
-      [(ngModel)]="selectedPriority"
-      (change)="applyFilters()"
-      [options]="priorityFilterOptions"
+      [ngModel]="selectedPriority()"
+      (ngModelChange)="selectedPriority.set($event)"
+      [options]="priorityFilterOptions()"
       defaultOptionLabel="All Priorities"
       defaultOptionValue=""
       ariaLabel="Filter by Priority"
@@ -43,7 +43,8 @@
     ></app-custom-select>
 
     <app-custom-select
-      [(ngModel)]="selectedStatus"
+      [ngModel]="selectedStatus()"
+      (ngModelChange)="selectedStatus.set($event)"
       [options]="statusFilterOptions"
       defaultOptionLabel="All Statuses"
       defaultOptionValue=""
@@ -52,8 +53,8 @@
     ></app-custom-select>
 
     <app-custom-select
-      [(ngModel)]="selectedAssigneeId"
-      (change)="applyFilters()"
+      [ngModel]="selectedAssigneeId()"
+      (ngModelChange)="selectedAssigneeId.set($event); applyFilters()"
       [options]="availableAssignees()"
       defaultOptionLabel="All Assignees"
       defaultOptionValue=""

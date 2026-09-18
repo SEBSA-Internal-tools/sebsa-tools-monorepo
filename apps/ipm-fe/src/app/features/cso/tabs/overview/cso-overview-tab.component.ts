@@ -46,25 +46,38 @@ export class CsoOverviewTabComponent implements OnInit {
   protected readonly availableCustomers = computed<{ id: string; name: string }[]>(() => {
     const byId = new Map<string, string>();
     for (const project of this.csoProjects()) {
-      byId.set(project.customer.id, project.customer.name);
+      if (project.customer?.id && project.customer?.name) {
+        byId.set(project.customer.id, project.customer.name);
+      }
     }
     return [...byId.entries()]
       .map(([id, name]) => ({ id, name }))
       .sort((a, b) => a.name.localeCompare(b.name));
   });
 
-  protected selectedProjectId = '';
-  protected selectedCustomerId = '';
-  protected selectedPriority: '' | 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' = '';
-  protected selectedAssigneeId = '';
-  protected selectedStatus: StatusFilter = '';
+  protected readonly selectedProjectId = signal('');
+  protected readonly selectedCustomerId = signal('');
+  protected readonly selectedPriority = signal('');
+  protected readonly selectedAssigneeId = signal('');
+  protected readonly selectedStatus = signal<StatusFilter>('');
 
-  protected readonly priorityFilterOptions = [
-    { value: 'CRITICAL', label: 'Critical' },
-    { value: 'HIGH', label: 'High' },
-    { value: 'MEDIUM', label: 'Medium' },
-    { value: 'LOW', label: 'Low' },
-  ];
+  protected readonly availablePriorities = computed<string[]>(() => {
+    const names = new Set(this.tasks().map((t) => t.priority).filter(Boolean));
+    return [...names].sort((a, b) => a.localeCompare(b));
+  });
+
+  protected readonly priorityFilterOptions = computed(() => {
+    const dynamic = this.availablePriorities();
+    if (dynamic.length > 0) {
+      return dynamic.map((name) => ({ value: name, label: name }));
+    }
+    return [
+      { value: 'Critical', label: 'Critical' },
+      { value: 'High', label: 'High' },
+      { value: 'Medium', label: 'Medium' },
+      { value: 'Low', label: 'Low' },
+    ];
+  });
 
   protected readonly statusFilterOptions = [
     { value: 'new', label: 'New' },
@@ -77,9 +90,13 @@ export class CsoOverviewTabComponent implements OnInit {
   protected errorMessage = '';
 
   protected readonly filteredTasks = computed<CsoTaskView[]>(() => {
-    const status = this.selectedStatus;
-    if (!status) return this.tasks();
-    return this.tasks().filter((task) => task.statusLabel === status);
+    const status = this.selectedStatus();
+    const priority = this.selectedPriority();
+    return this.tasks().filter((task) => {
+      if (status && task.statusLabel !== status) return false;
+      if (priority && task.priority.toLowerCase() !== priority.toLowerCase()) return false;
+      return true;
+    });
   });
 
   ngOnInit(): void {
@@ -92,29 +109,28 @@ export class CsoOverviewTabComponent implements OnInit {
 
   applyFilters(): void {
     this.csoOverviewService.load({
-      projectId: this.selectedProjectId || undefined,
-      customerId: this.selectedCustomerId || undefined,
-      priority: this.selectedPriority || undefined,
-      assigneeId: this.selectedAssigneeId || undefined,
+      projectId: this.selectedProjectId() || undefined,
+      customerId: this.selectedCustomerId() || undefined,
+      assigneeId: this.selectedAssigneeId() || undefined,
     });
   }
 
   protected hasActiveFilters(): boolean {
     return !!(
-      this.selectedProjectId ||
-      this.selectedCustomerId ||
-      this.selectedPriority ||
-      this.selectedStatus ||
-      this.selectedAssigneeId
+      this.selectedProjectId() ||
+      this.selectedCustomerId() ||
+      this.selectedPriority() ||
+      this.selectedStatus() ||
+      this.selectedAssigneeId()
     );
   }
 
   protected clearFilters(): void {
-    this.selectedProjectId = '';
-    this.selectedCustomerId = '';
-    this.selectedPriority = '';
-    this.selectedStatus = '';
-    this.selectedAssigneeId = '';
+    this.selectedProjectId.set('');
+    this.selectedCustomerId.set('');
+    this.selectedPriority.set('');
+    this.selectedStatus.set('');
+    this.selectedAssigneeId.set('');
     this.applyFilters();
   }
 
