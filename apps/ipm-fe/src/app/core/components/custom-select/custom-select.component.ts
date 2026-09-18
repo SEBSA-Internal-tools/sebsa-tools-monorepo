@@ -43,7 +43,9 @@ export interface SelectOptionItem<T = unknown> {
   templateUrl: './custom-select.component.html',
   styleUrls: ['./custom-select.component.scss'],
 })
-export class CustomSelectComponent<T = unknown> implements ControlValueAccessor {
+export class CustomSelectComponent<T = unknown>
+  implements ControlValueAccessor
+{
   private readonly elementRef = inject(ElementRef);
 
   private readonly _options = signal<unknown[]>([]);
@@ -88,6 +90,15 @@ export class CustomSelectComponent<T = unknown> implements ControlValueAccessor 
   }
   set defaultOptionValue(val: unknown) {
     this._defaultOptionValue.set(val !== undefined ? val : '');
+  }
+
+  private readonly _selectedLabel = signal('');
+  @Input()
+  get selectedLabel(): string {
+    return this._selectedLabel();
+  }
+  set selectedLabel(val: string) {
+    this._selectedLabel.set(val || '');
   }
 
   @Input() ariaLabel = '';
@@ -158,8 +169,38 @@ export class CustomSelectComponent<T = unknown> implements ControlValueAccessor 
     }
     const match = this.normalizedOptions().find((opt) => opt.value === val);
     if (match) return match.label;
-    return String(val);
+    if (this._selectedLabel()) return this._selectedLabel();
+
+    const strVal = String(val);
+    if (this.isIdLike(strVal)) {
+      return (
+        this._defaultOptionLabel() || this._placeholder() || 'Select an option'
+      );
+    }
+
+    return strVal;
   });
+
+  private isIdLike(val: string): boolean {
+    if (!val) return false;
+    // Standard UUID (e.g. 99231de4-67c1-4e00-bd03-04e...)
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val)) {
+      return true;
+    }
+    // MongoDB ObjectID or 24-32 hex char ID
+    if (/^[0-9a-f]{24,32}$/i.test(val)) {
+      return true;
+    }
+    // CUID format
+    if (/^c[a-z0-9]{24,}$/i.test(val)) {
+      return true;
+    }
+    // Long alphanumeric ID (>= 16 chars containing letters and numbers/dashes/underscores)
+    if (val.length >= 16 && /^[a-zA-Z0-9_-]+$/.test(val) && /\d/.test(val) && /[a-zA-Z]/.test(val)) {
+      return true;
+    }
+    return false;
+  }
 
   isOptionSelected(optValue: unknown): boolean {
     const cur = this.currentValue();

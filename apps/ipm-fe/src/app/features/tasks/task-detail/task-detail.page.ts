@@ -1,4 +1,4 @@
-import { Component, ChangeDetectionStrategy, OnInit, inject, signal } from '@angular/core';
+import { Component, ChangeDetectionStrategy, OnInit, inject, signal, ChangeDetectorRef } from '@angular/core';
 import { CommonModule, Location } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -67,6 +67,7 @@ export class TaskDetailPageComponent implements OnInit {
   private subtasksService = inject(SubtasksService);
   private projectsService = inject(ProjectsService);
   private taskTypesService = inject(TaskTypesService);
+  private cdr = inject(ChangeDetectorRef);
 
   task = signal<Task | null>(null);
   isLoading = signal(false);
@@ -138,26 +139,48 @@ export class TaskDetailPageComponent implements OnInit {
         this.loadPriorities(task.case.projectId);
         this.loadAssignees(task.case.projectId);
         this.loadTaskTypes();
+        this.cdr.markForCheck();
       },
       error: (err) => {
         console.error('Failed to load task:', err);
         this.errorMessage.set('Unable to load task details. The task may not exist or you may not have access.');
         this.isLoading.set(false);
+        this.cdr.markForCheck();
       },
     });
   }
 
   private loadPriorities(projectId: string): void {
     this.projectsService.getProjectPriorities(projectId).subscribe({
-      next: (priorities) => this.availablePriorities.set([...priorities].sort((a, b) => a.order - b.order)),
-      error: () => this.availablePriorities.set([]),
+      next: (priorities) => {
+        this.availablePriorities.set([...priorities].sort((a, b) => a.order - b.order));
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.availablePriorities.set([]);
+        this.cdr.markForCheck();
+      },
     });
   }
 
   private loadAssignees(projectId: string): void {
     this.projectsService.getMembers(projectId).subscribe({
-      next: (members) => this.availableAssignees.set(members.map((m) => m.user)),
-      error: () => this.availableAssignees.set([]),
+      next: (members) => {
+        const userList: Array<{ id: string; name: string }> = members.map((m) => ({ id: m.user.id, name: m.user.name }));
+        const currentAssignees = this.task()?.assignees ?? [];
+        for (const a of currentAssignees) {
+          if (!userList.some((u) => u.id === a.id)) {
+            userList.push({ id: a.id, name: a.name });
+          }
+        }
+        this.availableAssignees.set(userList);
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        const currentAssignees = (this.task()?.assignees ?? []).map((a) => ({ id: a.id, name: a.name }));
+        this.availableAssignees.set(currentAssignees);
+        this.cdr.markForCheck();
+      },
     });
   }
 
@@ -231,7 +254,28 @@ export class TaskDetailPageComponent implements OnInit {
       taskTypeId: task.taskTypeId ?? '',
       complexityLevelId: task.complexityLevelId ?? '',
     };
+    if (task.assignees && task.assignees.length > 0) {
+      const current = this.availableAssignees();
+      const merged = [...current];
+      for (const a of task.assignees) {
+        if (!merged.some((u) => u.id === a.id)) {
+          merged.push({ id: a.id, name: a.name });
+        }
+      }
+      this.availableAssignees.set(merged);
+    }
     this.isDirty.set(false);
+    this.cdr.markForCheck();
+  }
+
+  currentAssigneeName(): string {
+    const assigneeId = this.draft.assigneeId;
+    if (!assigneeId) return '';
+    const match = this.availableAssignees().find((u) => u.id === assigneeId);
+    if (match) return match.name;
+    const currentAssignee = this.task()?.assignees?.find((u) => u.id === assigneeId);
+    if (currentAssignee) return currentAssignee.name;
+    return '';
   }
 
   markDirty(): void {

@@ -401,6 +401,7 @@
           [(ngModel)]="draft.assigneeId"
           (ngModelChange)="markDirty()"
           [options]="availableAssignees()"
+          [selectedLabel]="currentAssigneeName()"
           defaultOptionLabel="Unassigned"
           defaultOptionValue=""
           placeholder="Unassigned"

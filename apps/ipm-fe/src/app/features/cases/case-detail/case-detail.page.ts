@@ -1,4 +1,4 @@
-import { Component, ChangeDetectionStrategy, OnInit, inject, signal, computed } from '@angular/core';
+import { Component, ChangeDetectionStrategy, OnInit, inject, signal, computed, ChangeDetectorRef } from '@angular/core';
 import { CommonModule, Location } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -58,6 +58,7 @@ export class CaseDetailPageComponent implements OnInit {
   private casesService = inject(CasesService);
   private tasksService = inject(TasksService);
   private projectsService = inject(ProjectsService);
+  private cdr = inject(ChangeDetectorRef);
 
   kase = signal<Case | null>(null);
   isLoading = signal(false);
@@ -110,26 +111,48 @@ export class CaseDetailPageComponent implements OnInit {
         this.tasksService.loadTasksByCase(caseId);
         this.loadPriorities(kase.projectId);
         this.loadAssignees(kase.projectId);
+        this.cdr.markForCheck();
       },
       error: (err) => {
         console.error('Failed to load case:', err);
         this.errorMessage.set('Unable to load case details. The case may not exist or you may not have access.');
         this.isLoading.set(false);
+        this.cdr.markForCheck();
       },
     });
   }
 
   private loadPriorities(projectId: string): void {
     this.projectsService.getProjectPriorities(projectId).subscribe({
-      next: (priorities) => this.availablePriorities.set([...priorities].sort((a, b) => a.order - b.order)),
-      error: () => this.availablePriorities.set([]),
+      next: (priorities) => {
+        this.availablePriorities.set([...priorities].sort((a, b) => a.order - b.order));
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.availablePriorities.set([]);
+        this.cdr.markForCheck();
+      },
     });
   }
 
   private loadAssignees(projectId: string): void {
     this.projectsService.getMembers(projectId).subscribe({
-      next: (members) => this.availableAssignees.set(members.map((m) => m.user)),
-      error: () => this.availableAssignees.set([]),
+      next: (members) => {
+        const userList: Array<{ id: string; name: string }> = members.map((m) => ({ id: m.user.id, name: m.user.name }));
+        const currentAssignees = this.kase()?.assignees ?? [];
+        for (const a of currentAssignees) {
+          if (!userList.some((u) => u.id === a.id)) {
+            userList.push({ id: a.id, name: a.name });
+          }
+        }
+        this.availableAssignees.set(userList);
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        const currentAssignees = (this.kase()?.assignees ?? []).map((a) => ({ id: a.id, name: a.name }));
+        this.availableAssignees.set(currentAssignees);
+        this.cdr.markForCheck();
+      },
     });
   }
 
@@ -148,7 +171,28 @@ export class CaseDetailPageComponent implements OnInit {
       category: kase.category ?? '',
       assigneeId: kase.assignees[0]?.id ?? '',
     };
+    if (kase.assignees && kase.assignees.length > 0) {
+      const current = this.availableAssignees();
+      const merged = [...current];
+      for (const a of kase.assignees) {
+        if (!merged.some((u) => u.id === a.id)) {
+          merged.push({ id: a.id, name: a.name });
+        }
+      }
+      this.availableAssignees.set(merged);
+    }
     this.isDirty.set(false);
+    this.cdr.markForCheck();
+  }
+
+  currentAssigneeName(): string {
+    const assigneeId = this.draft.assigneeId;
+    if (!assigneeId) return '';
+    const match = this.availableAssignees().find((u) => u.id === assigneeId);
+    if (match) return match.name;
+    const currentAssignee = this.kase()?.assignees?.find((u) => u.id === assigneeId);
+    if (currentAssignee) return currentAssignee.name;
+    return '';
   }
 
   markDirty(): void {

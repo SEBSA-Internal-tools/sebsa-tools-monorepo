@@ -56,6 +56,7 @@
       [ngModel]="selectedAssigneeId()"
       (ngModelChange)="selectedAssigneeId.set($event); applyFilters()"
       [options]="availableAssignees()"
+      [selectedLabel]="selectedAssigneeName()"
       defaultOptionLabel="All Assignees"
       defaultOptionValue=""
       ariaLabel="Filter by Assignee"

@@ -7,6 +7,7 @@ import {
   OnChanges,
   inject,
   signal,
+  ChangeDetectorRef,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -73,6 +74,7 @@ export class CreateCaseModalComponent implements OnChanges {
 
   private readonly sprintService = inject(SprintService);
   private readonly projectsService = inject(ProjectsService);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   readonly caseTypeOptions = [
     { value: 'EPIC', label: 'Epic' },
@@ -95,6 +97,12 @@ export class CreateCaseModalComponent implements OnChanges {
       value: u.id,
       label: u.name,
     }));
+  }
+
+  currentAssigneeName(): string {
+    if (!this.selectedAssigneeId) return '';
+    const match = this.availableAssignees().find((u) => u.id === this.selectedAssigneeId);
+    return match?.name ?? '';
   }
 
   caseTitle = '';
@@ -150,11 +158,13 @@ export class CreateCaseModalComponent implements OnChanges {
       next: (members) => {
         this.availableAssignees.set(members.map((m) => m.user));
         this.isLoadingUsers.set(false);
+        this.cdr.markForCheck();
       },
       error: () => {
         this.userError.set('Could not load project members.');
         this.availableAssignees.set([]);
         this.isLoadingUsers.set(false);
+        this.cdr.markForCheck();
       },
     });
   }
@@ -167,11 +177,13 @@ export class CreateCaseModalComponent implements OnChanges {
       next: (sprints) => {
         this.availableSprints.set(sprints);
         this.isLoadingSprints.set(false);
+        this.cdr.markForCheck();
       },
       error: () => {
         this.sprintError.set('Could not load sprints.');
         this.availableSprints.set([]);
         this.isLoadingSprints.set(false);
+        this.cdr.markForCheck();
       },
     });
   }
@@ -191,8 +203,12 @@ export class CreateCaseModalComponent implements OnChanges {
         if (mapped.length > 0 && !this.selectedProjectId) {
           this.onProjectSelect(mapped[0].id);
         }
+        this.cdr.markForCheck();
       },
-      error: () => this.availableProjects.set([]),
+      error: () => {
+        this.availableProjects.set([]);
+        this.cdr.markForCheck();
+      },
     });
   }
 
@@ -204,6 +220,7 @@ export class CreateCaseModalComponent implements OnChanges {
       this.loadSprints(projectId);
       this.loadPriorities(projectId);
       this.loadAssignees(projectId);
+      this.cdr.markForCheck();
     }
   }
 
@@ -215,8 +232,12 @@ export class CreateCaseModalComponent implements OnChanges {
         const sorted = [...priorities].sort((a, b) => a.order - b.order);
         this.availablePriorities.set(sorted);
         if (sorted.length > 0) this.selectPriority(sorted[0]);
+        this.cdr.markForCheck();
       },
-      error: () => this.availablePriorities.set([]),
+      error: () => {
+        this.availablePriorities.set([]);
+        this.cdr.markForCheck();
+      },
     });
   }
 
