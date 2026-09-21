@@ -117,6 +117,17 @@
             ></textarea>
           </div>
 
+          @if (kase.jiraDescription) {
+            <div class="section-block">
+              <h3 class="section-heading">
+                <span class="material-symbols-outlined">sync_alt</span>
+                Description from Jira
+                <span class="jira-readonly-hint">{{ kase.jiraIssueKey }} · read-only</span>
+              </h3>
+              <p class="jira-description">{{ kase.jiraDescription }}</p>
+            </div>
+          }
+
           <!-- Tasks -->
           <div class="section-block">
             <h3 class="section-heading">
@@ -240,6 +251,56 @@
               placeholder="Unassigned"
               ariaLabel="Assignee"
             ></app-custom-select>
+          </div>
+
+          <div class="meta-card">
+            <h4 class="meta-heading">
+              <span class="material-symbols-outlined">sync_alt</span>
+              Jira
+            </h4>
+
+            @if (isEditingJiraLink()) {
+              <div class="jira-editor">
+                <input
+                  type="text"
+                  class="jira-key-input"
+                  [(ngModel)]="jiraIssueKeyDraft"
+                  placeholder="e.g. AASL-42"
+                  aria-label="Jira issue key"
+                  (keyup.enter)="saveJiraLink()"
+                />
+                <div class="jira-actions">
+                  <button type="button" class="btn-link" [disabled]="!jiraIssueKeyDraft.trim() || isSavingJiraLink()" (click)="saveJiraLink()">
+                    Link
+                  </button>
+                  <button type="button" class="btn-link muted" (click)="cancelJiraLinkEdit()">Cancel</button>
+                </div>
+              </div>
+            } @else if (kase.jiraIssueKey) {
+              <div class="meta-row">
+                <span class="meta-label">Issue</span>
+                <span class="meta-value jira-key">{{ kase.jiraIssueKey }}</span>
+              </div>
+
+              @if (kase.jiraStatusLabel) {
+                <div class="meta-row">
+                  <span class="meta-label">Jira status</span>
+                  <span class="jira-status-chip">{{ kase.jiraStatusLabel }}</span>
+                </div>
+              }
+
+              @if (kase.jiraSyncedAt) {
+                <p class="jira-synced">Updated {{ formatSyncedAt(kase.jiraSyncedAt) }}</p>
+              }
+
+              <div class="jira-actions">
+                <button type="button" class="btn-link" (click)="startJiraLinkEdit()">Change</button>
+                <button type="button" class="btn-link danger" (click)="unlinkJira()">Unlink</button>
+              </div>
+            } @else {
+              <p class="jira-empty">Not linked to a Jira issue.</p>
+              <button type="button" class="btn-link" (click)="startJiraLinkEdit()">Link an issue</button>
+            }
           </div>
 
           <div class="meta-card">

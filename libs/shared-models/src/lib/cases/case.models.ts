@@ -49,6 +49,14 @@ export interface CaseSummary {
 
 /** Detail-view shape. */
 export interface Case extends CaseSummary {
+  /** Set when a Jira issue is linked to this case. Read-only here — the
+   * integration is one-way, so nothing written in this app reaches Jira. */
+  jiraIssueKey: string | null;
+  /** The linked issue's status name, shown beside our own status because a
+   * Jira workflow rarely lines up with ours. */
+  jiraDescription: string | null;
+  /** When the last change was pulled from Jira. */
+  jiraSyncedAt: string | null;
   startDate: string | null;
   storyPoints: number | null;
   sprint: { id: string; name: string } | null;

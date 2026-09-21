@@ -1,0 +1,83 @@
+<section class="integrations">
+  @if (errorMessage()) {
+    <p class="integration-error">
+      <span class="material-symbols-outlined">error</span>
+      {{ errorMessage() }}
+    </p>
+  }
+
+  <article class="integration-card">
+    <header class="integration-header">
+      <span class="integration-icon" aria-hidden="true">
+        <span class="material-symbols-outlined">sync_alt</span>
+      </span>
+
+      <div class="integration-title-block">
+        <h3 class="integration-title">Jira</h3>
+        <p class="integration-subtitle">
+          Changes flow from Jira into this project. Nothing written here is ever sent back.
+        </p>
+      </div>
+
+      @if (link() && !isEditing()) {
+        <span class="integration-status linked">Connected</span>
+      } @else if (!isEditing()) {
+        <span class="integration-status">Not connected</span>
+      }
+    </header>
+
+    @if (isLoading()) {
+      <p class="integration-status-text">Loading…</p>
+    } @else if (isEditing()) {
+      <div class="integration-editor">
+        <label class="editor-label" for="jira-project-key">Jira project key</label>
+        <input
+          id="jira-project-key"
+          type="text"
+          class="project-key-input"
+          [(ngModel)]="projectKeyDraft"
+          placeholder="e.g. AASL"
+          maxlength="20"
+          (keyup.enter)="save()"
+        />
+        <p class="editor-hint">
+          The prefix on that project's issue keys — the "AASL" in AASL-740.
+        </p>
+
+        <div class="integration-actions">
+          <button type="button" class="btn-inline primary" [disabled]="!projectKeyDraft.trim() || isSaving()" (click)="save()">
+            {{ isSaving() ? 'Checking…' : 'Connect' }}
+          </button>
+          <button type="button" class="btn-inline" (click)="cancelEdit()">Cancel</button>
+        </div>
+      </div>
+    } @else if (link(); as jira) {
+      <dl class="integration-details">
+        <div class="detail-row">
+          <dt>Jira project</dt>
+          <dd class="mono">{{ jira.jiraProjectKey }}</dd>
+        </div>
+        <div class="detail-row">
+          <dt>Linked cases</dt>
+          <dd>{{ jira.linkedCaseCount }}</dd>
+        </div>
+      </dl>
+
+      <p class="editor-hint">
+        Attach an issue to a case from the case itself — its Jira card is in the sidebar.
+      </p>
+
+      <div class="integration-actions">
+        <button type="button" class="btn-inline" (click)="startEdit()">Change</button>
+        <button type="button" class="btn-inline danger" (click)="unlink()">Disconnect</button>
+      </div>
+    } @else {
+      <p class="integration-empty">
+        Connect a Jira project so its issues can be attached to this project's cases.
+      </p>
+      <div class="integration-actions">
+        <button type="button" class="btn-inline primary" (click)="startEdit()">Connect Jira</button>
+      </div>
+    }
+  </article>
+</section>

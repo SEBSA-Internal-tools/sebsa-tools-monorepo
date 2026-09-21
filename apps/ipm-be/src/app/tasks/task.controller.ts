@@ -21,7 +21,6 @@ import { FilterTaskDto } from './dto/filter-task.dto';
 import { AssigneesDto } from './dto/assign-task.dto';
 import { TaskLabelsDto } from './dto/task-label.dto';
 import { CreateTaskDependencyDto } from './dto/create-task-dependency.dto';
-import { JiraSyncService } from '../jira/jira-sync.service';
 
 @ApiTags('tasks')
 @ApiBearerAuth()
@@ -30,17 +29,11 @@ import { JiraSyncService } from '../jira/jira-sync.service';
 export class TaskController {
   constructor(
     private readonly taskService: TaskService,
-    private readonly jiraSync: JiraSyncService,
   ) {}
 
   @Post()
   async create(@CurrentUser() user: AuthUser, @Body() dto: CreateTaskDto) {
-    const task = await this.taskService.create(dto, user);
-    // Awaited so the response reflects the post-sync state, but
-    // pushTaskToJira swallows its own errors — a Jira outage never fails
-    // the user's task creation, it just skips the sync for this call.
-    await this.jiraSync.pushTaskToJira(task.id);
-    return task;
+    return this.taskService.create(dto, user);
   }
 
   @Get()
@@ -77,9 +70,7 @@ export class TaskController {
     @Body() dto: UpdateTaskDto,
     @CurrentUser() user: AuthUser,
   ) {
-    const result = await this.taskService.update(id, dto, user);
-    await this.jiraSync.pushTaskToJira(result.task.id);
-    return result;
+    return this.taskService.update(id, dto, user);
   }
 
   @Delete(':id')

@@ -190,6 +190,7 @@ libs/
 | [docs/authentication.md](docs/authentication.md) | Login, JWT handling, roles and guards |
 | [docs/activity-and-audit-log.md](docs/activity-and-audit-log.md) | Activity feeds and the Super Admin audit trail |
 | [docs/comments.md](docs/comments.md) | Comment threads, replies and mentions |
+| [docs/jira-integration.md](docs/jira-integration.md) | One-way Jira sync and case linking |
 | [docs/security.md](docs/security.md) | Security posture, open gaps, rules for new code |
 | [docs/configuration.md](docs/configuration.md) | Configurable types, statuses and priorities |
 | [docs/frontend-structure.md](docs/frontend-structure.md) | Angular app layout and conventions |

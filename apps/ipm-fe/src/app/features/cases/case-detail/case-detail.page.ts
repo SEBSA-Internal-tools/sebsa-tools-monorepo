@@ -21,6 +21,7 @@ import { CommentSectionComponent } from '../../../core/components/comment-sectio
 import { TaskAttachmentsComponent } from '../../../core/components/task-attachments/task-attachments.component';
 import { CustomSelectComponent } from '../../../core/components/custom-select/custom-select.component';
 import { CustomDatepickerComponent } from '../../../core/components/custom-datepicker/custom-datepicker.component';
+import { ToastService } from '../../../core/services/toast.service';
 
 interface CaseEditDraft {
   title: string;
@@ -56,6 +57,7 @@ export class CaseDetailPageComponent implements OnInit {
   private router = inject(Router);
   private location = inject(Location);
   private casesService = inject(CasesService);
+  private toast = inject(ToastService);
   private tasksService = inject(TasksService);
   private projectsService = inject(ProjectsService);
 
@@ -97,6 +99,65 @@ export class CaseDetailPageComponent implements OnInit {
       }
       this.loadCase(caseId);
     });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Jira link (one-way: Jira -> here)
+  // ---------------------------------------------------------------------------
+
+  readonly isEditingJiraLink = signal(false);
+  readonly isSavingJiraLink = signal(false);
+  jiraIssueKeyDraft = '';
+
+  startJiraLinkEdit(): void {
+    this.jiraIssueKeyDraft = this.kase()?.jiraIssueKey ?? '';
+    this.isEditingJiraLink.set(true);
+  }
+
+  cancelJiraLinkEdit(): void {
+    this.isEditingJiraLink.set(false);
+    this.jiraIssueKeyDraft = '';
+  }
+
+  saveJiraLink(): void {
+    const current = this.kase();
+    const issueKey = this.jiraIssueKeyDraft.trim().toUpperCase();
+    if (!current || !issueKey || this.isSavingJiraLink()) return;
+
+    this.isSavingJiraLink.set(true);
+    this.casesService.linkJiraIssue(current.id, issueKey).subscribe({
+      next: () => {
+        this.toast.success(`Linked to ${issueKey}.`);
+        this.cancelJiraLinkEdit();
+        this.isSavingJiraLink.set(false);
+        this.refreshCase(current.id);
+      },
+      error: (err) => {
+        this.toast.error(err?.error?.message ?? 'Could not link the Jira issue.');
+        this.isSavingJiraLink.set(false);
+      },
+    });
+  }
+
+  unlinkJira(): void {
+    const current = this.kase();
+    if (!current || !window.confirm('Unlink this Jira issue? The synced status and description will be cleared.')) return;
+
+    this.casesService.unlinkJiraIssue(current.id).subscribe({
+      next: () => {
+        this.toast.success('Unlinked from Jira.');
+        this.refreshCase(current.id);
+      },
+      error: (err) => this.toast.error(err?.error?.message ?? 'Could not unlink.'),
+    });
+  }
+
+  private refreshCase(caseId: string): void {
+    this.casesService.getCaseById(caseId).subscribe((kase) => this.kase.set(kase));
+  }
+
+  formatSyncedAt(iso: string | null): string {
+    return iso ? new Date(iso).toLocaleString() : '';
   }
 
   private loadCase(caseId: string): void {

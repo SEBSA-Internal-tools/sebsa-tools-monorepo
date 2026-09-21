@@ -16,16 +16,6 @@ export interface JiraIssue {
   };
 }
 
-export interface JiraStatus {
-  id: string;
-  name: string;
-}
-
-export interface JiraPriority {
-  id: string;
-  name: string;
-}
-
 /**
  * Thin wrapper around the Jira Cloud REST API v3. Scoped API tokens (as
  * opposed to classic all-access tokens) only work when called through the
@@ -37,6 +27,8 @@ export interface JiraPriority {
  */
 @Injectable()
 export class JiraClientService {
+  // Read-only by construction: the integration is one-way (Jira -> here), so
+  // no create/update/transition call exists to be reached by mistake.
   private readonly logger = new Logger(JiraClientService.name);
   private readonly http: AxiosInstance | null;
 
@@ -77,17 +69,6 @@ export class JiraClientService {
     return data;
   }
 
-  async createIssue(
-    projectKey: string,
-    issueTypeName: string,
-    fields: Record<string, unknown>,
-  ): Promise<JiraIssue> {
-    const { data } = await this.client().post<JiraIssue>('/issue', {
-      fields: { project: { key: projectKey }, issuetype: { name: issueTypeName }, ...fields },
-    });
-    return this.getIssue(data.key);
-  }
-
   /** The project's available top-level (non-subtask) issue types — e.g. a
    *  Jira Software project typically has Task/Bug/Story, while a Service
    *  Desk project has request types like "Submit a request or incident"
@@ -98,43 +79,6 @@ export class JiraClientService {
       { params: { expand: 'issueTypes' } },
     );
     return (data.issueTypes ?? []).filter((t) => !t.subtask).map((t) => ({ id: t.id, name: t.name }));
-  }
-
-  async updateIssue(issueKey: string, fields: Record<string, unknown>): Promise<void> {
-    await this.client().put(`/issue/${issueKey}`, { fields });
-  }
-
-  async transitionIssue(issueKey: string, statusName: string): Promise<void> {
-    const { data } = await this.client().get<{ transitions: { id: string; to: { name: string } }[] }>(
-      `/issue/${issueKey}/transitions`,
-    );
-    const match = data.transitions.find((t) => t.to.name.toLowerCase() === statusName.toLowerCase());
-    if (!match) {
-      this.logger.warn(`No Jira transition to status "${statusName}" available for ${issueKey}; skipping.`);
-      return;
-    }
-    await this.client().post(`/issue/${issueKey}/transitions`, { transition: { id: match.id } });
-  }
-
-  /** Distinct statuses actually usable on this project, deduped across issue types. */
-  async getProjectStatuses(projectKey: string): Promise<JiraStatus[]> {
-    const { data } = await this.client().get<{ statuses: JiraStatus[] }[]>(
-      `/project/${projectKey}/statuses`,
-    );
-    const byId = new Map<string, JiraStatus>();
-    for (const issueType of data) {
-      for (const status of issueType.statuses) {
-        byId.set(status.id, { id: status.id, name: status.name });
-      }
-    }
-    return [...byId.values()];
-  }
-
-  /** Jira priorities are site-wide, not per-project, unless a custom priority
-   *  scheme is configured — the full site list is the right proxy here. */
-  async getPriorities(): Promise<JiraPriority[]> {
-    const { data } = await this.client().get<JiraPriority[]>('/priority');
-    return data;
   }
 
   /** JQL search, used by the polling fallback. GET /search was deprecated

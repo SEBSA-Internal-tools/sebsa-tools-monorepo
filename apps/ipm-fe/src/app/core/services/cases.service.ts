@@ -192,6 +192,16 @@ export class CasesService {
     );
   }
 
+  /** One-way: linking pulls the issue's status and description in. Nothing
+   * written here is ever sent to Jira. */
+  linkJiraIssue(caseId: string, issueKey: string): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(`/api/cases/${caseId}/jira/link`, { issueKey });
+  }
+
+  unlinkJiraIssue(caseId: string): Observable<{ message: string }> {
+    return this.http.delete<{ message: string }>(`/api/cases/${caseId}/jira/link`);
+  }
+
   private toCaseView(kase: BackendCase | BackendCaseSummary): CaseView {
     const assignee = kase.assignees?.map((a) => a.name).join(', ') || undefined;
     const assigneeIds = kase.assignees?.map((a) => a.id) || [];
