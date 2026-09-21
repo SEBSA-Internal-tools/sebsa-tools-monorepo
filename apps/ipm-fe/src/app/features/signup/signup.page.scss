@@ -223,7 +223,7 @@
 
 .sign-in-button {
   width: 100%;
-  background-color: #c20e4d;
+  background-color: var(--brand-primary);
   color: white;
   border: none;
   border-radius: 4px;
@@ -235,7 +235,7 @@
   transition: background-color 0.2s;
 
   &:hover {
-    background-color: #a80b41;
+    background-color: var(--brand-primary-hover);
   }
 }
 

@@ -172,9 +172,9 @@
 
   &:focus {
     outline: none;
-    border-color: #3b82f6;
+    border-color: var(--brand-primary);
     background: var(--app-surface);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    box-shadow: 0 0 0 3px var(--app-accent-shadow);
   }
 
   &::placeholder {
@@ -230,7 +230,7 @@
 
 .btn-create {
   padding: 10px 20px;
-  background: #3b82f6;
+  background: var(--brand-primary);
   border: none;
   border-radius: 6px;
   color: white;
@@ -248,8 +248,8 @@
   }
 
   &:hover {
-    background: #2563eb;
+    background: var(--brand-primary-hover);
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    box-shadow: 0 4px 12px var(--app-accent-shadow);
   }
 }

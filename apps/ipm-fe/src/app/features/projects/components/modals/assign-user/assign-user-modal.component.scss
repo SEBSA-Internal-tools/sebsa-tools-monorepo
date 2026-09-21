@@ -158,9 +158,9 @@
 
   &:focus {
     outline: none;
-    border-color: #3b82f6;
+    border-color: var(--brand-primary);
     background: var(--app-surface);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    box-shadow: 0 0 0 3px var(--app-accent-shadow);
   }
 
   &:disabled {
@@ -194,7 +194,7 @@ select.form-input {
 
   .btn-add-user {
     padding: 10px 16px;
-    background: #3b82f6;
+    background: var(--brand-primary);
     border: none;
     border-radius: 6px;
     color: white;
@@ -218,9 +218,9 @@ select.form-input {
     }
 
     &:hover:not(:disabled) {
-      background: #2563eb;
+      background: var(--brand-primary-hover);
       transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+      box-shadow: 0 4px 12px var(--app-accent-shadow);
     }
 
     &:disabled {
@@ -320,7 +320,7 @@ select.form-input {
 
   &:hover {
     background: var(--app-hover);
-    border-color: #3b82f6;
+    border-color: var(--brand-primary);
   }
 
   .user-avatar {
@@ -448,7 +448,7 @@ select.form-input {
 
 .btn-assign {
   padding: 10px 20px;
-  background: #10b981;
+  background: var(--brand-primary);
   border: none;
   border-radius: 6px;
   color: white;
@@ -466,9 +466,9 @@ select.form-input {
   }
 
   &:hover:not(:disabled) {
-    background: #059669;
+    background: var(--brand-primary-hover);
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    box-shadow: 0 4px 12px var(--app-accent-shadow);
   }
 
   &:disabled {
