@@ -5,6 +5,7 @@ import { CommentSummary, CommentTargetType } from '@sebsa-pm-tool/shared-models'
 import { CommentsService } from '../../services/comments.service';
 import { AttachmentsService } from '../../services/attachments.service';
 import { ToastService } from '../../services/toast.service';
+import { AuthService } from '../../services/auth.service';
 import { UserAvatarComponent } from '../user-avatar/user-avatar.component';
 
 /** Matches the server-side cap in CreateCommentDto. */
@@ -12,6 +13,9 @@ const BODY_MAX_LENGTH = 5000;
 
 /** Keeps the autocomplete list short enough to scan without scrolling. */
 const MENTION_RESULT_LIMIT = 6;
+const MENTION_ALL_ID = '__all__';
+
+type MentionContext = 'new' | 'reply' | 'edit';
 
 /** Minimal shape needed to offer someone as a mention. */
 export interface MentionableUser {
@@ -41,6 +45,7 @@ export class CommentSectionComponent implements OnChanges {
   private readonly comments = inject(CommentsService);
   private readonly attachments = inject(AttachmentsService);
   private readonly toast = inject(ToastService);
+  private readonly auth = inject(AuthService);
 
   protected readonly thread = signal<CommentSummary[]>([]);
   protected readonly isLoading = signal(false);
@@ -55,9 +60,13 @@ export class CommentSectionComponent implements OnChanges {
    * counts as a mention while its "@Name" is still in the text, so deleting the
    * text removes the mention without any extra bookkeeping. */
   private readonly insertedMentions = new Map<string, string>();
+  private readonly replyInsertedMentions = new Map<string, string>();
+  private readonly editInsertedMentions = new Map<string, string>();
+  private readonly editAllMentionIds = new Set<string>();
 
   protected readonly mentionMatches = signal<MentionableUser[]>([]);
   protected readonly mentionHighlight = signal(0);
+  protected readonly mentionContext = signal<MentionContext | null>(null);
   private mentionStart = -1;
   private caretPosition = 0;
 
@@ -101,13 +110,14 @@ export class CommentSectionComponent implements OnChanges {
   protected post(): void {
     const body = this.newBody.trim();
     if (!body || this.isSaving()) return;
+    const mentionedUserIds = this.activeMentionIds();
 
     this.isSaving.set(true);
     this.comments
       .create({
         ...(this.targetType === 'CASE' ? { caseId: this.targetId } : { taskId: this.targetId }),
         body,
-        ...(this.activeMentionIds().length > 0 && { mentionedUserIds: this.activeMentionIds() }),
+        ...(mentionedUserIds.length > 0 && { mentionedUserIds }),
       })
       .subscribe({
         next: (comment) => {
@@ -163,17 +173,22 @@ export class CommentSectionComponent implements OnChanges {
   protected startReply(commentId: string): void {
     this.replyingTo.set(commentId);
     this.replyBody = '';
+    this.replyInsertedMentions.clear();
+    this.closeMentions();
     this.editingId.set(null);
   }
 
   protected cancelReply(): void {
     this.replyingTo.set(null);
     this.replyBody = '';
+    this.replyInsertedMentions.clear();
+    this.closeMentions();
   }
 
   protected postReply(parentCommentId: string): void {
     const body = this.replyBody.trim();
     if (!body || this.isSaving()) return;
+    const mentionedUserIds = this.activeMentionIds('reply');
 
     this.isSaving.set(true);
     this.comments
@@ -181,6 +196,7 @@ export class CommentSectionComponent implements OnChanges {
         ...(this.targetType === 'CASE' ? { caseId: this.targetId } : { taskId: this.targetId }),
         parentCommentId,
         body,
+        ...(mentionedUserIds.length > 0 && { mentionedUserIds }),
       })
       .subscribe({
         next: () => {
@@ -198,12 +214,26 @@ export class CommentSectionComponent implements OnChanges {
   protected startEdit(comment: CommentSummary): void {
     this.editingId.set(comment.id);
     this.editBody = comment.body;
+    this.editInsertedMentions.clear();
+    this.editAllMentionIds.clear();
+    if (comment.mentions.length > 0 && this.hasMention(comment.body, 'All')) {
+      this.editInsertedMentions.set(MENTION_ALL_ID, 'All');
+      comment.mentions.forEach((mention) => this.editAllMentionIds.add(mention.id));
+    } else {
+      comment.mentions.forEach((mention) =>
+        this.editInsertedMentions.set(mention.id, mention.name),
+      );
+    }
+    this.closeMentions();
     this.replyingTo.set(null);
   }
 
   protected cancelEdit(): void {
     this.editingId.set(null);
     this.editBody = '';
+    this.editInsertedMentions.clear();
+    this.editAllMentionIds.clear();
+    this.closeMentions();
   }
 
   protected saveEdit(commentId: string): void {
@@ -211,7 +241,10 @@ export class CommentSectionComponent implements OnChanges {
     if (!body || this.isSaving()) return;
 
     this.isSaving.set(true);
-    this.comments.update(commentId, { body }).subscribe({
+    this.comments.update(commentId, {
+      body,
+      mentionedUserIds: this.activeMentionIds('edit'),
+    }).subscribe({
       next: () => {
         this.cancelEdit();
         this.isSaving.set(false);
@@ -240,27 +273,53 @@ export class CommentSectionComponent implements OnChanges {
   // @-mention autocomplete
   // ---------------------------------------------------------------------------
 
-  /** Ids whose "@Name" still appears in the draft. The server re-validates that
-   * each one is a member of the project. */
-  protected activeMentionIds(): string[] {
-    return [...this.insertedMentions.entries()]
-      .filter(([, name]) => this.newBody.includes(`@${name}`))
-      .map(([id]) => id);
+  /** Ids whose "@Name" still appears in the selected draft. `@All` expands to
+   * every mentionable project member except the signed-in user. The server
+   * still validates every id against active project membership. */
+  protected activeMentionIds(context: MentionContext = 'new'): string[] {
+    const draft = this.draftFor(context);
+    const inserted = this.mentionsFor(context);
+    const currentUserId = this.auth.currentUser()?.id;
+    const ids = [...inserted.entries()]
+      .filter(([id, name]) => id !== MENTION_ALL_ID && this.hasMention(draft, name))
+      .map(([id]) => id)
+      .filter((id) => id !== currentUserId);
+
+    if (inserted.has(MENTION_ALL_ID) && this.hasMention(draft, 'All')) {
+      if (context === 'edit') {
+        ids.push(...this.editAllMentionIds);
+      }
+      ids.push(
+        ...this.mentionableUsers
+          .filter((user) => user.id !== currentUserId)
+          .map((user) => user.id),
+      );
+    }
+
+    return [...new Set(ids)];
   }
 
-  protected activeMentionNames(): string[] {
-    return this.activeMentionIds().map((id) => this.insertedMentions.get(id) ?? '');
+  protected activeMentionNames(context: MentionContext = 'new'): string[] {
+    const draft = this.draftFor(context);
+    return [...this.mentionsFor(context).entries()]
+      .filter(([, name]) => this.hasMention(draft, name))
+      .map(([, name]) => name);
   }
 
-  protected onBodyInput(textarea: HTMLTextAreaElement): void {
-    this.caretPosition = textarea.selectionStart ?? this.newBody.length;
-    this.refreshMentionMatches();
+  protected onMentionInput(context: MentionContext, textarea: HTMLTextAreaElement): void {
+    this.mentionContext.set(context);
+    this.caretPosition = textarea.selectionStart ?? this.draftFor(context).length;
+    this.refreshMentionMatches(context);
   }
 
   /** Arrow keys and Enter drive the list while it is open; otherwise the
    * textarea behaves normally. */
-  protected onBodyKeydown(event: KeyboardEvent, textarea: HTMLTextAreaElement): void {
-    if (this.mentionMatches().length === 0) return;
+  protected onMentionKeydown(
+    event: KeyboardEvent,
+    context: MentionContext,
+    textarea: HTMLTextAreaElement,
+  ): void {
+    if (this.mentionContext() !== context || this.mentionMatches().length === 0) return;
 
     switch (event.key) {
       case 'ArrowDown':
@@ -278,7 +337,7 @@ export class CommentSectionComponent implements OnChanges {
         const choice = this.mentionMatches()[this.mentionHighlight()];
         if (choice) {
           event.preventDefault();
-          this.selectMention(choice, textarea);
+          this.selectMention(choice, context, textarea);
         }
         return;
       }
@@ -289,15 +348,20 @@ export class CommentSectionComponent implements OnChanges {
     }
   }
 
-  protected selectMention(user: MentionableUser, textarea: HTMLTextAreaElement): void {
-    if (this.mentionStart < 0) return;
+  protected selectMention(
+    user: MentionableUser,
+    context: MentionContext,
+    textarea: HTMLTextAreaElement,
+  ): void {
+    if (this.mentionStart < 0 || this.mentionContext() !== context) return;
 
-    const before = this.newBody.slice(0, this.mentionStart);
-    const after = this.newBody.slice(this.caretPosition);
+    const draft = this.draftFor(context);
+    const before = draft.slice(0, this.mentionStart);
+    const after = draft.slice(this.caretPosition);
     const inserted = `@${user.name} `;
 
-    this.newBody = `${before}${inserted}${after}`;
-    this.insertedMentions.set(user.id, user.name);
+    this.setDraft(context, `${before}${inserted}${after}`);
+    this.mentionsFor(context).set(user.id, user.name);
     this.closeMentions();
 
     // Put the caret straight after the inserted name so typing continues there.
@@ -310,8 +374,8 @@ export class CommentSectionComponent implements OnChanges {
 
   /** An "@" starts a mention only at the beginning of the text or after
    * whitespace, so an email address never opens the list. */
-  private refreshMentionMatches(): void {
-    const upToCaret = this.newBody.slice(0, this.caretPosition);
+  private refreshMentionMatches(context: MentionContext): void {
+    const upToCaret = this.draftFor(context).slice(0, this.caretPosition);
     const match = /(?:^|\s)@([^\s@]*)$/.exec(upToCaret);
 
     if (!match) {
@@ -322,7 +386,14 @@ export class CommentSectionComponent implements OnChanges {
     const query = match[1].toLowerCase();
     this.mentionStart = this.caretPosition - match[1].length - 1;
 
-    const matches = this.mentionableUsers
+    const currentUserId = this.auth.currentUser()?.id;
+    const eligibleUsers = this.mentionableUsers.filter(
+      (user) => user.id !== currentUserId,
+    );
+    const candidates: MentionableUser[] = eligibleUsers.length > 0
+      ? [{ id: MENTION_ALL_ID, name: 'All' }, ...eligibleUsers]
+      : [];
+    const matches = candidates
       .filter((user) => user.name.toLowerCase().includes(query))
       .slice(0, MENTION_RESULT_LIMIT);
 
@@ -333,7 +404,39 @@ export class CommentSectionComponent implements OnChanges {
   protected closeMentions(): void {
     this.mentionMatches.set([]);
     this.mentionHighlight.set(0);
+    this.mentionContext.set(null);
     this.mentionStart = -1;
+  }
+
+  protected usesAllMention(comment: CommentSummary): boolean {
+    return comment.mentions.length > 0 && this.hasMention(comment.body, 'All');
+  }
+
+  private hasMention(body: string, name: string): boolean {
+    const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`(?:^|\\s)@${escapedName}(?=$|\\s|[.,!?;:])`).test(body);
+  }
+
+  private mentionsFor(context: MentionContext): Map<string, string> {
+    if (context === 'reply') return this.replyInsertedMentions;
+    if (context === 'edit') return this.editInsertedMentions;
+    return this.insertedMentions;
+  }
+
+  private draftFor(context: MentionContext): string {
+    if (context === 'reply') return this.replyBody;
+    if (context === 'edit') return this.editBody;
+    return this.newBody;
+  }
+
+  private setDraft(context: MentionContext, value: string): void {
+    if (context === 'reply') {
+      this.replyBody = value;
+    } else if (context === 'edit') {
+      this.editBody = value;
+    } else {
+      this.newBody = value;
+    }
   }
 
   protected initials(name: string): string {
@@ -455,6 +558,9 @@ export class CommentSectionComponent implements OnChanges {
   private resetComposers(): void {
     this.newBody = '';
     this.insertedMentions.clear();
+    this.replyInsertedMentions.clear();
+    this.editInsertedMentions.clear();
+    this.editAllMentionIds.clear();
     this.closeMentions();
     this.replyBody = '';
     this.editBody = '';

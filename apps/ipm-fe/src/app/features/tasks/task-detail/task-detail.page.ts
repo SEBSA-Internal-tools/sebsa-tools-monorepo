@@ -91,6 +91,7 @@ export class TaskDetailPageComponent implements OnInit {
   };
   availablePriorities = signal<Array<{ id: string; name: string; color: string | null; order: number }>>([]);
   availableAssignees = signal<Array<{ id: string; name: string }>>([]);
+  projectMembers = signal<Array<{ id: string; name: string }>>([]);
   availableTaskTypes = signal<TaskType[]>([]);
   private readonly complexityLevels = signal<TaskComplexityLevel[]>([]);
 
@@ -169,6 +170,7 @@ export class TaskDetailPageComponent implements OnInit {
     this.projectsService.getMembers(projectId).subscribe({
       next: (members) => {
         const userList: Array<{ id: string; name: string }> = members.map((m) => ({ id: m.user.id, name: m.user.name }));
+        this.projectMembers.set([...userList]);
         const currentAssignees = this.task()?.assignees ?? [];
         for (const a of currentAssignees) {
           if (!userList.some((u) => u.id === a.id)) {
@@ -179,6 +181,7 @@ export class TaskDetailPageComponent implements OnInit {
         this.cdr.markForCheck();
       },
       error: () => {
+        this.projectMembers.set([]);
         const currentAssignees = (this.task()?.assignees ?? []).map((a) => ({ id: a.id, name: a.name }));
         this.availableAssignees.set(currentAssignees);
         this.cdr.markForCheck();
