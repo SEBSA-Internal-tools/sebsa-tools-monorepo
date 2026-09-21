@@ -28,7 +28,7 @@ import { userKeys } from '@/portals/code-review/hooks/useUsers.ts';
  * people too, so neither feature owns it. Re-exported here so admin screens
  * import their reads and writes from one place.
  */
-export { useUsers, userKeys } from '@/portals/code-review/hooks/useUsers.ts';
+export { useReplaceUserRoles, useUsers, userKeys } from '@/portals/code-review/hooks/useUsers.ts';
 
 export function useCreateUser() {
   const queryClient = useQueryClient();
@@ -45,7 +45,7 @@ export function useUpdateUser() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ userId, input }: { userId: string; input: UpdateUserInput }) =>
+    mutationFn: ({ userId, input }: { userId: string; input: Omit<UpdateUserInput, 'roles'> }) =>
       api.patch(`/users/${userId}`, userSchema, input),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: userKeys.all });

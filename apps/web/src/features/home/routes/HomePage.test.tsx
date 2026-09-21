@@ -39,6 +39,15 @@ describe('HomePage workspace gating (spec FL 2.1-02)', () => {
     expect(screen.getByRole('heading', { name: 'Admin' })).toBeInTheDocument();
   });
 
+  it('shows the existing Admin portal for a Super Admin', async () => {
+    renderWithProviders(<HomePage user={makeUser(['Super Admin'])} />);
+
+    expect(await screen.findByRole('heading', { name: 'Admin' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Developer' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Reviewer' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Super Admin' })).not.toBeInTheDocument();
+  });
+
   it('tells a user with no roles to contact an administrator', async () => {
     renderWithProviders(<HomePage user={makeUser([])} />);
 

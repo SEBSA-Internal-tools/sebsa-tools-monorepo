@@ -8,13 +8,11 @@ import {
 import { ChecklistStatus, Prisma, TaskStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { rethrowPrismaConflict } from '../common/prisma-errors.js';
-import type {
-  ChecklistAnswerDto,
-  CreateReviewTaskDto,
-} from './dto/create-review-task.dto.js';
+import type { ChecklistAnswerDto, CreateReviewTaskDto } from './dto/create-review-task.dto.js';
 import type { UpdateReviewTaskDto } from './dto/update-review-task.dto.js';
 import type { AuthenticatedUser } from '../auth/auth.types.js';
 import { formatTaskCode } from './task-code.js';
+import type { ReviewTaskScope } from './dto/review-task-query.dto.js';
 
 const taskInclude = {
   customer: true,
@@ -30,32 +28,22 @@ const taskInclude = {
       },
     },
   },
+  codeReviewForms: { select: { reviewerId: true, decision: true } },
 } satisfies Prisma.TaskInclude;
 
 type TaskWithRelations = Prisma.TaskGetPayload<{ include: typeof taskInclude }>;
+
+function hasAdminAccess(user: AuthenticatedUser): boolean {
+  return user.roles.includes('ADMIN') || user.roles.includes('SUPER_ADMIN');
+}
 
 @Injectable()
 export class ReviewTasksService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findAll(user: AuthenticatedUser) {
-    const isAdmin = user.roles.includes('ADMIN');
-    const canDevelop = user.roles.includes('DEVELOPER');
-    const canReview = user.roles.includes('REVIEWER');
+  async findAll(user: AuthenticatedUser, scope: ReviewTaskScope = 'mine') {
     const tasks = await this.prisma.task.findMany({
-      ...(isAdmin
-        ? {}
-        : { where: {
-            OR: [
-              ...(canDevelop ? [{ developerId: user.id }] : []),
-              ...(canReview
-                ? [
-                    { currentReviewerId: user.id },
-                    { status: TaskStatus.SUBMITTED, developerId: { not: user.id } },
-                  ]
-                : []),
-            ],
-          } }),
+      where: this.listWhere(user, scope),
       include: taskInclude,
       orderBy: { createdAt: 'desc' },
     });
@@ -68,11 +56,15 @@ export class ReviewTasksService {
   async findOne(id: string, user: AuthenticatedUser) {
     const task = await this.getTask(id);
     const mayRead =
-      user.roles.includes('ADMIN') ||
+      hasAdminAccess(user) ||
       (user.roles.includes('DEVELOPER') && task.developerId === user.id) ||
       (user.roles.includes('REVIEWER') &&
+        task.status !== TaskStatus.DRAFT &&
+        task.developerId !== user.id &&
         (task.currentReviewerId === user.id ||
-          (task.status === TaskStatus.SUBMITTED && task.developerId !== user.id)));
+          task.status === TaskStatus.SUBMITTED ||
+          task.status === TaskStatus.RESUBMITTED ||
+          task.codeReviewForms.some(({ reviewerId }) => reviewerId === user.id)));
     if (!mayRead) throw new ForbiddenException('You cannot access this review task');
     return this.toResponse(task);
   }
@@ -93,16 +85,10 @@ export class ReviewTasksService {
           async (tx) => {
             const [customer, developer] = await Promise.all([
               tx.customer.findUnique({ where: { id: dto.customerId } }),
-              tx.user.findUnique({ where: { id: developerId } }),
+              tx.user.findFirst({ where: { id: developerId, deletedAt: null } }),
             ]);
-            if (!customer)
-              throw new NotFoundException(
-                `Customer ${dto.customerId} was not found`,
-              );
-            if (!developer)
-              throw new NotFoundException(
-                `Developer ${developerId} was not found`,
-              );
+            if (!customer) throw new NotFoundException(`Customer ${dto.customerId} was not found`);
+            if (!developer) throw new NotFoundException(`Developer ${developerId} was not found`);
 
             const hasChecklist = this.hasChecklistPayload(dto);
             const checklistCompleted = hasChecklist
@@ -174,14 +160,12 @@ export class ReviewTasksService {
         rethrowPrismaConflict(error);
       }
     }
-    throw new ConflictException(
-      'Could not allocate a task number; please retry',
-    );
+    throw new ConflictException('Could not allocate a task number; please retry');
   }
 
   async update(id: string, dto: UpdateReviewTaskDto, user: AuthenticatedUser) {
     const authorisedTask = await this.getTask(id);
-    if (!user.roles.includes('ADMIN') && authorisedTask.developerId !== user.id) {
+    if (!hasAdminAccess(user) && authorisedTask.developerId !== user.id) {
       throw new ForbiddenException('You cannot update this review task');
     }
     try {
@@ -195,8 +179,7 @@ export class ReviewTasksService {
               customer: true,
             },
           });
-          if (!existing)
-            throw new NotFoundException(`Review task ${id} was not found`);
+          if (!existing) throw new NotFoundException(`Review task ${id} was not found`);
 
           const hasChecklist = this.hasChecklistPayload(dto);
           const checklistCompleted = hasChecklist
@@ -213,10 +196,7 @@ export class ReviewTasksService {
             const customer = await tx.customer.findUnique({
               where: { id: dto.customerId },
             });
-            if (!customer)
-              throw new NotFoundException(
-                `Customer ${dto.customerId} was not found`,
-              );
+            if (!customer) throw new NotFoundException(`Customer ${dto.customerId} was not found`);
             const aggregate = await tx.task.aggregate({
               where: { customerId: dto.customerId },
               _max: { customerSequenceNo: true },
@@ -227,8 +207,7 @@ export class ReviewTasksService {
             taskCode = formatTaskCode(customer.name, customerSequenceNo);
           }
 
-          if (hasChecklist)
-            await tx.taskTaskType.deleteMany({ where: { taskId: id } });
+          if (hasChecklist) await tx.taskTaskType.deleteMany({ where: { taskId: id } });
           if (hasChecklist && dto.taskTypeIds!.length > 0)
             await tx.taskTaskType.createMany({
               data: dto.taskTypeIds!.map((taskTypeId) => ({
@@ -288,9 +267,7 @@ export class ReviewTasksService {
                 dto.version === undefined ? existing.version : dto.version,
               ),
               crimId,
-              ...(dto.version === undefined
-                ? {}
-                : { version: dto.version?.trim() ?? null }),
+              ...(dto.version === undefined ? {} : { version: dto.version?.trim() ?? null }),
               ...(dto.priority === undefined ? {} : { priority: dto.priority }),
               developerId,
               ...(hasChecklist ? { checklistCompleted } : {}),
@@ -313,8 +290,7 @@ export class ReviewTasksService {
           where: { id },
           include: { developerChecklist: true },
         });
-        if (!task)
-          throw new NotFoundException(`Review task ${id} was not found`);
+        if (!task) throw new NotFoundException(`Review task ${id} was not found`);
         if (task.developerChecklist) {
           await tx.checklistAnswer.deleteMany({
             where: { checklistId: task.developerChecklist.id },
@@ -334,7 +310,7 @@ export class ReviewTasksService {
 
   async submit(id: string, user: AuthenticatedUser) {
     const task = await this.getTask(id);
-    if (!user.roles.includes('ADMIN') && task.developerId !== user.id) {
+    if (!hasAdminAccess(user) && task.developerId !== user.id) {
       throw new ForbiddenException('You cannot submit this review task');
     }
     if (task.status !== TaskStatus.DRAFT) {
@@ -368,13 +344,52 @@ export class ReviewTasksService {
     return this.toResponse(submitted);
   }
 
+  private listWhere(user: AuthenticatedUser, scope: ReviewTaskScope): Prisma.TaskWhereInput {
+    if (scope === 'all') {
+      if (!hasAdminAccess(user)) {
+        throw new ForbiddenException('Only administrators may view all review tasks');
+      }
+      return {};
+    }
+
+    if (scope === 'mine') {
+      if (!user.roles.includes('DEVELOPER')) {
+        throw new ForbiddenException('Only developers may view their task list');
+      }
+      return { developerId: user.id };
+    }
+
+    if (!user.roles.includes('REVIEWER')) {
+      throw new ForbiddenException('Only reviewers may view reviewer task lists');
+    }
+
+    if (scope === 'available') {
+      return {
+        developerId: { not: user.id },
+        currentReviewerId: null,
+        status: { in: [TaskStatus.SUBMITTED, TaskStatus.RESUBMITTED] },
+      };
+    }
+    if (scope === 'assigned') {
+      return {
+        developerId: { not: user.id },
+        currentReviewerId: user.id,
+        status: TaskStatus.IN_REVIEW,
+      };
+    }
+    return {
+      developerId: { not: user.id },
+      status: { not: TaskStatus.DRAFT },
+      codeReviewForms: { some: { reviewerId: user.id, decision: { not: null } } },
+      NOT: { currentReviewerId: user.id, status: TaskStatus.IN_REVIEW },
+    };
+  }
+
   private hasChecklistPayload(dto: UpdateReviewTaskDto): boolean {
     const hasTaskTypes = dto.taskTypeIds !== undefined;
     const hasAnswers = dto.checklistAnswers !== undefined;
     if (hasTaskTypes !== hasAnswers) {
-      throw new BadRequestException(
-        'taskTypeIds and checklistAnswers must be provided together',
-      );
+      throw new BadRequestException('taskTypeIds and checklistAnswers must be provided together');
     }
     return hasTaskTypes;
   }
@@ -441,9 +456,7 @@ export class ReviewTasksService {
       select: { id: true },
     });
     if (taskTypes.length !== taskTypeIds.length)
-      throw new BadRequestException(
-        'All taskTypeIds must identify active task types',
-      );
+      throw new BadRequestException('All taskTypeIds must identify active task types');
 
     const duplicateIds = answers
       .map(({ questionId }) => questionId)

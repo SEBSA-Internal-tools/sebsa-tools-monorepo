@@ -31,13 +31,14 @@ export const ROUTES = {
     checklist: routePaths.crp.admin.checklist,
     handovers: routePaths.crp.admin.handovers,
     reports: routePaths.crp.admin.reports,
+    roles: routePaths.crp.admin.roles,
   },
 } as const;
 
 export const WORKSPACE_ACCESS = {
   developer: ['Developer'],
   reviewer: ['Reviewer'],
-  admin: ['Admin'],
+  admin: ['Admin', 'Super Admin'],
 } as const satisfies Record<string, readonly Role[]>;
 
 export type WorkspaceKey = keyof typeof WORKSPACE_ACCESS;

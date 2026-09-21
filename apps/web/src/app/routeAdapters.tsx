@@ -49,5 +49,6 @@ export function LoginRoute() {
 }
 
 export function HomeRoute() {
-  return <HomePage user={useSessionUser()} />;
+  const user = useSessionUser();
+  return <HomePage user={user} />;
 }

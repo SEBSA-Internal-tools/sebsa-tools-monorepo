@@ -8,7 +8,8 @@
       "customers": "Customers",
       "checklist": "Quality Checklist",
       "handovers": "Handovers",
-      "reports": "Reports"
+      "reports": "Reports",
+      "roles": "Role Granting"
     }
   },
   "kpis": {
@@ -122,10 +123,32 @@
     },
     "delete": {
       "title": "Delete this user?",
-      "description": "{name} will be permanently removed. This is only possible for a user with no tasks or reviews.",
+      "description": "{name} will be removed from normal user lists and will no longer be able to sign in. Their database record and history will be kept.",
       "confirm": "Delete User",
       "success": "{name} deleted."
     }
+  },
+  "roleGranting": {
+    "title": "Role Granting",
+    "caption": "Grant or revoke roles on existing user accounts",
+    "noun": "users",
+    "searchLabel": "Search users",
+    "searchPlaceholder": "Search users…",
+    "emptyTitle": "No users available",
+    "emptyHint": "Create a user before granting roles.",
+    "columns": {
+      "name": "Name",
+      "email": "Email",
+      "roles": "Current Roles"
+    },
+    "edit": "Change roles for {name}",
+    "dialogTitle": "Grant or Revoke Roles",
+    "dialogDescription": "Update the roles assigned to {name}. The existing account is retained.",
+    "rolesLabel": "Available roles",
+    "required": "Select at least one role",
+    "save": "Save Roles",
+    "saving": "Saving…",
+    "updated": "Roles updated for {name}."
   },
   "checklist": {
     "title": "Quality Checklist",

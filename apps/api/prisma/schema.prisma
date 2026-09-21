@@ -145,6 +145,7 @@ model User {
   lastLoginAt              DateTime?                  @map("last_login_at") @db.Timestamptz(6)
   createdAt                DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt                DateTime?                  @map("deleted_at") @db.Timestamptz(6)
   userRoles                UserRole[]                 @relation("UserRoleUser")
   rolesGranted             UserRole[]                 @relation("UserRoleGrantor")
   customersCreated         Customer[]                 @relation("CustomerCreator")
@@ -166,6 +167,7 @@ model User {
   auditLogs                AuditLog[]                 @relation("AuditLogUser")
   refreshSessions          RefreshSession[]
 
+  @@index([deletedAt])
   @@map("users")
 }
 
@@ -191,8 +193,10 @@ model Role {
   code        String     @unique @db.VarChar(30)
   name        String     @db.VarChar(100)
   description String?    @db.Text
+  deletedAt   DateTime?  @map("deleted_at") @db.Timestamptz(6)
   userRoles   UserRole[]
 
+  @@index([deletedAt])
   @@map("roles")
 }
 
@@ -575,4 +579,3 @@ model AuditLog {
   @@index([entityType, entityId])
   @@map("audit_logs")
 }
-

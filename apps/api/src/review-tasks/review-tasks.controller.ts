@@ -9,6 +9,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import {
   ApiCreatedResponse,
@@ -22,13 +23,17 @@ import { ReviewTasksService } from './review-tasks.service.js';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
 import type { AuthenticatedUser } from '../auth/auth.types.js';
+import { ReviewTaskQueryDto } from './dto/review-task-query.dto.js';
 
 @ApiTags('Review Tasks')
 @Controller(['review-tasks', 'tasks'])
 export class ReviewTasksController {
   constructor(private readonly tasks: ReviewTasksService) {}
-  @Get() @ApiOkResponse() findAll(@CurrentUser() user: AuthenticatedUser) {
-    return this.tasks.findAll(user);
+  @Get() @ApiOkResponse() findAll(
+    @Query() query: ReviewTaskQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.tasks.findAll(user, query.scope ?? 'mine');
   }
   @Get(':id') @ApiOkResponse() findOne(
     @Param('id', ParseUUIDPipe) id: string,

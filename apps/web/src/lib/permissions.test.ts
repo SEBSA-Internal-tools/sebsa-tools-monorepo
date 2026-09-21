@@ -6,6 +6,7 @@ const DEVELOPER: Role[] = ['Developer'];
 const REVIEWER: Role[] = ['Reviewer'];
 const ADMIN: Role[] = ['Admin'];
 const MULTI: Role[] = ['Developer', 'Reviewer', 'Admin'];
+const SUPER_ADMIN: Role[] = ['Super Admin'];
 
 describe('canAccessWorkspace', () => {
   it('grants a developer only the developer workspace', () => {
@@ -25,6 +26,12 @@ describe('canAccessWorkspace', () => {
     expect(canAccessWorkspace(ADMIN, 'developer')).toBe(false);
     expect(canAccessWorkspace(ADMIN, 'reviewer')).toBe(false);
   });
+
+  it('grants a Super Admin the existing Admin workspace', () => {
+    expect(canAccessWorkspace(SUPER_ADMIN, 'developer')).toBe(false);
+    expect(canAccessWorkspace(SUPER_ADMIN, 'reviewer')).toBe(false);
+    expect(canAccessWorkspace(SUPER_ADMIN, 'admin')).toBe(true);
+  });
 });
 
 describe('accessibleWorkspaces', () => {
@@ -42,6 +49,10 @@ describe('accessibleWorkspaces', () => {
 
   it('returns nothing for a user with no roles', () => {
     expect(accessibleWorkspaces([])).toEqual([]);
+  });
+
+  it('includes the Admin workspace for Super Admin', () => {
+    expect(accessibleWorkspaces(['Super Admin'])).toEqual(['admin']);
   });
 });
 

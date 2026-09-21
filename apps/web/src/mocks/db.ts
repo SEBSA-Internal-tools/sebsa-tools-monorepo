@@ -67,6 +67,7 @@ type StoredNotification = Notification & { userId: string };
 
 interface Database {
   users: User[];
+  deletedUserIds: Set<string>;
   customers: Customer[];
   tasks: Task[];
   notifications: StoredNotification[];
@@ -130,6 +131,7 @@ function buildDatabase(): Database {
 
   return {
     users: seededUsers.map((u) => ({ ...u })),
+    deletedUserIds: new Set<string>(),
     // Cloned so runtime mutations cannot write back into the module-level copy
     // that `withDerivedFields` reads, which would break `resetDb()`.
     customers: seededCustomers.map((c) => ({ ...c })),
@@ -382,6 +384,7 @@ export const db: Database = buildDatabase();
 export function resetDb(): void {
   const fresh = buildDatabase();
   db.users = fresh.users;
+  db.deletedUserIds = fresh.deletedUserIds;
   db.customers = fresh.customers;
   db.tasks = fresh.tasks;
   db.notifications = fresh.notifications;
@@ -449,7 +452,11 @@ export function issueTaskCode(customerId: string): string {
   const customer = findCustomer(customerId);
   const next = (db.sequences[customerId] ?? 0) + 1;
   db.sequences[customerId] = next;
-  const normalized = customer?.name.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '') ?? '';
+  const normalized =
+    customer?.name
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, '') ?? '';
   const prefix = normalized === '' ? 'TASK' : normalized;
   return `${prefix}-${String(next).padStart(2, '0')}`;
 }

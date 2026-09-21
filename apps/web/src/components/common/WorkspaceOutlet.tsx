@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useOutletContext } from 'react-router-dom';
 import { Skeleton } from '@/components/common/Skeleton.tsx';
 import common from '@/content/common.json';
 
@@ -17,9 +17,11 @@ import common from '@/content/common.json';
  * not collapse the page to a thin strip and bounce the scroll position.
  */
 export function WorkspaceOutlet() {
+  const context = useOutletContext();
+
   return (
     <Suspense fallback={<PanelSkeleton />}>
-      <Outlet />
+      <Outlet context={context} />
     </Suspense>
   );
 }

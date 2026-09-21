@@ -6,13 +6,27 @@ export const CSRF_HEADER = 'x-csrf-token';
 export const PUBLIC_ROUTE = Symbol('public-route');
 export const REQUIRED_ROLES = Symbol('required-roles');
 
-export const ROLE_CODES = ['DEVELOPER', 'REVIEWER', 'ADMIN'] as const;
+export const ROLE_CODES = ['DEVELOPER', 'REVIEWER', 'ADMIN', 'SUPER_ADMIN'] as const;
 export type RoleCode = (typeof ROLE_CODES)[number];
 
-export const ROLE_LABELS: Record<RoleCode, 'Developer' | 'Reviewer' | 'Admin'> = {
+export function isRoleCode(value: string): value is RoleCode {
+  return (ROLE_CODES as readonly string[]).includes(value);
+}
+
+export type RoleLabel = 'Developer' | 'Reviewer' | 'Admin' | 'Super Admin';
+
+export const ROLE_LABELS: Record<RoleCode, RoleLabel> = {
   DEVELOPER: 'Developer',
   REVIEWER: 'Reviewer',
   ADMIN: 'Admin',
+  SUPER_ADMIN: 'Super Admin',
+};
+
+export const ROLE_CODES_BY_LABEL: Record<RoleLabel, RoleCode> = {
+  Developer: 'DEVELOPER',
+  Reviewer: 'REVIEWER',
+  Admin: 'ADMIN',
+  'Super Admin': 'SUPER_ADMIN',
 };
 
 export const JWT_ISSUER_DEFAULT = 'sebsa-code-review-api';
@@ -20,4 +34,3 @@ export const JWT_AUDIENCE_DEFAULT = 'sebsa-code-review-web';
 export const ACCESS_TTL_DEFAULT = 15 * 60;
 export const REFRESH_TTL_DEFAULT = 7 * 24 * 60 * 60;
 export const REMEMBER_TTL_DEFAULT = 30 * 24 * 60 * 60;
-

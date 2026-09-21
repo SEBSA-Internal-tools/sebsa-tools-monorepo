@@ -6,7 +6,16 @@ const prisma = new PrismaClient();
 const roles = [
   { code: 'DEVELOPER', name: 'Developer', description: 'Creates and submits development tasks.' },
   { code: 'REVIEWER', name: 'Reviewer', description: 'Reviews submitted development tasks.' },
-  { code: 'ADMIN', name: 'Administrator', description: 'Administers users, assignments, and master data.' },
+  {
+    code: 'ADMIN',
+    name: 'Administrator',
+    description: 'Administers users, assignments, and master data.',
+  },
+  {
+    code: 'SUPER_ADMIN',
+    name: 'Super Administrator',
+    description: 'Manages portal users and grants all available roles.',
+  },
 ];
 
 const taskTypes = [
@@ -35,7 +44,8 @@ async function main(): Promise<void> {
   const adminPassword = process.env['BOOTSTRAP_ADMIN_PASSWORD'];
   const adminName = process.env['BOOTSTRAP_ADMIN_NAME']?.trim();
   if (adminEmail && adminPassword) {
-    if (adminPassword.length < 12) throw new Error('BOOTSTRAP_ADMIN_PASSWORD must be at least 12 characters');
+    if (adminPassword.length < 12)
+      throw new Error('BOOTSTRAP_ADMIN_PASSWORD must be at least 12 characters');
     const passwordHash = await hash(adminPassword, {
       type: argon2id,
       memoryCost: 19_456,
@@ -60,6 +70,38 @@ async function main(): Promise<void> {
         create: { userId: admin.id, roleId: role.id },
       });
     }
+  }
+
+  const superAdminEmail = process.env['BOOTSTRAP_SUPER_ADMIN_EMAIL']?.trim().toLowerCase();
+  const superAdminPassword = process.env['BOOTSTRAP_SUPER_ADMIN_PASSWORD'];
+  const superAdminName = process.env['BOOTSTRAP_SUPER_ADMIN_NAME']?.trim();
+  if (superAdminEmail && superAdminPassword) {
+    if (superAdminPassword.length < 12) {
+      throw new Error('BOOTSTRAP_SUPER_ADMIN_PASSWORD must be at least 12 characters');
+    }
+    const passwordHash = await hash(superAdminPassword, {
+      type: argon2id,
+      memoryCost: 19_456,
+      timeCost: 2,
+      parallelism: 1,
+    });
+    const superAdmin = await prisma.user.upsert({
+      where: { email: superAdminEmail },
+      update: { passwordHash, status: 'ACTIVE' },
+      create: {
+        email: superAdminEmail,
+        fullName: superAdminName ?? 'Initial Super Administrator',
+        passwordHash,
+      },
+    });
+    const superAdminRole = await prisma.role.findUniqueOrThrow({
+      where: { code: 'SUPER_ADMIN' },
+    });
+    await prisma.userRole.upsert({
+      where: { userId_roleId: { userId: superAdmin.id, roleId: superAdminRole.id } },
+      update: {},
+      create: { userId: superAdmin.id, roleId: superAdminRole.id },
+    });
   }
 }
 

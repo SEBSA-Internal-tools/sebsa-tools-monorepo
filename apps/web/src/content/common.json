@@ -55,7 +55,8 @@
   "role": {
     "Developer": "Developer",
     "Reviewer": "Reviewer",
-    "Admin": "Admin"
+    "Admin": "Admin",
+    "Super Admin": "Super Admin"
   },
   "badges": {
     "cycle": "Cycle",

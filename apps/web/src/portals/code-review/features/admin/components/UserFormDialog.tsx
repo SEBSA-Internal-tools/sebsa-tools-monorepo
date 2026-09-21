@@ -9,7 +9,7 @@ import { ApiError } from '@/lib/apiClient.ts';
 import { interpolate } from '@/lib/formatters.ts';
 import admin from '@/content/admin.json';
 import common from '@/content/common.json';
-import { useCreateUser, useUpdateUser } from '../api/queries.ts';
+import { useCreateUser, useReplaceUserRoles, useUpdateUser } from '../api/queries.ts';
 
 /**
  * Add User (screen 02's modal) and Edit User, which is the same three fields.
@@ -42,22 +42,28 @@ const EMPTY: FormState = { name: '', email: '', roles: [] };
 export function UserFormDialog({
   user,
   onClose,
+  availableRoles = ['Developer', 'Reviewer'],
+  editRoles = true,
 }: {
   /** `null` creates; a user edits that user. */
   user: User | null;
   onClose: () => void;
+  availableRoles?: readonly Role[];
+  /** Super Admin grants existing-user roles on its dedicated Role Granting tab. */
+  editRoles?: boolean;
 }) {
   const createUser = useCreateUser();
   const updateUser = useUpdateUser();
+  const replaceRoles = useReplaceUserRoles();
 
   const [form, setForm] = useState<FormState>(() =>
     user === null ? EMPTY : { name: user.name, email: user.email, roles: [...user.roles] },
   );
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
 
-  const isPending = createUser.isPending || updateUser.isPending;
+  const isPending = createUser.isPending || updateUser.isPending || replaceRoles.isPending;
 
-  function submit() {
+  async function submit() {
     const parsed = createUserInputSchema.safeParse(form);
     if (!parsed.success) {
       const next: Partial<Record<keyof FormState, string>> = {};
@@ -74,24 +80,27 @@ export function UserFormDialog({
     };
 
     if (user === null) {
-      createUser.mutate(parsed.data, {
-        onSuccess: (created) => {
-          toast.success(interpolate(admin.users.created, { name: created.name }));
-          onClose();
-        },
-        onError,
-      });
+      try {
+        const created = await createUser.mutateAsync(parsed.data);
+        toast.success(interpolate(admin.users.created, { name: created.name }));
+        onClose();
+      } catch (cause) {
+        onError(cause);
+      }
     } else {
-      updateUser.mutate(
-        { userId: user.id, input: parsed.data },
-        {
-          onSuccess: (updated) => {
-            toast.success(interpolate(admin.users.updated, { name: updated.name }));
-            onClose();
-          },
-          onError,
-        },
-      );
+      try {
+        const updated = await updateUser.mutateAsync({
+          userId: user.id,
+          input: { name: parsed.data.name, email: parsed.data.email },
+        });
+        if (editRoles) {
+          await replaceRoles.mutateAsync({ userId: user.id, roles: parsed.data.roles });
+        }
+        toast.success(interpolate(admin.users.updated, { name: updated.name }));
+        onClose();
+      } catch (cause) {
+        onError(cause);
+      }
     }
   }
 
@@ -108,7 +117,7 @@ export function UserFormDialog({
           <Button variant="secondary" onClick={onClose}>
             {common.actions.cancel}
           </Button>
-          <Button onClick={submit} isLoading={isPending}>
+          <Button onClick={() => void submit()} isLoading={isPending}>
             {user === null
               ? isPending
                 ? admin.users.creating
@@ -142,33 +151,35 @@ export function UserFormDialog({
           />
         </Field>
 
-        <fieldset>
-          <legend className="mb-2 text-sm font-medium text-ink-900">
-            {admin.users.rolesLabel}
-          </legend>
-          <div className="flex flex-wrap gap-4">
-            {ROLES.map((role) => (
-              <Checkbox
-                key={role}
-                label={common.role[role]}
-                checked={form.roles.includes(role)}
-                onCheckedChange={(checked) => {
-                  setForm({
-                    ...form,
-                    roles: checked
-                      ? [...form.roles, role]
-                      : form.roles.filter((current) => current !== role),
-                  });
-                }}
-              />
-            ))}
-          </div>
-          {errors.roles === undefined ? null : (
-            <p role="alert" className="mt-2 text-xs font-medium text-danger">
-              {errors.roles}
-            </p>
-          )}
-        </fieldset>
+        {user !== null && !editRoles ? null : (
+          <fieldset>
+            <legend className="mb-2 text-sm font-medium text-ink-900">
+              {admin.users.rolesLabel}
+            </legend>
+            <div className="flex flex-wrap gap-4">
+              {ROLES.filter((role) => availableRoles.includes(role)).map((role) => (
+                <Checkbox
+                  key={role}
+                  label={common.role[role]}
+                  checked={form.roles.includes(role)}
+                  onCheckedChange={(checked) => {
+                    setForm({
+                      ...form,
+                      roles: checked
+                        ? [...form.roles, role]
+                        : form.roles.filter((current) => current !== role),
+                    });
+                  }}
+                />
+              ))}
+            </div>
+            {errors.roles === undefined ? null : (
+              <p role="alert" className="mt-2 text-xs font-medium text-danger">
+                {errors.roles}
+              </p>
+            )}
+          </fieldset>
+        )}
       </div>
     </Dialog>
   );

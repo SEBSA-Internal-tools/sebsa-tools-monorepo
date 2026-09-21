@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { signInForTest } from '@/test/setup.ts';
+import { findUser } from '@/mocks/db.ts';
 import { routes } from '@/app/routes.tsx';
 
 /**
@@ -78,6 +79,29 @@ describe('admin workspace guard', () => {
     await waitFor(() => {
       expect(router.state.location.pathname).not.toBe('/crp/admin');
     });
+  });
+
+  it('keeps the role-granting route exclusive to Super Admin', async () => {
+    const { router } = renderAdmin('/crp/admin/roles');
+
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe('/crp/admin');
+    });
+  });
+
+  it('shows Role Granting inside the Admin Dashboard for Super Admin', async () => {
+    const actor = findUser(ADMIN);
+    if (actor === undefined) throw new Error('Admin fixture was not found');
+    actor.roles = ['Super Admin'];
+
+    const { user, router } = renderAdmin('/crp/admin/roles');
+
+    expect(await screen.findByRole('heading', { name: 'Role Granting' })).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/crp/admin/roles');
+    const roleButtons = await screen.findAllByRole('button', { name: /change roles for/i });
+    await user.click(roleButtons[0]!);
+    expect(screen.getByRole('checkbox', { name: 'Admin' })).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: 'Super Admin' })).toBeNull();
   });
 });
 
@@ -169,8 +193,13 @@ describe('admin users tab', () => {
     const { user } = renderAdmin('/crp/admin/users');
 
     expect(await screen.findByText('dheliya.kankanamge@sebsaworld.com')).toBeInTheDocument();
+    expect(screen.queryAllByRole('button', { name: /^delete /i })).toHaveLength(0);
 
     await user.click(screen.getByRole('button', { name: /add user/i }));
+    expect(screen.getByRole('checkbox', { name: 'Developer' })).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Reviewer' })).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: 'Admin' })).toBeNull();
+    expect(screen.queryByRole('checkbox', { name: 'Super Admin' })).toBeNull();
     await user.type(await screen.findByLabelText(/name/i), 'Test Person');
     await user.type(screen.getByLabelText(/email/i), 'test.person@sebsaworld.com');
     await user.click(screen.getByRole('checkbox', { name: 'Reviewer' }));

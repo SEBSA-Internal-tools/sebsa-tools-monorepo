@@ -17,6 +17,10 @@ export const routeTree: RouteObject[] = [
       { path: 'reviewer/*', element: <LegacyWorkspaceRedirect /> },
       { path: 'admin/*', element: <LegacyWorkspaceRedirect /> },
       {
+        path: 'super-admin/*',
+        element: <Navigate to={routePaths.crp.admin.dashboard} replace />,
+      },
+      {
         path: '/',
         element: (
           <RequireAuth>

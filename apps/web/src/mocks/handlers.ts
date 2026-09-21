@@ -1,5 +1,5 @@
 import { delay, http, HttpResponse, type HttpHandler } from 'msw';
-import type { z } from 'zod';
+import { z } from 'zod';
 import {
   checklistDraftSchema,
   createChecklistCategoryInputSchema,
@@ -28,6 +28,7 @@ import {
   type Task,
   type IssueResponseRecord,
   type Review,
+  type Role,
   type TaskChecklist,
   type TaskTypeRecord,
   type User,
@@ -115,7 +116,7 @@ function errorResponse(status: number, code: string, message: string) {
  */
 function currentUser(request: Request) {
   const userId = request.headers.get('X-Mock-User-Id');
-  if (userId === null) return undefined;
+  if (userId === null || db.deletedUserIds.has(userId)) return undefined;
   return findUser(userId);
 }
 
@@ -186,17 +187,14 @@ function persistCombinedChecklist(
     additionalRemarks?: string | undefined;
   },
 ): void {
-  const answered = new Map(
-    draft.checklistAnswers.map((entry) => [entry.questionId, entry.answer]),
-  );
+  const answered = new Map(draft.checklistAnswers.map((entry) => [entry.questionId, entry.answer]));
   const applicable = db.checklistTemplate
     .filter((category) => category.isActive)
     .flatMap((category) =>
       category.questions
         .filter(
           (question) =>
-            question.isActive &&
-            question.appliesTo.some((id) => draft.taskTypeIds.includes(id)),
+            question.isActive && question.appliesTo.some((id) => draft.taskTypeIds.includes(id)),
         )
         .map((question) => ({ question, categoryName: category.name })),
     );
@@ -243,10 +241,35 @@ function firstIssue(error: z.ZodError): string {
 function requireAdmin(request: Request) {
   const user = currentUser(request);
   if (!user) return errorResponse(401, 'NOT_AUTHENTICATED', 'Not authenticated.');
-  if (!user.roles.includes('Admin')) {
+  if (!user.roles.some((role) => role === 'Admin' || role === 'Super Admin')) {
     return errorResponse(403, 'FORBIDDEN', 'You do not have access to this workspace.');
   }
   return undefined;
+}
+
+const ROLE_LABEL_BY_CODE = {
+  DEVELOPER: 'Developer',
+  REVIEWER: 'Reviewer',
+  ADMIN: 'Admin',
+  SUPER_ADMIN: 'Super Admin',
+} as const satisfies Record<string, Role>;
+const replaceRolesSchema = z.object({
+  roles: z.array(z.enum(['DEVELOPER', 'REVIEWER', 'ADMIN', 'SUPER_ADMIN'])).min(1),
+});
+
+function isSuperAdmin(user: User): boolean {
+  return user.roles.includes('Super Admin');
+}
+
+function adminMayManage(user: User): boolean {
+  return !user.roles.some((role) => role === 'Admin' || role === 'Super Admin');
+}
+
+function mayAssignRoles(actor: User, roles: readonly Role[]): boolean {
+  const allowed: readonly Role[] = isSuperAdmin(actor)
+    ? ['Developer', 'Reviewer', 'Admin']
+    : ['Developer', 'Reviewer'];
+  return roles.every((role) => allowed.includes(role));
 }
 
 /** Id-safe fragment of a name, so generated ids stay readable in the store. */
@@ -395,7 +418,10 @@ export const handlers: HttpHandler[] = [
     const customer = findCustomer(String(params['customerId']));
     if (!customer) return errorResponse(404, 'NOT_FOUND', 'Customer not found.');
     const sequence = (db.sequences[customer.id] ?? 0) + 1;
-    const normalized = customer.name.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '');
+    const normalized = customer.name
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, '');
     const prefix = normalized === '' ? 'TASK' : normalized;
     return HttpResponse.json({
       taskCode: `${prefix}-${String(sequence).padStart(2, '0')}`,
@@ -423,7 +449,7 @@ export const handlers: HttpHandler[] = [
     if (scope === 'mine') {
       tasks = tasks.filter((t) => t.developerId === user.id);
     } else if (scope === 'all') {
-      if (!user.roles.includes('Admin')) {
+      if (!user.roles.some((role) => role === 'Admin' || role === 'Super Admin')) {
         return errorResponse(403, 'FORBIDDEN', 'You do not have access to this workspace.');
       }
     } else if (scope === 'available' || scope === 'assigned' || scope === 'history') {
@@ -503,7 +529,7 @@ export const handlers: HttpHandler[] = [
     const user = currentUser(request);
     if (!user) return errorResponse(401, 'NOT_AUTHENTICATED', 'Not authenticated.');
 
-    const isAdmin = user.roles.includes('Admin');
+    const isAdmin = user.roles.some((role) => role === 'Admin' || role === 'Super Admin');
     const visible = isAdmin
       ? db.tasks
       : db.tasks.filter((t) => t.developerId === user.id || t.reviewerId === user.id);
@@ -527,7 +553,7 @@ export const handlers: HttpHandler[] = [
     const task = findTask(String(params['taskId']));
     if (!task) return errorResponse(404, 'NOT_FOUND', 'Task not found.');
 
-    const isAdmin = user.roles.includes('Admin');
+    const isAdmin = user.roles.some((role) => role === 'Admin' || role === 'Super Admin');
     const isReviewer = user.roles.includes('Reviewer');
     const mayView =
       isAdmin ||
@@ -1465,17 +1491,26 @@ export const handlers: HttpHandler[] = [
     const denied = requireAdmin(request);
     if (denied) return denied;
 
-    return HttpResponse.json(db.users.slice().sort((a, b) => a.name.localeCompare(b.name)));
+    return HttpResponse.json(
+      db.users
+        .filter((user) => !db.deletedUserIds.has(user.id))
+        .slice()
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    );
   }),
 
   http.post('/api/users', async ({ request }) => {
     await delay(LATENCY_MS);
     const denied = requireAdmin(request);
     if (denied) return denied;
+    const actor = currentUser(request);
 
     const parsed = createUserInputSchema.safeParse(await request.json());
     if (!parsed.success) {
       return errorResponse(422, 'VALIDATION_FAILED', firstIssue(parsed.error));
+    }
+    if (!actor || !mayAssignRoles(actor, parsed.data.roles)) {
+      return errorResponse(403, 'FORBIDDEN', 'You cannot assign one or more requested roles.');
     }
 
     const email = parsed.data.email.toLowerCase();
@@ -1502,7 +1537,9 @@ export const handlers: HttpHandler[] = [
     if (denied) return denied;
 
     const user = findUser(String(params['userId']));
-    if (!user) return errorResponse(404, 'NOT_FOUND', 'User not found.');
+    if (!user || db.deletedUserIds.has(user.id)) {
+      return errorResponse(404, 'NOT_FOUND', 'User not found.');
+    }
 
     const parsed = updateUserInputSchema.safeParse(await request.json());
     if (!parsed.success) {
@@ -1512,6 +1549,16 @@ export const handlers: HttpHandler[] = [
     // An admin must not be able to lock themselves out, which would leave the
     // system with one fewer administrator and no way back in through the UI.
     const actor = currentUser(request);
+    if (!actor || (!isSuperAdmin(actor) && !adminMayManage(user))) {
+      return errorResponse(
+        403,
+        'FORBIDDEN',
+        'Admins may only manage Developer and Reviewer users.',
+      );
+    }
+    if (parsed.data.roles !== undefined && !mayAssignRoles(actor, parsed.data.roles)) {
+      return errorResponse(403, 'FORBIDDEN', 'You cannot assign one or more requested roles.');
+    }
     const removesOwnAdmin =
       actor?.id === user.id &&
       ((parsed.data.roles !== undefined && !parsed.data.roles.includes('Admin')) ||
@@ -1528,37 +1575,61 @@ export const handlers: HttpHandler[] = [
     return HttpResponse.json(user);
   }),
 
-  /**
-   * Hard delete, permitted only for a user with no history.
-   *
-   * Anyone who has raised or reviewed a task is referenced by task rows, events
-   * and reviews; deleting them would blank the Developer and Reviewer columns
-   * across the audit trail. Those users are deactivated instead — the `isActive`
-   * flag and the power-icon row action already exist for exactly this.
-   */
-  http.delete('/api/users/:userId', async ({ request, params }) => {
+  /** Replaces the complete role set while preserving the role-management policy. */
+  http.put('/api/users/:userId/roles', async ({ request, params }) => {
     await delay(LATENCY_MS);
     const denied = requireAdmin(request);
     if (denied) return denied;
 
-    const user = findUser(String(params['userId']));
-    if (!user) return errorResponse(404, 'NOT_FOUND', 'User not found.');
-
     const actor = currentUser(request);
-    if (actor?.id === user.id) {
-      return errorResponse(422, 'SELF_DELETE', 'You cannot delete your own account.');
+    const user = findUser(String(params['userId']));
+    if (!actor || !user || db.deletedUserIds.has(user.id)) {
+      return errorResponse(404, 'NOT_FOUND', 'User not found.');
     }
 
-    const referenced = db.tasks.some((t) => t.developerId === user.id || t.reviewerId === user.id);
-    if (referenced) {
+    const parsed = replaceRolesSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return errorResponse(422, 'VALIDATION_FAILED', firstIssue(parsed.error));
+    }
+    const roles = parsed.data.roles.map((role) => ROLE_LABEL_BY_CODE[role]);
+    const changesSuperAdmin = user.roles.includes('Super Admin') !== roles.includes('Super Admin');
+    if (
+      (!isSuperAdmin(actor) && (!adminMayManage(user) || !mayAssignRoles(actor, roles))) ||
+      (isSuperAdmin(actor) &&
+        (changesSuperAdmin ||
+          !mayAssignRoles(
+            actor,
+            roles.filter((role) => role !== 'Super Admin'),
+          )))
+    ) {
       return errorResponse(
-        409,
-        'USER_IN_USE',
-        'This user appears on existing tasks. Deactivate them instead.',
+        403,
+        'FORBIDDEN',
+        'You cannot grant or revoke one or more requested roles.',
       );
     }
 
-    db.users = db.users.filter((u) => u.id !== user.id);
+    user.roles = roles;
+    return HttpResponse.json(user);
+  }),
+
+  /** Soft delete: the user remains available to task and audit history. */
+  http.delete('/api/users/:userId', async ({ request, params }) => {
+    await delay(LATENCY_MS);
+    const denied = requireAdmin(request);
+    if (denied) return denied;
+    const actor = currentUser(request);
+    if (!actor || !isSuperAdmin(actor)) {
+      return errorResponse(403, 'FORBIDDEN', 'Only a Super Admin may delete users.');
+    }
+
+    const user = findUser(String(params['userId']));
+    if (!user || db.deletedUserIds.has(user.id)) {
+      return errorResponse(404, 'NOT_FOUND', 'User not found.');
+    }
+
+    user.isActive = false;
+    db.deletedUserIds.add(user.id);
     return new HttpResponse(null, { status: 204 });
   }),
 

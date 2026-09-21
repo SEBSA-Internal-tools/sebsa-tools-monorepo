@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Pencil, Power, Trash2, UserPlus, Users as UsersIcon } from 'lucide-react';
 import { toast } from 'sonner';
-import { ROLES, type User } from '@sdp/contracts';
+import { ROLES, type Role, type User } from '@sdp/contracts';
 import { ActiveBadge, RoleBadges } from '@/portals/code-review/components/badges.tsx';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog.tsx';
 import { DataTable } from '@/components/common/DataTable.tsx';
@@ -18,6 +18,7 @@ import common from '@/content/common.json';
 import { useDeleteUser, useUpdateUser, useUsers } from '../api/queries.ts';
 import { UserFormDialog } from '../components/UserFormDialog.tsx';
 import { EmptyIllustration } from '@/components/common/EmptyIllustration.tsx';
+import { useCurrentUser } from '@/hooks/useCurrentUser.ts';
 
 /**
  * Admin — Users (screen 02).
@@ -70,13 +71,24 @@ const statusColumn = helper.accessor('isActive', {
   cell: (context) => <ActiveBadge isActive={context.getValue()} />,
 });
 
-export function AdminUsersPage() {
+export function AdminUsersPage({
+  availableRoles,
+  editRoles = true,
+}: {
+  availableRoles?: readonly Role[];
+  editRoles?: boolean;
+} = {}) {
   const { data: users, isPending, isFetching, error, refetch } = useUsers();
+  const { data: actor } = useCurrentUser();
   // Destructured because `mutate` is referentially stable while the mutation
   // object is not — which is what lets the column definitions memoise honestly
   // instead of being pinned with a lint suppression.
   const { mutate: mutateUser, isPending: isUpdating } = useUpdateUser();
   const deleteUser = useDeleteUser();
+  const isSuperAdmin = actor?.roles.includes('Super Admin') === true;
+  const assignableRoles: readonly Role[] =
+    availableRoles ??
+    (isSuperAdmin ? ['Developer', 'Reviewer', 'Admin'] : ['Developer', 'Reviewer']);
 
   const [search, setSearch] = useState('');
   const [role, setRole] = useState(ALL);
@@ -86,6 +98,13 @@ export function AdminUsersPage() {
   const [isFormOpen, setFormOpen] = useState(false);
   const [deactivating, setDeactivating] = useState<User | null>(null);
   const [deleting, setDeleting] = useState<User | null>(null);
+
+  const canManage = useCallback(
+    (user: User) =>
+      isSuperAdmin ||
+      !user.roles.some((assigned) => assigned === 'Admin' || assigned === 'Super Admin'),
+    [isSuperAdmin],
+  );
 
   const visible = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -141,6 +160,7 @@ export function AdminUsersPage() {
                 })}
                 icon={<Pencil className="size-4" />}
                 size="sm"
+                disabled={!canManage(user)}
                 onClick={() => {
                   setEditing(user);
                   setFormOpen(true);
@@ -154,6 +174,7 @@ export function AdminUsersPage() {
                 icon={<Power className="size-4" />}
                 tone={user.isActive ? 'danger' : 'success'}
                 size="sm"
+                disabled={!canManage(user)}
                 onClick={() => {
                   // Activating is harmless and immediate; deactivating locks
                   // someone out, so only that direction asks.
@@ -161,23 +182,26 @@ export function AdminUsersPage() {
                   else setActive(user, true);
                 }}
               />
-              <IconButton
-                label={interpolate(admin.users.actions.delete, {
-                  name: user.name,
-                })}
-                icon={<Trash2 className="size-4" />}
-                tone="danger"
-                size="sm"
-                onClick={() => {
-                  setDeleting(user);
-                }}
-              />
+              {isSuperAdmin ? (
+                <IconButton
+                  label={interpolate(admin.users.actions.delete, {
+                    name: user.name,
+                  })}
+                  icon={<Trash2 className="size-4" />}
+                  tone="danger"
+                  size="sm"
+                  disabled={!canManage(user)}
+                  onClick={() => {
+                    setDeleting(user);
+                  }}
+                />
+              ) : null}
             </div>
           );
         },
       }),
     ],
-    [setActive],
+    [canManage, isSuperAdmin, setActive],
   );
 
   return (
@@ -254,6 +278,8 @@ export function AdminUsersPage() {
         <UserFormDialog
           key={editing?.id ?? 'new'}
           user={editing}
+          availableRoles={assignableRoles}
+          editRoles={editRoles && editing?.roles.includes('Super Admin') !== true}
           onClose={() => {
             setFormOpen(false);
           }}
@@ -276,32 +302,34 @@ export function AdminUsersPage() {
         }}
       />
 
-      <ConfirmDialog
-        open={deleting !== null}
-        onOpenChange={(open) => {
-          if (!open) setDeleting(null);
-        }}
-        title={admin.users.delete.title}
-        description={interpolate(admin.users.delete.description, {
-          name: deleting?.name ?? '',
-        })}
-        confirmLabel={admin.users.delete.confirm}
-        isPending={deleteUser.isPending}
-        onConfirm={() => {
-          if (deleting === null) return;
-          const user = deleting;
+      {isSuperAdmin ? (
+        <ConfirmDialog
+          open={deleting !== null}
+          onOpenChange={(open) => {
+            if (!open) setDeleting(null);
+          }}
+          title={admin.users.delete.title}
+          description={interpolate(admin.users.delete.description, {
+            name: deleting?.name ?? '',
+          })}
+          confirmLabel={admin.users.delete.confirm}
+          isPending={deleteUser.isPending}
+          onConfirm={() => {
+            if (deleting === null) return;
+            const user = deleting;
 
-          deleteUser.mutate(user.id, {
-            onSuccess: () => {
-              toast.success(interpolate(admin.users.delete.success, { name: user.name }));
-              setDeleting(null);
-            },
-            onError: (cause) => {
-              toast.error(cause instanceof ApiError ? cause.message : common.errors.generic);
-            },
-          });
-        }}
-      />
+            deleteUser.mutate(user.id, {
+              onSuccess: () => {
+                toast.success(interpolate(admin.users.delete.success, { name: user.name }));
+                setDeleting(null);
+              },
+              onError: (cause) => {
+                toast.error(cause instanceof ApiError ? cause.message : common.errors.generic);
+              },
+            });
+          }}
+        />
+      ) : null}
     </section>
   );
 }

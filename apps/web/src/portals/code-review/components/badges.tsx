@@ -118,6 +118,7 @@ const ROLE_CLASSES: Record<Role, string> = {
   Developer: 'bg-brand-blue-100 text-brand-blue-700',
   Reviewer: 'bg-emerald-100 text-emerald-700',
   Admin: 'bg-violet-100 text-violet-700',
+  'Super Admin': 'bg-rose-100 text-rose-700',
 };
 
 /** Internal: callers want `RoleBadges`, which renders the user's whole set. */

@@ -33,6 +33,7 @@ export const SEGMENTS = {
   checklist: 'checklist',
   handovers: 'handovers',
   reports: 'reports',
+  roles: 'roles',
   login: 'login',
 } as const;
 
@@ -87,6 +88,7 @@ export const routePaths = {
       checklist: `${CRP}/${SEGMENTS.admin}/${SEGMENTS.checklist}`,
       handovers: `${CRP}/${SEGMENTS.admin}/${SEGMENTS.handovers}`,
       reports: `${CRP}/${SEGMENTS.admin}/${SEGMENTS.reports}`,
+      roles: `${CRP}/${SEGMENTS.admin}/${SEGMENTS.roles}`,
     },
   },
 

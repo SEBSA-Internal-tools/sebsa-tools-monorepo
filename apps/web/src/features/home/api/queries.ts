@@ -18,9 +18,10 @@ export const homeKeys = {
  * page only needs a number, and fetching every task to derive it would make the
  * landing page the slowest screen in the app.
  */
-export function useTaskSummary() {
+export function useTaskSummary(enabled = true) {
   return useQuery({
     queryKey: homeKeys.taskSummary(),
     queryFn: ({ signal }) => api.get('/tasks/summary', taskSummarySchema, { signal }),
+    enabled,
   });
 }

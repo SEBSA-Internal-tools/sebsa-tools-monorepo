@@ -1,104 +1,145 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { rethrowPrismaConflict } from '../common/prisma-errors.js';
+import type { AuthenticatedUser } from '../auth/auth.types.js';
+import type { RoleCode } from '../auth/auth.constants.js';
+import { assertCanGrantRoles, assertCanManageUser } from '../user-roles/role-policy.js';
+import {
+  assertNotLastActiveRoleHolder,
+  lockPrivilegedRoleInvariants,
+} from '../user-roles/role-invariants.js';
 import type { CreateUserDto } from './dto/create-user.dto.js';
 import type { UpdateUserDto } from './dto/update-user.dto.js';
+import { assignedRoleCodes, toUserResponse } from './user-response.js';
 
 const userInclude = {
-  userRoles: { include: { role: true } },
+  userRoles: { where: { role: { deletedAt: null } }, include: { role: true } },
 } satisfies Prisma.UserInclude;
+
+type UserWithRoles = Prisma.UserGetPayload<{ include: typeof userInclude }>;
 
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  findAll() {
-    return this.prisma.user.findMany({
+  async findAll() {
+    const users = await this.prisma.user.findMany({
+      where: { deletedAt: null },
       include: userInclude,
       orderBy: { fullName: 'asc' },
     });
+    return users.map(toUserResponse);
   }
 
   async findOne(id: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id },
+    return toUserResponse(await this.getUser(id));
+  }
+
+  private async getUser(id: string): Promise<UserWithRoles> {
+    const user = await this.prisma.user.findFirst({
+      where: { id, deletedAt: null },
       include: userInclude,
     });
     if (!user) throw new NotFoundException(`User ${id} was not found`);
     return user;
   }
 
-  async create(dto: CreateUserDto) {
+  async create(dto: CreateUserDto, actor: AuthenticatedUser) {
+    assertCanGrantRoles(actor, [], dto.roles);
+    const roles = await this.findRoles(dto.roles);
+
     try {
-      return await this.prisma.user.create({
+      const user = await this.prisma.user.create({
         data: {
-          ...dto,
           email: dto.email.trim().toLowerCase(),
-          fullName: dto.fullName.trim(),
+          fullName: dto.name.trim(),
           userRoles: {
-            create: [{ role: { connect: { code: 'DEVELOPER' } } }],
+            create: roles.map(
+              (role) =>
+                ({
+                  grantor: { connect: { id: actor.id } },
+                  role: { connect: { id: role.id } },
+                }) satisfies Prisma.UserRoleCreateWithoutUserInput,
+            ),
           },
         },
         include: userInclude,
       });
+      return toUserResponse(user);
     } catch (error) {
       rethrowPrismaConflict(error);
     }
   }
 
-  async update(id: string, dto: UpdateUserDto) {
-    await this.findOne(id);
+  async update(id: string, dto: UpdateUserDto, actor: AuthenticatedUser) {
+    const existing = await this.getUser(id);
+    assertCanManageUser(actor, assignedRoleCodes(existing));
+
     const data = {
-      ...dto,
       ...(dto.email === undefined ? {} : { email: dto.email.trim().toLowerCase() }),
-      ...(dto.fullName === undefined ? {} : { fullName: dto.fullName.trim() }),
+      ...(dto.name === undefined ? {} : { fullName: dto.name.trim() }),
+      ...(dto.isActive === undefined
+        ? {}
+        : { status: dto.isActive ? ('ACTIVE' as const) : ('INACTIVE' as const) }),
     } satisfies Prisma.UserUpdateInput;
+
     try {
-      if (dto.status === 'INACTIVE') {
-        return await this.prisma.$transaction(async (tx) => {
-          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('sdp-admin-role-invariant'))`;
-          await this.assertNotLastActiveAdmin(tx, id);
+      if (dto.isActive === false) {
+        const user = await this.prisma.$transaction(async (tx) => {
+          await lockPrivilegedRoleInvariants(tx);
+          await assertNotLastActiveRoleHolder(
+            tx,
+            existing,
+            assignedRoleCodes(existing),
+            'deactivated or deleted',
+          );
           return tx.user.update({ where: { id }, data, include: userInclude });
         });
+        return toUserResponse(user);
       }
-      return await this.prisma.user.update({
+
+      const user = await this.prisma.user.update({
         where: { id },
         data,
         include: userInclude,
       });
+      return toUserResponse(user);
     } catch (error) {
       rethrowPrismaConflict(error);
     }
   }
 
-  async remove(id: string) {
-    await this.findOne(id);
+  async remove(id: string, actor: AuthenticatedUser): Promise<void> {
+    const existing = await this.getUser(id);
+    assertCanManageUser(actor, assignedRoleCodes(existing));
+
     try {
-      return await this.prisma.$transaction(async (tx) => {
-        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('sdp-admin-role-invariant'))`;
-        await this.assertNotLastActiveAdmin(tx, id);
-        await tx.userRole.deleteMany({ where: { userId: id } });
-        return tx.user.delete({ where: { id } });
+      await this.prisma.$transaction(async (tx) => {
+        await lockPrivilegedRoleInvariants(tx);
+        await assertNotLastActiveRoleHolder(
+          tx,
+          existing,
+          assignedRoleCodes(existing),
+          'deactivated or deleted',
+        );
+        await tx.user.update({
+          where: { id },
+          data: { status: 'INACTIVE', deletedAt: new Date() },
+        });
       });
     } catch (error) {
       rethrowPrismaConflict(error);
     }
   }
 
-  private async assertNotLastActiveAdmin(tx: Prisma.TransactionClient, userId: string): Promise<void> {
-    const user = await tx.user.findUnique({
-      where: { id: userId },
-      include: { userRoles: { include: { role: true } } },
+  private async findRoles(roleCodes: readonly RoleCode[]) {
+    const roles = await this.prisma.role.findMany({
+      where: { code: { in: [...roleCodes] }, deletedAt: null },
     });
-    if (!user) throw new NotFoundException(`User ${userId} was not found`);
-    const isActiveAdmin = user.status === 'ACTIVE' && user.userRoles.some(({ role }) => role.code === 'ADMIN');
-    if (!isActiveAdmin) return;
-    const activeAdmins = await tx.user.count({
-      where: { status: 'ACTIVE', userRoles: { some: { role: { code: 'ADMIN' } } } },
-    });
-    if (activeAdmins <= 1) {
-      throw new ConflictException('The last active administrator cannot be deactivated or deleted');
+    if (roles.length !== roleCodes.length) {
+      throw new NotFoundException('One or more roles were not found');
     }
+    return roles;
   }
 }

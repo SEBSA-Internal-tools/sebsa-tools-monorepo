@@ -1,15 +1,30 @@
-import { UserStatus } from '@prisma/client';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
+import { Transform, type TransformFnParams } from 'class-transformer';
 import {
+  ArrayMinSize,
+  ArrayUnique,
+  IsArray,
   IsEmail,
-  IsEnum,
-  IsOptional,
+  IsIn,
   IsString,
-  IsUUID,
   MaxLength,
   Matches,
   MinLength,
 } from 'class-validator';
+import {
+  ROLE_CODES,
+  ROLE_CODES_BY_LABEL,
+  type RoleCode,
+  type RoleLabel,
+} from '../../auth/auth.constants.js';
+
+function normalizeRoles({ value }: TransformFnParams): unknown {
+  if (!Array.isArray(value)) return value;
+  return value.map((role: unknown) => {
+    if (typeof role !== 'string') return role;
+    return ROLE_CODES_BY_LABEL[role as RoleLabel] ?? role.trim().toUpperCase();
+  });
+}
 
 export class CreateUserDto {
   @ApiProperty({ example: 'developer@example.com' })
@@ -20,21 +35,17 @@ export class CreateUserDto {
   @ApiProperty({ example: 'Alex Developer' })
   @IsString()
   @Matches(/\S/, {
-    message: 'fullName must contain a non-whitespace character',
+    message: 'name must contain a non-whitespace character',
   })
   @MinLength(1)
   @MaxLength(255)
-  fullName!: string;
+  name!: string;
 
-  @ApiPropertyOptional({ format: 'uuid' })
-  @IsOptional()
-  @IsUUID()
-  entraObjectId?: string;
-
-  @ApiPropertyOptional({ enum: UserStatus, default: UserStatus.ACTIVE })
-  @IsOptional()
-  @IsEnum(UserStatus)
-  status?: UserStatus;
-
+  @ApiProperty({ enum: ROLE_CODES, isArray: true })
+  @Transform(normalizeRoles)
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayUnique()
+  @IsIn(ROLE_CODES, { each: true })
+  roles!: RoleCode[];
 }
-

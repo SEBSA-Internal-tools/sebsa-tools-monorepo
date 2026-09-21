@@ -1,9 +1,11 @@
 import type { ComponentType } from 'react';
 import type { RouteObject } from 'react-router-dom';
 import { HomeRoute } from '@/app/routeAdapters';
+import { RequireRole } from '@/app/RequireRole.tsx';
 import { NewTaskEntry } from '@/portals/code-review/features/tasks/routes/NewTaskEntry.tsx';
 import { RequireWorkspace } from '@/app/RequireWorkspace';
 import { relativePaths, SEGMENTS } from '@/constants/routePaths';
+import { ROUTES } from '@/config/routes.ts';
 
 const guarded = (workspace: 'developer' | 'reviewer' | 'admin', Component: ComponentType) =>
   function GuardedRoute() {
@@ -11,6 +13,15 @@ const guarded = (workspace: 'developer' | 'reviewer' | 'admin', Component: Compo
       <RequireWorkspace workspace={workspace}>
         <Component />
       </RequireWorkspace>
+    );
+  };
+
+const superAdminOnly = (Component: ComponentType) =>
+  function SuperAdminOnlyRoute() {
+    return (
+      <RequireRole requiredRole="Super Admin" redirectTo={ROUTES.admin.root}>
+        <Component />
+      </RequireRole>
     );
   };
 
@@ -206,6 +217,14 @@ export const codeReviewRoutes: RouteObject[] = [
           const module =
             await import('@/portals/code-review/features/reports/routes/AdminReportsPage');
           return { Component: module.AdminReportsPage };
+        },
+      },
+      {
+        path: SEGMENTS.roles,
+        lazy: async () => {
+          const module =
+            await import('@/portals/code-review/features/admin/routes/RoleGrantingPage');
+          return { Component: superAdminOnly(module.RoleGrantingPage) };
         },
       },
     ],
