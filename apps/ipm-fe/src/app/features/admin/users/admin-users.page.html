@@ -82,6 +82,7 @@
                 }
               </td>
               <td class="actions">
+                <button type="button" class="btn-text" (click)="openDepartmentModal(user)">Department</button>
                 @if (user.approvedAt && user.isActive) {
                   <button type="button" class="btn-text" (click)="deactivate(user.id)">Deactivate</button>
                 } @else if (user.approvedAt && !user.isActive) {
@@ -96,26 +97,27 @@
   </div>
 
   @if (isCreateModalOpen()) {
-    <div class="modal-overlay" (click)="closeCreateModal()"></div>
+    <button type="button" class="modal-overlay" aria-label="Close create user dialog" (click)="closeCreateModal()"></button>
     <div class="modal-container">
       <div class="modal-header">
         <h2>Create User</h2>
-        <button type="button" class="close-btn" (click)="closeCreateModal()">
-          <span class="material-symbols-outlined">close</span>
+        <button type="button" class="close-btn" aria-label="Close" (click)="closeCreateModal()">
+          <span class="material-symbols-outlined" aria-hidden="true">close</span>
         </button>
       </div>
       <div class="modal-body">
         <div class="form-group">
-          <label class="form-label">Full Name</label>
-          <input type="text" [(ngModel)]="name" class="form-input" placeholder="Jane Doe" />
+          <label class="form-label" for="create-user-name">Full Name</label>
+          <input id="create-user-name" type="text" [(ngModel)]="name" class="form-input" placeholder="Jane Doe" />
         </div>
         <div class="form-group">
-          <label class="form-label">Corporate Email</label>
-          <input type="email" [(ngModel)]="email" class="form-input" placeholder="user@sebsaworld.com" />
+          <label class="form-label" for="create-user-email">Corporate Email</label>
+          <input id="create-user-email" type="email" [(ngModel)]="email" class="form-input" placeholder="user@sebsaworld.com" />
         </div>
         <div class="form-group">
-          <label class="form-label">Department</label>
+          <label class="form-label" for="create-user-department">Department</label>
           <app-custom-select
+            id="create-user-department"
             [(ngModel)]="departmentId"
             [options]="departments()"
             placeholder="Select a department..."
@@ -123,8 +125,9 @@
           ></app-custom-select>
         </div>
         <div class="form-group">
-          <label class="form-label">System Role</label>
+          <label class="form-label" for="create-user-role">System Role</label>
           <app-custom-select
+            id="create-user-role"
             [(ngModel)]="systemRole"
             [options]="systemRoleOptions"
             placeholder="Select system role"
@@ -137,6 +140,37 @@
         <button type="button" class="btn-create" (click)="submitCreate()">Create User</button>
       </div>
     </div>
+  }
+
+  @if (departmentUser(); as user) {
+    <button type="button" class="modal-overlay" aria-label="Close department dialog" (click)="closeDepartmentModal()"></button>
+    <section class="modal-container" role="dialog" aria-modal="true" aria-labelledby="user-department-title">
+      <div class="modal-header">
+        <h2 id="user-department-title">Update Department</h2>
+        <button type="button" class="close-btn" aria-label="Close" (click)="closeDepartmentModal()">
+          <span class="material-symbols-outlined" aria-hidden="true">close</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p>Choose the department for <strong>{{ user.name }}</strong>.</p>
+        <div class="form-group">
+          <label class="form-label" for="user-department">Department</label>
+          <app-custom-select
+            id="user-department"
+            [(ngModel)]="selectedDepartmentId"
+            [options]="departments()"
+            placeholder="Select a department..."
+            ariaLabel="Department"
+          ></app-custom-select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-cancel" (click)="closeDepartmentModal()">Cancel</button>
+        <button type="button" class="btn-create" [disabled]="!selectedDepartmentId" (click)="updateDepartment()">
+          Save
+        </button>
+      </div>
+    </section>
   }
 
   @if (createdUser(); as result) {

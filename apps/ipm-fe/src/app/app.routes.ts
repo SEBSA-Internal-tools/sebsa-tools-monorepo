@@ -87,6 +87,14 @@ export const appRoutes: Route[] = [
 					import('./features/admin/users/admin-users.page').then((m) => m.AdminUsersPageComponent),
 			},
 			{
+				path: 'admin/departments',
+				canActivate: [adminGuard],
+				loadComponent: () =>
+					import('./features/admin/departments/departments.page').then(
+						(m) => m.DepartmentsPageComponent
+					),
+			},
+			{
 				path: 'activity/:entityType/:entityId',
 				loadComponent: () =>
 					import('./features/activity/activity-log.page').then((m) => m.ActivityLogPageComponent),

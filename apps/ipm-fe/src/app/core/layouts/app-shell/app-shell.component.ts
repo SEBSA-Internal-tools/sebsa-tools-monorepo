@@ -65,6 +65,12 @@ export class AppShellComponent implements OnInit {
           onlyForRoles: ['ADMIN', 'SUPER_ADMIN'],
         },
         {
+          label: 'Departments',
+          icon: 'corporate_fare',
+          path: '/admin/departments',
+          onlyForRoles: ['ADMIN', 'SUPER_ADMIN'],
+        },
+        {
           label: 'Privilege Groups',
           icon: 'shield_person',
           path: '/admin/privilege-groups',

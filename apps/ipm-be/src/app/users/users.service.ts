@@ -108,6 +108,12 @@ export class UsersService {
     return this.toAdminSummary(user);
   }
 
+  async updateDepartment(id: string, departmentId: string): Promise<UserAdminSummary> {
+    await this.assertDepartmentExists(departmentId);
+    const user = await this.updateOrThrow(id, { department: { connect: { id: departmentId } } });
+    return this.toAdminSummary(user);
+  }
+
   async create(dto: CreateUserDto, requestedBy: AuthUser): Promise<CreateUserResponse> {
     if (dto.systemRole === 'SUPER_ADMIN' && requestedBy.systemRole !== 'SUPER_ADMIN') {
       throw new ForbiddenException('Only a Super Admin can grant the Super Admin role.');
@@ -117,6 +123,8 @@ export class UsersService {
     if (existing) {
       throw new ConflictException('An account with this email already exists.');
     }
+
+    await this.assertDepartmentExists(dto.departmentId);
 
     // Admin-created accounts are auto-approved (no separate approval step);
     // a random temporary password is generated and returned exactly once
@@ -145,6 +153,16 @@ export class UsersService {
       throw new NotFoundException('User not found.');
     }
     return this.prisma.user.update({ where: { id }, data });
+  }
+
+  private async assertDepartmentExists(id: string): Promise<void> {
+    const department = await this.prisma.department.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+    if (!department) {
+      throw new BadRequestException('Invalid department.');
+    }
   }
 
   private toAdminSummary(user: {

@@ -1,0 +1,85 @@
+<div class="departments-container">
+  <header class="sebsa-page-header">
+    <span class="sebsa-eyebrow">ADMINISTRATION</span>
+    <h1 class="sebsa-page-title">Departments</h1>
+    <p class="sebsa-page-desc">Manage the departments available when users register or are created.</p>
+  </header>
+
+  <div class="sebsa-card">
+    <div class="content-header-row">
+      <button type="button" class="btn-primary" (click)="openCreateModal()">
+        + Add Department
+      </button>
+    </div>
+
+    @if (errorMessage()) {
+      <div class="error-banner" role="alert">{{ errorMessage() }}</div>
+    }
+
+    @if (departments().length > 0) {
+      <div class="table-scroll">
+        <table class="sebsa-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th><span class="visually-hidden">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (department of departments(); track department.id) {
+              <tr>
+                <td>{{ department.name }}</td>
+                <td class="actions">
+                  <button type="button" class="btn-text" (click)="openEditModal(department)">Edit</button>
+                  <button type="button" class="btn-text btn-text-danger" (click)="remove(department)">Delete</button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    } @else {
+      <div class="empty-state">No departments have been added yet.</div>
+    }
+  </div>
+
+  @if (isModalOpen()) {
+    <button type="button" class="modal-overlay" aria-label="Close department dialog" (click)="closeModal()"></button>
+    <section class="modal-container" role="dialog" aria-modal="true" aria-labelledby="department-dialog-title">
+      <form (ngSubmit)="submit()">
+        <div class="modal-header">
+          <h2 id="department-dialog-title">{{ editingId() ? 'Edit Department' : 'Add Department' }}</h2>
+          <button type="button" class="close-btn" aria-label="Close" (click)="closeModal()">
+            <span class="material-symbols-outlined" aria-hidden="true">close</span>
+          </button>
+        </div>
+        <div class="modal-body">
+          @if (errorMessage()) {
+            <div class="error-banner" role="alert">{{ errorMessage() }}</div>
+          }
+          <div class="form-group">
+            <label class="form-label" for="department-name">Department name</label>
+            <input
+              id="department-name"
+              name="departmentName"
+              type="text"
+              [(ngModel)]="name"
+              class="form-input"
+              minlength="2"
+              maxlength="100"
+              autocomplete="organization"
+              placeholder="e.g. Engineering"
+              required
+            />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-cancel" [disabled]="isSaving()" (click)="closeModal()">Cancel</button>
+          <button type="submit" class="btn-create" [disabled]="name.trim().length < 2 || isSaving()">
+            {{ isSaving() ? 'Saving...' : 'Save' }}
+          </button>
+        </div>
+      </form>
+    </section>
+  }
+</div>
