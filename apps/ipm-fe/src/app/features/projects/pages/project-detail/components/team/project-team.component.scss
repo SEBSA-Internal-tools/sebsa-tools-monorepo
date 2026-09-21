@@ -414,6 +414,11 @@
   &:hover {
     background: #2563eb;
   }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.65;
+  }
 }
 
 .action-btn {
