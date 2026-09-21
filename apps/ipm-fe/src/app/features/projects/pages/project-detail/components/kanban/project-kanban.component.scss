@@ -38,9 +38,9 @@
     }
 
     &.active {
-      background: var(--app-accent, #3b82f6);
+      background: var(--app-accent);
       color: #fff;
-      box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+      box-shadow: 0 2px 8px var(--app-accent-shadow);
     }
   }
 }
@@ -615,13 +615,13 @@
 }
 
 .btn-save {
-  background: var(--app-accent, #3b82f6);
+  background: var(--app-accent);
   color: #fff;
 
   &:not(:disabled):hover {
     filter: brightness(1.08);
     transform: translateY(-1px);
-    box-shadow: 0 4px 14px rgba(59, 130, 246, 0.3);
+    box-shadow: 0 4px 14px var(--app-accent-shadow);
   }
 }
 
@@ -665,8 +665,8 @@
 
   &:hover {
     transform: translateY(-2px);
-    border-color: var(--app-accent, #3b82f6);
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+    border-color: var(--app-accent);
+    box-shadow: 0 4px 12px var(--app-accent-shadow);
   }
 
   &:active {

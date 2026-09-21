@@ -344,8 +344,8 @@ code, pre, .font-mono, .task-id, .crim-id {
 .btn-primary,
 .btn-primary-solid,
 .sebsa-btn-primary {
-  background-color: #5B21B6 !important; /* Solid deep purple */
-  color: #FFFFFF !important; /* Pure white text */
+  background-color: var(--brand-primary) !important;
+  color: var(--app-accent-on) !important;
   font-weight: 600 !important;
   border: none !important;
   border-radius: 8px !important;
@@ -359,13 +359,13 @@ code, pre, .font-mono, .task-id, .crim-id {
 
   .material-symbols-outlined,
   span {
-    color: #FFFFFF !important;
+    color: var(--app-accent-on) !important;
   }
 
   &:hover:not(:disabled) {
-    background-color: #4C1D95 !important; /* Slightly darker shade on hover, no harsh glows */
-    color: #FFFFFF !important;
-    border-color: #4C1D95 !important;
+    background-color: var(--brand-primary-hover) !important;
+    color: var(--app-accent-on) !important;
+    border-color: var(--brand-primary-hover) !important;
     box-shadow: none !important;
     transform: none !important;
   }
