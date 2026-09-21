@@ -12,7 +12,7 @@ import {
   CaseStatusHistoryEntry,
   CaseSummary,
 } from '@sebsa-pm-tool/shared-models';
-import { ActivityAction, EntityType, Prisma, TaskCategory } from '@prisma/client';
+import { ActivityAction, EntityType, Prisma, SprintStatus, TaskCategory } from '@prisma/client';
 import { CreateCaseDto } from './dto/create-case.dto';
 import { UpdateCaseDto } from './dto/update-case.dto';
 import { FilterCaseDto } from './dto/filter-case.dto';
@@ -133,6 +133,10 @@ export class CaseService {
         });
       }
 
+      if (kase.sprintId) {
+        await this.syncSprintStatus(tx, kase.sprintId, kase.projectId);
+      }
+
       await this.activityLogs.record(
         {
           projectId: kase.projectId,
@@ -157,7 +161,7 @@ export class CaseService {
         entityType: 'CASE',
         entityId: created.id,
         entityTitle: dto.title,
-      }).catch(() => {});
+      }).catch(() => undefined);
     }
 
     return this.findOne(created.id, user);
@@ -228,7 +232,8 @@ export class CaseService {
     const mergedCategory = dto.category !== undefined ? dto.category : existing.category;
     this.assertCsoCategoryRequirement(isCsoLabeled, mergedCategory);
 
-    const { assigneeIds, labelIds, isCsoLabeled: _ignoredIsCsoLabeled, ...restDto } = dto;
+    const { assigneeIds, labelIds, ...restDto } = dto;
+    delete restDto.isCsoLabeled;
     const isStatusChange = !!dto.status && dto.status !== existing.status;
     const changes = [
       ...this.activityLogs.buildFieldChanges(existing, restDto),
@@ -307,6 +312,17 @@ export class CaseService {
         });
       }
 
+      if (dto.status !== undefined || dto.sprintId !== undefined) {
+        const affectedSprintIds = new Set(
+          [existing.sprintId, dto.sprintId].filter(
+            (sprintId): sprintId is string => !!sprintId,
+          ),
+        );
+        for (const sprintId of affectedSprintIds) {
+          await this.syncSprintStatus(tx, sprintId, existing.projectId);
+        }
+      }
+
       // CaseStatusHistory and CaseCategoryAssignment remain the authoritative
       // per-dimension timelines; this adds one entry to the cross-entity feed
       // covering whatever the request actually changed.
@@ -340,7 +356,7 @@ export class CaseService {
           entityType: 'CASE',
           entityId: id,
           entityTitle: dto.title ?? existing.title,
-        }).catch(() => {});
+        }).catch(() => undefined);
       }
     }
 
@@ -357,7 +373,7 @@ export class CaseService {
         dateField: 'due date',
         oldDate: existing.dueDate,
         newDate: dto.dueDate ? new Date(dto.dueDate) : null,
-      }).catch(() => {});
+      }).catch(() => undefined);
     }
 
     if (isStartDateChange && currentAssignees.length > 0) {
@@ -371,7 +387,7 @@ export class CaseService {
         dateField: 'start date',
         oldDate: existing.startDate,
         newDate: dto.startDate ? new Date(dto.startDate) : null,
-      }).catch(() => {});
+      }).catch(() => undefined);
     }
 
     if (dto.status && dto.status !== existing.status) {
@@ -396,7 +412,7 @@ export class CaseService {
             newStatus: dto.status as string,
           });
         })
-        .catch(() => {});
+        .catch(() => undefined);
     }
 
     return this.findOne(id, user);
@@ -408,6 +424,10 @@ export class CaseService {
 
     await this.prisma.$transaction(async (tx) => {
       await tx.case.update({ where: { id }, data: { deletedAt: new Date() } });
+
+      if (kase.sprintId) {
+        await this.syncSprintStatus(tx, kase.sprintId, kase.projectId);
+      }
 
       await this.activityLogs.record(
         {
@@ -424,6 +444,62 @@ export class CaseService {
     });
 
     return { message: 'Case deleted successfully.' };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Sprint lifecycle
+  // ---------------------------------------------------------------------------
+
+  /** Keep sprint lifecycle derived from its active cases. This runs in the
+   * same transaction as each case mutation so the two records cannot drift. */
+  private async syncSprintStatus(
+    tx: Prisma.TransactionClient,
+    sprintId: string,
+    projectId: string,
+  ): Promise<void> {
+    const sprint = await tx.sprint.findFirst({
+      where: { id: sprintId, projectId },
+      select: { id: true, status: true },
+    });
+    if (!sprint) return;
+
+    const cases = await tx.case.findMany({
+      where: { sprintId, deletedAt: null },
+      select: { status: true },
+    });
+
+    let nextStatus: SprintStatus = SprintStatus.PLANNED;
+    if (
+      cases.length > 0 &&
+      cases.every((kase) => kase.status === 'DONE' || kase.status === 'CANCELLED')
+    ) {
+      nextStatus = SprintStatus.COMPLETED;
+    } else if (cases.some((kase) => kase.status !== 'TO_DO')) {
+      nextStatus = SprintStatus.ACTIVE;
+    }
+
+    if (nextStatus === sprint.status) return;
+
+    if (nextStatus === SprintStatus.ACTIVE) {
+      const activeSprint = await tx.sprint.findFirst({
+        where: {
+          projectId,
+          status: SprintStatus.ACTIVE,
+          id: { not: sprintId },
+        },
+        select: { name: true },
+      });
+      if (activeSprint) {
+        throw new BadRequestException(
+          `Cannot start work in this sprint while "${activeSprint.name}" is active.`,
+        );
+      }
+    }
+
+    await tx.sprint.update({
+      where: { id: sprintId },
+      data: { status: nextStatus },
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -478,7 +554,7 @@ export class CaseService {
         entityType: 'CASE',
         entityId: caseId,
         entityTitle: kase.title,
-      }).catch(() => {});
+      }).catch(() => undefined);
     }
 
     return this.findOne(caseId, user);

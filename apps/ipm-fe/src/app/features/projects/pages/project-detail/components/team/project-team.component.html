@@ -164,9 +164,14 @@
         ariaLabel="Privilege group"
         customClass="create-role-select"
       ></app-custom-select>
-      <button type="button" class="btn-create-role" (click)="createRole()">
+      <button
+        type="button"
+        class="btn-create-role"
+        [disabled]="isCreatingRole()"
+        (click)="createRole()"
+      >
         <span class="material-symbols-outlined">add</span>
-        Create Custom Role
+        {{ isCreatingRole() ? 'Creating...' : 'Create Custom Role' }}
       </button>
     </div>
   </div>
