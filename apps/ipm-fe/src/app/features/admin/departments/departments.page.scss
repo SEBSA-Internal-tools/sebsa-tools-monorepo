@@ -19,13 +19,43 @@
   margin-bottom: 24px;
 }
 
+.content-header-row .btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
 .table-scroll {
   overflow-x: auto;
+}
+
+// The global table blueprint paints every cell with surface-card. Keep the
+// department list transparent so it inherits this page's own surface.
+.sebsa-table,
+.sebsa-table th,
+.sebsa-table td {
+  background-color: transparent !important;
 }
 
 .actions {
   text-align: right;
   white-space: nowrap;
+}
+
+.sebsa-table th:first-child,
+.sebsa-table td:first-child {
+  text-align: left;
+}
+
+.sebsa-table th:last-child,
+.sebsa-table td:last-child {
+  text-align: right !important;
+}
+
+.department-name {
+  color: var(--app-text);
+  font-weight: 600;
 }
 
 .btn-text {
@@ -161,10 +191,46 @@
   color: var(--app-accent-on);
 }
 
+.btn-delete {
+  padding: 10px 20px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--status-error-fg);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 .btn-create:disabled,
-.btn-cancel:disabled {
+.btn-cancel:disabled,
+.btn-delete:disabled,
+.close-btn:disabled {
   cursor: not-allowed;
   opacity: 0.55;
+}
+
+.confirmation-dialog .modal-body {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.confirmation-dialog p {
+  margin: 0;
+  color: var(--app-text);
+  line-height: 1.5;
+}
+
+.confirmation-icon {
+  display: flex;
+  flex: 0 0 44px;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--status-warning-bg);
+  color: var(--status-warning-fg);
 }
 
 .visually-hidden {
@@ -176,8 +242,110 @@
   white-space: nowrap;
 }
 
+@media (min-width: 641px) {
+  .sebsa-table th:last-child,
+  .sebsa-table td:last-child {
+    width: 1%;
+    white-space: nowrap;
+  }
+}
+
 @media (max-width: 768px) {
   .departments-container {
     padding: 20px 16px;
+    gap: 16px;
+  }
+
+  .content-header-row .btn-primary {
+    width: 100%;
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 640px) {
+  .table-scroll {
+    overflow: visible;
+  }
+
+  .sebsa-table,
+  .sebsa-table tbody,
+  .sebsa-table tr,
+  .sebsa-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .sebsa-table thead {
+    display: none;
+  }
+
+  .sebsa-table tr {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+    padding: 12px;
+    border: 1px solid var(--app-border);
+    border-radius: 10px;
+    background: var(--app-surface-soft);
+  }
+
+  .sebsa-table td {
+    display: block;
+    width: auto;
+    padding: 8px 0;
+    border: 0;
+    text-align: left;
+  }
+
+  .actions {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 2px;
+    text-align: right;
+    white-space: normal;
+  }
+
+  .department-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .btn-text {
+    min-height: 44px;
+    margin-left: 0;
+    padding: 8px 10px;
+  }
+
+  .modal-container {
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    max-width: none;
+    max-height: 90vh;
+    transform: none;
+    border-radius: 16px 16px 0 0;
+  }
+
+  .modal-header,
+  .modal-body,
+  .modal-footer {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .modal-footer > button {
+    flex: 1;
+    min-height: 44px;
+  }
+
+  .confirmation-dialog .modal-body {
+    align-items: flex-start;
   }
 }

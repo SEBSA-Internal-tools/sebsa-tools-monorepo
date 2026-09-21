@@ -28,10 +28,12 @@
           <tbody>
             @for (department of departments(); track department.id) {
               <tr>
-                <td>{{ department.name }}</td>
-                <td class="actions">
+                <td class="department-name" data-label="Name">
+                  {{ department.name }}
+                </td>
+                <td class="actions" data-label="Actions">
                   <button type="button" class="btn-text" (click)="openEditModal(department)">Edit</button>
-                  <button type="button" class="btn-text btn-text-danger" (click)="remove(department)">Delete</button>
+                  <button type="button" class="btn-text btn-text-danger" (click)="openDeleteConfirmation(department)">Delete</button>
                 </td>
               </tr>
             }
@@ -80,6 +82,37 @@
           </button>
         </div>
       </form>
+    </section>
+  }
+
+  @if (pendingDelete(); as department) {
+    <button
+      type="button"
+      class="modal-overlay"
+      aria-label="Close delete department dialog"
+      (click)="closeDeleteConfirmation()"
+    ></button>
+    <section class="modal-container confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-department-title" aria-describedby="delete-department-description">
+      <div class="modal-header">
+        <h2 id="delete-department-title">Delete Department</h2>
+        <button type="button" class="close-btn" aria-label="Close" [disabled]="isDeleting()" (click)="closeDeleteConfirmation()">
+          <span class="material-symbols-outlined" aria-hidden="true">close</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="confirmation-icon" aria-hidden="true">
+          <span class="material-symbols-outlined">warning</span>
+        </div>
+        <p id="delete-department-description">
+          Delete <strong>{{ department.name }}</strong>? This action cannot be undone.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-cancel" [disabled]="isDeleting()" (click)="closeDeleteConfirmation()">Cancel</button>
+        <button type="button" class="btn-delete" [disabled]="isDeleting()" (click)="confirmDelete()">
+          {{ isDeleting() ? 'Deleting...' : 'Delete' }}
+        </button>
+      </div>
     </section>
   }
 </div>
