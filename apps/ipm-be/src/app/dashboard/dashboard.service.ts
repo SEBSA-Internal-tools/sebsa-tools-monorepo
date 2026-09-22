@@ -52,6 +52,7 @@ export class DashboardService {
         sprints: {
           where: {
             status: 'ACTIVE',
+            deletedAt: null,
             endDate: { gte: now },
           },
           orderBy: { endDate: 'asc' },

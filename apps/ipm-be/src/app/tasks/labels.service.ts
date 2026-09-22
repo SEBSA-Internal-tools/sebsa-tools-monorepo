@@ -1,21 +1,32 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '@sebsa-pm-tool/core';
 import { AuthUser, TaskLabel } from '@sebsa-pm-tool/shared-models';
 import { CreateLabelDto } from './dto/create-label.dto';
 import { UpdateLabelDto } from './dto/update-label.dto';
+import { ProjectAccessService } from '../common/project-access.service';
 
-const ADMIN_SYSTEM_ROLES: AuthUser['systemRole'][] = ['ADMIN', 'SUPER_ADMIN'];
+/** deletedAt is internal bookkeeping — it must not reach the client. */
+const labelSelect = {
+  id: true,
+  projectId: true,
+  name: true,
+  color: true,
+  createdAt: true,
+} as const;
 
 @Injectable()
 export class LabelsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly access: ProjectAccessService,
+  ) {}
 
   async create(dto: CreateLabelDto, user: AuthUser): Promise<TaskLabel> {
     await this.assertProjectExists(dto.projectId);
-    await this.assertCanManageLabels(dto.projectId, user);
+    await this.access.assertCan(dto.projectId, user, 'canManageLabels');
 
-    const existing = await this.prisma.label.findUnique({
-      where: { projectId_name: { projectId: dto.projectId, name: dto.name } },
+    const existing = await this.prisma.label.findFirst({
+      where: { projectId: dto.projectId, name: dto.name, deletedAt: null },
     });
     if (existing) {
       throw new BadRequestException('A label with this name already exists in the project.');
@@ -23,40 +34,54 @@ export class LabelsService {
 
     return this.prisma.label.create({
       data: { projectId: dto.projectId, name: dto.name, color: dto.color },
+      select: labelSelect,
     });
   }
 
   async findAllByProject(projectId: string, user: AuthUser): Promise<TaskLabel[]> {
-    await this.assertVisible(projectId, user);
-    return this.prisma.label.findMany({ where: { projectId }, orderBy: { name: 'asc' } });
+    await this.access.assertVisible(projectId, user);
+    return this.prisma.label.findMany({
+      where: { projectId, deletedAt: null },
+      orderBy: { name: 'asc' },
+      select: labelSelect,
+    });
   }
 
   async findOne(id: string, user: AuthUser): Promise<TaskLabel> {
     const label = await this.getLabelOrThrow(id);
-    await this.assertVisible(label.projectId, user);
+    await this.access.assertVisible(label.projectId, user);
     return label;
   }
 
   async update(id: string, dto: UpdateLabelDto, user: AuthUser): Promise<TaskLabel> {
     const label = await this.getLabelOrThrow(id);
-    await this.assertCanManageLabels(label.projectId, user);
+    await this.access.assertCan(label.projectId, user, 'canManageLabels');
 
     return this.prisma.label.update({
       where: { id },
       data: { name: dto.name, color: dto.color },
+      select: labelSelect,
     });
   }
 
   async delete(id: string, user: AuthUser): Promise<{ message: string }> {
     const label = await this.getLabelOrThrow(id);
-    await this.assertCanManageLabels(label.projectId, user);
+    await this.access.assertCan(label.projectId, user, 'canManageLabels');
 
-    await this.prisma.label.delete({ where: { id } });
+    // The label stays attached to its tasks and cases; filtering it out of
+    // reads is what makes it disappear, so nothing loses its history.
+    await this.prisma.label.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
     return { message: 'Label deleted successfully.' };
   }
 
   private async getLabelOrThrow(id: string) {
-    const label = await this.prisma.label.findUnique({ where: { id } });
+    const label = await this.prisma.label.findFirst({
+      where: { id, deletedAt: null },
+      select: labelSelect,
+    });
     if (!label) {
       throw new NotFoundException('Label not found.');
     }
@@ -73,33 +98,5 @@ export class LabelsService {
     }
   }
 
-  private async assertVisible(projectId: string, user: AuthUser): Promise<void> {
-    if (ADMIN_SYSTEM_ROLES.includes(user.systemRole) || user.systemRole === 'EXECUTIVE') return;
 
-    const membership = await this.prisma.projectMember.findFirst({
-      where: { projectId, userId: user.id, deletedAt: null },
-      select: { id: true },
-    });
-    if (!membership) {
-      throw new ForbiddenException('You do not have access to this project.');
-    }
-  }
-
-  /** Labels are project configuration (like workflow stages), not an
-   * individual-task action — gated on canManageWorkflow rather than
-   * canCreateTask so rank-and-file members can't redefine the project's tag
-   * vocabulary. The FSD doesn't specify who manages labels; this mirrors
-   * how Owner/Manager (canManageWorkflow: true) vs. Member/Viewer (false)
-   * already splits other project-configuration actions. */
-  private async assertCanManageLabels(projectId: string, user: AuthUser): Promise<void> {
-    if (ADMIN_SYSTEM_ROLES.includes(user.systemRole)) return;
-
-    const membership = await this.prisma.projectMember.findFirst({
-      where: { projectId, userId: user.id, deletedAt: null },
-      include: { role: { include: { privilegeGroup: true } } },
-    });
-    if (!membership || !membership.role.privilegeGroup.canManageWorkflow) {
-      throw new ForbiddenException('You do not have permission to manage labels for this project.');
-    }
-  }
 }

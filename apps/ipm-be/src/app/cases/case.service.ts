@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -18,6 +17,7 @@ import { UpdateCaseDto } from './dto/update-case.dto';
 import { FilterCaseDto } from './dto/filter-case.dto';
 import { ActivityLogsService } from '../activity-logs/activity-logs.service';
 import { NotificationService } from '../notifications/notification.service';
+import { ProjectAccessService } from '../common/project-access.service';
 
 const ADMIN_SYSTEM_ROLES: AuthUser['systemRole'][] = ['ADMIN', 'SUPER_ADMIN'];
 
@@ -48,7 +48,10 @@ type CaseWithSummary = Prisma.CaseGetPayload<{ select: typeof caseSummarySelect 
 const caseDetailInclude = {
   createdBy: { select: { id: true, name: true } },
   assignees: { include: { user: { select: { id: true, name: true, email: true } } } },
-  labels: { include: { label: { select: { id: true, name: true, color: true } } } },
+  labels: {
+    where: { label: { deletedAt: null } },
+    include: { label: { select: { id: true, name: true, color: true } } },
+  },
   tasks: {
     where: { deletedAt: null },
     select: { id: true, title: true, status: true },
@@ -66,11 +69,12 @@ export class CaseService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly activityLogs: ActivityLogsService,
+    private readonly access: ProjectAccessService,
     private readonly notificationService: NotificationService,
   ) {}
 
   async create(dto: CreateCaseDto, user: AuthUser): Promise<Case> {
-    await this.assertCanCreate(dto.projectId, user);
+    await this.access.assertCan(dto.projectId, user, 'canCreateCase');
 
     const priorityId = dto.priorityId ?? (await this.resolveDefaultPriorityId(dto.projectId));
 
@@ -195,13 +199,13 @@ export class CaseService {
 
   async findOne(id: string, user: AuthUser): Promise<Case> {
     const kase = await this.getCaseDetailOrThrow(id);
-    await this.assertVisible(kase.projectId, user);
+    await this.access.assertVisible(kase.projectId, user);
     return this.toCase(kase);
   }
 
   async update(id: string, dto: UpdateCaseDto, user: AuthUser): Promise<Case> {
     const existing = await this.getCaseOrThrow(id);
-    await this.assertCanEdit(existing.projectId, user);
+    await this.access.assertCan(existing.projectId, user, 'canEditCase');
 
     if (dto.sprintId) {
       await this.assertSprintBelongsToProject(dto.sprintId, existing.projectId);
@@ -404,7 +408,7 @@ export class CaseService {
 
   async delete(id: string, user: AuthUser): Promise<{ message: string }> {
     const kase = await this.getCaseOrThrow(id);
-    await this.assertCanDelete(kase.projectId, user);
+    await this.access.assertCan(kase.projectId, user, 'canDeleteCase');
 
     await this.prisma.$transaction(async (tx) => {
       await tx.case.update({ where: { id }, data: { deletedAt: new Date() } });
@@ -432,7 +436,7 @@ export class CaseService {
 
   async assignUsers(caseId: string, assigneeIds: string[], user: AuthUser): Promise<Case> {
     const kase = await this.getCaseOrThrow(caseId);
-    await this.assertCanEdit(kase.projectId, user);
+    await this.access.assertCan(kase.projectId, user, 'canEditCase');
     await this.assertAssigneesValid(assigneeIds, kase.projectId);
 
     const existingAssignees = await this.prisma.caseAssignee
@@ -486,7 +490,7 @@ export class CaseService {
 
   async unassignUser(caseId: string, userId: string, user: AuthUser): Promise<Case> {
     const kase = await this.getCaseOrThrow(caseId);
-    await this.assertCanEdit(kase.projectId, user);
+    await this.access.assertCan(kase.projectId, user, 'canEditCase');
 
     const removed = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -569,7 +573,7 @@ export class CaseService {
 
   async getAssignees(caseId: string, user: AuthUser) {
     const kase = await this.getCaseOrThrow(caseId);
-    await this.assertVisible(kase.projectId, user);
+    await this.access.assertVisible(kase.projectId, user);
 
     const assignees = await this.prisma.caseAssignee.findMany({
       where: { caseId },
@@ -584,7 +588,7 @@ export class CaseService {
 
   async attachLabels(caseId: string, labelIds: string[], user: AuthUser): Promise<Case> {
     const kase = await this.getCaseOrThrow(caseId);
-    await this.assertCanEdit(kase.projectId, user);
+    await this.access.assertCan(kase.projectId, user, 'canEditCase');
     await this.assertLabelsValid(labelIds, kase.projectId);
 
     await this.prisma.caseLabel.createMany({
@@ -596,7 +600,7 @@ export class CaseService {
 
   async detachLabel(caseId: string, labelId: string, user: AuthUser): Promise<Case> {
     const kase = await this.getCaseOrThrow(caseId);
-    await this.assertCanEdit(kase.projectId, user);
+    await this.access.assertCan(kase.projectId, user, 'canEditCase');
 
     await this.prisma.caseLabel.deleteMany({ where: { caseId, labelId } });
     return this.findOne(caseId, user);
@@ -608,7 +612,7 @@ export class CaseService {
 
   async getStatusHistory(caseId: string, user: AuthUser): Promise<CaseStatusHistoryEntry[]> {
     const kase = await this.getCaseOrThrow(caseId);
-    await this.assertVisible(kase.projectId, user);
+    await this.access.assertVisible(kase.projectId, user);
 
     const history = await this.prisma.caseStatusHistory.findMany({
       where: { caseId },
@@ -627,7 +631,7 @@ export class CaseService {
 
   async getCategoryHistory(caseId: string, user: AuthUser): Promise<CaseCategoryAssignmentEntry[]> {
     const kase = await this.getCaseOrThrow(caseId);
-    await this.assertVisible(kase.projectId, user);
+    await this.access.assertVisible(kase.projectId, user);
 
     const history = await this.prisma.caseCategoryAssignment.findMany({
       where: { caseId },
@@ -659,44 +663,9 @@ export class CaseService {
     });
   }
 
-  private async assertVisible(projectId: string, user: AuthUser): Promise<void> {
-    if (ADMIN_SYSTEM_ROLES.includes(user.systemRole) || user.systemRole === 'EXECUTIVE') return;
 
-    const membership = await this.prisma.projectMember.findFirst({
-      where: { projectId, userId: user.id, deletedAt: null },
-      select: { id: true },
-    });
-    if (!membership) {
-      throw new ForbiddenException('You do not have access to this project.');
-    }
-  }
 
-  private async assertCanCreate(projectId: string, user: AuthUser): Promise<void> {
-    if (ADMIN_SYSTEM_ROLES.includes(user.systemRole)) return;
 
-    const membership = await this.getMembershipWithGroup(projectId, user.id);
-    if (!membership || !membership.role.privilegeGroup.canCreateTask) {
-      throw new ForbiddenException('You do not have permission to create cases in this project.');
-    }
-  }
-
-  private async assertCanEdit(projectId: string, user: AuthUser): Promise<void> {
-    if (ADMIN_SYSTEM_ROLES.includes(user.systemRole)) return;
-
-    const membership = await this.getMembershipWithGroup(projectId, user.id);
-    if (!membership || membership.role.privilegeGroup.isReadOnly) {
-      throw new ForbiddenException('You do not have permission to edit cases in this project.');
-    }
-  }
-
-  private async assertCanDelete(projectId: string, user: AuthUser): Promise<void> {
-    if (ADMIN_SYSTEM_ROLES.includes(user.systemRole)) return;
-
-    const membership = await this.getMembershipWithGroup(projectId, user.id);
-    if (!membership || !membership.role.privilegeGroup.canDeleteTask) {
-      throw new ForbiddenException('You do not have permission to delete cases in this project.');
-    }
-  }
 
   private async buildScopedWhere(
     filter: FilterCaseDto,
@@ -706,7 +675,7 @@ export class CaseService {
       ADMIN_SYSTEM_ROLES.includes(user.systemRole) || user.systemRole === 'EXECUTIVE';
 
     if (filter.projectId) {
-      await this.assertVisible(filter.projectId, user);
+      await this.access.assertVisible(filter.projectId, user);
     } else if (!isPrivileged) {
       const memberships = await this.prisma.projectMember.findMany({
         where: { userId: user.id, deletedAt: null },
@@ -799,7 +768,7 @@ export class CaseService {
   ): Promise<void> {
     if (!sprintId) return;
     const sprint = await this.prisma.sprint.findFirst({
-      where: { id: sprintId, projectId },
+      where: { id: sprintId, projectId, deletedAt: null },
       select: { id: true },
     });
     if (!sprint) {
@@ -851,7 +820,7 @@ export class CaseService {
 
     const uniqueIds = Array.from(new Set(labelIds));
     const count = await this.prisma.label.count({
-      where: { id: { in: uniqueIds }, projectId },
+      where: { id: { in: uniqueIds }, projectId, deletedAt: null },
     });
     if (count !== uniqueIds.length) {
       throw new BadRequestException('One or more labels do not belong to the selected project.');

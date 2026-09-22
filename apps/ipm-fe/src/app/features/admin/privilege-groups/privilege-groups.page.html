@@ -35,12 +35,15 @@
               <td>{{ group.description || '—' }}</td>
               <td>
                 <div class="permission-badges">
-                  @if (group.canCreateTask) { <span class="badge badge-active">Create Task</span> }
-                  @if (group.canDeleteTask) { <span class="badge badge-active">Delete Task</span> }
-                  @if (group.canManageMembers) { <span class="badge badge-active">Manage Members</span> }
-                  @if (group.canConfigureIntegrations) { <span class="badge badge-active">Configure Integrations</span> }
-                  @if (group.canManageWorkflow) { <span class="badge badge-active">Manage Workflow</span> }
-                  @if (group.isReadOnly) { <span class="badge badge-pending">Read Only</span> }
+                  @if (group.isReadOnly) {
+                    <span class="badge badge-pending">Read Only</span>
+                  } @else {
+                    @for (permission of grantedPermissions(group); track permission.key) {
+                      <span class="badge badge-active">{{ permission.label }}</span>
+                    } @empty {
+                      <span class="badge">No permissions</span>
+                    }
+                  }
                 </div>
               </td>
               <td class="actions">
@@ -73,34 +76,37 @@
           <input type="text" [(ngModel)]="form.description" class="form-input" placeholder="Optional" />
         </div>
         <div class="form-group">
-          <label class="form-label">Permissions</label>
-          <div class="checkbox-list">
-            <label class="checkbox-item">
-              <input type="checkbox" [(ngModel)]="form.canCreateTask" />
-              Create Task
-            </label>
-            <label class="checkbox-item">
-              <input type="checkbox" [(ngModel)]="form.canDeleteTask" />
-              Delete Task
-            </label>
-            <label class="checkbox-item">
-              <input type="checkbox" [(ngModel)]="form.canManageMembers" />
-              Manage Members
-            </label>
-            <label class="checkbox-item">
-              <input type="checkbox" [(ngModel)]="form.canConfigureIntegrations" />
-              Configure Integrations
-            </label>
-            <label class="checkbox-item">
-              <input type="checkbox" [(ngModel)]="form.canManageWorkflow" />
-              Manage Workflow
-            </label>
-            <label class="checkbox-item">
-              <input type="checkbox" [(ngModel)]="form.isReadOnly" />
-              Read Only
-            </label>
-          </div>
+          <label class="checkbox-item read-only-toggle">
+            <input type="checkbox" [(ngModel)]="form.isReadOnly" (ngModelChange)="onReadOnlyChange()" />
+            <span>
+              <strong>Read only</strong>
+              <small>Refuses every change, whatever is ticked below.</small>
+            </span>
+          </label>
         </div>
+
+        @for (section of sections; track section.title) {
+          <div class="form-group">
+            <label class="form-label">{{ section.title }}</label>
+            <div class="checkbox-list">
+              @for (permission of section.permissions; track permission.key) {
+                <label class="checkbox-item" [class.disabled]="form.isReadOnly">
+                  <input
+                    type="checkbox"
+                    [(ngModel)]="form[permission.key]"
+                    [disabled]="form.isReadOnly"
+                  />
+                  <span>
+                    {{ permission.label }}
+                    @if (permission.hint) {
+                      <small>{{ permission.hint }}</small>
+                    }
+                  </span>
+                </label>
+              }
+            </div>
+          </div>
+        }
       </div>
       <div class="modal-footer">
         <button type="button" class="btn-cancel" (click)="closeModal()">Cancel</button>

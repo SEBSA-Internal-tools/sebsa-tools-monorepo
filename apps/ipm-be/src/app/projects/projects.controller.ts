@@ -90,6 +90,15 @@ export class ProjectsController {
     return this.projectsService.updateRole(id, roleId, dto, user);
   }
 
+  @Delete(':id/roles/:roleId')
+  async deleteRole(
+    @Param('id') id: string,
+    @Param('roleId') roleId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.projectsService.deleteRole(id, roleId, user);
+  }
+
   @Get(':id/members')
   getMembers(
     @Param('id') id: string,

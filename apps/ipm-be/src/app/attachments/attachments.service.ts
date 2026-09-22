@@ -94,6 +94,7 @@ export class AttachmentsService {
     // never has taskId set directly, so both paths must be queried.
     const attachments = await this.prisma.attachment.findMany({
       where: {
+        deletedAt: null,
         OR: [{ taskId }, { comment: { taskId } }],
       },
       include: {
@@ -118,6 +119,7 @@ export class AttachmentsService {
     // reaches its case through the comment's own caseId relation.
     const attachments = await this.prisma.attachment.findMany({
       where: {
+        deletedAt: null,
         OR: [{ caseId }, { comment: { caseId } }],
       },
       include: {
@@ -139,7 +141,7 @@ export class AttachmentsService {
 
   async getAttachmentsByComment(commentId: string): Promise<any[]> {
     const attachments = await this.prisma.attachment.findMany({
-      where: { commentId },
+      where: { commentId, deletedAt: null },
       include: {
         uploadedBy: { select: { id: true, name: true } },
       },
@@ -160,7 +162,9 @@ export class AttachmentsService {
   async getFileForDownload(
     filePath: string,
   ): Promise<{ buffer: Buffer; fileName: string; mimeType: string }> {
-    const attachment = await this.prisma.attachment.findFirst({ where: { filePath } });
+    const attachment = await this.prisma.attachment.findFirst({
+      where: { filePath, deletedAt: null },
+    });
     if (!attachment) {
       throw new NotFoundException('Attachment not found');
     }
@@ -176,8 +180,8 @@ export class AttachmentsService {
   }
 
   async deleteAttachment(attachmentId: string, user: AuthUser): Promise<void> {
-    const attachment = await this.prisma.attachment.findUnique({
-      where: { id: attachmentId },
+    const attachment = await this.prisma.attachment.findFirst({
+      where: { id: attachmentId, deletedAt: null },
     });
 
     if (!attachment) {
@@ -189,14 +193,12 @@ export class AttachmentsService {
       throw new ForbiddenException('You cannot delete this attachment');
     }
 
-    // Delete from storage (local or SharePoint)
-    if (this.useLocalStorage) {
-      await this.localStorage.deleteFile(attachment.filePath);
-    }
-    // Note: SharePoint deletion can be added if needed
-
-    await this.prisma.attachment.delete({
+    // The stored file is deliberately left in place. Removing it would make
+    // the soft delete unrecoverable, which is the whole point of keeping the
+    // row; purging orphaned files is a separate, deliberate operation.
+    await this.prisma.attachment.update({
       where: { id: attachmentId },
+      data: { deletedAt: new Date() },
     });
   }
 }

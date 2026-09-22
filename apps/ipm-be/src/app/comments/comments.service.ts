@@ -12,6 +12,7 @@ import { NotificationService } from '../notifications/notification.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
 import { FilterCommentDto } from './dto/filter-comment.dto';
+import { ProjectAccessService } from '../common/project-access.service';
 
 const ADMIN_SYSTEM_ROLES: AuthUser['systemRole'][] = ['ADMIN', 'SUPER_ADMIN'];
 
@@ -19,6 +20,7 @@ const commentInclude = {
   author: { select: { id: true, name: true, email: true, avatarUrl: true } },
   mentions: { include: { mentionedUser: { select: { id: true, name: true } } } },
   attachments: {
+    where: { deletedAt: null },
     select: {
       id: true,
       fileName: true,
@@ -47,12 +49,13 @@ export class CommentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly activityLogs: ActivityLogsService,
+    private readonly access: ProjectAccessService,
     private readonly notifications: NotificationService,
   ) {}
 
   async findAll(filter: FilterCommentDto, user: AuthUser): Promise<CommentSummary[]> {
     const target = await this.resolveTarget(filter.caseId, filter.taskId);
-    await this.assertVisible(target.projectId, user);
+    await this.access.assertVisible(target.projectId, user);
 
     const comments = await this.prisma.comment.findMany({
       where: { ...this.targetWhere(target), deletedAt: null },
@@ -65,7 +68,7 @@ export class CommentsService {
 
   async create(dto: CreateCommentDto, user: AuthUser): Promise<CommentSummary> {
     const target = await this.resolveTarget(dto.caseId, dto.taskId);
-    await this.assertCanComment(target.projectId, user);
+    await this.access.assertCan(target.projectId, user, 'canComment');
 
     // A reply must belong to the same thread as its parent, or a caller could
     // graft a comment onto a project they cannot see.
@@ -234,30 +237,7 @@ export class CommentsService {
   // Authorization
   // ---------------------------------------------------------------------------
 
-  private async assertVisible(projectId: string, user: AuthUser): Promise<void> {
-    if (ADMIN_SYSTEM_ROLES.includes(user.systemRole) || user.systemRole === 'EXECUTIVE') return;
 
-    const membership = await this.prisma.projectMember.findFirst({
-      where: { projectId, userId: user.id, deletedAt: null },
-      select: { id: true },
-    });
-    if (!membership) {
-      throw new ForbiddenException('You do not have access to this project.');
-    }
-  }
-
-  /** Read-only project roles can see a thread but not post to it. */
-  private async assertCanComment(projectId: string, user: AuthUser): Promise<void> {
-    if (ADMIN_SYSTEM_ROLES.includes(user.systemRole)) return;
-
-    const membership = await this.prisma.projectMember.findFirst({
-      where: { projectId, userId: user.id, deletedAt: null },
-      include: { role: { include: { privilegeGroup: true } } },
-    });
-    if (!membership || membership.role.privilegeGroup.isReadOnly) {
-      throw new ForbiddenException('You do not have permission to comment on this project.');
-    }
-  }
 
   /** Authors edit their own words; admins may remove anyone's. */
   private assertCanModify(comment: CommentWithRelations, user: AuthUser): void {

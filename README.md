@@ -188,6 +188,8 @@ libs/
 | -------- | ------ |
 | [docs/database-architecture.md](docs/database-architecture.md) | Schema design, modeling decisions, migration workflow |
 | [docs/authentication.md](docs/authentication.md) | Login, JWT handling, roles and guards |
+| [docs/permissions.md](docs/permissions.md) | System roles, privilege groups and where they are enforced |
+| [docs/soft-deletes.md](docs/soft-deletes.md) | Which records soft-delete, which do not, and why |
 | [docs/activity-and-audit-log.md](docs/activity-and-audit-log.md) | Activity feeds and the Super Admin audit trail |
 | [docs/comments.md](docs/comments.md) | Comment threads, replies and mentions |
 | [docs/jira-integration.md](docs/jira-integration.md) | One-way Jira sync and case linking |

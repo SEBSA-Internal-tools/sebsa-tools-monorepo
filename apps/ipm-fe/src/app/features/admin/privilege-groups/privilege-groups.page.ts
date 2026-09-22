@@ -2,30 +2,79 @@ import { CommonModule } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { PrivilegeGroup } from '@sebsa-pm-tool/shared-models';
+import { PrivilegeGrants, PrivilegeGroup } from '@sebsa-pm-tool/shared-models';
 import { PrivilegeGroupsService } from '../../../core/services/privilege-groups.service';
 
-interface PrivilegeGroupFormState {
+type GrantKey = keyof PrivilegeGrants;
+
+interface PermissionDef {
+  key: GrantKey;
+  label: string;
+  hint?: string;
+}
+
+interface PermissionSection {
+  title: string;
+  permissions: PermissionDef[];
+}
+
+/** Rendered from data rather than hand-listed, so adding a grant means adding
+ * one entry here instead of editing a form, a badge list and a reset object. */
+const PERMISSION_SECTIONS: PermissionSection[] = [
+  {
+    title: 'Cases',
+    permissions: [
+      { key: 'canCreateCase', label: 'Create cases' },
+      { key: 'canEditCase', label: 'Edit cases' },
+      { key: 'canDeleteCase', label: 'Delete cases' },
+    ],
+  },
+  {
+    title: 'Tasks & subtasks',
+    permissions: [
+      { key: 'canCreateTask', label: 'Create tasks', hint: 'Includes subtasks' },
+      { key: 'canEditTask', label: 'Edit tasks', hint: 'Includes subtasks' },
+      { key: 'canDeleteTask', label: 'Delete tasks', hint: 'Includes subtasks' },
+    ],
+  },
+  {
+    title: 'Collaboration',
+    permissions: [{ key: 'canComment', label: 'Comment' }],
+  },
+  {
+    title: 'Project management',
+    permissions: [
+      { key: 'canManageMembers', label: 'Manage members' },
+      { key: 'canManageSprints', label: 'Manage sprints' },
+      { key: 'canManageLabels', label: 'Manage labels' },
+      { key: 'canConfigureIntegrations', label: 'Configure integrations', hint: 'Jira linking' },
+    ],
+  },
+];
+
+const ALL_GRANTS: GrantKey[] = PERMISSION_SECTIONS.flatMap((s) =>
+  s.permissions.map((p) => p.key),
+);
+
+interface PrivilegeGroupFormState extends PrivilegeGrants {
   name: string;
   description: string;
-  canCreateTask: boolean;
-  canDeleteTask: boolean;
-  canManageMembers: boolean;
-  canConfigureIntegrations: boolean;
-  canManageWorkflow: boolean;
   isReadOnly: boolean;
 }
 
-const EMPTY_FORM: PrivilegeGroupFormState = {
-  name: '',
-  description: '',
-  canCreateTask: false,
-  canDeleteTask: false,
-  canManageMembers: false,
-  canConfigureIntegrations: false,
-  canManageWorkflow: false,
-  isReadOnly: false,
-};
+/** Builds a full PrivilegeGrants from a per-key lookup. Written this way so the
+ * result is genuinely typed rather than an asserted string map. */
+function buildGrants(valueFor: (key: GrantKey) => boolean): PrivilegeGrants {
+  const grants = {} as PrivilegeGrants;
+  for (const key of ALL_GRANTS) {
+    grants[key] = valueFor(key);
+  }
+  return grants;
+}
+
+function emptyForm(): PrivilegeGroupFormState {
+  return { ...buildGrants(() => false), name: '', description: '', isReadOnly: false };
+}
 
 @Component({
   standalone: true,
@@ -38,75 +87,116 @@ const EMPTY_FORM: PrivilegeGroupFormState = {
 export class PrivilegeGroupsPageComponent implements OnInit {
   private readonly privilegeGroupsService = inject(PrivilegeGroupsService);
 
-  protected readonly groups = signal<PrivilegeGroup[]>([]);
-  protected readonly errorMessage = signal('');
-  protected readonly isModalOpen = signal(false);
-  protected readonly editingId = signal<string | null>(null);
+  protected readonly sections = PERMISSION_SECTIONS;
+  readonly groups = signal<PrivilegeGroup[]>([]);
+  readonly isLoading = signal(false);
+  readonly errorMessage = signal('');
+  readonly editingId = signal<string | null>(null);
+  readonly isModalOpen = signal(false);
 
-  protected form: PrivilegeGroupFormState = { ...EMPTY_FORM };
+  form: PrivilegeGroupFormState = emptyForm();
 
   ngOnInit(): void {
-    this.loadGroups();
+    this.load();
   }
 
-  private loadGroups(): void {
+  load(): void {
+    this.isLoading.set(true);
+    this.errorMessage.set('');
     this.privilegeGroupsService.list().subscribe({
-      next: (groups) => this.groups.set(groups),
-      error: () => this.errorMessage.set('Failed to load privilege groups.'),
+      next: (groups) => {
+        this.groups.set(groups);
+        this.isLoading.set(false);
+      },
+      error: () => {
+        this.errorMessage.set('Could not load privilege groups.');
+        this.isLoading.set(false);
+      },
     });
   }
 
+  /** The grants a group actually carries, for the badge row. A read-only group
+   * shows none, because none of them apply. */
+  grantedPermissions(group: PrivilegeGroup): PermissionDef[] {
+    if (group.isReadOnly) return [];
+    return PERMISSION_SECTIONS.flatMap((s) => s.permissions).filter((p) => group[p.key]);
+  }
+
   openCreateModal(): void {
+    this.form = emptyForm();
     this.editingId.set(null);
-    this.form = { ...EMPTY_FORM };
     this.isModalOpen.set(true);
   }
 
   openEditModal(group: PrivilegeGroup): void {
-    this.editingId.set(group.id);
+    const grants = buildGrants((key) => group[key]);
+
     this.form = {
+      ...grants,
       name: group.name,
       description: group.description ?? '',
-      canCreateTask: group.canCreateTask,
-      canDeleteTask: group.canDeleteTask,
-      canManageMembers: group.canManageMembers,
-      canConfigureIntegrations: group.canConfigureIntegrations,
-      canManageWorkflow: group.canManageWorkflow,
       isReadOnly: group.isReadOnly,
     };
+    this.editingId.set(group.id);
     this.isModalOpen.set(true);
   }
 
   closeModal(): void {
     this.isModalOpen.set(false);
+    this.editingId.set(null);
+    this.form = emptyForm();
+  }
+
+  /** Read-only denies every write server-side, so the grants are switched off
+   * here too rather than left ticked but inert. */
+  onReadOnlyChange(): void {
+    if (!this.form.isReadOnly) return;
+    for (const key of ALL_GRANTS) {
+      this.form[key] = false;
+    }
   }
 
   submit(): void {
-    this.errorMessage.set('');
-    const editingId = this.editingId();
-    const dto = { ...this.form, description: this.form.description || undefined };
+    const name = this.form.name.trim();
+    if (!name) return;
 
+    const grants = buildGrants((key) => this.form[key]);
+
+    const payload = {
+      ...grants,
+      name,
+      description: this.form.description.trim() || undefined,
+      isReadOnly: this.form.isReadOnly,
+    };
+
+    const editingId = this.editingId();
     const request = editingId
-      ? this.privilegeGroupsService.update(editingId, dto)
-      : this.privilegeGroupsService.create(dto);
+      ? this.privilegeGroupsService.update(editingId, payload)
+      : this.privilegeGroupsService.create(payload);
 
     request.subscribe({
       next: () => {
-        this.isModalOpen.set(false);
-        this.loadGroups();
+        this.closeModal();
+        this.load();
       },
       error: (error: HttpErrorResponse) =>
-        this.errorMessage.set(error.error?.message ?? 'Failed to save privilege group.'),
+        this.errorMessage.set(error.error?.message ?? 'Could not save the privilege group.'),
     });
   }
 
   remove(group: PrivilegeGroup): void {
-    if (!confirm(`Delete privilege group "${group.name}"?`)) return;
-    this.errorMessage.set('');
+    if (!window.confirm(`Delete the "${group.name}" privilege group?`)) return;
+
     this.privilegeGroupsService.remove(group.id).subscribe({
-      next: () => this.loadGroups(),
+      next: () => this.load(),
       error: (error: HttpErrorResponse) =>
-        this.errorMessage.set(error.error?.message ?? 'Failed to delete privilege group.'),
+        this.errorMessage.set(
+          error.error?.message ?? 'Could not delete the privilege group.',
+        ),
     });
+  }
+
+  trackById(_index: number, group: PrivilegeGroup): string {
+    return group.id;
   }
 }
