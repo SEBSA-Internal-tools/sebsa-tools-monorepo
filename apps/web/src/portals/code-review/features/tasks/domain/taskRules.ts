@@ -1,4 +1,4 @@
-import { taskDraftSchema, type TaskDraft } from '@sdp/contracts';
+import { taskDraftSchema, type Priority, type TaskDraft } from '@sdp/contracts';
 
 /**
  * Rules for creating and submitting a review task.
@@ -41,6 +41,7 @@ export function deriveTitle(customerName: string, crimId: string, version?: stri
 export const TASK_REQUIREMENTS = [
   'customer',
   'crimId',
+  'priority',
   'versionTooLong',
   'taskTypes',
   'checklist',
@@ -48,7 +49,7 @@ export const TASK_REQUIREMENTS = [
 export type TaskRequirement = (typeof TASK_REQUIREMENTS)[number];
 
 export interface TaskReadinessInput {
-  draft: Partial<TaskDraft>;
+  draft: Partial<Omit<TaskDraft, 'priority'>> & { priority?: Priority | '' };
   /** Selected on wizard step 2; drives which checklist sections render. */
   taskTypes: readonly string[];
   /** From `checklistRules.checklistProgress().isComplete`. */
@@ -72,6 +73,7 @@ export function missingRequirements(input: TaskReadinessInput): TaskRequirement[
 
   if (!shape.customerId.safeParse(draft.customerId ?? '').success) missing.push('customer');
   if (!shape.crimId.safeParse(draft.crimId ?? '').success) missing.push('crimId');
+  if (!shape.priority.safeParse(draft.priority).success) missing.push('priority');
   if (draft.version !== undefined && !shape.version.safeParse(draft.version).success) {
     missing.push('versionTooLong');
   }
@@ -95,7 +97,7 @@ export type TaskWizardStep = (typeof TASK_WIZARD_STEPS)[number];
 
 /** Which requirements each step owns. Used to colour the stepper and gate Next. */
 const STEP_REQUIREMENTS: Record<TaskWizardStep, readonly TaskRequirement[]> = {
-  details: ['customer', 'crimId', 'versionTooLong'],
+  details: ['customer', 'crimId', 'priority', 'versionTooLong'],
   checklist: ['taskTypes', 'checklist'],
   review: [],
 };

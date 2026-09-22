@@ -84,7 +84,7 @@ describe('New Review Task wizard', () => {
     });
   });
 
-  it('blocks Next on step 1 until customer and CRIM ID are entered', async () => {
+  it('blocks Next on step 1 until customer, CRIM ID, and Priority are entered', async () => {
     const { router, user } = renderWizard();
 
     // The requirement panel is persistent, not revealed by a failed click:
@@ -119,8 +119,17 @@ describe('New Review Task wizard', () => {
     });
   });
 
-  it('enables Next only after the valid task details are saved as a draft', async () => {
-    const { user } = renderWizard();
+  it('does not preselect a priority', async () => {
+    renderWizard();
+
+    const priorities = await screen.findByRole('radiogroup', { name: /priority/i });
+    expect(within(priorities).getAllByRole('radio')).toHaveLength(3);
+    expect(within(priorities).queryAllByRole('radio', { checked: true })).toHaveLength(0);
+    expect(useTaskDraft.getState().priority).toBe('');
+  });
+
+  it('enables Save Draft and advances without saving when required details are complete', async () => {
+    const { router, user } = renderWizard();
 
     await chooseCustomer(user, sampleCustomer().name);
     expect(await screen.findByRole('button', { name: /next: quality checklist/i })).toHaveAttribute(
@@ -129,27 +138,82 @@ describe('New Review Task wizard', () => {
     );
 
     await user.type(await screen.findByLabelText(/crim id/i), 'CRIM-1');
-    await user.type(await screen.findByLabelText(/version/i), 'V1');
+    expect(screen.getByLabelText(/version/i)).toHaveValue('');
     expect(screen.getByRole('button', { name: /next: quality checklist/i })).toHaveAttribute(
       'aria-disabled',
       'true',
     );
 
+    await user.click(screen.getByRole('radio', { name: 'High' }));
+    expect(screen.getByRole('button', { name: /save draft/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /next: quality checklist/i })).toHaveAttribute(
+      'aria-disabled',
+      'false',
+    );
+
+    const taskCount = db.tasks.length;
+    await user.click(screen.getByRole('button', { name: /next: quality checklist/i }));
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe('/crp/developer/tasks/new/checklist');
+    });
+    expect(useTaskDraft.getState().taskId).toBeNull();
+    expect(db.tasks).toHaveLength(taskCount);
+  });
+
+  it('completes Save Draft with an optional empty Version', async () => {
+    const { user } = renderWizard();
+
+    await chooseCustomer(user, sampleCustomer().name);
+    await user.type(await screen.findByLabelText(/crim id/i), 'CRIM-NO-VERSION');
+    await user.click(screen.getByRole('radio', { name: 'Low' }));
     await user.click(screen.getByRole('button', { name: /save draft/i }));
+
     await waitFor(() => {
       expect(useTaskDraft.getState().taskId).not.toBeNull();
-      expect(screen.getByRole('button', { name: /next: quality checklist/i })).toHaveAttribute(
-        'aria-disabled',
+      expect(screen.getByRole('button', { name: /save draft/i })).toHaveAttribute(
+        'aria-busy',
         'false',
       );
     });
+    const saved = db.tasks.find((task) => task.id === useTaskDraft.getState().taskId);
+    expect(saved).toMatchObject({ version: null, priority: 'Low' });
+  });
+
+  it('submits successfully without saving a draft from the Details step first', async () => {
+    const { router, user } = renderWizard();
+
+    await chooseCustomer(user, sampleCustomer().name);
+    await user.type(await screen.findByLabelText(/crim id/i), 'CRIM-DIRECT-SUBMIT');
+    await user.click(screen.getByRole('radio', { name: 'High' }));
+    await user.click(screen.getByRole('button', { name: /next: quality checklist/i }));
+
+    await user.click(await screen.findByRole('checkbox', { name: /quick report/i }));
+    for (const group of screen.getAllByRole('radiogroup')) {
+      await user.click(within(group).getByRole('radio', { name: 'Yes' }));
+    }
+    await user.click(screen.getByRole('button', { name: /next: review & submit/i }));
+
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe('/crp/developer/tasks/new/review');
+    });
+    const taskId = useTaskDraft.getState().taskId;
+    expect(taskId).not.toBeNull();
+
+    await user.click(await screen.findByRole('button', { name: /submit for review/i }));
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe('/crp/developer/tasks/new/confirmed');
+    });
+    expect(db.tasks.find((task) => task.id === taskId)?.status).toBe('Submitted');
   });
 
   it('loads the selected customer next Task ID into System Information', async () => {
     const { user } = renderWizard();
     const customer = sampleCustomer();
     const expectedSequence = (db.sequences[customer.id] ?? 0) + 1;
-    const expectedPrefix = customer.name.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '');
+    const expectedPrefix = customer.name
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, '');
 
     await chooseCustomer(user, customer.name);
 
@@ -175,6 +239,7 @@ describe('New Review Task wizard', () => {
     await chooseCustomer(user, sampleCustomer().name);
     await user.type(await screen.findByLabelText(/crim id/i), 'CRIM-999');
     await user.type(await screen.findByLabelText(/version/i), 'V1');
+    await user.click(screen.getByRole('radio', { name: 'Medium' }));
     await user.click(screen.getByRole('button', { name: /save draft/i }));
     await waitFor(() => {
       expect(useTaskDraft.getState().taskId).not.toBeNull();

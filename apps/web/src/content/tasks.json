@@ -161,6 +161,7 @@
     "requirements": {
       "customer": "Select a customer",
       "crimId": "Enter the CRIM ID",
+      "priority": "Select a priority",
       "versionTooLong": "Version must be 50 characters or fewer",
       "taskTypes": "Select at least one task type",
       "checklist": "Answer every checklist question"

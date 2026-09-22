@@ -122,22 +122,25 @@ export function WizardReviewStep() {
       id: 'priority',
       icon: <Flag className="size-4 text-violet-600" />,
       label: tasks.detail.fields.priority,
-      value: (
-        <span className="inline-flex items-center gap-1.5 font-semibold text-ink-900">
-          <span
-            className={cn(
-              'size-2 rounded-full',
-              draft.priority === 'High'
-                ? 'bg-danger'
-                : draft.priority === 'Medium'
-                  ? 'bg-status-draft'
-                  : 'bg-priority-low',
-            )}
-            aria-hidden="true"
-          />
-          {common.priority[draft.priority]}
-        </span>
-      ),
+      value:
+        draft.priority === '' ? (
+          <span className="text-ink-400">&mdash;</span>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 font-semibold text-ink-900">
+            <span
+              className={cn(
+                'size-2 rounded-full',
+                draft.priority === 'High'
+                  ? 'bg-danger'
+                  : draft.priority === 'Medium'
+                    ? 'bg-status-draft'
+                    : 'bg-priority-low',
+              )}
+              aria-hidden="true"
+            />
+            {common.priority[draft.priority]}
+          </span>
+        ),
     },
     {
       id: 'status',

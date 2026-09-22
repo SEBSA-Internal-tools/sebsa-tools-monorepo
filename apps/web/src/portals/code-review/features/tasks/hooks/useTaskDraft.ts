@@ -41,7 +41,7 @@ export interface TaskDraftState {
   customerId: string;
   crimId: string;
   version: string;
-  priority: Priority;
+  priority: Priority | '';
 
   taskTypeIds: TaskTypeId[];
   /** Draft answers carry ids only; the server snapshots the wording on save. */
@@ -91,7 +91,7 @@ const EMPTY: DraftData = {
   customerId: '',
   crimId: '',
   version: '',
-  priority: 'Medium',
+  priority: '',
   taskTypeIds: [],
   answers: [],
   remarks: '',

@@ -60,6 +60,12 @@ export class ReviewTasksController {
   ) {
     return this.tasks.submit(id, user);
   }
+  @Post(':id/pick') @Roles('REVIEWER') @ApiOkResponse() pick(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.tasks.pick(id, user);
+  }
   @Delete(':id')
   @Roles('ADMIN')
   @HttpCode(HttpStatus.NO_CONTENT)

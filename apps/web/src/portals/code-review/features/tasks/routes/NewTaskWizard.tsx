@@ -72,7 +72,7 @@ function isWizardStep(value: string | undefined): value is TaskWizardStep {
 
 /** Requirements each step surfaces in its side panel, in the order shown. */
 const PANEL_REQUIREMENTS: Record<TaskWizardStep, readonly TaskRequirement[]> = {
-  details: ['customer', 'crimId', 'versionTooLong'],
+  details: ['customer', 'crimId', 'priority', 'versionTooLong'],
   checklist: ['taskTypes', 'checklist'],
   review: [],
 };
@@ -141,6 +141,7 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
 
   const [showErrors, setShowErrors] = useState(false);
   const actionInFlight = useRef(false);
+  const [activeAction, setActiveAction] = useState<'save' | 'next' | 'submit' | null>(null);
 
   const effectiveTaskId = draft.taskId ?? editTaskId ?? '';
   const createTask = useCreateTask();
@@ -220,10 +221,7 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
   const currentStep: TaskWizardStep = step;
   const stepIndex = TASK_WIZARD_STEPS.indexOf(currentStep);
 
-  if (
-    currentStep !== 'details' &&
-    ((!isEditMode && draft.taskId === null) || !canLeaveStep('details', missing))
-  ) {
+  if (currentStep !== 'details' && !canLeaveStep('details', missing)) {
     return <Navigate to={getStepUrl('details')} replace />;
   }
 
@@ -252,7 +250,7 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
     return <Navigate to={getStepUrl('checklist')} replace />;
   }
 
-  const isBusy = createTask.isPending || updateTask.isPending || submitTask.isPending;
+  const isBusy = activeAction !== null;
 
   const steps: Step[] = TASK_WIZARD_STEPS.map((id, index) => ({
     id,
@@ -276,9 +274,7 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
   }));
 
   const blockedCount = requirementsForStep(currentStep, missing).length;
-  const canAdvance =
-    canLeaveStep(currentStep, missing) &&
-    (currentStep !== 'details' || isEditMode || draft.taskId !== null);
+  const canAdvance = canLeaveStep(currentStep, missing);
 
   /**
    * Persists whatever the current step owns, then reports the task id.
@@ -289,6 +285,11 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
    */
   async function persist({ includeChecklist = false } = {}): Promise<string | null> {
     try {
+      if (!canLeaveStep('details', missing) || draft.priority === '') {
+        setShowErrors(true);
+        return null;
+      }
+
       let taskId = draft.taskId;
       let shouldCreate = taskId === null;
       const applicableQuestionIds = new Set(
@@ -413,13 +414,15 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
 
   const unanswered = Math.max(progress.total - progress.answered, 0);
 
-  async function runOnce(action: () => Promise<void>) {
+  async function runOnce(actionName: 'save' | 'next' | 'submit', action: () => Promise<void>) {
     if (actionInFlight.current) return;
     actionInFlight.current = true;
+    setActiveAction(actionName);
     try {
       await action();
     } finally {
       actionInFlight.current = false;
+      setActiveAction(null);
     }
   }
 
@@ -557,17 +560,12 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
             variant="secondary"
             leadingIcon={<Save className="size-4" aria-hidden="true" />}
             onClick={() => {
-              void runOnce(handleSaveDraft);
+              void runOnce('save', handleSaveDraft);
             }}
-            isLoading={isBusy}
+            isLoading={activeAction === 'save'}
             // Saving needs enough to create a task: the server derives the title
             // and the task code from exactly these fields.
-            disabled={
-              draft.customerId === '' ||
-              draft.crimId.trim() === '' ||
-              draft.version.trim() === '' ||
-              draft.priority === undefined
-            }
+            disabled={!canLeaveStep('details', missing)}
           >
             {tasks.wizard.saveDraft}
           </Button>
@@ -575,9 +573,9 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
           {currentStep === 'review' ? (
             <Button
               onClick={() => {
-                void runOnce(handleSubmit);
+                void runOnce('submit', handleSubmit);
               }}
-              isLoading={isBusy}
+              isLoading={activeAction === 'submit'}
               leadingIcon={<Send className="size-4" aria-hidden="true" />}
               aria-disabled={missing.length > 0}
             >
@@ -586,9 +584,9 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
           ) : (
             <Button
               onClick={() => {
-                void runOnce(handleNext);
+                void runOnce('next', handleNext);
               }}
-              isLoading={isBusy}
+              isLoading={activeAction === 'next'}
               trailingIcon={<ArrowRight className="size-4" aria-hidden="true" />}
               aria-disabled={!canAdvance}
             >

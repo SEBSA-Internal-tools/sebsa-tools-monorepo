@@ -48,7 +48,7 @@ describe('missingRequirements', () => {
         taskTypes: [],
         isChecklistComplete: false,
       }),
-    ).toEqual(['customer', 'crimId', 'taskTypes', 'checklist']);
+    ).toEqual(['customer', 'crimId', 'priority', 'taskTypes', 'checklist']);
   });
 
   it('treats a whitespace-only CRIM ID as missing', () => {
@@ -58,6 +58,15 @@ describe('missingRequirements', () => {
         draft: { ...READY.draft, crimId: '   ' },
       }),
     ).toEqual(['crimId']);
+  });
+
+  it('requires the developer to select a priority', () => {
+    expect(
+      missingRequirements({
+        ...READY,
+        draft: { ...READY.draft, priority: '' },
+      }),
+    ).toEqual(['priority']);
   });
 
   it('flags an over-long version but accepts one at the limit', () => {
@@ -94,7 +103,7 @@ describe('wizard step gating (acceptance scenario 1)', () => {
   });
 
   it('assigns each requirement to the step that owns it', () => {
-    expect(requirementsForStep('details', empty)).toEqual(['customer', 'crimId']);
+    expect(requirementsForStep('details', empty)).toEqual(['customer', 'crimId', 'priority']);
     expect(requirementsForStep('checklist', empty)).toEqual(['taskTypes', 'checklist']);
     // The review step introduces no requirements of its own; it is blocked only
     // by the steps behind it, which the wizard enforces by not letting the user

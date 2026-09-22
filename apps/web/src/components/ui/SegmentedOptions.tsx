@@ -31,7 +31,7 @@ export function SegmentedOptions<TValue extends string>({
   required = false,
   className,
 }: {
-  value: TValue;
+  value: TValue | '';
   onValueChange: (value: TValue) => void;
   options: readonly SegmentedOption<TValue>[];
   /** Visible group label. */
