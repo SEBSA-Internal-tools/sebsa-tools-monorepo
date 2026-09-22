@@ -175,11 +175,8 @@
   justify-content: center;
   width: 60px;
   height: 60px;
-  background: linear-gradient(135deg, #3b82f6, #06b6d4);
-  color: white;
-  border-radius: 10px;
-  font-weight: 700;
-  font-size: 1.2rem;
+  border-radius: 50%;
+  overflow: hidden;
   flex-shrink: 0;
 }
 
@@ -197,11 +194,8 @@
   justify-content: center;
   width: 32px;
   height: 32px;
-  background: linear-gradient(135deg, #3b82f6, #06b6d4);
-  color: white;
-  border-radius: 8px;
-  font-weight: 600;
-  font-size: 0.9rem;
+  border-radius: 50%;
+  overflow: hidden;
   flex-shrink: 0;
 }
 
