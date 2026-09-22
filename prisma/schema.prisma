@@ -529,7 +529,18 @@ model Case {
   /// Optional, free-text, manually-entered status label mirroring whatever a
   /// customer's own Jira board calls this item. No live sync/integration —
   /// purely a manual reference field.
+  /// Jira link (one-way, Jira -> here). Set only when someone explicitly
+  /// links this case to an issue; nothing is created from Jira automatically.
+  jiraIssueKey    String?   @unique
+  /// The Jira `updated` timestamp of the last change pulled in, so a repeated
+  /// webhook or an overlapping poll window is recognised as a duplicate.
+  jiraSyncedAt    DateTime?
+  /// The linked issue's status name, shown as its own label beside our status
+  /// because a Jira workflow rarely matches ours.
   jiraStatusLabel String?
+  /// The linked issue's description, kept apart from `description` so a pull
+  /// never overwrites what someone wrote here.
+  jiraDescription String?
   createdById     String
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
@@ -657,19 +668,9 @@ model Task {
   /// Must belong to `taskTypeId`'s own complexity scale — enforced at the
   /// application layer since Prisma can't express a same-row cross-column FK.
   complexityLevelId   String?
-  /// Jira 2-way sync (see JiraModule). Null for tasks never linked to a Jira
-  /// issue — most tasks, since sync is opt-in per project via Integration
-  /// (type: JIRA). jiraSyncedAt is the loop-prevention guard: when we push a
-  /// local change out to Jira, we stamp the resulting Jira `updated` time
-  /// here, so an incoming webhook/poll for that exact change is recognized
-  /// as an echo of our own write rather than a new external edit. Distinct
-  /// from `jiraStatusLabel` below, which is a manual, unsynced field for
-  /// tasks/projects that don't have live Jira sync configured.
-  jiraIssueKey        String?       @unique
-  jiraSyncedAt        DateTime?
-  /// Optional, free-text, manually-entered status label mirroring whatever a
-  /// customer's own Jira board calls this item, for teams without live sync
-  /// configured. No sync/integration — purely a manual reference field.
+  /// Free-text label a team can type in to mirror whatever their own Jira
+  /// board calls this item. Manual only — live Jira sync links to a Case,
+  /// not a Task (see Case.jiraIssueKey).
   jiraStatusLabel     String?
   createdById         String
   createdAt           DateTime      @default(now())

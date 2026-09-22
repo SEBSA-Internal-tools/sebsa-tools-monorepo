@@ -17,6 +17,14 @@ import {
   UpdateProjectPriorityRequest,
 } from '@sebsa-pm-tool/shared-models';
 
+/** What a project is currently synced with. Null when it has never been linked
+ * or the link was switched off. */
+export interface JiraProjectLink {
+  jiraProjectKey: string;
+  /** How many of the project's cases are attached to an issue. */
+  linkedCaseCount: number;
+}
+
 export interface Sprint {
   id: string;
   name: string;
@@ -125,5 +133,23 @@ export class ProjectsService {
 
   getSprintsObservable(projectId: string): Observable<Sprint[]> {
     return this.http.get<SprintSummary[]>(`/api/projects/${projectId}/sprints`) as Observable<Sprint[]>;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Jira integration (one-way: Jira -> here)
+  // ---------------------------------------------------------------------------
+
+  getJiraLink(projectId: string): Observable<JiraProjectLink | null> {
+    return this.http.get<JiraProjectLink | null>(`/api/projects/${projectId}/jira/link`);
+  }
+
+  linkJiraProject(projectId: string, jiraProjectKey: string): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(`/api/projects/${projectId}/jira/link`, {
+      jiraProjectKey,
+    });
+  }
+
+  unlinkJiraProject(projectId: string): Observable<{ message: string }> {
+    return this.http.delete<{ message: string }>(`/api/projects/${projectId}/jira/link`);
   }
 }
