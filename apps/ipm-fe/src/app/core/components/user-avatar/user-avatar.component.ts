@@ -13,11 +13,25 @@ export type UserAvatarSize = 'sm' | 'md' | 'lg' | 'xl';
   templateUrl: './user-avatar.component.html',
   styleUrl: './user-avatar.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {
+    '[style.--avatar-size.px]': 'sizeInPixels',
+  },
 })
 export class UserAvatarComponent {
   @Input() name = '';
   @Input() avatarUrl?: string | null;
   @Input() size: UserAvatarSize = 'md';
+
+  get sizeInPixels(): number {
+    const sizes: Record<UserAvatarSize, number> = {
+      sm: 28,
+      md: 36,
+      lg: 48,
+      xl: 88,
+    };
+
+    return sizes[this.size];
+  }
 
   get initials(): string {
     const trimmed = (this.name || '').trim();
