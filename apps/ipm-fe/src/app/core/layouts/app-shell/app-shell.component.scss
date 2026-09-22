@@ -11,14 +11,21 @@
 }
 
 .app-shell {
+  --sidebar-width: 260px;
+
   min-height: 100vh;
   height: 100vh;
   max-height: 100vh;
   display: grid;
-  grid-template-columns: 260px 1fr;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
   overflow: hidden;
   background-color: var(--surface-page);
   color: var(--text-primary);
+  transition: grid-template-columns 0.2s ease;
+
+  &.sidebar-collapsed {
+    --sidebar-width: 78px;
+  }
 }
 
 // =============================================================================
@@ -26,9 +33,9 @@
 // =============================================================================
 
 .sidebar {
-  width: 260px;
-  min-width: 260px;
-  max-width: 260px;
+  width: var(--sidebar-width);
+  min-width: var(--sidebar-width);
+  max-width: var(--sidebar-width);
   height: 100vh;
   max-height: 100vh;
   flex-shrink: 0;
@@ -42,6 +49,11 @@
   overflow-y: auto;
   overflow-x: hidden;
   box-sizing: border-box;
+  transition:
+    width 0.2s ease,
+    min-width 0.2s ease,
+    max-width 0.2s ease,
+    padding 0.2s ease;
 
   .active-link,
   .nav-heading,
