@@ -7,7 +7,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { AppService } from './app.service.js';
-import { Public } from './auth/decorators/public.decorator.js';
+import { Public } from './modules/auth/decorators/public.decorator.js';
 
 @ApiTags('Application')
 @Controller()
@@ -37,4 +37,3 @@ export class AppController {
     return this.appService.getHello();
   }
 }
-

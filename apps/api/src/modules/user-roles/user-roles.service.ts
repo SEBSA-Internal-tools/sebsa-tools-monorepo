@@ -1,6 +1,6 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service.js';
-import { rethrowPrismaConflict } from '../common/prisma-errors.js';
+import { PrismaService } from '../../prisma/prisma.service.js';
+import { rethrowPrismaConflict } from '../../common/prisma-errors.js';
 import type { CreateUserRoleDto } from './dto/create-user-role.dto.js';
 import type { UpdateUserRoleDto } from './dto/update-user-role.dto.js';
 import type { UserRoleQueryDto } from './dto/user-role-query.dto.js';

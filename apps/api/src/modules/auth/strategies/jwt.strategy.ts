@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import type { Request } from 'express';
-import { PrismaService } from '../../prisma/prisma.service.js';
+import { PrismaService } from '../../../prisma/prisma.service.js';
 import { ACCESS_COOKIE, JWT_AUDIENCE_DEFAULT, JWT_ISSUER_DEFAULT, type RoleCode } from '../auth.constants.js';
 import { authSecret } from '../auth.config.js';
 import type { AuthenticatedUser, JwtPayload } from '../auth.types.js';
