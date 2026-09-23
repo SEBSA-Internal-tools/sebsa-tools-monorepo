@@ -75,6 +75,7 @@ export function useCreateTask() {
     onSuccess: (task) => {
       queryClient.setQueryData(taskKeys.detail(task.id), task);
       void queryClient.invalidateQueries({ queryKey: taskKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: taskKeys.checklist(task.id) });
     },
   });
 }
@@ -88,6 +89,7 @@ export function useUpdateTask(taskId: string) {
     onSuccess: (task) => {
       queryClient.setQueryData(taskKeys.detail(task.id), task);
       void queryClient.invalidateQueries({ queryKey: taskKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: taskKeys.checklist(task.id) });
     },
   });
 }

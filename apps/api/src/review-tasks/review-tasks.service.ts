@@ -37,6 +37,20 @@ function hasAdminAccess(user: AuthenticatedUser): boolean {
   return user.roles.includes('ADMIN') || user.roles.includes('SUPER_ADMIN');
 }
 
+function mayReadTask(user: AuthenticatedUser, task: TaskWithRelations): boolean {
+  return (
+    hasAdminAccess(user) ||
+    (user.roles.includes('DEVELOPER') && task.developerId === user.id) ||
+    (user.roles.includes('REVIEWER') &&
+      task.status !== TaskStatus.DRAFT &&
+      task.developerId !== user.id &&
+      (task.currentReviewerId === user.id ||
+        task.status === TaskStatus.SUBMITTED ||
+        task.status === TaskStatus.RESUBMITTED ||
+        task.codeReviewForms.some(({ reviewerId }) => reviewerId === user.id)))
+  );
+}
+
 @Injectable()
 export class ReviewTasksService {
   constructor(private readonly prisma: PrismaService) {}
@@ -55,18 +69,41 @@ export class ReviewTasksService {
 
   async findOne(id: string, user: AuthenticatedUser) {
     const task = await this.getTask(id);
-    const mayRead =
-      hasAdminAccess(user) ||
-      (user.roles.includes('DEVELOPER') && task.developerId === user.id) ||
-      (user.roles.includes('REVIEWER') &&
-        task.status !== TaskStatus.DRAFT &&
-        task.developerId !== user.id &&
-        (task.currentReviewerId === user.id ||
-          task.status === TaskStatus.SUBMITTED ||
-          task.status === TaskStatus.RESUBMITTED ||
-          task.codeReviewForms.some(({ reviewerId }) => reviewerId === user.id)));
-    if (!mayRead) throw new ForbiddenException('You cannot access this review task');
+    if (!mayReadTask(user, task))
+      throw new ForbiddenException('You cannot access this review task');
     return this.toResponse(task);
+  }
+
+  async findChecklist(id: string, user: AuthenticatedUser) {
+    const task = await this.getTask(id);
+    if (!mayReadTask(user, task))
+      throw new ForbiddenException('You cannot access this review task');
+
+    const checklist = task.developerChecklist;
+    if (!checklist) return null;
+
+    const answerValue = {
+      YES: 'Yes',
+      NO: 'No',
+      NA: 'NA',
+    } as const;
+
+    return {
+      id: checklist.id,
+      taskId: task.id,
+      taskTypeIds: task.taskTypes.map(({ taskTypeId }) => String(taskTypeId)),
+      answers: checklist.answers.map((entry, order) => ({
+        questionId: entry.questionId,
+        answer: answerValue[entry.answer],
+        questionText: entry.question.questionText,
+        categoryName: entry.question.section.name,
+        order,
+      })),
+      remarks: checklist.additionalRemarks ?? '',
+      isComplete: task.checklistCompleted,
+      checkedDate: (checklist.checkedDate ?? checklist.updatedAt).toISOString(),
+      developerId: checklist.developerId,
+    };
   }
 
   private async getTask(id: string) {

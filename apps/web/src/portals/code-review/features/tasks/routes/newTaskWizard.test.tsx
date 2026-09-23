@@ -257,6 +257,34 @@ describe('New Review Task wizard', () => {
     expect(db.tasks).toHaveLength(taskCount);
   });
 
+  it('enables Save Draft only after an opened draft changes and resets it after saving', async () => {
+    const task = db.tasks.find(
+      (candidate) => candidate.developerId === DEVELOPER && candidate.status === 'Draft',
+    );
+    if (!task) throw new Error('seed has no draft for this developer');
+
+    const originalCrimId = task.crimId;
+    const { user } = renderWizard(`/crp/developer/tasks/${task.id}/edit/details`);
+    const crimId = await screen.findByLabelText(/crim id/i);
+    const saveDraft = screen.getByRole('button', { name: /save draft/i });
+
+    await waitFor(() => {
+      expect(saveDraft).toBeDisabled();
+      expect(crimId).toHaveValue(originalCrimId);
+    });
+
+    await user.type(crimId, '-UPDATED');
+    expect(saveDraft).toBeEnabled();
+    await user.click(saveDraft);
+
+    await waitFor(() => {
+      expect(saveDraft).toBeDisabled();
+      expect(db.tasks.find((candidate) => candidate.id === task.id)?.crimId).toBe(
+        `${originalCrimId}-UPDATED`,
+      );
+    });
+  });
+
   it('shows no checklist questions until a task type is selected', async () => {
     const { user } = renderPersistedChecklist();
 

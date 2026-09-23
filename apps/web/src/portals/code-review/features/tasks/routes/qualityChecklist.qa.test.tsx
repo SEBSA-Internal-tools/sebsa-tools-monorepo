@@ -234,11 +234,16 @@ describe('Quality Checklist complete functional QA', () => {
   it('saves empty and partial drafts, long/special remarks, then restores them on reopen', async () => {
     const { task, user, unmount } = renderChecklist();
     const remarks = await screen.findByLabelText(/additional remarks/i);
+    const saveDraft = screen.getByRole('button', { name: /save draft/i });
+
+    expect(saveDraft).toBeDisabled();
 
     fireEvent.change(remarks, { target: { value: '  Notes <>&\n漢字  ' } });
-    await user.click(screen.getByRole('button', { name: /save draft/i }));
+    expect(saveDraft).toBeEnabled();
+    await user.click(saveDraft);
     await waitFor(() => {
       expect(findChecklist(task.id)?.taskTypeIds).toEqual([]);
+      expect(saveDraft).toBeDisabled();
     });
     expect(findChecklist(task.id)?.isComplete).toBe(false);
     expect(findChecklist(task.id)?.remarks).toBe('Notes <>&\n漢字');
@@ -249,10 +254,12 @@ describe('Quality Checklist complete functional QA', () => {
     const longRemarks = `${'x'.repeat(5_000)}\n<script>alert(1)</script>`;
     fireEvent.change(remarks, { target: { value: longRemarks } });
     expect(remarks).toHaveValue(longRemarks);
-    await user.click(screen.getByRole('button', { name: /save draft/i }));
+    expect(saveDraft).toBeEnabled();
+    await user.click(saveDraft);
 
     await waitFor(() => {
       expect(findChecklist(task.id)?.answers).toHaveLength(1);
+      expect(saveDraft).toBeDisabled();
     });
     expect(findChecklist(task.id)?.remarks).toBe(longRemarks);
 
@@ -376,6 +383,9 @@ describe('Quality Checklist complete functional QA', () => {
     const saveDraft = await screen.findByRole('button', {
       name: /save draft/i,
     });
+    expect(saveDraft).toBeDisabled();
+    await user.type(screen.getByLabelText(/crim id/i), '-RECOVERED');
+    expect(saveDraft).toBeEnabled();
     await user.click(saveDraft);
 
     // Save Draft should self-heal by creating a replacement without duplicating it.

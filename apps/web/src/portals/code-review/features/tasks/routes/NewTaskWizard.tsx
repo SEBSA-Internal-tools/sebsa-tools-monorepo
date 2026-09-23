@@ -46,7 +46,7 @@ import {
   type TaskRequirement,
   type TaskWizardStep,
 } from '../domain/taskRules.ts';
-import { useTaskDraft } from '../hooks/useTaskDraft.ts';
+import { useTaskDraft, type TaskDraftState } from '../hooks/useTaskDraft.ts';
 import { ChecklistSidePanels, WizardChecklistStep } from '../components/WizardChecklistStep.tsx';
 import { SystemInformationPanel, WizardDetailsStep } from '../components/WizardDetailsStep.tsx';
 import { ReviewSidePanels, WizardReviewStep } from '../components/WizardReviewStep.tsx';
@@ -76,6 +76,26 @@ const PANEL_REQUIREMENTS: Record<TaskWizardStep, readonly TaskRequirement[]> = {
   checklist: ['taskTypes', 'checklist'],
   review: [],
 };
+
+type PersistedDraftFields = Pick<
+  TaskDraftState,
+  'customerId' | 'crimId' | 'version' | 'priority' | 'taskTypeIds' | 'answers' | 'remarks'
+>;
+
+/** Compare the values the API persists, independent of array insertion order. */
+function draftFingerprint(draft: PersistedDraftFields): string {
+  return JSON.stringify({
+    customerId: draft.customerId,
+    crimId: draft.crimId.trim(),
+    version: draft.version.trim(),
+    priority: draft.priority,
+    taskTypeIds: [...draft.taskTypeIds].sort(),
+    answers: [...draft.answers]
+      .map(({ questionId, answer }) => ({ questionId, answer }))
+      .sort((left, right) => left.questionId.localeCompare(right.questionId)),
+    remarks: draft.remarks.trim(),
+  });
+}
 
 export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } = {}) {
   const { step, taskId: routeTaskId } = useParams<{
@@ -113,17 +133,29 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
         reviewerId: existingTask.reviewerId,
       }));
 
+  const hydratedTaskId = useRef<string | null>(null);
+  const [savedDraftFingerprint, setSavedDraftFingerprint] = useState<string | null>(() =>
+    draft.taskId === null ? null : draftFingerprint(draft),
+  );
+
   // Auto-hydrate when loading an existing task if store is not yet initialized for this task
   useEffect(() => {
-    if (!isEditMode || !editTaskId || !existingTask || !mayEdit) return;
-    if (draft.taskId === editTaskId) return;
+    if (
+      !isEditMode ||
+      !editTaskId ||
+      !existingTask ||
+      checklistPending ||
+      !mayEdit ||
+      hydratedTaskId.current === editTaskId
+    )
+      return;
 
     const answers = (existingChecklist?.answers ?? []).map((entry) => ({
       questionId: entry.questionId,
       answer: entry.answer,
     }));
 
-    draft.hydrate({
+    const serverDraft = {
       taskId: existingTask.id,
       taskCode: existingTask.taskCode,
       customerId: existingTask.customerId,
@@ -136,8 +168,12 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
       noteToReviewer: existingTask.noteToReviewer ?? '',
       createdAt: existingTask.createdAt,
       submittedAt: existingTask.submittedAt,
-    });
-  }, [isEditMode, editTaskId, existingTask, existingChecklist, mayEdit, draft]);
+    };
+
+    hydratedTaskId.current = editTaskId;
+    draft.hydrate(serverDraft);
+    setSavedDraftFingerprint(draftFingerprint(serverDraft));
+  }, [isEditMode, editTaskId, existingTask, existingChecklist, checklistPending, mayEdit, draft]);
 
   const [showErrors, setShowErrors] = useState(false);
   const actionInFlight = useRef(false);
@@ -275,6 +311,8 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
 
   const blockedCount = requirementsForStep(currentStep, missing).length;
   const canAdvance = canLeaveStep(currentStep, missing);
+  const hasUnsavedChanges =
+    savedDraftFingerprint === null || draftFingerprint(draft) !== savedDraftFingerprint;
 
   /**
    * Persists whatever the current step owns, then reports the task id.
@@ -292,20 +330,26 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
 
       let taskId = draft.taskId;
       let shouldCreate = taskId === null;
-      const applicableQuestionIds = new Set(
-        (template ?? []).flatMap((category) =>
-          category.questions
-            .filter(
-              (question) =>
-                question.isActive &&
-                question.appliesTo.some((taskTypeId) => draft.taskTypeIds.includes(taskTypeId)),
-            )
-            .map((question) => question.id),
-        ),
-      );
-      const checklistAnswers = draft.answers.filter((answer) =>
-        applicableQuestionIds.has(answer.questionId),
-      );
+      const applicableQuestionIds =
+        template === undefined
+          ? null
+          : new Set(
+              template.flatMap((category) =>
+                category.questions
+                  .filter(
+                    (question) =>
+                      question.isActive &&
+                      question.appliesTo.some((taskTypeId) =>
+                        draft.taskTypeIds.includes(taskTypeId),
+                      ),
+                  )
+                  .map((question) => question.id),
+              ),
+            );
+      const checklistAnswers =
+        applicableQuestionIds === null
+          ? draft.answers
+          : draft.answers.filter((answer) => applicableQuestionIds.has(answer.questionId));
       const payload = {
         customerId: draft.customerId,
         crimId: draft.crimId.trim(),
@@ -344,6 +388,8 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
       }
       if (includeChecklist) draft.hydrate({ answers: checklistAnswers });
 
+      setSavedDraftFingerprint(draftFingerprint(useTaskDraft.getState()));
+
       return taskId;
     } catch (cause) {
       toast.error(cause instanceof ApiError ? cause.message : common.errors.generic);
@@ -368,7 +414,7 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
   }
 
   async function handleSaveDraft() {
-    const taskId = await persist({ includeChecklist: currentStep !== 'details' });
+    const taskId = await persist({ includeChecklist: true });
     if (taskId === null) return;
     toast.success(common.actions.saveDraft);
   }
@@ -565,7 +611,7 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
             isLoading={activeAction === 'save'}
             // Saving needs enough to create a task: the server derives the title
             // and the task code from exactly these fields.
-            disabled={!canLeaveStep('details', missing)}
+            disabled={!canLeaveStep('details', missing) || !hasUnsavedChanges}
           >
             {tasks.wizard.saveDraft}
           </Button>

@@ -10,13 +10,10 @@ import {
   Patch,
   Post,
   Query,
+  Res,
 } from '@nestjs/common';
-import {
-  ApiCreatedResponse,
-  ApiNoContentResponse,
-  ApiOkResponse,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiCreatedResponse, ApiNoContentResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { CreateReviewTaskDto } from './dto/create-review-task.dto.js';
 import { UpdateReviewTaskDto } from './dto/update-review-task.dto.js';
 import { ReviewTasksService } from './review-tasks.service.js';
@@ -34,6 +31,15 @@ export class ReviewTasksController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.tasks.findAll(user, query.scope ?? 'mine');
+  }
+  @Get(':id/checklist') @ApiOkResponse() @ApiNoContentResponse() async findChecklist(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const checklist = await this.tasks.findChecklist(id, user);
+    if (checklist === null) response.status(HttpStatus.NO_CONTENT);
+    return checklist ?? undefined;
   }
   @Get(':id') @ApiOkResponse() findOne(
     @Param('id', ParseUUIDPipe) id: string,

@@ -101,6 +101,61 @@ describe('ReviewTasksService list visibility', () => {
   });
 });
 
+describe('ReviewTasksService draft checklist', () => {
+  it('returns partial saved answers so an owned draft can be restored', async () => {
+    const user = actor(['DEVELOPER']);
+    const updatedAt = new Date('2026-02-01T10:00:00.000Z');
+    const findUnique = vi.fn().mockResolvedValue({
+      id: '00000000-0000-0000-0000-000000000010',
+      developerId: user.id,
+      currentReviewerId: null,
+      status: TaskStatus.DRAFT,
+      checklistCompleted: false,
+      taskTypes: [{ taskTypeId: 4 }],
+      codeReviewForms: [],
+      developerChecklist: {
+        id: '00000000-0000-0000-0000-000000000020',
+        developerId: user.id,
+        additionalRemarks: 'One answer so far',
+        checkedDate: null,
+        updatedAt,
+        answers: [
+          {
+            questionId: '00000000-0000-0000-0000-000000000030',
+            answer: 'NO',
+            question: {
+              questionText: 'Has the report been checked?',
+              section: { name: 'Quick Reports' },
+            },
+          },
+        ],
+      },
+    });
+    const service = new ReviewTasksService({ task: { findUnique } } as never);
+
+    await expect(
+      service.findChecklist('00000000-0000-0000-0000-000000000010', user),
+    ).resolves.toEqual({
+      id: '00000000-0000-0000-0000-000000000020',
+      taskId: '00000000-0000-0000-0000-000000000010',
+      taskTypeIds: ['4'],
+      answers: [
+        {
+          questionId: '00000000-0000-0000-0000-000000000030',
+          answer: 'No',
+          questionText: 'Has the report been checked?',
+          categoryName: 'Quick Reports',
+          order: 0,
+        },
+      ],
+      remarks: 'One answer so far',
+      isComplete: false,
+      checkedDate: updatedAt.toISOString(),
+      developerId: user.id,
+    });
+  });
+});
+
 describe('ReviewTasksService task picking', () => {
   it('atomically claims an available task and records assignment and status history', async () => {
     const user = actor(['REVIEWER']);
