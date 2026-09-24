@@ -6,9 +6,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ChecklistStatus, Prisma, TaskStatus } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service.js';
-import { rethrowPrismaConflict } from '../common/prisma-errors.js';
-import type { ChecklistAnswerDto, CreateReviewTaskDto } from './dto/create-review-task.dto.js';
+import { PrismaService } from '../../prisma/prisma.service.js';
+import { rethrowPrismaConflict } from '../../common/prisma-errors.js';
+import type {
+  ChecklistAnswerDto,
+  CreateReviewTaskDto,
+} from './dto/create-review-task.dto.js';
 import type { UpdateReviewTaskDto } from './dto/update-review-task.dto.js';
 import type { AuthenticatedUser } from '../auth/auth.types.js';
 import { formatTaskCode } from './task-code.js';

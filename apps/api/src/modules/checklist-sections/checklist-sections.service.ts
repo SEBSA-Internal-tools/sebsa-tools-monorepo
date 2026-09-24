@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { rethrowPrismaConflict } from '../common/prisma-errors.js';
-import { PrismaService } from '../prisma/prisma.service.js';
+import { rethrowPrismaConflict } from '../../common/prisma-errors.js';
+import { PrismaService } from '../../prisma/prisma.service.js';
 import type { CreateChecklistSectionDto } from './dto/create-checklist-section.dto.js';
 import type { UpdateChecklistSectionDto } from './dto/update-checklist-section.dto.js';
 

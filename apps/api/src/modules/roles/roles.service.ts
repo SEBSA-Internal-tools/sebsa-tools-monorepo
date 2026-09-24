@@ -1,6 +1,12 @@
+<<<<<<< HEAD:apps/api/src/roles/roles.service.ts
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { rethrowPrismaConflict } from '../common/prisma-errors.js';
+=======
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service.js';
+import { rethrowPrismaConflict } from '../../common/prisma-errors.js';
+>>>>>>> origin/integrate-backend:apps/api/src/modules/roles/roles.service.ts
 import type { CreateRoleDto } from './dto/create-role.dto.js';
 import type { UpdateRoleDto } from './dto/update-role.dto.js';
 
