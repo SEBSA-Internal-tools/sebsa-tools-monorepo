@@ -1,4 +1,3 @@
-<<<<<<< HEAD:apps/api/src/user-roles/user-roles.service.ts
 import {
   BadRequestException,
   ConflictException,
@@ -6,15 +5,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service.js';
-import { rethrowPrismaConflict } from '../common/prisma-errors.js';
-import type { AuthenticatedUser } from '../auth/auth.types.js';
-import { isRoleCode, type RoleCode } from '../auth/auth.constants.js';
-=======
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { rethrowPrismaConflict } from '../../common/prisma-errors.js';
->>>>>>> origin/integrate-backend:apps/api/src/modules/user-roles/user-roles.service.ts
+import type { AuthenticatedUser } from '../auth/auth.types.js';
+import { isRoleCode, type RoleCode } from '../auth/auth.constants.js';
 import type { CreateUserRoleDto } from './dto/create-user-role.dto.js';
 import type { UpdateUserRoleDto } from './dto/update-user-role.dto.js';
 import type { UserRoleQueryDto } from './dto/user-role-query.dto.js';

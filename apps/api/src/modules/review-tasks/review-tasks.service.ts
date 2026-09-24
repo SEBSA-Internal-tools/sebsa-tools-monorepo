@@ -5,13 +5,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ChecklistStatus, Prisma, TaskStatus } from '@prisma/client';
+import { ChecklistStatus, Prisma, ReviewerAssignmentType, TaskStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { rethrowPrismaConflict } from '../../common/prisma-errors.js';
-import type {
-  ChecklistAnswerDto,
-  CreateReviewTaskDto,
-} from './dto/create-review-task.dto.js';
+import type { ChecklistAnswerDto, CreateReviewTaskDto } from './dto/create-review-task.dto.js';
 import type { UpdateReviewTaskDto } from './dto/update-review-task.dto.js';
 import type { AuthenticatedUser } from '../auth/auth.types.js';
 import { formatTaskCode } from './task-code.js';
@@ -40,6 +37,20 @@ function hasAdminAccess(user: AuthenticatedUser): boolean {
   return user.roles.includes('ADMIN') || user.roles.includes('SUPER_ADMIN');
 }
 
+function mayReadTask(user: AuthenticatedUser, task: TaskWithRelations): boolean {
+  return (
+    hasAdminAccess(user) ||
+    (user.roles.includes('DEVELOPER') && task.developerId === user.id) ||
+    (user.roles.includes('REVIEWER') &&
+      task.status !== TaskStatus.DRAFT &&
+      task.developerId !== user.id &&
+      (task.currentReviewerId === user.id ||
+        task.status === TaskStatus.SUBMITTED ||
+        task.status === TaskStatus.RESUBMITTED ||
+        task.codeReviewForms.some(({ reviewerId }) => reviewerId === user.id)))
+  );
+}
+
 @Injectable()
 export class ReviewTasksService {
   constructor(private readonly prisma: PrismaService) {}
@@ -58,18 +69,41 @@ export class ReviewTasksService {
 
   async findOne(id: string, user: AuthenticatedUser) {
     const task = await this.getTask(id);
-    const mayRead =
-      hasAdminAccess(user) ||
-      (user.roles.includes('DEVELOPER') && task.developerId === user.id) ||
-      (user.roles.includes('REVIEWER') &&
-        task.status !== TaskStatus.DRAFT &&
-        task.developerId !== user.id &&
-        (task.currentReviewerId === user.id ||
-          task.status === TaskStatus.SUBMITTED ||
-          task.status === TaskStatus.RESUBMITTED ||
-          task.codeReviewForms.some(({ reviewerId }) => reviewerId === user.id)));
-    if (!mayRead) throw new ForbiddenException('You cannot access this review task');
+    if (!mayReadTask(user, task))
+      throw new ForbiddenException('You cannot access this review task');
     return this.toResponse(task);
+  }
+
+  async findChecklist(id: string, user: AuthenticatedUser) {
+    const task = await this.getTask(id);
+    if (!mayReadTask(user, task))
+      throw new ForbiddenException('You cannot access this review task');
+
+    const checklist = task.developerChecklist;
+    if (!checklist) return null;
+
+    const answerValue = {
+      YES: 'Yes',
+      NO: 'No',
+      NA: 'NA',
+    } as const;
+
+    return {
+      id: checklist.id,
+      taskId: task.id,
+      taskTypeIds: task.taskTypes.map(({ taskTypeId }) => String(taskTypeId)),
+      answers: checklist.answers.map((entry, order) => ({
+        questionId: entry.questionId,
+        answer: answerValue[entry.answer],
+        questionText: entry.question.questionText,
+        categoryName: entry.question.section.name,
+        order,
+      })),
+      remarks: checklist.additionalRemarks ?? '',
+      isComplete: task.checklistCompleted,
+      checkedDate: (checklist.checkedDate ?? checklist.updatedAt).toISOString(),
+      developerId: checklist.developerId,
+    };
   }
 
   private async getTask(id: string) {
@@ -345,6 +379,91 @@ export class ReviewTasksService {
       return updated;
     });
     return this.toResponse(submitted);
+  }
+
+  async pick(id: string, user: AuthenticatedUser) {
+    return this.prisma.$transaction(async (tx) => {
+      const candidate = await tx.task.findUnique({
+        where: { id },
+        select: {
+          developerId: true,
+          currentReviewerId: true,
+          status: true,
+          currentReviewer: { select: { fullName: true } },
+        },
+      });
+      if (!candidate) throw new NotFoundException(`Review task ${id} was not found`);
+      if (candidate.developerId === user.id) {
+        throw new ForbiddenException('You cannot review your own task');
+      }
+      if (candidate.currentReviewerId !== null) {
+        throw new ConflictException(
+          candidate.currentReviewer?.fullName
+            ? `${candidate.currentReviewer.fullName} has already picked up this task`
+            : 'Another reviewer has already picked up this task',
+        );
+      }
+      if (
+        candidate.status !== TaskStatus.SUBMITTED &&
+        candidate.status !== TaskStatus.RESUBMITTED
+      ) {
+        throw new ConflictException('This task is not available to pick');
+      }
+
+      // The conditional update is the concurrency control. If two reviewers
+      // pick simultaneously, only the first request can match this predicate.
+      const claimed = await tx.task.updateMany({
+        where: {
+          id,
+          developerId: { not: user.id },
+          currentReviewerId: null,
+          status: { in: [TaskStatus.SUBMITTED, TaskStatus.RESUBMITTED] },
+        },
+        data: {
+          currentReviewerId: user.id,
+          status: TaskStatus.IN_REVIEW,
+        },
+      });
+
+      if (claimed.count !== 1) {
+        const winner = await tx.task.findUnique({
+          where: { id },
+          select: { currentReviewer: { select: { fullName: true } } },
+        });
+        throw new ConflictException(
+          winner?.currentReviewer?.fullName
+            ? `${winner.currentReviewer.fullName} has already picked up this task`
+            : 'This task was picked up or changed by another reviewer',
+        );
+      }
+
+      const now = new Date();
+      await tx.taskReviewerAssignment.updateMany({
+        where: { taskId: id, isCurrent: true },
+        data: { isCurrent: false, unassignedAt: now },
+      });
+      await tx.taskReviewerAssignment.create({
+        data: {
+          taskId: id,
+          reviewerId: user.id,
+          assignedBy: user.id,
+          assignmentType: ReviewerAssignmentType.SELF_PICKED,
+        },
+      });
+      await tx.taskStatusHistory.create({
+        data: {
+          taskId: id,
+          oldStatus: candidate.status,
+          newStatus: TaskStatus.IN_REVIEW,
+          changedBy: user.id,
+          remarks: 'Task picked up for review',
+        },
+      });
+
+      const task = await tx.task.findUnique({ where: { id }, include: taskInclude });
+      if (!task) throw new NotFoundException(`Review task ${id} was not found`);
+      return this.toResponse(task);
+    });
   }
 
   private listWhere(user: AuthenticatedUser, scope: ReviewTaskScope): Prisma.TaskWhereInput {

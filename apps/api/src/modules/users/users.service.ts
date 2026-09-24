@@ -1,8 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
-<<<<<<< HEAD:apps/api/src/users/users.service.ts
-import { PrismaService } from '../prisma/prisma.service.js';
-import { rethrowPrismaConflict } from '../common/prisma-errors.js';
+import { PrismaService } from '../../prisma/prisma.service.js';
+import { rethrowPrismaConflict } from '../../common/prisma-errors.js';
 import type { AuthenticatedUser } from '../auth/auth.types.js';
 import type { RoleCode } from '../auth/auth.constants.js';
 import { assertCanGrantRoles, assertCanManageUser } from '../user-roles/role-policy.js';
@@ -10,10 +9,6 @@ import {
   assertNotLastActiveRoleHolder,
   lockPrivilegedRoleInvariants,
 } from '../user-roles/role-invariants.js';
-=======
-import { PrismaService } from '../../prisma/prisma.service.js';
-import { rethrowPrismaConflict } from '../../common/prisma-errors.js';
->>>>>>> origin/integrate-backend:apps/api/src/modules/users/users.service.ts
 import type { CreateUserDto } from './dto/create-user.dto.js';
 import type { UpdateUserDto } from './dto/update-user.dto.js';
 import { assignedRoleCodes, toUserResponse } from './user-response.js';
