@@ -5,8 +5,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service.js';
-import { rethrowPrismaConflict } from '../common/prisma-errors.js';
+import { PrismaService } from '../../prisma/prisma.service.js';
+import { rethrowPrismaConflict } from '../../common/prisma-errors.js';
 import type { AuthenticatedUser } from '../auth/auth.types.js';
 import { isRoleCode, type RoleCode } from '../auth/auth.constants.js';
 import type { CreateUserRoleDto } from './dto/create-user-role.dto.js';

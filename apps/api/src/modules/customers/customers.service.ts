@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service.js';
-import { rethrowPrismaConflict } from '../common/prisma-errors.js';
+import { PrismaService } from '../../prisma/prisma.service.js';
+import { rethrowPrismaConflict } from '../../common/prisma-errors.js';
 import type { CreateCustomerDto } from './dto/create-customer.dto.js';
 import type { UpdateCustomerDto } from './dto/update-customer.dto.js';
 import { formatTaskCode } from '../review-tasks/task-code.js';

@@ -4,7 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { argon2id, hash, verify } from 'argon2';
 import { Prisma } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service.js';
+import { PrismaService } from '../../prisma/prisma.service.js';
 import { authSecret, authSettings } from './auth.config.js';
 import { ROLE_LABELS, type RoleCode } from './auth.constants.js';
 import type { JwtPayload } from './auth.types.js';

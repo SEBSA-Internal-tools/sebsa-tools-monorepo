@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service.js';
-import { rethrowPrismaConflict } from '../common/prisma-errors.js';
+import { PrismaService } from '../../prisma/prisma.service.js';
+import { rethrowPrismaConflict } from '../../common/prisma-errors.js';
 import type { AuthenticatedUser } from '../auth/auth.types.js';
 import type { RoleCode } from '../auth/auth.constants.js';
 import { assertCanGrantRoles, assertCanManageUser } from '../user-roles/role-policy.js';
