@@ -1,5 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Public } from '../auth/decorators/public.decorator.js';
 
 interface HealthResponse {
   status: 'ok';
@@ -18,6 +19,7 @@ interface HealthResponse {
  * eslint.config.js's apps/api override).
  */
 @Controller('health')
+@Public()
 export class HealthController {
   constructor(private readonly config: ConfigService) {}
 

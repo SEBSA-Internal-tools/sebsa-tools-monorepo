@@ -4,6 +4,7 @@ import { useSession } from '@/hooks/useSession.ts';
 import { LoginPage } from '@/features/auth/routes/LoginPage.tsx';
 import { HomePage } from '@/features/home/routes/HomePage.tsx';
 import { useSessionUser } from './session.ts';
+import { PageSkeleton } from '@/components/common/Skeleton.tsx';
 
 /**
  * Thin adapters between the router and feature routes.
@@ -23,10 +24,13 @@ interface LocationState {
 
 export function LoginRoute() {
   const isAuthenticated = useSession((s) => s.isAuthenticated);
+  const isChecking = useSession((s) => s.isChecking);
   const navigate = useNavigate();
   const location = useLocation();
 
   const from = (location.state as LocationState | null)?.from;
+
+  if (isChecking) return <PageSkeleton className="min-h-screen" />;
 
   // Already signed in: skip the login screen entirely rather than letting
   // someone sign in twice.

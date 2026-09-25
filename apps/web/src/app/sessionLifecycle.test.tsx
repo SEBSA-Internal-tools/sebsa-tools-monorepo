@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { http, HttpResponse } from 'msw';
 import { server } from '@/test/mswServer.ts';
@@ -9,6 +8,7 @@ import { signOutForTest } from '@/test/setup.ts';
 import { setMockUserId } from '@/lib/apiClient.ts';
 import { initialiseSession, useSession } from '@/hooks/useSession.ts';
 import { routes } from './routes.tsx';
+import { AppProviders } from './providers.tsx';
 
 /**
  * The session lifecycle, end to end through the real route table.
@@ -19,31 +19,25 @@ import { routes } from './routes.tsx';
  * could not work.
  */
 
-const KEY = 'sdp.session';
+const KEY = 'sdp.mock-user-id';
 const USER = 'u-hiruni';
 
 function renderApp(initialPath = '/') {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false, gcTime: 0 },
-      mutations: { retry: false },
-    },
-  });
   const router = createMemoryRouter(routes, { initialEntries: [initialPath] });
 
   return {
     ...render(
-      <QueryClientProvider client={queryClient}>
+      <AppProviders>
         <RouterProvider router={router} />
-      </QueryClientProvider>,
+      </AppProviders>,
     ),
     router,
     user: userEvent.setup({ delay: null }),
   };
 }
 
-function seedStoredSession(expiresAt: number): void {
-  window.localStorage.setItem(KEY, JSON.stringify({ userId: USER, expiresAt, remember: true }));
+function seedStoredSession(): void {
+  window.localStorage.setItem(KEY, USER);
 }
 
 beforeEach(() => {
@@ -62,7 +56,7 @@ beforeEach(() => {
 
 describe('booting from a stored session', () => {
   it('restores a live session before the first render', async () => {
-    seedStoredSession(Date.now() + 60 * 60 * 1000);
+    seedStoredSession();
     initialiseSession();
 
     expect(useSession.getState().isAuthenticated).toBe(true);
@@ -83,7 +77,7 @@ describe('booting from a stored session', () => {
    * two-hour limit is real rather than decorative.
    */
   it('refuses a session that has already expired, and lands on login', async () => {
-    seedStoredSession(Date.now() - 1);
+    window.localStorage.removeItem(KEY);
     initialiseSession();
 
     expect(useSession.getState().isAuthenticated).toBe(false);
@@ -105,7 +99,7 @@ describe('booting from a stored session', () => {
    * clearing the override and checking requests still authenticate.
    */
   it('authenticates from storage even when the in-memory override is lost', async () => {
-    seedStoredSession(Date.now() + 60 * 60 * 1000);
+    seedStoredSession();
     initialiseSession();
 
     // Simulate the module reset: the override is gone, storage is not.
@@ -152,7 +146,7 @@ describe('a session rejected mid-flight', () => {
    * in place of the layout and the test would simply not find the screen either.
    */
   it('explains the expiry instead of crashing into the error boundary', async () => {
-    seedStoredSession(Date.now() + 60 * 60 * 1000);
+    seedStoredSession();
     initialiseSession();
     rejectTheSession();
 
@@ -162,7 +156,7 @@ describe('a session rejected mid-flight', () => {
     expect(screen.queryByText(/this page ran into a problem/i)).toBeNull();
 
     // Told what happened AND what was done about it — not bounced silently.
-    expect(screen.getByText(/2 hours without activity/i)).toBeInTheDocument();
+    expect(screen.getByText(/secure sign-in has expired/i)).toBeInTheDocument();
     expect(screen.getByText(/have been cleared/i)).toBeInTheDocument();
 
     // The purge happens up front, so nothing sensitive sits behind the screen.
@@ -179,7 +173,7 @@ describe('a session rejected mid-flight', () => {
     // person to sign in on a shared browser inherited a stranger's task.
     window.sessionStorage.setItem('sdp.taskDraft', JSON.stringify({ state: { crimId: 'CRIM-1' } }));
 
-    seedStoredSession(Date.now() + 60 * 60 * 1000);
+    seedStoredSession();
     initialiseSession();
     rejectTheSession();
 
@@ -190,7 +184,7 @@ describe('a session rejected mid-flight', () => {
   });
 
   it('goes to the login form, with its notice, when the user asks', async () => {
-    seedStoredSession(Date.now() + 60 * 60 * 1000);
+    seedStoredSession();
     initialiseSession();
     rejectTheSession();
 
