@@ -15,6 +15,7 @@ import type { UserRoleQueryDto } from './dto/user-role-query.dto.js';
 import { assertCanGrantRoles, assertCanManageUser } from './role-policy.js';
 import { assertNotLastActiveRoleHolder, lockPrivilegedRoleInvariants } from './role-invariants.js';
 import { assignedRoleCodes, toUserResponse } from '../users/user-response.js';
+import { AuditService } from '../audit/audit.service.js';
 
 const safeUserSelect = {
   id: true,
@@ -35,7 +36,10 @@ type UserWithRoles = Prisma.UserGetPayload<{ include: typeof userInclude }>;
 
 @Injectable()
 export class UserRolesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   findAll(query: UserRoleQueryDto = {}) {
     return this.prisma.userRole.findMany({
@@ -67,9 +71,21 @@ export class UserRolesService {
     assertCanGrantRoles(actor, assignedRoleCodes(user), [roleCode]);
 
     try {
-      return await this.prisma.userRole.create({
-        data: { userId: dto.userId, roleId: dto.roleId, grantedBy: actor.id },
-        include: userRoleInclude,
+      return await this.prisma.$transaction(async (tx) => {
+        const assignment = await tx.userRole.create({
+          data: { userId: dto.userId, roleId: dto.roleId, grantedBy: actor.id },
+          include: userRoleInclude,
+        });
+        await this.audit.record(tx, actor, {
+          actionType: 'ROLE_GRANTED',
+          entityType: 'ROLE',
+          entityId: String(role.id),
+          targetUserId: user.id,
+          description: `${actor.name} granted ${role.name} role to ${user.fullName}`,
+          oldValue: currentRoleValue(user),
+          newValue: [...assignedRoleCodes(user), roleCode],
+        });
+        return assignment;
       });
     } catch (error) {
       rethrowPrismaConflict(error);
@@ -116,6 +132,15 @@ export class UserRolesService {
       }
       await assertNotLastActiveRoleHolder(tx, user, [roleCode], 'demoted');
       await tx.userRole.delete({ where: { userId_roleId: { userId, roleId } } });
+      await this.audit.record(tx, actor, {
+        actionType: 'ROLE_REMOVED',
+        entityType: 'ROLE',
+        entityId: String(role.id),
+        targetUserId: user.id,
+        description: `${actor.name} removed ${role.name} role from ${user.fullName}`,
+        oldValue: currentRoles,
+        newValue: currentRoles.filter((code) => code !== roleCode),
+      });
     });
   }
 
@@ -149,10 +174,20 @@ export class UserRolesService {
       await tx.userRole.createMany({
         data: roles.map((role) => ({ userId, roleId: role.id, grantedBy: actor.id })),
       });
-      return tx.user.findUniqueOrThrow({
+      const result = await tx.user.findUniqueOrThrow({
         where: { id: userId, deletedAt: null },
         include: userInclude,
       });
+      await this.audit.record(tx, actor, {
+        actionType: 'ROLES_CHANGED',
+        entityType: 'USER',
+        entityId: userId,
+        targetUserId: userId,
+        description: `${actor.name} changed roles for ${user.fullName}`,
+        oldValue: currentRoles,
+        newValue: roleCodes,
+      });
+      return result;
     });
 
     return toUserResponse(updated);
@@ -179,4 +214,8 @@ export class UserRolesService {
     }
     return code;
   }
+}
+
+function currentRoleValue(user: UserWithRoles): RoleCode[] {
+  return assignedRoleCodes(user);
 }

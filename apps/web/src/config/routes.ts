@@ -31,6 +31,7 @@ export const ROUTES = {
     checklist: routePaths.crp.admin.checklist,
     handovers: routePaths.crp.admin.handovers,
     reports: routePaths.crp.admin.reports,
+    activity: routePaths.crp.admin.activity,
     roles: routePaths.crp.admin.roles,
   },
 } as const;

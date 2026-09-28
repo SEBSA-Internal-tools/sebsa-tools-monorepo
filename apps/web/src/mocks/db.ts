@@ -23,6 +23,7 @@ import {
   type TaskEvent,
   type TaskListItem,
   type User,
+  type AuditLog,
 } from '@sdp/contracts';
 import rawUsers from './data/users.json';
 import rawCustomers from './data/customers.json';
@@ -80,6 +81,7 @@ interface Database {
   attachments: TaskAttachment[];
   checklists: TaskChecklist[];
   events: TaskEvent[];
+  auditLogs: AuditLog[];
   /**
    * Per-customer task number, the counter behind `CUSTOMER-19` (plan risk R2).
    *
@@ -146,6 +148,7 @@ function buildDatabase(): Database {
     attachments: [],
     checklists: seedChecklists(tasks, template),
     events: seedEvents(tasks),
+    auditLogs: [],
     sequences: seedSequences(tasks),
   };
 }

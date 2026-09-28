@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { CustomersService } from './customers.service.js';
 
+const audit = { record: vi.fn().mockResolvedValue(undefined) };
+
 describe('CustomersService next Task ID', () => {
   it('calculates the next sequence independently for each customer', async () => {
     const prisma = {
@@ -21,7 +23,7 @@ describe('CustomersService next Task ID', () => {
         }),
       },
     };
-    const service = new CustomersService(prisma as never);
+    const service = new CustomersService(prisma as never, audit as never);
 
     await expect(service.nextTaskId('customer-a')).resolves.toEqual({
       taskCode: 'SAMPLECUSTOMERA-03',

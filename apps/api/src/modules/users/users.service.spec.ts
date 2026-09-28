@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import type { AuthenticatedUser } from '../auth/auth.types.js';
 import { UsersService } from './users.service.js';
 
+const audit = { record: vi.fn().mockResolvedValue(undefined) };
+
 const actor: AuthenticatedUser = {
   id: '122f5c16-7522-4b2e-b9b4-a6ac68fbf713',
   email: 'super.admin@example.com',
@@ -26,6 +28,7 @@ describe('UsersService', () => {
         { role: { id: 3, code: 'ADMIN', name: 'Admin', description: null } },
       ],
     });
+    const transaction = { user: { create } };
     const prisma = {
       role: {
         findMany: vi.fn().mockResolvedValue([
@@ -33,9 +36,11 @@ describe('UsersService', () => {
           { id: 3, code: 'ADMIN' },
         ]),
       },
-      user: { create },
+      $transaction: vi.fn(async (operation: (tx: typeof transaction) => Promise<unknown>) =>
+        operation(transaction),
+      ),
     };
-    const service = new UsersService(prisma as never);
+    const service = new UsersService(prisma as never, audit as never);
 
     await service.create(
       {
@@ -88,7 +93,7 @@ describe('UsersService', () => {
         operation(transaction),
       ),
     };
-    const service = new UsersService(prisma as never);
+    const service = new UsersService(prisma as never, audit as never);
 
     await service.remove('cb17b073-8fb2-4abe-83b7-7f36f1af4682', actor);
 

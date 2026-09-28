@@ -48,6 +48,7 @@ import {
   recordEvent,
   toListItem,
 } from './db.ts';
+import { recordMockAudit } from './audit.ts';
 import {
   nextReviewCycle,
   reviewBlockers,
@@ -196,7 +197,7 @@ function persistCombinedChecklist(
     checklistAnswers: { questionId: string; answer: 'Yes' | 'No' | 'NA' }[];
     additionalRemarks?: string | undefined;
   },
-): void {
+): TaskChecklist {
   const answered = new Map(draft.checklistAnswers.map((entry) => [entry.questionId, entry.answer]));
   const applicable = db.checklistTemplate
     .filter((category) => category.isActive)
@@ -234,6 +235,7 @@ function persistCombinedChecklist(
   task.taskTypeIds = draft.taskTypeIds;
   task.isChecklistComplete = checklist.isComplete;
   touch(task);
+  return checklist;
 }
 
 /** The first Zod message, which is what the user needs — not the whole tree. */
@@ -646,12 +648,29 @@ export const handlers: HttpHandler[] = [
     };
 
     db.tasks.push(task);
+    recordMockAudit(user, {
+      actionType: 'TASK_CREATED',
+      entityType: 'TASK',
+      entityId: task.id,
+      taskId: task.id,
+      description: `${user.name} created task '${task.title}'`,
+      newValue: { taskCode: task.taskCode, status: task.status, version: task.version },
+    });
     if (parsed.data.taskTypeIds !== undefined && parsed.data.checklistAnswers !== undefined) {
-      persistCombinedChecklist(task, user.id, {
+      const checklist = persistCombinedChecklist(task, user.id, {
         taskTypeIds: parsed.data.taskTypeIds,
         checklistAnswers: parsed.data.checklistAnswers,
         additionalRemarks: parsed.data.additionalRemarks,
       });
+      if (checklist.isComplete) {
+        recordMockAudit(user, {
+          actionType: 'CHECKLIST_COMPLETED',
+          entityType: 'CHECKLIST',
+          entityId: checklist.id,
+          taskId: task.id,
+          description: `${user.name} completed the checklist for task '${task.title}'`,
+        });
+      }
     }
     recordEvent({
       taskId: task.id,
@@ -703,11 +722,21 @@ export const handlers: HttpHandler[] = [
     touch(task);
 
     if (parsed.data.taskTypeIds !== undefined && parsed.data.checklistAnswers !== undefined) {
-      persistCombinedChecklist(task, user.id, {
+      const wasComplete = task.isChecklistComplete;
+      const checklist = persistCombinedChecklist(task, user.id, {
         taskTypeIds: parsed.data.taskTypeIds,
         checklistAnswers: parsed.data.checklistAnswers,
         additionalRemarks: parsed.data.additionalRemarks,
       });
+      if (!wasComplete && checklist.isComplete) {
+        recordMockAudit(user, {
+          actionType: 'CHECKLIST_COMPLETED',
+          entityType: 'CHECKLIST',
+          entityId: checklist.id,
+          taskId: task.id,
+          description: `${user.name} completed the checklist for task '${task.title}'`,
+        });
+      }
     }
 
     return HttpResponse.json(toListItem(task));
@@ -877,9 +906,20 @@ export const handlers: HttpHandler[] = [
     if (index === -1) db.checklists.push(stored);
     else db.checklists[index] = stored;
 
+    const wasComplete = task.isChecklistComplete;
     task.taskTypeIds = parsed.data.taskTypeIds;
     task.isChecklistComplete = isComplete;
     touch(task);
+
+    if (!wasComplete && isComplete) {
+      recordMockAudit(user, {
+        actionType: 'CHECKLIST_COMPLETED',
+        entityType: 'CHECKLIST',
+        entityId: stored.id,
+        taskId: task.id,
+        description: `${user.name} completed the checklist for task '${task.title}'`,
+      });
+    }
 
     return HttpResponse.json(stored);
   }),
@@ -952,6 +992,15 @@ export const handlers: HttpHandler[] = [
       note: null,
       occurredAt: now,
     });
+    recordMockAudit(user, {
+      actionType: isResubmission ? 'TASK_RESUBMITTED' : 'TASK_SUBMITTED',
+      entityType: 'TASK',
+      entityId: task.id,
+      taskId: task.id,
+      description: `${user.name} ${isResubmission ? 'resubmitted' : 'submitted'} task '${task.title}'`,
+      oldValue: { status: isResubmission ? 'ChangesRequested' : 'Draft' },
+      newValue: { status: task.status },
+    });
 
     return HttpResponse.json(toListItem(task));
   }),
@@ -1020,6 +1069,22 @@ export const handlers: HttpHandler[] = [
       actorId: user.id,
       note: null,
       occurredAt: now,
+    });
+    recordMockAudit(user, {
+      actionType: 'TASK_PICKED',
+      entityType: 'TASK',
+      entityId: task.id,
+      taskId: task.id,
+      description: `${user.name} picked task '${task.title}'`,
+      oldValue: { reviewerId: null },
+      newValue: { reviewerId: user.id, status: task.status },
+    });
+    recordMockAudit(user, {
+      actionType: 'REVIEW_STARTED',
+      entityType: 'REVIEW',
+      entityId: task.id,
+      taskId: task.id,
+      description: `${user.name} started reviewing task '${task.title}'`,
     });
 
     return HttpResponse.json(toListItem(task));
@@ -1307,6 +1372,26 @@ export const handlers: HttpHandler[] = [
       note: parsed.data.feedbackSummary === '' ? null : parsed.data.feedbackSummary,
       occurredAt: now,
     });
+    recordMockAudit(user, {
+      actionType: decision === 'Approved' ? 'TASK_APPROVED' : 'CHANGES_REQUESTED',
+      entityType: 'REVIEW',
+      entityId: review.id,
+      taskId: task.id,
+      description: `${user.name} ${decision === 'Approved' ? 'approved' : 'requested changes for'} task '${task.title}'`,
+      oldValue: { status: 'InReview', rank: existing?.rank ?? null },
+      newValue: { status: task.status, rank: review.rank },
+    });
+    if (existing?.rank !== review.rank) {
+      recordMockAudit(user, {
+        actionType: 'REVIEW_RANK_CHANGED',
+        entityType: 'REVIEW',
+        entityId: review.id,
+        taskId: task.id,
+        description: `${user.name} changed the review rank for task '${task.title}'`,
+        oldValue: { rank: existing?.rank ?? null },
+        newValue: { rank: review.rank },
+      });
+    }
 
     return HttpResponse.json(toListItem(task));
   }),
@@ -1488,6 +1573,15 @@ export const handlers: HttpHandler[] = [
     if (index === -1) db.issueResponses.push(record);
     else db.issueResponses[index] = record;
 
+    recordMockAudit(user, {
+      actionType: parsed.data.kind === 'Resolved' ? 'ISSUE_RESOLVED' : 'ISSUE_REJECTED',
+      entityType: 'REVIEW_FINDING',
+      entityId: record.screenshotId ?? record.id,
+      taskId: task.id,
+      description: `${user.name} ${parsed.data.kind.toLowerCase()} a finding on task '${task.title}'`,
+      newValue: record,
+    });
+
     return HttpResponse.json(responsesForCycle(task.id, task.reviewCycle));
   }),
 
@@ -1500,6 +1594,54 @@ export const handlers: HttpHandler[] = [
    * authorisation — the URL is guessable and `RequireWorkspace` runs in the
    * browser. `requireAdmin` is the control.
    */
+
+  http.get('/api/audit-logs', async ({ request }) => {
+    await delay(LATENCY_MS);
+    const denied = requireAdmin(request);
+    if (denied) return denied;
+
+    const url = new URL(request.url);
+    const page = Math.max(1, Number(url.searchParams.get('page') ?? 1));
+    const pageSize = Math.min(100, Math.max(1, Number(url.searchParams.get('pageSize') ?? 25)));
+    const search = (url.searchParams.get('search') ?? '').trim().toLowerCase();
+    const actorUserId = url.searchParams.get('actorUserId');
+    const actorRole = url.searchParams.get('actorRole');
+    const actionType = url.searchParams.get('actionType');
+    const entityType = url.searchParams.get('entityType');
+    const dateFrom = url.searchParams.get('dateFrom');
+    const dateTo = url.searchParams.get('dateTo');
+
+    const filtered = db.auditLogs
+      .filter((entry) => actorUserId === null || entry.actorUserId === actorUserId)
+      .filter(
+        (entry) =>
+          actorRole === null || entry.actorRole.toLowerCase().includes(actorRole.toLowerCase()),
+      )
+      .filter((entry) => actionType === null || entry.actionType === actionType)
+      .filter((entry) => entityType === null || entry.entityType === entityType)
+      .filter((entry) => dateFrom === null || entry.timestamp >= dateFrom)
+      .filter((entry) => dateTo === null || entry.timestamp <= dateTo)
+      .filter(
+        (entry) =>
+          search === '' ||
+          entry.actorName.toLowerCase().includes(search) ||
+          entry.description.toLowerCase().includes(search) ||
+          entry.actionType.toLowerCase().includes(search) ||
+          (entry.entityId?.toLowerCase().includes(search) ?? false),
+      )
+      .slice()
+      .sort((left, right) => right.timestamp.localeCompare(left.timestamp));
+    const start = (page - 1) * pageSize;
+    return HttpResponse.json({
+      items: filtered.slice(start, start + pageSize),
+      pagination: {
+        page,
+        pageSize,
+        total: filtered.length,
+        totalPages: Math.ceil(filtered.length / pageSize),
+      },
+    });
+  }),
 
   http.get('/api/users', async ({ request }) => {
     await delay(LATENCY_MS);
@@ -1542,6 +1684,25 @@ export const handlers: HttpHandler[] = [
       createdAt: new Date().toISOString(),
     };
     db.users.push(user);
+    recordMockAudit(actor, {
+      actionType: 'USER_CREATED',
+      entityType: 'USER',
+      entityId: user.id,
+      targetUserId: user.id,
+      description: `${actor.name} created user ${user.name}`,
+      newValue: user,
+    });
+    user.roles.forEach((role, index) => {
+      recordMockAudit(actor, {
+        actionType: 'ROLE_GRANTED',
+        entityType: 'ROLE',
+        entityId: role,
+        targetUserId: user.id,
+        description: `${actor.name} granted ${role} role to ${user.name}`,
+        oldValue: user.roles.slice(0, index),
+        newValue: user.roles.slice(0, index + 1),
+      });
+    });
 
     return HttpResponse.json(user, { status: 201 });
   }),
@@ -1582,10 +1743,40 @@ export const handlers: HttpHandler[] = [
       return errorResponse(422, 'SELF_LOCKOUT', 'You cannot remove your own admin access.');
     }
 
+    const oldValue = { ...user, roles: [...user.roles] };
     if (parsed.data.name !== undefined) user.name = parsed.data.name;
     if (parsed.data.email !== undefined) user.email = parsed.data.email;
     if (parsed.data.roles !== undefined) user.roles = parsed.data.roles;
     if (parsed.data.isActive !== undefined) user.isActive = parsed.data.isActive;
+
+    recordMockAudit(actor, {
+      actionType:
+        parsed.data.isActive === undefined
+          ? 'USER_UPDATED'
+          : parsed.data.isActive
+            ? 'USER_ACTIVATED'
+            : 'USER_DEACTIVATED',
+      entityType: 'USER',
+      entityId: user.id,
+      targetUserId: user.id,
+      description: `${actor.name} updated user ${user.name}`,
+      oldValue,
+      newValue: user,
+    });
+    if (
+      parsed.data.roles !== undefined &&
+      JSON.stringify(oldValue.roles) !== JSON.stringify(user.roles)
+    ) {
+      recordMockAudit(actor, {
+        actionType: 'ROLES_CHANGED',
+        entityType: 'USER',
+        entityId: user.id,
+        targetUserId: user.id,
+        description: `${actor.name} changed roles for ${user.name}`,
+        oldValue: oldValue.roles,
+        newValue: user.roles,
+      });
+    }
 
     return HttpResponse.json(user);
   }),
@@ -1624,7 +1815,17 @@ export const handlers: HttpHandler[] = [
       );
     }
 
+    const oldRoles = [...user.roles];
     user.roles = roles;
+    recordMockAudit(actor, {
+      actionType: 'ROLES_CHANGED',
+      entityType: 'USER',
+      entityId: user.id,
+      targetUserId: user.id,
+      description: `${actor.name} changed roles for ${user.name}`,
+      oldValue: oldRoles,
+      newValue: roles,
+    });
     return HttpResponse.json(user);
   }),
 
@@ -1643,8 +1844,18 @@ export const handlers: HttpHandler[] = [
       return errorResponse(404, 'NOT_FOUND', 'User not found.');
     }
 
+    const oldValue = { ...user, roles: [...user.roles] };
     user.isActive = false;
     db.deletedUserIds.add(user.id);
+    recordMockAudit(actor, {
+      actionType: 'USER_DELETED',
+      entityType: 'USER',
+      entityId: user.id,
+      targetUserId: user.id,
+      description: `${actor.name} deleted user ${user.name}`,
+      oldValue,
+      newValue: { isActive: false, deleted: true },
+    });
     return new HttpResponse(null, { status: 204 });
   }),
 
@@ -1671,6 +1882,16 @@ export const handlers: HttpHandler[] = [
       isActive: true,
     };
     db.customers.push(customer);
+    const actor = currentUser(request);
+    if (actor) {
+      recordMockAudit(actor, {
+        actionType: 'CUSTOMER_CREATED',
+        entityType: 'CUSTOMER',
+        entityId: customer.id,
+        description: `${actor.name} created customer ${customer.name}`,
+        newValue: customer,
+      });
+    }
 
     return HttpResponse.json(customer, { status: 201 });
   }),
@@ -1695,10 +1916,28 @@ export const handlers: HttpHandler[] = [
      * (for example, CUSTOMER-19). Changing it would either rewrite historical
      * identifiers or leave the grid showing two prefixes for one customer.
      */
+    const oldValue = { ...customer };
     if (parsed.data.name !== undefined) customer.name = parsed.data.name;
     if (parsed.data.description !== undefined) customer.description = parsed.data.description;
     if (parsed.data.color !== undefined) customer.color = parsed.data.color;
     if (parsed.data.isActive !== undefined) customer.isActive = parsed.data.isActive;
+
+    const actor = currentUser(request);
+    if (actor) {
+      recordMockAudit(actor, {
+        actionType:
+          parsed.data.isActive === undefined
+            ? 'CUSTOMER_UPDATED'
+            : parsed.data.isActive
+              ? 'CUSTOMER_ACTIVATED'
+              : 'CUSTOMER_DEACTIVATED',
+        entityType: 'CUSTOMER',
+        entityId: customer.id,
+        description: `${actor.name} updated customer ${customer.name}`,
+        oldValue,
+        newValue: customer,
+      });
+    }
 
     return HttpResponse.json(customer);
   }),
@@ -1720,6 +1959,16 @@ export const handlers: HttpHandler[] = [
     }
 
     db.customers = db.customers.filter((c) => c.id !== customer.id);
+    const actor = currentUser(request);
+    if (actor) {
+      recordMockAudit(actor, {
+        actionType: 'CUSTOMER_DELETED',
+        entityType: 'CUSTOMER',
+        entityId: customer.id,
+        description: `${actor.name} deleted customer ${customer.name}`,
+        oldValue: customer,
+      });
+    }
     return new HttpResponse(null, { status: 204 });
   }),
 
@@ -1756,6 +2005,7 @@ export const handlers: HttpHandler[] = [
     }
 
     const wasUnassigned = task.reviewerId === null;
+    const previousReviewerId = task.reviewerId;
     task.reviewerId = reviewer.id;
     // Assigning takes the task out of the open queue: it is now someone's.
     if (task.status === 'Submitted' || task.status === 'ReSubmitted') task.status = 'InReview';
@@ -1768,6 +2018,16 @@ export const handlers: HttpHandler[] = [
       actorId: actor.id,
       note: reviewer.name,
       occurredAt: new Date().toISOString(),
+    });
+    recordMockAudit(actor, {
+      actionType: wasUnassigned ? 'REVIEWER_ASSIGNED' : 'REVIEWER_REASSIGNED',
+      entityType: 'TASK',
+      entityId: task.id,
+      taskId: task.id,
+      targetUserId: reviewer.id,
+      description: `${actor.name} ${wasUnassigned ? 'assigned' : 'reassigned'} task '${task.title}' to ${reviewer.name}`,
+      oldValue: { reviewerId: previousReviewerId },
+      newValue: { reviewerId: reviewer.id, status: task.status },
     });
 
     return HttpResponse.json(toListItem(task));
@@ -1791,6 +2051,7 @@ export const handlers: HttpHandler[] = [
     const body = (await request.json().catch(() => ({}))) as {
       reason?: unknown;
     };
+    const previousStatus = task.status;
     task.status = 'Cancelled';
     touch(task);
     recordEvent({
@@ -1800,6 +2061,16 @@ export const handlers: HttpHandler[] = [
       actorId: actor.id,
       note: typeof body.reason === 'string' ? body.reason : null,
       occurredAt: new Date().toISOString(),
+    });
+    recordMockAudit(actor, {
+      actionType: 'TASK_CANCELLED',
+      entityType: 'TASK',
+      entityId: task.id,
+      taskId: task.id,
+      description: `${actor.name} cancelled task '${task.title}'`,
+      oldValue: { status: previousStatus },
+      newValue: { status: task.status },
+      metadata: { reason: typeof body.reason === 'string' ? body.reason : null },
     });
 
     return HttpResponse.json(toListItem(task));
@@ -1832,6 +2103,15 @@ export const handlers: HttpHandler[] = [
     db.issueResponses = db.issueResponses.filter((r) => r.taskId !== task.id);
     db.attachments = db.attachments.filter((a) => a.taskId !== task.id);
     db.events = db.events.filter((e) => e.taskId !== task.id);
+
+    recordMockAudit(actor, {
+      actionType: 'TASK_DELETED',
+      entityType: 'TASK',
+      entityId: task.id,
+      taskId: task.id,
+      description: `${actor.name} deleted task '${task.title}'`,
+      oldValue: task,
+    });
 
     return new HttpResponse(null, { status: 204 });
   }),
@@ -2414,6 +2694,14 @@ export const handlers: HttpHandler[] = [
       note: parsed.data.reason,
       occurredAt: now,
     });
+    recordMockAudit(user, {
+      actionType: 'TASK_HANDOVER',
+      entityType: 'HANDOVER',
+      entityId: handover.id,
+      taskId: task.id,
+      description: `${user.name} handed over task '${task.title}'`,
+      newValue: handover,
+    });
 
     return HttpResponse.json(toListItem(task));
   }),
@@ -2492,6 +2780,16 @@ export const handlers: HttpHandler[] = [
       actorId: actor.id,
       note: reviewer.name,
       occurredAt: now,
+    });
+    recordMockAudit(actor, {
+      actionType: 'HANDOVER_REASSIGNED',
+      entityType: 'HANDOVER',
+      entityId: handover.id,
+      taskId: task.id,
+      targetUserId: reviewer.id,
+      description: `${actor.name} reassigned task '${task.title}' to ${reviewer.name}`,
+      oldValue: { reviewerId: handover.fromReviewerId },
+      newValue: { reviewerId: reviewer.id },
     });
 
     return HttpResponse.json(handover);

@@ -11,6 +11,7 @@ import {
   ScanSearch,
   Send,
   Shield,
+  ScrollText,
   Users,
 } from 'lucide-react';
 import type { TaskListItem, TaskStatus } from '@sdp/contracts';
@@ -188,6 +189,11 @@ export function AdminLayout() {
             to: ROUTES.admin.reports,
             label: admin.workspace.tabs.reports,
             icon: <ListChecks className="size-4" />,
+          },
+          {
+            to: ROUTES.admin.activity,
+            label: admin.workspace.tabs.activity,
+            icon: <ScrollText className="size-4" />,
           },
           ...(isSuperAdmin
             ? [

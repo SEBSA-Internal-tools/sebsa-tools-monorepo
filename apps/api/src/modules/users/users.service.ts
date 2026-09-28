@@ -12,6 +12,7 @@ import {
 import type { CreateUserDto } from './dto/create-user.dto.js';
 import type { UpdateUserDto } from './dto/update-user.dto.js';
 import { assignedRoleCodes, toUserResponse } from './user-response.js';
+import { AuditService } from '../audit/audit.service.js';
 
 const userInclude = {
   userRoles: { where: { role: { deletedAt: null } }, include: { role: true } },
@@ -21,7 +22,10 @@ type UserWithRoles = Prisma.UserGetPayload<{ include: typeof userInclude }>;
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   async findAll() {
     const users = await this.prisma.user.findMany({
@@ -50,21 +54,48 @@ export class UsersService {
     const roles = await this.findRoles(dto.roles);
 
     try {
-      const user = await this.prisma.user.create({
-        data: {
-          email: dto.email.trim().toLowerCase(),
-          fullName: dto.name.trim(),
-          userRoles: {
-            create: roles.map(
-              (role) =>
-                ({
-                  grantor: { connect: { id: actor.id } },
-                  role: { connect: { id: role.id } },
-                }) satisfies Prisma.UserRoleCreateWithoutUserInput,
-            ),
+      const user = await this.prisma.$transaction(async (tx) => {
+        const created = await tx.user.create({
+          data: {
+            email: dto.email.trim().toLowerCase(),
+            fullName: dto.name.trim(),
+            userRoles: {
+              create: roles.map(
+                (role) =>
+                  ({
+                    grantor: { connect: { id: actor.id } },
+                    role: { connect: { id: role.id } },
+                  }) satisfies Prisma.UserRoleCreateWithoutUserInput,
+              ),
+            },
           },
-        },
-        include: userInclude,
+          include: userInclude,
+        });
+        await this.audit.record(tx, actor, {
+          actionType: 'USER_CREATED',
+          entityType: 'USER',
+          entityId: created.id,
+          targetUserId: created.id,
+          description: `${actor.name} created user ${created.fullName}`,
+          newValue: {
+            name: created.fullName,
+            email: created.email,
+            roles: assignedRoleCodes(created),
+            isActive: true,
+          },
+        });
+        for (const [index, role] of roles.entries()) {
+          await this.audit.record(tx, actor, {
+            actionType: 'ROLE_GRANTED',
+            entityType: 'ROLE',
+            entityId: String(role.id),
+            targetUserId: created.id,
+            description: `${actor.name} granted ${role.code} role to ${created.fullName}`,
+            oldValue: roles.slice(0, index).map((assignedRole) => assignedRole.code),
+            newValue: roles.slice(0, index + 1).map((assignedRole) => assignedRole.code),
+          });
+        }
+        return created;
       });
       return toUserResponse(user);
     } catch (error) {
@@ -85,8 +116,8 @@ export class UsersService {
     } satisfies Prisma.UserUpdateInput;
 
     try {
-      if (dto.isActive === false) {
-        const user = await this.prisma.$transaction(async (tx) => {
+      const user = await this.prisma.$transaction(async (tx) => {
+        if (dto.isActive === false) {
           await lockPrivilegedRoleInvariants(tx);
           await assertNotLastActiveRoleHolder(
             tx,
@@ -94,15 +125,34 @@ export class UsersService {
             assignedRoleCodes(existing),
             'deactivated or deleted',
           );
-          return tx.user.update({ where: { id }, data, include: userInclude });
+        }
+        const updated = await tx.user.update({ where: { id }, data, include: userInclude });
+        const actionType =
+          dto.isActive === undefined
+            ? 'USER_UPDATED'
+            : dto.isActive
+              ? 'USER_ACTIVATED'
+              : 'USER_DEACTIVATED';
+        await this.audit.record(tx, actor, {
+          actionType,
+          entityType: 'USER',
+          entityId: id,
+          targetUserId: id,
+          description: `${actor.name} ${actionType.toLowerCase().replaceAll('_', ' ')} ${existing.fullName}`,
+          oldValue: {
+            name: existing.fullName,
+            email: existing.email,
+            roles: assignedRoleCodes(existing),
+            isActive: existing.status === 'ACTIVE',
+          },
+          newValue: {
+            name: updated.fullName,
+            email: updated.email,
+            roles: assignedRoleCodes(updated),
+            isActive: updated.status === 'ACTIVE',
+          },
         });
-        return toUserResponse(user);
-      }
-
-      const user = await this.prisma.user.update({
-        where: { id },
-        data,
-        include: userInclude,
+        return updated;
       });
       return toUserResponse(user);
     } catch (error) {
@@ -126,6 +176,20 @@ export class UsersService {
         await tx.user.update({
           where: { id },
           data: { status: 'INACTIVE', deletedAt: new Date() },
+        });
+        await this.audit.record(tx, actor, {
+          actionType: 'USER_DELETED',
+          entityType: 'USER',
+          entityId: id,
+          targetUserId: id,
+          description: `${actor.name} deleted user ${existing.fullName}`,
+          oldValue: {
+            name: existing.fullName,
+            email: existing.email,
+            roles: assignedRoleCodes(existing),
+            isActive: existing.status === 'ACTIVE',
+          },
+          newValue: { isActive: false, deleted: true },
         });
       });
     } catch (error) {

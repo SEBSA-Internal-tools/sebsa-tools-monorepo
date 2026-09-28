@@ -57,7 +57,7 @@ export class ReviewTasksController {
     @Body() dto: CreateReviewTaskDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.tasks.create(dto, user.id);
+    return this.tasks.create(dto, user);
   }
   @Patch(':id') @Roles('DEVELOPER', 'ADMIN') @ApiOkResponse() update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -82,7 +82,7 @@ export class ReviewTasksController {
   @Roles('ADMIN')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiNoContentResponse()
-  async remove(@Param('id', ParseUUIDPipe) id: string) {
-    await this.tasks.remove(id);
+  async remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    await this.tasks.remove(id, user);
   }
 }

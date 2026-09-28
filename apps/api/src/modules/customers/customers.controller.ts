@@ -10,12 +10,7 @@ import {
   Patch,
   Post,
 } from '@nestjs/common';
-import {
-  ApiCreatedResponse,
-  ApiNoContentResponse,
-  ApiOkResponse,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiCreatedResponse, ApiNoContentResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { CustomersService } from './customers.service.js';
 import { CreateCustomerDto } from './dto/create-customer.dto.js';
 import { UpdateCustomerDto } from './dto/update-customer.dto.js';
@@ -30,9 +25,7 @@ export class CustomersController {
   @Get() @ApiOkResponse() findAll() {
     return this.customers.findAll();
   }
-  @Get(':id/next-task-id') @ApiOkResponse() nextTaskId(
-    @Param('id', ParseUUIDPipe) id: string,
-  ) {
+  @Get(':id/next-task-id') @ApiOkResponse() nextTaskId(@Param('id', ParseUUIDPipe) id: string) {
     return this.customers.nextTaskId(id);
   }
   @Get(':id') @ApiOkResponse() findOne(@Param('id', ParseUUIDPipe) id: string) {
@@ -42,19 +35,20 @@ export class CustomersController {
     @Body() dto: CreateCustomerDto,
     @CurrentUser() admin: AuthenticatedUser,
   ) {
-    return this.customers.create(dto, admin.id);
+    return this.customers.create(dto, admin);
   }
   @Patch(':id') @Roles('ADMIN') @ApiOkResponse() update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateCustomerDto,
+    @CurrentUser() admin: AuthenticatedUser,
   ) {
-    return this.customers.update(id, dto);
+    return this.customers.update(id, dto, admin);
   }
   @Delete(':id')
   @Roles('ADMIN')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiNoContentResponse()
-  async remove(@Param('id', ParseUUIDPipe) id: string) {
-    await this.customers.remove(id);
+  async remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() admin: AuthenticatedUser) {
+    await this.customers.remove(id, admin);
   }
 }

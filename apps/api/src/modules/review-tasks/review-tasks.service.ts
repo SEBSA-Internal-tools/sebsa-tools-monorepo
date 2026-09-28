@@ -13,6 +13,7 @@ import type { UpdateReviewTaskDto } from './dto/update-review-task.dto.js';
 import type { AuthenticatedUser } from '../auth/auth.types.js';
 import { formatTaskCode } from './task-code.js';
 import type { ReviewTaskScope } from './dto/review-task-query.dto.js';
+import { AuditService } from '../audit/audit.service.js';
 
 const taskInclude = {
   customer: true,
@@ -54,7 +55,10 @@ function mayReadTask(user: AuthenticatedUser, task: TaskWithRelations): boolean 
 
 @Injectable()
 export class ReviewTasksService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   async findAll(user: AuthenticatedUser, scope: ReviewTaskScope = 'mine') {
     const tasks = await this.prisma.task.findMany({
@@ -120,7 +124,8 @@ export class ReviewTasksService {
     return task;
   }
 
-  async create(dto: CreateReviewTaskDto, developerId: string) {
+  async create(dto: CreateReviewTaskDto, actor: AuthenticatedUser) {
+    const developerId = actor.id;
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
         return await this.prisma.$transaction(
@@ -190,6 +195,29 @@ export class ReviewTasksService {
               },
               include: taskInclude,
             });
+            await this.audit.record(tx, actor, {
+              actionType: 'TASK_CREATED',
+              entityType: 'TASK',
+              entityId: created.id,
+              taskId: created.id,
+              description: `${actor.name} created task '${created.title}'`,
+              newValue: {
+                taskCode: created.taskCode,
+                title: created.title,
+                crimId: created.crimId,
+                version: created.version,
+                status: created.status,
+              },
+            });
+            if (checklistCompleted) {
+              await this.audit.record(tx, actor, {
+                actionType: 'CHECKLIST_COMPLETED',
+                entityType: 'CHECKLIST',
+                entityId: created.developerChecklist?.id ?? created.id,
+                taskId: created.id,
+                description: `${actor.name} completed the checklist for task '${created.title}'`,
+              });
+            }
             return this.toResponse(created);
           },
           { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
@@ -313,6 +341,15 @@ export class ReviewTasksService {
             },
             include: taskInclude,
           });
+          if (hasChecklist && !existing.checklistCompleted && checklistCompleted) {
+            await this.audit.record(tx, user, {
+              actionType: 'CHECKLIST_COMPLETED',
+              entityType: 'CHECKLIST',
+              entityId: updated.developerChecklist?.id ?? updated.id,
+              taskId: updated.id,
+              description: `${user.name} completed the checklist for task '${updated.title}'`,
+            });
+          }
           return this.toResponse(updated);
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
@@ -322,7 +359,7 @@ export class ReviewTasksService {
     }
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(id: string, actor: AuthenticatedUser): Promise<void> {
     try {
       await this.prisma.$transaction(async (tx) => {
         const task = await tx.task.findUnique({
@@ -341,6 +378,14 @@ export class ReviewTasksService {
         await tx.taskStatusHistory.deleteMany({ where: { taskId: id } });
         await tx.taskTaskType.deleteMany({ where: { taskId: id } });
         await tx.task.delete({ where: { id } });
+        await this.audit.record(tx, actor, {
+          actionType: 'TASK_DELETED',
+          entityType: 'TASK',
+          entityId: id,
+          taskId: id,
+          description: `${actor.name} deleted task '${task.title}'`,
+          oldValue: { taskCode: task.taskCode },
+        });
       });
     } catch (error) {
       rethrowPrismaConflict(error);
@@ -378,6 +423,15 @@ export class ReviewTasksService {
         },
         include: taskInclude,
       });
+      await this.audit.record(tx, user, {
+        actionType: 'TASK_SUBMITTED',
+        entityType: 'TASK',
+        entityId: id,
+        taskId: id,
+        description: `${user.name} submitted task '${task.title}'`,
+        oldValue: { status: task.status },
+        newValue: { status: TaskStatus.SUBMITTED },
+      });
       return updated;
     });
     return this.toResponse(submitted);
@@ -391,6 +445,7 @@ export class ReviewTasksService {
           developerId: true,
           currentReviewerId: true,
           status: true,
+          title: true,
           currentReviewer: { select: { fullName: true } },
         },
       });
@@ -460,6 +515,22 @@ export class ReviewTasksService {
           changedBy: user.id,
           remarks: 'Task picked up for review',
         },
+      });
+      await this.audit.record(tx, user, {
+        actionType: 'TASK_PICKED',
+        entityType: 'TASK',
+        entityId: id,
+        taskId: id,
+        description: `${user.name} picked task '${candidate.title}' for review`,
+        oldValue: { status: candidate.status, reviewerId: null },
+        newValue: { status: TaskStatus.IN_REVIEW, reviewerId: user.id },
+      });
+      await this.audit.record(tx, user, {
+        actionType: 'REVIEW_STARTED',
+        entityType: 'REVIEW',
+        entityId: id,
+        taskId: id,
+        description: `${user.name} started reviewing task '${candidate.title}'`,
       });
 
       const task = await tx.task.findUnique({ where: { id }, include: taskInclude });

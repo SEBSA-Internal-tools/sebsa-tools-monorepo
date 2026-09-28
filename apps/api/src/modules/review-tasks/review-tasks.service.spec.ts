@@ -5,6 +5,9 @@ import type { RoleCode } from '../auth/auth.constants.js';
 import type { AuthenticatedUser } from '../auth/auth.types.js';
 import { ReviewTasksService } from './review-tasks.service.js';
 
+const audit = { record: vi.fn().mockResolvedValue(undefined) };
+const serviceWith = (prisma: unknown) => new ReviewTasksService(prisma as never, audit as never);
+
 function actor(roles: RoleCode[]): AuthenticatedUser {
   return {
     id: '122f5c16-7522-4b2e-b9b4-a6ac68fbf713',
@@ -23,7 +26,7 @@ describe('ReviewTasksService task versions', () => {
       .fn()
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ version: '1' }, { version: 'V5' }, { version: 'legacy' }]);
-    const service = new ReviewTasksService({ task: { findMany } } as never);
+    const service = serviceWith({ task: { findMany } });
 
     await expect(service.nextVersion(' CRIM-1001 ')).resolves.toEqual({ version: 1 });
     await expect(service.nextVersion('CRIM-1001')).resolves.toEqual({ version: 6 });
@@ -37,7 +40,7 @@ describe('ReviewTasksService task versions', () => {
 describe('ReviewTasksService list visibility', () => {
   it('limits the Developer list to tasks owned by that developer', async () => {
     const findMany = vi.fn().mockResolvedValue([]);
-    const service = new ReviewTasksService({ task: { findMany } } as never);
+    const service = serviceWith({ task: { findMany } });
     const user = actor(['DEVELOPER']);
 
     await service.findAll(user, 'mine');
@@ -49,7 +52,7 @@ describe('ReviewTasksService list visibility', () => {
 
   it('excludes a dual-role user own tasks and drafts from Reviewer queues', async () => {
     const findMany = vi.fn().mockResolvedValue([]);
-    const service = new ReviewTasksService({ task: { findMany } } as never);
+    const service = serviceWith({ task: { findMany } });
     const user = actor(['DEVELOPER', 'REVIEWER']);
 
     await service.findAll(user, 'available');
@@ -90,7 +93,7 @@ describe('ReviewTasksService list visibility', () => {
   });
 
   it('does not let a caller widen their task scope', async () => {
-    const service = new ReviewTasksService({ task: { findMany: vi.fn() } } as never);
+    const service = serviceWith({ task: { findMany: vi.fn() } });
 
     await expect(service.findAll(actor(['DEVELOPER']), 'all')).rejects.toBeInstanceOf(
       ForbiddenException,
@@ -102,7 +105,7 @@ describe('ReviewTasksService list visibility', () => {
 
   it('blocks a Reviewer from opening another developer draft directly', async () => {
     const user = actor(['REVIEWER']);
-    const service = new ReviewTasksService({
+    const service = serviceWith({
       task: {
         findUnique: vi.fn().mockResolvedValue({
           id: 'task-id',
@@ -112,7 +115,7 @@ describe('ReviewTasksService list visibility', () => {
           codeReviewForms: [],
         }),
       },
-    } as never);
+    });
 
     await expect(service.findOne('task-id', user)).rejects.toBeInstanceOf(ForbiddenException);
   });
@@ -147,7 +150,7 @@ describe('ReviewTasksService draft checklist', () => {
         ],
       },
     });
-    const service = new ReviewTasksService({ task: { findUnique } } as never);
+    const service = serviceWith({ task: { findUnique } });
 
     await expect(
       service.findChecklist('00000000-0000-0000-0000-000000000010', user),
@@ -215,9 +218,9 @@ describe('ReviewTasksService task picking', () => {
       },
       taskStatusHistory: { create: vi.fn().mockResolvedValue({}) },
     };
-    const service = new ReviewTasksService({
+    const service = serviceWith({
       $transaction: vi.fn((operation: (client: typeof tx) => Promise<unknown>) => operation(tx)),
-    } as never);
+    });
 
     const result = await service.pick(picked.id, user);
 
@@ -271,9 +274,9 @@ describe('ReviewTasksService task picking', () => {
         updateMany: vi.fn().mockResolvedValue({ count: 0 }),
       },
     };
-    const service = new ReviewTasksService({
+    const service = serviceWith({
       $transaction: vi.fn((operation: (client: typeof tx) => Promise<unknown>) => operation(tx)),
-    } as never);
+    });
 
     await expect(service.pick('task-id', user)).rejects.toThrow(
       new ConflictException('Winning Reviewer has already picked up this task'),
@@ -292,9 +295,9 @@ describe('ReviewTasksService task picking', () => {
         }),
       },
     };
-    const service = new ReviewTasksService({
+    const service = serviceWith({
       $transaction: vi.fn((operation: (client: typeof tx) => Promise<unknown>) => operation(tx)),
-    } as never);
+    });
 
     await expect(service.pick('task-id', user)).rejects.toBeInstanceOf(ForbiddenException);
   });

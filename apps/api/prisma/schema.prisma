@@ -564,18 +564,29 @@ model Notification {
 }
 
 model AuditLog {
-  id         String   @id @default(uuid()) @db.Uuid
-  userId     String?  @map("user_id") @db.Uuid
-  action     String   @db.VarChar(100)
-  entityType String   @map("entity_type") @db.VarChar(100)
-  entityId   String?  @map("entity_id") @db.Uuid
-  oldValues  Json?    @map("old_values") @db.JsonB
-  newValues  Json?    @map("new_values") @db.JsonB
-  ipAddress  String?  @map("ip_address") @db.Inet
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  user       User?    @relation("AuditLogUser", fields: [userId], references: [id], onDelete: SetNull)
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String?  @map("user_id") @db.Uuid
+  actorName    String   @map("actor_name") @db.VarChar(255)
+  actorRole    String   @map("actor_role") @db.VarChar(100)
+  action       String   @db.VarChar(100)
+  entityType   String   @map("entity_type") @db.VarChar(100)
+  entityId     String?  @map("entity_id") @db.VarChar(100)
+  description  String   @db.Text
+  oldValues    Json?    @map("old_values") @db.JsonB
+  newValues    Json?    @map("new_values") @db.JsonB
+  taskId       String?  @map("task_id") @db.Uuid
+  targetUserId String?  @map("target_user_id") @db.Uuid
+  metadata     Json?    @db.JsonB
+  ipAddress    String?  @map("ip_address") @db.Inet
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  user         User?    @relation("AuditLogUser", fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([entityType, entityId])
+  @@index([action])
+  @@index([actorRole])
+  @@index([taskId])
+  @@index([targetUserId])
+  @@index([createdAt])
   @@map("audit_logs")
 }
