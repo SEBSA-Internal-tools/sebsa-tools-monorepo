@@ -1798,15 +1798,12 @@ export const handlers: HttpHandler[] = [
       return errorResponse(422, 'VALIDATION_FAILED', firstIssue(parsed.error));
     }
     const roles = parsed.data.roles.map((role) => ROLE_LABEL_BY_CODE[role]);
-    const changesSuperAdmin = user.roles.includes('Super Admin') !== roles.includes('Super Admin');
     if (
       (!isSuperAdmin(actor) && (!adminMayManage(user) || !mayAssignRoles(actor, roles))) ||
       (isSuperAdmin(actor) &&
-        (changesSuperAdmin ||
-          !mayAssignRoles(
-            actor,
-            roles.filter((role) => role !== 'Super Admin'),
-          )))
+        (user.roles.includes('Super Admin') ||
+          roles.includes('Super Admin') ||
+          !mayAssignRoles(actor, roles)))
     ) {
       return errorResponse(
         403,
@@ -1827,6 +1824,61 @@ export const handlers: HttpHandler[] = [
       newValue: roles,
     });
     return HttpResponse.json(user);
+  }),
+
+  http.post('/api/users/:userId/roles/transfer-super-admin', async ({ request, params }) => {
+    await delay(LATENCY_MS);
+    const denied = requireAdmin(request);
+    if (denied) return denied;
+
+    const actor = currentUser(request);
+    const target = findUser(String(params['userId']));
+    if (!actor || !isSuperAdmin(actor)) {
+      return errorResponse(
+        403,
+        'FORBIDDEN',
+        'Only the current Super Admin may transfer ownership.',
+      );
+    }
+    if (!target || db.deletedUserIds.has(target.id) || !target.isActive) {
+      return errorResponse(404, 'NOT_FOUND', 'Active user not found.');
+    }
+    if (target.id === actor.id) {
+      return errorResponse(422, 'VALIDATION_FAILED', 'Choose another Admin user.');
+    }
+    if (!target.roles.includes('Admin')) {
+      return errorResponse(
+        422,
+        'VALIDATION_FAILED',
+        'Only an existing Admin can become Super Admin.',
+      );
+    }
+
+    const currentSuperAdmins = db.users.filter(
+      (user) => !db.deletedUserIds.has(user.id) && user.roles.includes('Super Admin'),
+    );
+    if (currentSuperAdmins.length !== 1 || currentSuperAdmins[0]?.id !== actor.id) {
+      return errorResponse(
+        409,
+        'CONFLICT',
+        'The system must have exactly one current Super Admin.',
+      );
+    }
+
+    actor.roles = [
+      ...new Set(actor.roles.filter((role) => role !== 'Super Admin').concat('Admin')),
+    ];
+    target.roles = ['Super Admin'];
+    recordMockAudit(actor, {
+      actionType: 'SUPER_ADMIN_TRANSFERRED',
+      entityType: 'USER',
+      entityId: target.id,
+      targetUserId: target.id,
+      description: `${actor.name} transferred Super Admin ownership to ${target.name}`,
+      oldValue: { superAdminUserId: actor.id },
+      newValue: { superAdminUserId: target.id },
+    });
+    return HttpResponse.json(target);
   }),
 
   /** Soft delete: the user remains available to task and audit history. */

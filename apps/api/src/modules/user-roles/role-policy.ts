@@ -29,16 +29,13 @@ export function assertCanGrantRoles(
   requestedRoles: readonly RoleCode[],
 ): void {
   if (actor.roles.includes('SUPER_ADMIN')) {
-    const changesSuperAdminRole =
-      targetRoles.includes('SUPER_ADMIN') !== requestedRoles.includes('SUPER_ADMIN');
     if (
-      changesSuperAdminRole ||
-      requestedRoles.some(
-        (role) => role !== 'SUPER_ADMIN' && !SUPER_ADMIN_ASSIGNABLE_ROLES.includes(role),
-      )
+      targetRoles.includes('SUPER_ADMIN') ||
+      requestedRoles.includes('SUPER_ADMIN') ||
+      requestedRoles.some((role) => !SUPER_ADMIN_ASSIGNABLE_ROLES.includes(role))
     ) {
       throw new ForbiddenException(
-        'Super Admins may only assign Developer, Reviewer, and Admin roles',
+        'Use the Super Admin transfer action to change Super Admin ownership',
       );
     }
     return;

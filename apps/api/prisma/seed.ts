@@ -94,13 +94,27 @@ async function main(): Promise<void> {
         passwordHash,
       },
     });
-    const superAdminRole = await prisma.role.findUniqueOrThrow({
-      where: { code: 'SUPER_ADMIN' },
-    });
-    await prisma.userRole.upsert({
-      where: { userId_roleId: { userId: superAdmin.id, roleId: superAdminRole.id } },
-      update: {},
-      create: { userId: superAdmin.id, roleId: superAdminRole.id },
+    const [adminRole, superAdminRole] = await Promise.all([
+      prisma.role.findUniqueOrThrow({ where: { code: 'ADMIN' } }),
+      prisma.role.findUniqueOrThrow({ where: { code: 'SUPER_ADMIN' } }),
+    ]);
+    await prisma.$transaction(async (tx) => {
+      const alreadySuperAdmin = await tx.userRole.findUnique({
+        where: { userId_roleId: { userId: superAdmin.id, roleId: superAdminRole.id } },
+      });
+      if (!alreadySuperAdmin) {
+        await tx.userRole.upsert({
+          where: { userId_roleId: { userId: superAdmin.id, roleId: adminRole.id } },
+          update: {},
+          create: { userId: superAdmin.id, roleId: adminRole.id },
+        });
+        await tx.userRole.create({
+          data: { userId: superAdmin.id, roleId: superAdminRole.id },
+        });
+      }
+      await tx.userRole.deleteMany({
+        where: { userId: superAdmin.id, roleId: { not: superAdminRole.id } },
+      });
     });
   }
 }

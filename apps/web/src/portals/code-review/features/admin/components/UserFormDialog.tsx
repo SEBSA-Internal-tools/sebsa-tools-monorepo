@@ -49,7 +49,7 @@ export function UserFormDialog({
   user: User | null;
   onClose: () => void;
   availableRoles?: readonly Role[];
-  /** Super Admin grants existing-user roles on its dedicated Role Granting tab. */
+  /** Allows callers to limit role changes while preserving the shared user form. */
   editRoles?: boolean;
 }) {
   const createUser = useCreateUser();

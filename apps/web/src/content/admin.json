@@ -9,8 +9,7 @@
       "checklist": "Quality Checklist",
       "handovers": "Handovers",
       "reports": "Reports",
-      "activity": "Activity Log",
-      "roles": "Role Granting"
+      "activity": "Activity Log"
     }
   },
   "kpis": {
@@ -111,7 +110,8 @@
       "edit": "Edit {name}",
       "activate": "Activate {name}",
       "deactivate": "Deactivate {name}",
-      "delete": "Delete {name}"
+      "delete": "Delete {name}",
+      "transferSuperAdmin": "Transfer Super Admin to {name}"
     },
     "deactivate": {
       "title": "Deactivate this user?",
@@ -127,6 +127,12 @@
       "description": "{name} will be removed from normal user lists and will no longer be able to sign in. Their database record and history will be kept.",
       "confirm": "Delete User",
       "success": "{name} deleted."
+    },
+    "transferSuperAdmin": {
+      "title": "Transfer Super Admin?",
+      "description": "{name} will become the only Super Admin and all their other roles will be removed. You will lose Super Admin access and remain an Admin.",
+      "confirm": "Transfer Super Admin",
+      "success": "Super Admin ownership transferred to {name}."
     }
   },
   "roleGranting": {

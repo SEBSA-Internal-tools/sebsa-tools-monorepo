@@ -81,27 +81,15 @@ describe('admin workspace guard', () => {
     });
   });
 
-  it('keeps the role-granting route exclusive to Super Admin', async () => {
-    const { router } = renderAdmin('/crp/admin/roles');
-
-    await waitFor(() => {
-      expect(router.state.location.pathname).toBe('/crp/admin');
-    });
-  });
-
-  it('shows Role Granting inside the Admin Dashboard for Super Admin', async () => {
+  it('does not show a separate Role Granting tab for Super Admin', async () => {
     const actor = findUser(ADMIN);
     if (actor === undefined) throw new Error('Admin fixture was not found');
     actor.roles = ['Super Admin'];
 
-    const { user, router } = renderAdmin('/crp/admin/roles');
+    renderAdmin('/crp/admin/users');
 
-    expect(await screen.findByRole('heading', { name: 'Role Granting' })).toBeInTheDocument();
-    expect(router.state.location.pathname).toBe('/crp/admin/roles');
-    const roleButtons = await screen.findAllByRole('button', { name: /change roles for/i });
-    await user.click(roleButtons[0]!);
-    expect(screen.getByRole('checkbox', { name: 'Admin' })).toBeInTheDocument();
-    expect(screen.queryByRole('checkbox', { name: 'Super Admin' })).toBeNull();
+    expect(await screen.findByText('User Management')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /role granting/i })).toBeNull();
   });
 });
 
@@ -189,6 +177,35 @@ describe('admin tasks grid', () => {
 });
 
 describe('admin users tab', () => {
+  it('lets the current Super Admin transfer ownership to an existing Admin', async () => {
+    const actor = findUser(ADMIN);
+    const target = findUser('u-janith');
+    if (actor === undefined || target === undefined) throw new Error('Admin fixture was not found');
+    actor.roles = ['Super Admin'];
+
+    const { user } = renderAdmin('/crp/admin/users');
+    await user.click(
+      await screen.findByRole('button', {
+        name: /transfer super admin to Janith Hasthanayake/i,
+      }),
+    );
+
+    expect(
+      screen.getByText(/all their other roles will be removed.*remain an admin/i),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^transfer super admin$/i }));
+
+    await waitFor(() => {
+      expect(target.roles).toContain('Super Admin');
+      expect(target.roles).toEqual(['Super Admin']);
+      expect(actor.roles).toContain('Admin');
+      expect(actor.roles).not.toContain('Super Admin');
+    });
+    expect(
+      [actor, target].filter((candidate) => candidate.roles.includes('Super Admin')),
+    ).toHaveLength(1);
+  });
+
   it('lists users and creates a new one', async () => {
     const { user } = renderAdmin('/crp/admin/users');
 

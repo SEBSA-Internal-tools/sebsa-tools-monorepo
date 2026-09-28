@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Pencil, Power, Trash2, UserPlus, Users as UsersIcon } from 'lucide-react';
+import { Pencil, Power, ShieldCheck, Trash2, UserPlus, Users as UsersIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { ROLES, type Role, type User } from '@sdp/contracts';
 import { ActiveBadge, RoleBadges } from '@/portals/code-review/components/badges.tsx';
@@ -15,7 +15,7 @@ import { ApiError } from '@/lib/apiClient.ts';
 import { interpolate } from '@/lib/formatters.ts';
 import admin from '@/content/admin.json';
 import common from '@/content/common.json';
-import { useDeleteUser, useUpdateUser, useUsers } from '../api/queries.ts';
+import { useDeleteUser, useTransferSuperAdmin, useUpdateUser, useUsers } from '../api/queries.ts';
 import { UserFormDialog } from '../components/UserFormDialog.tsx';
 import { EmptyIllustration } from '@/components/common/EmptyIllustration.tsx';
 import { useCurrentUser } from '@/hooks/useCurrentUser.ts';
@@ -85,6 +85,7 @@ export function AdminUsersPage({
   // instead of being pinned with a lint suppression.
   const { mutate: mutateUser, isPending: isUpdating } = useUpdateUser();
   const deleteUser = useDeleteUser();
+  const transferSuperAdmin = useTransferSuperAdmin();
   const isSuperAdmin = actor?.roles.includes('Super Admin') === true;
   const assignableRoles: readonly Role[] =
     availableRoles ??
@@ -98,6 +99,7 @@ export function AdminUsersPage({
   const [isFormOpen, setFormOpen] = useState(false);
   const [deactivating, setDeactivating] = useState<User | null>(null);
   const [deleting, setDeleting] = useState<User | null>(null);
+  const [transferring, setTransferring] = useState<User | null>(null);
 
   const canManage = useCallback(
     (user: User) =>
@@ -182,6 +184,22 @@ export function AdminUsersPage({
                   else setActive(user, true);
                 }}
               />
+              {isSuperAdmin &&
+              user.isActive &&
+              user.id !== actor?.id &&
+              user.roles.includes('Admin') &&
+              !user.roles.includes('Super Admin') ? (
+                <IconButton
+                  label={interpolate(admin.users.actions.transferSuperAdmin, {
+                    name: user.name,
+                  })}
+                  icon={<ShieldCheck className="size-4" />}
+                  size="sm"
+                  onClick={() => {
+                    setTransferring(user);
+                  }}
+                />
+              ) : null}
               {isSuperAdmin ? (
                 <IconButton
                   label={interpolate(admin.users.actions.delete, {
@@ -201,7 +219,7 @@ export function AdminUsersPage({
         },
       }),
     ],
-    [canManage, isSuperAdmin, setActive],
+    [actor?.id, canManage, isSuperAdmin, setActive],
   );
 
   return (
@@ -303,32 +321,61 @@ export function AdminUsersPage({
       />
 
       {isSuperAdmin ? (
-        <ConfirmDialog
-          open={deleting !== null}
-          onOpenChange={(open) => {
-            if (!open) setDeleting(null);
-          }}
-          title={admin.users.delete.title}
-          description={interpolate(admin.users.delete.description, {
-            name: deleting?.name ?? '',
-          })}
-          confirmLabel={admin.users.delete.confirm}
-          isPending={deleteUser.isPending}
-          onConfirm={() => {
-            if (deleting === null) return;
-            const user = deleting;
+        <>
+          <ConfirmDialog
+            open={transferring !== null}
+            onOpenChange={(open) => {
+              if (!open) setTransferring(null);
+            }}
+            title={admin.users.transferSuperAdmin.title}
+            description={interpolate(admin.users.transferSuperAdmin.description, {
+              name: transferring?.name ?? '',
+            })}
+            confirmLabel={admin.users.transferSuperAdmin.confirm}
+            isPending={transferSuperAdmin.isPending}
+            onConfirm={() => {
+              if (transferring === null) return;
+              const user = transferring;
+              transferSuperAdmin.mutate(user.id, {
+                onSuccess: () => {
+                  toast.success(
+                    interpolate(admin.users.transferSuperAdmin.success, { name: user.name }),
+                  );
+                  setTransferring(null);
+                },
+                onError: (cause) => {
+                  toast.error(cause instanceof ApiError ? cause.message : common.errors.generic);
+                },
+              });
+            }}
+          />
+          <ConfirmDialog
+            open={deleting !== null}
+            onOpenChange={(open) => {
+              if (!open) setDeleting(null);
+            }}
+            title={admin.users.delete.title}
+            description={interpolate(admin.users.delete.description, {
+              name: deleting?.name ?? '',
+            })}
+            confirmLabel={admin.users.delete.confirm}
+            isPending={deleteUser.isPending}
+            onConfirm={() => {
+              if (deleting === null) return;
+              const user = deleting;
 
-            deleteUser.mutate(user.id, {
-              onSuccess: () => {
-                toast.success(interpolate(admin.users.delete.success, { name: user.name }));
-                setDeleting(null);
-              },
-              onError: (cause) => {
-                toast.error(cause instanceof ApiError ? cause.message : common.errors.generic);
-              },
-            });
-          }}
-        />
+              deleteUser.mutate(user.id, {
+                onSuccess: () => {
+                  toast.success(interpolate(admin.users.delete.success, { name: user.name }));
+                  setDeleting(null);
+                },
+                onError: (cause) => {
+                  toast.error(cause instanceof ApiError ? cause.message : common.errors.generic);
+                },
+              });
+            }}
+          />
+        </>
       ) : null}
     </section>
   );

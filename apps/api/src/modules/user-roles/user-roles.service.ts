@@ -193,6 +193,83 @@ export class UserRolesService {
     return toUserResponse(updated);
   }
 
+  async transferSuperAdmin(targetUserId: string, actor: AuthenticatedUser) {
+    if (targetUserId === actor.id) {
+      throw new BadRequestException('Super Admin ownership must be transferred to another user');
+    }
+
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        await lockPrivilegedRoleInvariants(tx);
+
+        const roles = await tx.role.findMany({
+          where: { code: { in: ['ADMIN', 'SUPER_ADMIN'] }, deletedAt: null },
+        });
+        const adminRole = roles.find((role) => role.code === 'ADMIN');
+        const superAdminRole = roles.find((role) => role.code === 'SUPER_ADMIN');
+        if (!adminRole || !superAdminRole) {
+          throw new ConflictException('Admin and Super Admin roles must be configured');
+        }
+
+        const currentAssignments = await tx.userRole.findMany({
+          where: { roleId: superAdminRole.id },
+          include: { user: { include: userInclude } },
+        });
+        if (currentAssignments.length !== 1) {
+          throw new ConflictException('The system must have exactly one Super Admin');
+        }
+
+        const currentAssignment = currentAssignments[0]!;
+        if (currentAssignment.userId !== actor.id) {
+          throw new ConflictException('Only the current Super Admin can transfer ownership');
+        }
+
+        const target = await tx.user.findFirst({
+          where: { id: targetUserId, status: 'ACTIVE', deletedAt: null },
+          include: userInclude,
+        });
+        if (!target) {
+          throw new NotFoundException(`Active user ${targetUserId} was not found`);
+        }
+        if (!assignedRoleCodes(target).includes('ADMIN')) {
+          throw new BadRequestException('Only an existing Admin can become Super Admin');
+        }
+
+        await tx.userRole.upsert({
+          where: { userId_roleId: { userId: actor.id, roleId: adminRole.id } },
+          create: { userId: actor.id, roleId: adminRole.id, grantedBy: actor.id },
+          update: {},
+        });
+        await tx.userRole.delete({
+          where: { userId_roleId: { userId: actor.id, roleId: superAdminRole.id } },
+        });
+        await tx.userRole.create({
+          data: { userId: target.id, roleId: superAdminRole.id, grantedBy: actor.id },
+        });
+        await tx.userRole.deleteMany({
+          where: { userId: target.id, roleId: { not: superAdminRole.id } },
+        });
+
+        const updatedTarget = await tx.user.findUniqueOrThrow({
+          where: { id: target.id },
+          include: userInclude,
+        });
+        await this.audit.record(tx, actor, {
+          actionType: 'SUPER_ADMIN_TRANSFERRED',
+          entityType: 'USER',
+          entityId: target.id,
+          targetUserId: target.id,
+          description: `${actor.name} transferred Super Admin ownership to ${target.fullName}`,
+          oldValue: { superAdminUserId: actor.id },
+          newValue: { superAdminUserId: target.id },
+        });
+        return toUserResponse(updatedTarget);
+      });
+    } catch (error) {
+      rethrowPrismaConflict(error);
+    }
+  }
+
   private async getUser(userId: string): Promise<UserWithRoles> {
     const user = await this.prisma.user.findFirst({
       where: { id: userId, deletedAt: null },

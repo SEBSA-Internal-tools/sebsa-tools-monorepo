@@ -28,7 +28,12 @@ import { userKeys } from '@/portals/code-review/hooks/useUsers.ts';
  * people too, so neither feature owns it. Re-exported here so admin screens
  * import their reads and writes from one place.
  */
-export { useReplaceUserRoles, useUsers, userKeys } from '@/portals/code-review/hooks/useUsers.ts';
+export {
+  useReplaceUserRoles,
+  useTransferSuperAdmin,
+  useUsers,
+  userKeys,
+} from '@/portals/code-review/hooks/useUsers.ts';
 
 export function useCreateUser() {
   const queryClient = useQueryClient();

@@ -51,6 +51,16 @@ export class UserRoleAssignmentsController {
     return this.userRoles.replaceForUser(userId, dto.roles, actor);
   }
 
+  @Post('transfer-super-admin')
+  @Roles('SUPER_ADMIN')
+  @ApiOkResponse()
+  transferSuperAdmin(
+    @Param('userId', ParseUUIDPipe) userId: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.userRoles.transferSuperAdmin(userId, actor);
+  }
+
   @Delete(':roleId')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiNoContentResponse()

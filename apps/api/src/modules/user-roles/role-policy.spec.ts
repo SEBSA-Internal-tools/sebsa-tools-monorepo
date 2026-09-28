@@ -64,18 +64,14 @@ describe('user and role management policy', () => {
     expect(() =>
       assertCanGrantRoles(actor(['SUPER_ADMIN']), ['DEVELOPER'], ['DEVELOPER', 'SUPER_ADMIN']),
     ).toThrow(ForbiddenException);
-    expect(() =>
-      assertCanGrantRoles(actor(['SUPER_ADMIN']), ['SUPER_ADMIN'], ['ADMIN']),
-    ).toThrow(ForbiddenException);
+    expect(() => assertCanGrantRoles(actor(['SUPER_ADMIN']), ['SUPER_ADMIN'], ['ADMIN'])).toThrow(
+      ForbiddenException,
+    );
   });
 
-  it('preserves an existing Super Admin role while changing other roles', () => {
+  it('requires the dedicated transfer action for every Super Admin role update', () => {
     expect(() =>
-      assertCanGrantRoles(
-        actor(['SUPER_ADMIN']),
-        ['SUPER_ADMIN'],
-        ['SUPER_ADMIN', 'ADMIN'],
-      ),
-    ).not.toThrow();
+      assertCanGrantRoles(actor(['SUPER_ADMIN']), ['SUPER_ADMIN'], ['SUPER_ADMIN', 'ADMIN']),
+    ).toThrow(ForbiddenException);
   });
 });

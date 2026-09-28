@@ -6,7 +6,6 @@ import {
   ClipboardList,
   FileEdit,
   Inbox,
-  KeyRound,
   ListChecks,
   ScanSearch,
   Send,
@@ -52,7 +51,6 @@ export function AdminLayout() {
   const { data: tasks, isPending } = useTasks('all');
   const bucket = useBucketSelection();
   const grid = ROUTES.admin.root;
-  const isSuperAdmin = user?.roles.includes('Super Admin') === true;
 
   const all = tasks ?? [];
 
@@ -195,15 +193,6 @@ export function AdminLayout() {
             label: admin.workspace.tabs.activity,
             icon: <ScrollText className="size-4" />,
           },
-          ...(isSuperAdmin
-            ? [
-                {
-                  to: ROUTES.admin.roles,
-                  label: admin.workspace.tabs.roles,
-                  icon: <KeyRound className="size-4" />,
-                },
-              ]
-            : []),
         ]}
       />
 

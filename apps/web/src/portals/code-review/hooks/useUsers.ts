@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 import { userSchema, type Role } from '@sdp/contracts';
 import { api } from '@/lib/apiClient.ts';
+import { currentUserKeys } from '@/hooks/useCurrentUser.ts';
 
 /**
  * The user directory.
@@ -43,6 +44,19 @@ export function useReplaceUserRoles() {
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: userKeys.all });
+    },
+  });
+}
+
+export function useTransferSuperAdmin() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (userId: string) =>
+      api.post(`/users/${userId}/roles/transfer-super-admin`, userSchema),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: userKeys.all });
+      void queryClient.invalidateQueries({ queryKey: currentUserKeys.me() });
     },
   });
 }
