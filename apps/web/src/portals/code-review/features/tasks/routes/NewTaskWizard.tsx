@@ -353,7 +353,6 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
       const payload = {
         customerId: draft.customerId,
         crimId: draft.crimId.trim(),
-        version: draft.version.trim(),
         priority: draft.priority,
         ...(includeChecklist
           ? {
@@ -385,6 +384,7 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
         const created = await createTask.mutateAsync(payload);
         taskId = created.id;
         draft.setTaskId(created.id, created.taskCode, created.createdAt, created.submittedAt);
+        draft.hydrate({ version: created.version ?? '' });
       }
       if (includeChecklist) draft.hydrate({ answers: checklistAnswers });
 

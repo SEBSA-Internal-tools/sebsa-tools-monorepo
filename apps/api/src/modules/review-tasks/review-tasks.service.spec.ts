@@ -17,6 +17,23 @@ function actor(roles: RoleCode[]): AuthenticatedUser {
   };
 }
 
+describe('ReviewTasksService task versions', () => {
+  it('returns 1 when a CRIM ID has no tasks and increments its highest version', async () => {
+    const findMany = vi
+      .fn()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ version: '1' }, { version: 'V5' }, { version: 'legacy' }]);
+    const service = new ReviewTasksService({ task: { findMany } } as never);
+
+    await expect(service.nextVersion(' CRIM-1001 ')).resolves.toEqual({ version: 1 });
+    await expect(service.nextVersion('CRIM-1001')).resolves.toEqual({ version: 6 });
+    expect(findMany).toHaveBeenCalledWith({
+      where: { crimId: { equals: 'CRIM-1001', mode: 'insensitive' } },
+      select: { version: true },
+    });
+  });
+});
+
 describe('ReviewTasksService list visibility', () => {
   it('limits the Developer list to tasks owned by that developer', async () => {
     const findMany = vi.fn().mockResolvedValue([]);

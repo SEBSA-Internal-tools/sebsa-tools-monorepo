@@ -33,6 +33,7 @@ export {
   useChecklistTemplate,
   useCustomers,
   useNextTaskId,
+  useNextTaskVersion,
   useTaskTypes,
 } from '@/portals/code-review/hooks/useReferenceData.ts';
 
@@ -61,7 +62,7 @@ export function useTaskEvents(taskId: string | undefined) {
 /* Mutations                                                                   */
 /* -------------------------------------------------------------------------- */
 
-export type TaskPersistenceDraft = TaskDraft & {
+export type TaskPersistenceDraft = Omit<TaskDraft, 'version'> & {
   taskTypeIds?: ChecklistDraft['taskTypeIds'];
   checklistAnswers?: ChecklistDraft['answers'];
   additionalRemarks?: string;

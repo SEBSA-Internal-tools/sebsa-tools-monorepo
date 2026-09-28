@@ -21,6 +21,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
 import type { AuthenticatedUser } from '../auth/auth.types.js';
 import { ReviewTaskQueryDto } from './dto/review-task-query.dto.js';
+import { NextTaskVersionQueryDto } from './dto/next-task-version-query.dto.js';
 
 @ApiTags('Review Tasks')
 @Controller(['review-tasks', 'tasks'])
@@ -31,6 +32,11 @@ export class ReviewTasksController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.tasks.findAll(user, query.scope ?? 'mine');
+  }
+  @Get('next-version') @Roles('DEVELOPER', 'ADMIN') @ApiOkResponse() nextVersion(
+    @Query() query: NextTaskVersionQueryDto,
+  ) {
+    return this.tasks.nextVersion(query.crimId);
   }
   @Get(':id/checklist') @ApiOkResponse() @ApiNoContentResponse() async findChecklist(
     @Param('id', ParseUUIDPipe) id: string,

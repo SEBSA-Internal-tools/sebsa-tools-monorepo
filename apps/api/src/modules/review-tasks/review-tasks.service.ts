@@ -32,6 +32,7 @@ const taskInclude = {
 } satisfies Prisma.TaskInclude;
 
 type TaskWithRelations = Prisma.TaskGetPayload<{ include: typeof taskInclude }>;
+type TaskVersionReader = Pick<Prisma.TransactionClient, 'task'>;
 
 function hasAdminAccess(user: AuthenticatedUser): boolean {
   return user.roles.includes('ADMIN') || user.roles.includes('SUPER_ADMIN');
@@ -72,6 +73,10 @@ export class ReviewTasksService {
     if (!mayReadTask(user, task))
       throw new ForbiddenException('You cannot access this review task');
     return this.toResponse(task);
+  }
+
+  async nextVersion(crimId: string) {
+    return { version: await this.nextTaskVersion(this.prisma, crimId.trim()) };
   }
 
   async findChecklist(id: string, user: AuthenticatedUser) {
@@ -136,13 +141,15 @@ export class ReviewTasksService {
               _max: { customerSequenceNo: true },
             });
             const sequence = (aggregate._max.customerSequenceNo ?? 0) + 1;
+            const crimId = dto.crimId.trim();
+            const version = await this.nextTaskVersion(tx, crimId);
             const created = await tx.task.create({
               data: {
                 taskCode: formatTaskCode(customer.name, sequence),
                 customerSequenceNo: sequence,
-                title: this.taskTitle(customer.name, dto.crimId, dto.version),
-                crimId: dto.crimId.trim(),
-                version: dto.version?.trim() ?? null,
+                title: this.taskTitle(customer.name, crimId, String(version)),
+                crimId,
+                version: String(version),
                 priority: dto.priority,
                 status: TaskStatus.DRAFT,
                 checklistCompleted,
@@ -298,13 +305,8 @@ export class ReviewTasksService {
               customerId,
               customerSequenceNo,
               taskCode,
-              title: this.taskTitle(
-                customerName,
-                crimId,
-                dto.version === undefined ? existing.version : dto.version,
-              ),
+              title: this.taskTitle(customerName, crimId, existing.version),
               crimId,
-              ...(dto.version === undefined ? {} : { version: dto.version?.trim() ?? null }),
               ...(dto.priority === undefined ? {} : { priority: dto.priority }),
               developerId,
               ...(hasChecklist ? { checklistCompleted } : {}),
@@ -522,7 +524,20 @@ export class ReviewTasksService {
     version: string | null | undefined,
   ): string {
     const suffix = version?.trim();
-    return `${customerName} - ${crimId.trim()}${suffix ? ` ${suffix}` : ''}`;
+    return `${customerName.trim()} – ${crimId.trim()}${suffix ? ` – ${suffix}` : ''}`;
+  }
+
+  private async nextTaskVersion(client: TaskVersionReader, crimId: string): Promise<number> {
+    const tasks = await client.task.findMany({
+      where: { crimId: { equals: crimId, mode: 'insensitive' } },
+      select: { version: true },
+    });
+    const highestVersion = tasks.reduce((highest, task) => {
+      const value = task.version?.trim().replace(/^V/i, '') ?? '';
+      if (!/^\d+$/.test(value)) return highest;
+      return Math.max(highest, Number(value));
+    }, 0);
+    return highestVersion + 1;
   }
 
   private toResponse(task: TaskWithRelations) {

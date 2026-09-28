@@ -14,7 +14,7 @@ import { taskDraftSchema, type Priority, type TaskDraft } from '@sdp/contracts';
 /* -------------------------------------------------------------------------- */
 
 /**
- * `Customer - CRIM ID[ Version]`, e.g. "AASL - CRIM-848 V1".
+ * `Customer – CRIM ID – Version`, e.g. "AASL – CRIM-848 – 1".
  *
  * Derived, never typed: the title column in every grid has to stay parseable,
  * and a free-text title would drift from the CRIM ID it is supposed to name.
@@ -22,9 +22,9 @@ import { taskDraftSchema, type Priority, type TaskDraft } from '@sdp/contracts';
  * become a permanent part of the record.
  */
 export function deriveTitle(customerName: string, crimId: string, version?: string | null): string {
-  const base = `${customerName.trim()} - ${crimId.trim()}`;
+  const base = `${customerName.trim()} – ${crimId.trim()}`;
   const suffix = version?.trim() ?? '';
-  return suffix === '' ? base : `${base} ${suffix}`;
+  return suffix === '' ? base : `${base} – ${suffix}`;
 }
 
 /* -------------------------------------------------------------------------- */

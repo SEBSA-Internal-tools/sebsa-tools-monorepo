@@ -18,20 +18,20 @@ const READY: TaskReadinessInput = {
 
 describe('deriveTitle (FL 2.5-01)', () => {
   it('joins customer and CRIM ID', () => {
-    expect(deriveTitle('AASL', 'CRIM-848')).toBe('AASL - CRIM-848');
+    expect(deriveTitle('AASL', 'CRIM-848')).toBe('AASL – CRIM-848');
   });
 
   it('appends the version only when there is one', () => {
-    expect(deriveTitle('AASL', 'CRIM-848', 'V1')).toBe('AASL - CRIM-848 V1');
-    expect(deriveTitle('AASL', 'CRIM-848', '')).toBe('AASL - CRIM-848');
-    expect(deriveTitle('AASL', 'CRIM-848', null)).toBe('AASL - CRIM-848');
-    expect(deriveTitle('AASL', 'CRIM-848', undefined)).toBe('AASL - CRIM-848');
+    expect(deriveTitle('AASL', 'CRIM-848', '1')).toBe('AASL – CRIM-848 – 1');
+    expect(deriveTitle('AASL', 'CRIM-848', '')).toBe('AASL – CRIM-848');
+    expect(deriveTitle('AASL', 'CRIM-848', null)).toBe('AASL – CRIM-848');
+    expect(deriveTitle('AASL', 'CRIM-848', undefined)).toBe('AASL – CRIM-848');
   });
 
   it('trims, so stray whitespace never becomes part of the record', () => {
-    expect(deriveTitle('  AASL ', ' CRIM-848  ', '  V1 ')).toBe('AASL - CRIM-848 V1');
+    expect(deriveTitle('  AASL ', ' CRIM-848  ', '  1 ')).toBe('AASL – CRIM-848 – 1');
     // A version that is only whitespace is no version at all.
-    expect(deriveTitle('AASL', 'CRIM-848', '   ')).toBe('AASL - CRIM-848');
+    expect(deriveTitle('AASL', 'CRIM-848', '   ')).toBe('AASL – CRIM-848');
   });
 });
 

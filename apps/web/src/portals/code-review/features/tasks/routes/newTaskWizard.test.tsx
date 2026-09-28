@@ -138,7 +138,10 @@ describe('New Review Task wizard', () => {
     );
 
     await user.type(await screen.findByLabelText(/crim id/i), 'CRIM-1');
-    expect(screen.getByLabelText(/version/i)).toHaveValue('');
+    await waitFor(() => {
+      expect(screen.getByLabelText(/version/i)).toHaveValue('1');
+    });
+    expect(screen.getByLabelText(/version/i)).toHaveAttribute('readonly');
     expect(screen.getByRole('button', { name: /next: quality checklist/i })).toHaveAttribute(
       'aria-disabled',
       'true',
@@ -160,7 +163,7 @@ describe('New Review Task wizard', () => {
     expect(db.tasks).toHaveLength(taskCount);
   });
 
-  it('completes Save Draft with an optional empty Version', async () => {
+  it('generates Version 1 when saving the first task for a CRIM ID', async () => {
     const { user } = renderWizard();
 
     await chooseCustomer(user, sampleCustomer().name);
@@ -176,7 +179,7 @@ describe('New Review Task wizard', () => {
       );
     });
     const saved = db.tasks.find((task) => task.id === useTaskDraft.getState().taskId);
-    expect(saved).toMatchObject({ version: null, priority: 'Low' });
+    expect(saved).toMatchObject({ version: '1', priority: 'Low' });
   });
 
   it('submits successfully without saving a draft from the Details step first', async () => {
@@ -228,9 +231,8 @@ describe('New Review Task wizard', () => {
     const customer = sampleCustomer();
     await chooseCustomer(user, customer.name);
     await user.type(await screen.findByLabelText(/crim id/i), 'CRIM-848');
-    await user.type(await screen.findByLabelText(/version/i), 'V2');
 
-    expect(await screen.findByDisplayValue(`${customer.name} - CRIM-848 V2`)).toBeInTheDocument();
+    expect(await screen.findByDisplayValue(`${customer.name} – CRIM-848 – 1`)).toBeInTheDocument();
   });
 
   it('advances to the checklist without duplicating the saved draft', async () => {
@@ -238,7 +240,6 @@ describe('New Review Task wizard', () => {
 
     await chooseCustomer(user, sampleCustomer().name);
     await user.type(await screen.findByLabelText(/crim id/i), 'CRIM-999');
-    await user.type(await screen.findByLabelText(/version/i), 'V1');
     await user.click(screen.getByRole('radio', { name: 'Medium' }));
     await user.click(screen.getByRole('button', { name: /save draft/i }));
     await waitFor(() => {

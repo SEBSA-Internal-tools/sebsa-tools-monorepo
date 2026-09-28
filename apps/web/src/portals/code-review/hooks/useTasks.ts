@@ -27,7 +27,9 @@ export const taskKeys = {
   template: () => ['checklist-template'] as const,
   taskTypes: () => ['task-types'] as const,
   customers: () => ['customers'] as const,
-  nextTaskId: (customerId: string) => [...taskKeys.customers(), customerId, 'next-task-id'] as const,
+  nextTaskId: (customerId: string) =>
+    [...taskKeys.customers(), customerId, 'next-task-id'] as const,
+  nextTaskVersion: (crimId: string) => [...taskKeys.all, 'next-version', crimId] as const,
 };
 
 /**

@@ -17,7 +17,7 @@ export const taskSchema = z.object({
    */
   taskCode: z.string().min(1),
 
-  /** Derived: `Customer - CRIM ID[ Version]` (FL 2.5-01). Never user-editable. */
+  /** Derived: `Customer – CRIM ID – Version` (FL 2.5-01). Never user-editable. */
   title: z.string().min(1),
 
   crimId: z.string().min(1),
@@ -71,6 +71,11 @@ export const taskListItemSchema = taskSchema.extend({
   reviewerName: z.string().nullable(),
 });
 export type TaskListItem = z.infer<typeof taskListItemSchema>;
+
+export const nextTaskVersionSchema = z.object({
+  version: z.number().int().min(1),
+});
+export type NextTaskVersion = z.infer<typeof nextTaskVersionSchema>;
 
 /* -------------------------------------------------------------------------- */
 /* Create / update input                                                       */

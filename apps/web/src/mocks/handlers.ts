@@ -128,8 +128,18 @@ function toWireNotification(n: Notification & { userId: string }): Notification 
 
 /** FL 2.5-01, applied server-side so the stored title cannot be spoofed. */
 function deriveTitle(customerName: string, crimId: string, version: string | null): string {
-  const base = `${customerName} - ${crimId}`;
-  return version === null || version === '' ? base : `${base} ${version}`;
+  const base = `${customerName.trim()} – ${crimId.trim()}`;
+  return version === null || version === '' ? base : `${base} – ${version}`;
+}
+
+function nextTaskVersion(crimId: string): number {
+  const normalizedCrimId = crimId.trim().toLowerCase();
+  const highestVersion = db.tasks.reduce((highest, task) => {
+    if (task.crimId.trim().toLowerCase() !== normalizedCrimId) return highest;
+    const value = task.version?.trim().replace(/^V/i, '') ?? '';
+    return /^\d+$/.test(value) ? Math.max(highest, Number(value)) : highest;
+  }, 0);
+  return highestVersion + 1;
 }
 
 /**
@@ -537,6 +547,15 @@ export const handlers: HttpHandler[] = [
     return HttpResponse.json({ total: visible.length });
   }),
 
+  http.get('/api/tasks/next-version', async ({ request }) => {
+    await delay(LATENCY_MS);
+    const user = currentUser(request);
+    if (!user) return errorResponse(401, 'NOT_AUTHENTICATED', 'Not authenticated.');
+    const crimId = new URL(request.url).searchParams.get('crimId')?.trim() ?? '';
+    if (crimId === '') return errorResponse(422, 'VALIDATION_FAILED', 'Enter the CRIM ID.');
+    return HttpResponse.json({ version: nextTaskVersion(crimId) });
+  }),
+
   /**
    * One task, with the display fields the detail screens need.
    *
@@ -602,14 +621,15 @@ export const handlers: HttpHandler[] = [
     if (!customer) return errorResponse(422, 'VALIDATION_FAILED', 'Unknown customer.');
 
     const now = new Date().toISOString();
-    const version = parsed.data.version?.trim() ?? '';
+    const crimId = parsed.data.crimId.trim();
+    const version = String(nextTaskVersion(crimId));
 
     const task: Task = {
       id: `t-${String(Date.now())}`,
       taskCode: issueTaskCode(customer.id),
-      title: deriveTitle(customer.name, parsed.data.crimId.trim(), version === '' ? null : version),
-      crimId: parsed.data.crimId.trim(),
-      version: version === '' ? null : version,
+      title: deriveTitle(customer.name, crimId, version),
+      crimId,
+      version,
       customerId: customer.id,
       priority: parsed.data.priority,
       status: 'Draft',
@@ -673,11 +693,6 @@ export const handlers: HttpHandler[] = [
       const note = parsed.data.noteToReviewer.trim();
       task.noteToReviewer = note === '' ? null : note;
     }
-    if (parsed.data.version !== undefined) {
-      const trimmed = parsed.data.version.trim();
-      task.version = trimmed === '' ? null : trimmed;
-    }
-
     // The title follows its inputs rather than being stored independently, so a
     // customer change cannot leave a stale name in the grid.
     task.title = deriveTitle(

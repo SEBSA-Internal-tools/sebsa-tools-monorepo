@@ -4,6 +4,7 @@ import {
   checklistCategorySchema,
   customerSchema,
   nextTaskIdSchema,
+  nextTaskVersionSchema,
   taskTypeRecordSchema,
 } from '@sdp/contracts';
 import { api } from '@/lib/apiClient.ts';
@@ -38,6 +39,19 @@ export function useNextTaskId(customerId: string) {
     queryFn: ({ signal }) =>
       api.get(`/customers/${customerId}/next-task-id`, nextTaskIdSchema, { signal }),
     enabled: customerId !== '',
+    staleTime: 0,
+  });
+}
+
+export function useNextTaskVersion(crimId: string) {
+  return useQuery({
+    queryKey: taskKeys.nextTaskVersion(crimId),
+    queryFn: ({ signal }) =>
+      api.get('/tasks/next-version', nextTaskVersionSchema, {
+        signal,
+        searchParams: { crimId },
+      }),
+    enabled: crimId !== '',
     staleTime: 0,
   });
 }

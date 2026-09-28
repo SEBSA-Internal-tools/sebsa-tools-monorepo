@@ -103,7 +103,7 @@ const seededCustomers: Customer[] = seed('customers', rawCustomers, customerSche
 const seededUsers: User[] = seed('users', rawUsers, userSchema.array());
 
 /**
- * Title generation, spec FL 2.5-01: `Customer - CRIM ID[ Version]`.
+ * Title generation, spec FL 2.5-01: `Customer – CRIM ID – Version`.
  *
  * Derived here rather than written into the fixtures, so the seed data cannot
  * disagree with the rule the application enforces at create time.
@@ -111,11 +111,11 @@ const seededUsers: User[] = seed('users', rawUsers, userSchema.array());
 function withDerivedFields(task: Record<string, unknown>): Record<string, unknown> {
   const customer = seededCustomers.find((c) => c.id === task['customerId']);
   const version = task['version'] as string | null;
-  const base = `${customer?.name ?? 'Unknown'} - ${String(task['crimId'])}`;
+  const base = `${customer?.name ?? 'Unknown'} – ${String(task['crimId'])}`;
 
   return {
     ...task,
-    title: version === null ? base : `${base} ${version}`,
+    title: version === null ? base : `${base} – ${version}`,
     updatedAt: task['submittedAt'] ?? task['createdAt'],
   };
 }
