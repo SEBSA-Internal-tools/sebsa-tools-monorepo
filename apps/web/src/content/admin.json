@@ -343,7 +343,7 @@
     "subtitle": "Reviews handed back for reassignment",
     "caption": "Tasks a reviewer handed back, and what happened to them",
     "noun": "handovers",
-    "pendingNote": "A handed-over task is held out of the Available queue until it is reassigned or returned, so two reviewers cannot claim it at once.",
+    "pendingNote": "A handed-over task remains in Available Tasks until a Reviewer picks it or an Admin reassigns it.",
     "emptyTitle": "No handovers",
     "emptyHint": "A reviewer who cannot finish a review hands it back here.",
     "columns": {
@@ -363,26 +363,19 @@
     "returned": "Returned to the open queue",
     "actions": {
       "view": "View {taskCode}",
-      "reassign": "Reassign {taskCode}",
-      "return": "Return {taskCode} to the open queue"
+      "reassign": "Reassign {taskCode}"
     },
     "reassign": {
       "title": "Reassign this review",
       "description": "{taskCode} was handed back by {name}. Choose who picks it up.",
       "label": "Reviewer",
       "placeholder": "Select a reviewer",
-      "hint": "The reviewer who handed it over and the developer who raised it are both excluded.",
+      "hint": "The developer who raised the task is excluded.",
       "reasonLabel": "Their reason",
       "submit": "Reassign",
       "submitting": "Reassigning…",
       "success": "{taskCode} reassigned to {name}.",
       "noReviewers": "No other active reviewer is eligible for this task."
-    },
-    "return": {
-      "title": "Return this task to the queue?",
-      "description": "{taskCode} becomes available for any reviewer to pick up. No one is assigned.",
-      "confirm": "Return to Queue",
-      "success": "{taskCode} returned to the open queue."
     }
   },
   "reports": {

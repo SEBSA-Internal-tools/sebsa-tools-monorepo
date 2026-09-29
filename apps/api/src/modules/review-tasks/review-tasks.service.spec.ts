@@ -1,5 +1,5 @@
 import { ConflictException, ForbiddenException } from '@nestjs/common';
-import { ReviewerAssignmentType, TaskStatus } from '@prisma/client';
+import { HandoverStatus, ReviewerAssignmentType, TaskStatus } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 import type { RoleCode } from '../auth/auth.constants.js';
 import type { AuthenticatedUser } from '../auth/auth.types.js';
@@ -113,6 +113,7 @@ describe('ReviewTasksService list visibility', () => {
           currentReviewerId: user.id,
           status: TaskStatus.DRAFT,
           codeReviewForms: [],
+          handovers: [],
         }),
       },
     });
@@ -132,6 +133,7 @@ describe('ReviewTasksService draft checklist', () => {
       checklistCompleted: false,
       taskTypes: [{ taskTypeId: 4 }],
       codeReviewForms: [],
+      handovers: [],
       developerChecklist: {
         id: '00000000-0000-0000-0000-000000000020',
         developerId: user.id,
@@ -183,6 +185,8 @@ describe('ReviewTasksService task picking', () => {
       currentReviewerId: null,
       currentReviewer: null,
       status: TaskStatus.SUBMITTED,
+      title: 'Test task',
+      handovers: [],
     };
     const picked = {
       id: '00000000-0000-0000-0000-000000000010',
@@ -206,6 +210,7 @@ describe('ReviewTasksService task picking', () => {
       taskTypes: [],
       developerChecklist: null,
       codeReviewForms: [],
+      handovers: [],
     };
     const tx = {
       task: {
@@ -269,6 +274,8 @@ describe('ReviewTasksService task picking', () => {
             currentReviewerId: null,
             currentReviewer: null,
             status: TaskStatus.SUBMITTED,
+            title: 'Test task',
+            handovers: [],
           })
           .mockResolvedValueOnce({ currentReviewer: { fullName: 'Winning Reviewer' } }),
         updateMany: vi.fn().mockResolvedValue({ count: 0 }),
@@ -292,6 +299,8 @@ describe('ReviewTasksService task picking', () => {
           currentReviewerId: null,
           currentReviewer: null,
           status: TaskStatus.SUBMITTED,
+          title: 'Own task',
+          handovers: [],
         }),
       },
     };
@@ -300,5 +309,180 @@ describe('ReviewTasksService task picking', () => {
     });
 
     await expect(service.pick('task-id', user)).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('lets the previous reviewer retake a handed-over task and resolves the handover', async () => {
+    const user = actor(['REVIEWER']);
+    const handoverId = '00000000-0000-0000-0000-000000000030';
+    const taskId = '00000000-0000-0000-0000-000000000010';
+    const candidate = {
+      developerId: '00000000-0000-0000-0000-000000000099',
+      currentReviewerId: null,
+      currentReviewer: null,
+      status: TaskStatus.SUBMITTED,
+      title: 'Handed-over task',
+      handovers: [
+        {
+          id: handoverId,
+          reason: 'Temporary workload conflict',
+          fromReviewerId: user.id,
+          fromReviewer: { fullName: user.name },
+        },
+      ],
+    };
+    const picked = {
+      id: taskId,
+      taskCode: 'TEST-01',
+      title: candidate.title,
+      crimId: 'CRIM-1',
+      version: null,
+      customerId: '00000000-0000-0000-0000-000000000020',
+      priority: 'MEDIUM',
+      status: TaskStatus.IN_REVIEW,
+      currentReviewCycle: 1,
+      developerId: candidate.developerId,
+      currentReviewerId: user.id,
+      checklistCompleted: true,
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-01-02T00:00:00.000Z'),
+      submittedAt: new Date('2026-01-01T01:00:00.000Z'),
+      customer: { name: 'Test', code: 'TEST', color: '#123456' },
+      developer: { fullName: 'Developer' },
+      currentReviewer: { fullName: user.name },
+      taskTypes: [],
+      developerChecklist: null,
+      codeReviewForms: [],
+      handovers: [
+        {
+          status: HandoverStatus.REASSIGNED,
+          fromReviewer: { fullName: user.name },
+        },
+      ],
+    };
+    const tx = {
+      task: {
+        findUnique: vi.fn().mockResolvedValueOnce(candidate).mockResolvedValueOnce(picked),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+      handoverTask: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+      taskReviewerAssignment: {
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        create: vi.fn().mockResolvedValue({}),
+      },
+      taskStatusHistory: { create: vi.fn().mockResolvedValue({}) },
+    };
+    const service = serviceWith({
+      $transaction: vi.fn((operation: (client: typeof tx) => Promise<unknown>) => operation(tx)),
+    });
+
+    await expect(service.pick(taskId, user)).resolves.toMatchObject({
+      id: taskId,
+      reviewerId: user.id,
+      handedOverByName: user.name,
+    });
+    expect(tx.handoverTask.updateMany).toHaveBeenCalledWith({
+      where: { id: handoverId, status: HandoverStatus.PENDING },
+      data: {
+        status: HandoverStatus.REASSIGNED,
+        toReviewerId: user.id,
+        reassignedBy: user.id,
+        reassignedAt: expect.any(Date),
+      },
+    });
+    expect(tx.taskReviewerAssignment.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        taskId,
+        reviewerId: user.id,
+        assignmentType: ReviewerAssignmentType.HANDOVER_REASSIGNED,
+      }),
+    });
+  });
+});
+
+describe('ReviewTasksService handover', () => {
+  it('removes the assigned reviewer, records the reason, and returns the task to pickup', async () => {
+    const reviewer = actor(['REVIEWER']);
+    const taskId = '00000000-0000-0000-0000-000000000010';
+    const candidate = {
+      id: taskId,
+      title: 'Test task',
+      status: TaskStatus.IN_REVIEW,
+      currentReviewCycle: 1,
+      currentReviewerId: reviewer.id,
+      currentReviewer: { fullName: reviewer.name },
+      handovers: [],
+    };
+    const updated = {
+      id: taskId,
+      taskCode: 'TEST-01',
+      title: candidate.title,
+      crimId: 'CRIM-1',
+      version: null,
+      customerId: '00000000-0000-0000-0000-000000000020',
+      priority: 'MEDIUM',
+      status: TaskStatus.SUBMITTED,
+      currentReviewCycle: 1,
+      developerId: '00000000-0000-0000-0000-000000000099',
+      currentReviewerId: null,
+      checklistCompleted: true,
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-01-02T00:00:00.000Z'),
+      submittedAt: new Date('2026-01-01T01:00:00.000Z'),
+      customer: { name: 'Test', code: 'TEST', color: '#123456' },
+      developer: { fullName: 'Developer' },
+      currentReviewer: null,
+      taskTypes: [],
+      developerChecklist: null,
+      codeReviewForms: [],
+      handovers: [
+        {
+          status: 'PENDING',
+          fromReviewer: { fullName: reviewer.name },
+        },
+      ],
+    };
+    const tx = {
+      task: {
+        findUnique: vi.fn().mockResolvedValueOnce(candidate).mockResolvedValueOnce(updated),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+      handoverTask: {
+        create: vi.fn().mockResolvedValue({ id: '00000000-0000-0000-0000-000000000030' }),
+      },
+      taskReviewerAssignment: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+      taskStatusHistory: { create: vi.fn().mockResolvedValue({}) },
+    };
+    const service = serviceWith({
+      $transaction: vi.fn((operation: (client: typeof tx) => Promise<unknown>) => operation(tx)),
+    });
+
+    const result = await service.handover(taskId, { reason: 'On leave next week.' }, reviewer);
+
+    expect(tx.task.updateMany).toHaveBeenCalledWith({
+      where: { id: taskId, currentReviewerId: reviewer.id, status: TaskStatus.IN_REVIEW },
+      data: { currentReviewerId: null, status: TaskStatus.SUBMITTED },
+    });
+    expect(tx.handoverTask.create).toHaveBeenCalledWith({
+      data: {
+        taskId,
+        fromReviewerId: reviewer.id,
+        reason: 'On leave next week.',
+        status: 'PENDING',
+      },
+    });
+    expect(result).toMatchObject({
+      id: taskId,
+      status: 'Submitted',
+      reviewerId: null,
+      isHandedOver: true,
+    });
+    expect(audit.record).toHaveBeenCalledWith(
+      tx,
+      reviewer,
+      expect.objectContaining({
+        actionType: 'TASK_HANDOVER',
+        newValue: expect.objectContaining({ reason: 'On leave next week.' }),
+      }),
+    );
   });
 });

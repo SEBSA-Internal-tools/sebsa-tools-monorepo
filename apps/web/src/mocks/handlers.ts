@@ -482,13 +482,6 @@ export const handlers: HttpHandler[] = [
           (t) =>
             t.reviewerId === null &&
             t.developerId !== user.id &&
-            /*
-             * A handed-over task waits for the admin, not for whoever refreshes
-             * first. Leaving it in the open queue would let a reviewer pick the
-             * same task the admin is reassigning — two claims on one row, and a
-             * handover queue listing work already taken.
-             */
-            !t.isHandedOver &&
             (t.status === 'Submitted' || t.status === 'ReSubmitted'),
         );
       } else if (scope === 'assigned') {
@@ -1058,9 +1051,21 @@ export const handlers: HttpHandler[] = [
     }
 
     const now = new Date().toISOString();
+    const pendingHandover = db.handovers.find(
+      (handover) => handover.taskId === task.id && handover.status === 'Pending',
+    );
     task.reviewerId = user.id;
     task.status = 'InReview';
+    task.isHandedOver = false;
     touch(task);
+
+    if (pendingHandover) {
+      pendingHandover.status = 'Reassigned';
+      pendingHandover.reassignedToId = user.id;
+      pendingHandover.reassignedToName = user.name;
+      pendingHandover.reassignedById = user.id;
+      pendingHandover.resolvedAt = now;
+    }
 
     recordEvent({
       taskId: task.id,
@@ -1079,6 +1084,22 @@ export const handlers: HttpHandler[] = [
       oldValue: { reviewerId: null },
       newValue: { reviewerId: user.id, status: task.status },
     });
+    if (pendingHandover) {
+      recordMockAudit(user, {
+        actionType: 'HANDOVER_REASSIGNED',
+        entityType: 'HANDOVER',
+        entityId: pendingHandover.id,
+        taskId: task.id,
+        targetUserId: user.id,
+        description: `${user.name} picked handed-over task '${task.title}' from ${pendingHandover.fromReviewerName}. Handover reason: ${pendingHandover.reason}`,
+        oldValue: {
+          reviewerId: pendingHandover.fromReviewerId,
+          reviewerName: pendingHandover.fromReviewerName,
+          reason: pendingHandover.reason,
+        },
+        newValue: { reviewerId: user.id, reviewerName: user.name },
+      });
+    }
     recordMockAudit(user, {
       actionType: 'REVIEW_STARTED',
       entityType: 'REVIEW',
@@ -2689,9 +2710,8 @@ export const handlers: HttpHandler[] = [
    * below is our design (plan §1.3).
    *
    * What it does: clears the reviewer, returns the task to its pre-review status
-   * and raises a Pending handover for the admin. `isHandedOver` is what keeps it
-   * out of the open Available queue in the meantime — the task is waiting for a
-   * decision, not for whoever refreshes first.
+   * and raises a Pending handover for the admin. `isHandedOver` identifies it in
+   * the open Available queue until a reviewer picks it or an admin reassigns it.
    *
    * What it deliberately does NOT do: touch `reviewCycle`. A cycle counts a
    * completed review round (spec p.10), and handing over is the absence of one.
@@ -2751,7 +2771,8 @@ export const handlers: HttpHandler[] = [
       entityType: 'HANDOVER',
       entityId: handover.id,
       taskId: task.id,
-      description: `${user.name} handed over task '${task.title}'`,
+      description: `${user.name} handed over task '${task.title}': ${parsed.data.reason}`,
+      oldValue: { reviewerId: user.id, reviewerName: user.name },
       newValue: handover,
     });
 
@@ -2796,14 +2817,6 @@ export const handlers: HttpHandler[] = [
     if (!reviewer || !reviewer.roles.includes('Reviewer') || !reviewer.isActive) {
       return errorResponse(422, 'INVALID_REVIEWER', 'Select an active reviewer.');
     }
-    // Handing back to the person who handed over defeats the purpose.
-    if (reviewer.id === handover.fromReviewerId) {
-      return errorResponse(
-        422,
-        'SAME_REVIEWER',
-        'Choose someone other than the reviewer who handed the task over.',
-      );
-    }
     // The self-review bar holds on this path too.
     if (reviewer.id === task.developerId) {
       return errorResponse(
@@ -2839,42 +2852,14 @@ export const handlers: HttpHandler[] = [
       entityId: handover.id,
       taskId: task.id,
       targetUserId: reviewer.id,
-      description: `${actor.name} reassigned task '${task.title}' to ${reviewer.name}`,
-      oldValue: { reviewerId: handover.fromReviewerId },
-      newValue: { reviewerId: reviewer.id },
+      description: `${actor.name} reassigned task '${task.title}' from ${handover.fromReviewerName} to ${reviewer.name}. Handover reason: ${handover.reason}`,
+      oldValue: {
+        reviewerId: handover.fromReviewerId,
+        reviewerName: handover.fromReviewerName,
+        reason: handover.reason,
+      },
+      newValue: { reviewerId: reviewer.id, reviewerName: reviewer.name },
     });
-
-    return HttpResponse.json(handover);
-  }),
-
-  /**
-   * Return a handed-over task to the open queue instead of naming a reviewer.
-   *
-   * The other half of the admin's decision, and the reason handover is not just
-   * "unassign": sometimes the right answer is "anyone may take this", and
-   * without this action the admin would have to pick a name they do not have.
-   */
-  http.post('/api/handovers/:handoverId/return', async ({ request, params }) => {
-    await delay(LATENCY_MS);
-    const denied = requireAdmin(request);
-    if (denied) return denied;
-
-    const actor = currentUser(request);
-    const handover = db.handovers.find((h) => h.id === String(params['handoverId']));
-    if (!handover || !actor) return errorResponse(404, 'NOT_FOUND', 'Handover not found.');
-    if (handover.status !== 'Pending') {
-      return errorResponse(422, 'ALREADY_RESOLVED', 'This handover has already been resolved.');
-    }
-
-    const task = findTask(handover.taskId);
-    if (!task) return errorResponse(404, 'NOT_FOUND', 'Task not found.');
-
-    task.isHandedOver = false;
-    touch(task);
-
-    handover.status = 'Cancelled';
-    handover.resolvedAt = new Date().toISOString();
-    handover.reassignedById = actor.id;
 
     return HttpResponse.json(handover);
   }),

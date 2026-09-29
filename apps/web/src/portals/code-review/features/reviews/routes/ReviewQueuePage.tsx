@@ -84,6 +84,7 @@ export function ReviewQueuePage({ variant }: { variant: QueueVariant }) {
     if (variant === 'available') {
       return buildTaskColumns({
         showDeveloper: true,
+        showHandover: true,
         renderAction: (task) => (
           <Button
             /*
@@ -157,6 +158,7 @@ export function ReviewQueuePage({ variant }: { variant: QueueVariant }) {
 
     return buildTaskColumns({
       showDeveloper: true,
+      showHandover: true,
       renderAction: (task) =>
         taskArrowAction(task, () => {
           void navigate(ROUTES.reviewer.task(task.id));

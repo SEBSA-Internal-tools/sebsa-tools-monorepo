@@ -27,6 +27,7 @@
     "emptyTitle": "No review tasks yet",
     "emptyHint": "Create your first review task to get it in front of a reviewer.",
     "openTask": "Open {taskCode}",
+    "handoverBadge": "Prev. {name}",
     "filters": {
       "status": "Status",
       "statusAll": "All Statuses",

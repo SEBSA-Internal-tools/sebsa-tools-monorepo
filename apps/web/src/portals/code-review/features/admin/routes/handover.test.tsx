@@ -13,11 +13,10 @@ import { routes } from '@/app/routes.tsx';
  * paragraph and no wireframe exists. That makes the tests the specification, so
  * they assert the properties the design rests on rather than its pixels:
  *
- *  1. a handed-over task LEAVES the open Available queue (otherwise two people
- *     can claim one task);
+ *  1. a handed-over task returns to Available Tasks with its handover context;
  *  2. the review cycle does NOT increment (a cycle is a completed review, and
  *     handing over is the absence of one — inflating it would corrupt Reports);
- *  3. it cannot be handed straight back to the person who handed it over.
+ *  3. the previous reviewer remains eligible to pick it or receive reassignment.
  */
 
 const ADMIN = 'u-charith';
@@ -130,19 +129,22 @@ describe('reviewer hands a task back', () => {
     expect(within(row).getByText('1')).toBeInTheDocument();
   });
 
-  it('keeps the task OUT of the open Available queue while it waits', async () => {
+  it('shows the task in Available Tasks and lets the previous reviewer retake it', async () => {
     await handOver();
 
-    // A different reviewer, who would otherwise be free to pick it up.
-    signInForTest(OTHER_REVIEWER);
-    renderAt('/crp/reviewer');
+    signInForTest(ASSIGNED_REVIEWER);
+    const { router, user } = renderAt('/crp/reviewer');
 
-    await screen.findByRole('table');
-    // The control: a handed-over task is waiting for the admin's decision, not
-    // for whoever refreshes first. Two claims on one row is the failure this
-    // prevents.
+    const cell = await screen.findByText('BLOM-010');
+    const row = cell.closest('tr');
+    if (row === null) throw new Error('No BLOM-010 row');
+
+    const label = within(row).getByText('Prev. Pinsara');
+    expect(label).toHaveClass('text-[10px]', 'italic', 'text-status-handover');
+    await user.click(within(row).getByRole('button', { name: /pick BLOM-010 for review/i }));
+
     await waitFor(() => {
-      expect(screen.queryByText('BLOM-010')).toBeNull();
+      expect(router.state.location.pathname).toBe(`/crp/reviewer/tasks/${IN_REVIEW_TASK}`);
     });
   });
 });
@@ -159,11 +161,11 @@ describe('admin handover queue', () => {
     expect(screen.getByText('Awaiting action')).toBeInTheDocument();
   });
 
-  it('reassigns to another reviewer and puts the task back in review', async () => {
+  it('keeps the previous-reviewer label after admin reassignment', async () => {
     await handOver();
 
     signInForTest(ADMIN);
-    const { user } = renderAt('/crp/admin/handovers');
+    const { user, unmount } = renderAt('/crp/admin/handovers');
 
     const cell = await screen.findByText('BLOM-010');
     const row = cell.closest('tr');
@@ -173,10 +175,6 @@ describe('admin handover queue', () => {
 
     const dialog = await screen.findByRole('dialog');
     await user.click(within(dialog).getByRole('combobox', { name: /reviewer/i }));
-
-    // Handing it straight back to the person who gave it up defeats the purpose,
-    // so they are not offered. The handler refuses the same pairing.
-    expect(screen.queryByRole('option', { name: 'Pinsara Chandika' })).toBeNull();
 
     await user.click(await screen.findByRole('option', { name: 'Kavidu Dilshan' }));
     await user.click(within(dialog).getByRole('button', { name: /^reassign$/i }));
@@ -188,28 +186,15 @@ describe('admin handover queue', () => {
     // The row stays listed as history, now resolved.
     expect(await screen.findByText('Reassigned')).toBeInTheDocument();
     expect(screen.getByText(/reassigned to kavidu dilshan/i)).toBeInTheDocument();
-  });
 
-  it('returns a task to the open queue instead, when no one is named', async () => {
-    await handOver();
+    unmount();
+    signInForTest(OTHER_REVIEWER);
+    renderAt('/crp/reviewer/my-tasks');
 
-    signInForTest(ADMIN);
-    const { user } = renderAt('/crp/admin/handovers');
-
-    const cell = await screen.findByText('BLOM-010');
-    const row = cell.closest('tr');
-    if (row === null) throw new Error('No handover row');
-
-    await user.click(
-      within(row).getByRole('button', {
-        name: /return BLOM-010 to the open queue/i,
-      }),
-    );
-    await user.click(await screen.findByRole('button', { name: /^return to queue$/i }));
-
-    await waitFor(() => {
-      expect(screen.getByText('Returned to queue')).toBeInTheDocument();
-    });
+    const reassignedTask = await screen.findByText('BLOM-010');
+    const reassignedRow = reassignedTask.closest('tr');
+    if (reassignedRow === null) throw new Error('No reassigned BLOM-010 row');
+    expect(within(reassignedRow).getByText('Prev. Pinsara')).toBeInTheDocument();
   });
 
   it('is closed to a non-admin', async () => {

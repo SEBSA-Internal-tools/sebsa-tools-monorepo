@@ -43,9 +43,3 @@ export function useReassignHandover() {
       }),
   );
 }
-
-export function useReturnHandover() {
-  return useHandoverMutation((handoverId: string) =>
-    api.post(`/handovers/${handoverId}/return`, handoverSchema),
-  );
-}

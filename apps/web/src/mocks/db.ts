@@ -493,6 +493,8 @@ export function toListItem(task: Task): TaskListItem {
   const customer = findCustomer(task.customerId);
   const developer = findUser(task.developerId);
   const reviewer = task.reviewerId === null ? undefined : findUser(task.reviewerId);
+  const taskHandovers = db.handovers.filter((handover) => handover.taskId === task.id);
+  const latestHandover = taskHandovers[taskHandovers.length - 1];
 
   return {
     ...task,
@@ -501,5 +503,6 @@ export function toListItem(task: Task): TaskListItem {
     customerColor: customer?.color ?? '#6b7591',
     developerName: developer?.name ?? 'Unknown',
     reviewerName: reviewer?.name ?? null,
+    handedOverByName: latestHandover?.fromReviewerName ?? null,
   };
 }

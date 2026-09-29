@@ -5,7 +5,13 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ChecklistStatus, Prisma, ReviewerAssignmentType, TaskStatus } from '@prisma/client';
+import {
+  ChecklistStatus,
+  HandoverStatus,
+  Prisma,
+  ReviewerAssignmentType,
+  TaskStatus,
+} from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { rethrowPrismaConflict } from '../../common/prisma-errors.js';
 import type { ChecklistAnswerDto, CreateReviewTaskDto } from './dto/create-review-task.dto.js';
@@ -14,6 +20,7 @@ import type { AuthenticatedUser } from '../auth/auth.types.js';
 import { formatTaskCode } from './task-code.js';
 import type { ReviewTaskScope } from './dto/review-task-query.dto.js';
 import { AuditService } from '../audit/audit.service.js';
+import type { CreateHandoverDto } from '../handovers/dto/create-handover.dto.js';
 
 const taskInclude = {
   customer: true,
@@ -30,6 +37,10 @@ const taskInclude = {
     },
   },
   codeReviewForms: { select: { reviewerId: true, decision: true } },
+  handovers: {
+    select: { status: true, fromReviewer: { select: { fullName: true } } },
+    orderBy: { requestedAt: 'desc' },
+  },
 } satisfies Prisma.TaskInclude;
 
 type TaskWithRelations = Prisma.TaskGetPayload<{ include: typeof taskInclude }>;
@@ -40,10 +51,12 @@ function hasAdminAccess(user: AuthenticatedUser): boolean {
 }
 
 function mayReadTask(user: AuthenticatedUser, task: TaskWithRelations): boolean {
+  const isPendingHandover = task.handovers.some(({ status }) => status === HandoverStatus.PENDING);
   return (
     hasAdminAccess(user) ||
     (user.roles.includes('DEVELOPER') && task.developerId === user.id) ||
     (user.roles.includes('REVIEWER') &&
+      !isPendingHandover &&
       task.status !== TaskStatus.DRAFT &&
       task.developerId !== user.id &&
       (task.currentReviewerId === user.id ||
@@ -447,6 +460,15 @@ export class ReviewTasksService {
           status: true,
           title: true,
           currentReviewer: { select: { fullName: true } },
+          handovers: {
+            where: { status: HandoverStatus.PENDING },
+            select: {
+              id: true,
+              reason: true,
+              fromReviewerId: true,
+              fromReviewer: { select: { fullName: true } },
+            },
+          },
         },
       });
       if (!candidate) throw new NotFoundException(`Review task ${id} was not found`);
@@ -499,12 +521,29 @@ export class ReviewTasksService {
         where: { taskId: id, isCurrent: true },
         data: { isCurrent: false, unassignedAt: now },
       });
+      const pendingHandover = candidate.handovers[0];
+      if (pendingHandover) {
+        const resolved = await tx.handoverTask.updateMany({
+          where: { id: pendingHandover.id, status: HandoverStatus.PENDING },
+          data: {
+            status: HandoverStatus.REASSIGNED,
+            toReviewerId: user.id,
+            reassignedBy: user.id,
+            reassignedAt: now,
+          },
+        });
+        if (resolved.count !== 1) {
+          throw new ConflictException('This handover was already reassigned');
+        }
+      }
       await tx.taskReviewerAssignment.create({
         data: {
           taskId: id,
           reviewerId: user.id,
           assignedBy: user.id,
-          assignmentType: ReviewerAssignmentType.SELF_PICKED,
+          assignmentType: pendingHandover
+            ? ReviewerAssignmentType.HANDOVER_REASSIGNED
+            : ReviewerAssignmentType.SELF_PICKED,
         },
       });
       await tx.taskStatusHistory.create({
@@ -525,6 +564,22 @@ export class ReviewTasksService {
         oldValue: { status: candidate.status, reviewerId: null },
         newValue: { status: TaskStatus.IN_REVIEW, reviewerId: user.id },
       });
+      if (pendingHandover) {
+        await this.audit.record(tx, user, {
+          actionType: 'HANDOVER_REASSIGNED',
+          entityType: 'HANDOVER',
+          entityId: pendingHandover.id,
+          taskId: id,
+          targetUserId: user.id,
+          description: `${user.name} picked handed-over task '${candidate.title}' from ${pendingHandover.fromReviewer.fullName}. Handover reason: ${pendingHandover.reason ?? 'Not provided'}`,
+          oldValue: {
+            reviewerId: pendingHandover.fromReviewerId,
+            reviewerName: pendingHandover.fromReviewer.fullName,
+            reason: pendingHandover.reason,
+          },
+          newValue: { reviewerId: user.id, reviewerName: user.name },
+        });
+      }
       await this.audit.record(tx, user, {
         actionType: 'REVIEW_STARTED',
         entityType: 'REVIEW',
@@ -536,6 +591,88 @@ export class ReviewTasksService {
       const task = await tx.task.findUnique({ where: { id }, include: taskInclude });
       if (!task) throw new NotFoundException(`Review task ${id} was not found`);
       return this.toResponse(task);
+    });
+  }
+
+  async handover(id: string, dto: CreateHandoverDto, actor: AuthenticatedUser) {
+    return this.prisma.$transaction(async (tx) => {
+      const task = await tx.task.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          currentReviewCycle: true,
+          currentReviewerId: true,
+          currentReviewer: { select: { fullName: true } },
+          handovers: { where: { status: HandoverStatus.PENDING }, select: { id: true } },
+        },
+      });
+      if (!task) throw new NotFoundException(`Review task ${id} was not found`);
+      if (task.currentReviewerId !== actor.id) {
+        throw new ForbiddenException('Only the assigned reviewer can hand over this task');
+      }
+      if (task.status !== TaskStatus.IN_REVIEW) {
+        throw new ConflictException('Only a task currently in review can be handed over');
+      }
+      if (task.handovers.length > 0) {
+        throw new ConflictException('This task already has a pending handover');
+      }
+
+      const waitingStatus =
+        task.currentReviewCycle > 1 ? TaskStatus.RESUBMITTED : TaskStatus.SUBMITTED;
+      const released = await tx.task.updateMany({
+        where: { id, currentReviewerId: actor.id, status: TaskStatus.IN_REVIEW },
+        data: { currentReviewerId: null, status: waitingStatus },
+      });
+      if (released.count !== 1) {
+        throw new ConflictException('This task was already handed over or reassigned');
+      }
+
+      const now = new Date();
+      const handover = await tx.handoverTask.create({
+        data: {
+          taskId: id,
+          fromReviewerId: actor.id,
+          reason: dto.reason.trim(),
+          status: HandoverStatus.PENDING,
+        },
+      });
+      await tx.taskReviewerAssignment.updateMany({
+        where: { taskId: id, reviewerId: actor.id, isCurrent: true },
+        data: { isCurrent: false, unassignedAt: now },
+      });
+      await tx.taskStatusHistory.create({
+        data: {
+          taskId: id,
+          oldStatus: TaskStatus.IN_REVIEW,
+          newStatus: waitingStatus,
+          changedBy: actor.id,
+          remarks: `Review handed over: ${dto.reason.trim()}`,
+        },
+      });
+      await this.audit.record(tx, actor, {
+        actionType: 'TASK_HANDOVER',
+        entityType: 'HANDOVER',
+        entityId: handover.id,
+        taskId: id,
+        targetUserId: actor.id,
+        description: `${actor.name} handed over task '${task.title}': ${dto.reason.trim()}`,
+        oldValue: {
+          status: TaskStatus.IN_REVIEW,
+          reviewerId: actor.id,
+          reviewerName: task.currentReviewer?.fullName ?? actor.name,
+        },
+        newValue: {
+          status: waitingStatus,
+          reviewerId: null,
+          reason: dto.reason.trim(),
+        },
+      });
+
+      const updated = await tx.task.findUnique({ where: { id }, include: taskInclude });
+      if (!updated) throw new NotFoundException(`Review task ${id} was not found`);
+      return this.toResponse(updated);
     });
   }
 
@@ -641,7 +778,8 @@ export class ReviewTasksService {
       reviewerId: task.currentReviewerId,
       taskTypeIds: task.taskTypes.map(({ taskTypeId }) => String(taskTypeId)),
       isChecklistComplete: task.checklistCompleted,
-      isHandedOver: false,
+      isHandedOver: task.handovers.some(({ status }) => status === HandoverStatus.PENDING),
+      handedOverByName: task.handovers[0]?.fromReviewer.fullName ?? null,
       noteToReviewer: null,
       createdAt: task.createdAt.toISOString(),
       submittedAt: task.submittedAt?.toISOString() ?? null,

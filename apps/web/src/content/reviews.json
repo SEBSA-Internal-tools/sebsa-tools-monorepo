@@ -114,7 +114,7 @@
     "developerChecklist": "Developer Quality Checklist",
     "handover": "Hand Over",
     "handoverTitle": "Hand this review over?",
-    "handoverDescription": "{taskCode} returns to the admin queue. Your answers so far are kept, but the task leaves your list until an admin reassigns it.",
+    "handoverDescription": "{taskCode} returns to Available Tasks and the admin handover queue. Your answers so far are kept, but the task leaves your list until it is picked or reassigned.",
     "handoverReasonLabel": "Reason",
     "handoverReasonHint": "The admin sees this when deciding who picks it up.",
     "handoverReasonPlaceholder": "e.g. On leave from Friday — needs someone with Lobby experience.",

@@ -35,6 +35,25 @@ const taskCodeColumn = helper.accessor('taskCode', {
   cell: (context) => <MonoId value={context.getValue()} />,
 });
 
+const handoverTaskCodeColumn = helper.accessor('taskCode', {
+  header: labels.taskId,
+  cell: (context) => {
+    const task = context.row.original;
+    return (
+      <div className="flex flex-col items-start gap-1">
+        <MonoId value={context.getValue()} />
+        {task.handedOverByName ? (
+          <span className="text-[10px] text-status-handover italic">
+            {interpolate(tasks.list.handoverBadge, {
+              name: task.handedOverByName.trim().split(/\s+/)[0] ?? task.handedOverByName,
+            })}
+          </span>
+        ) : null}
+      </div>
+    );
+  },
+});
+
 const titleColumn = helper.accessor('title', {
   header: labels.title,
   cell: (context) => (
@@ -104,6 +123,8 @@ export interface TaskColumnOptions {
    * signal; the admin filters by status and people.
    */
   showPriority?: boolean | undefined;
+  /** Identify tasks that have previously been handed over. */
+  showHandover?: boolean | undefined;
 }
 
 export function buildTaskColumns(options: TaskColumnOptions = {}): ColumnList<TaskListItem> {
@@ -112,10 +133,11 @@ export function buildTaskColumns(options: TaskColumnOptions = {}): ColumnList<Ta
     showReviewer = false,
     showDeveloper = false,
     showPriority = true,
+    showHandover = false,
   } = options;
 
   const columns: ColumnList<TaskListItem> = [
-    taskCodeColumn,
+    showHandover ? handoverTaskCodeColumn : taskCodeColumn,
     titleColumn,
     crimIdColumn,
     customerColumn,

@@ -5,6 +5,6 @@ import { ReviewTasksService } from './review-tasks.service.js';
 @Module({
   controllers: [ReviewTasksController],
   providers: [ReviewTasksService],
+  exports: [ReviewTasksService],
 })
 export class ReviewTasksModule {}
-

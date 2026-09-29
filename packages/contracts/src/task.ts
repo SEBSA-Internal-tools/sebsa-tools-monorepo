@@ -64,6 +64,8 @@ export type Task = z.infer<typeof taskSchema>;
  * endpoints so the frontend never has to fan out N+1 lookups to render a row.
  */
 export const taskListItemSchema = taskSchema.extend({
+  /** Previous reviewer shown beside tasks that have been handed over. */
+  handedOverByName: z.string().nullable().optional(),
   customerName: z.string(),
   customerCode: z.string(),
   customerColor: z.string(),

@@ -1,24 +1,20 @@
 import { useMemo, useState } from 'react';
-import { Eye, Inbox, Undo2, UserPlus } from 'lucide-react';
+import { Eye, Inbox, UserPlus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { toast } from 'sonner';
 import type { Handover } from '@sdp/contracts';
 import { Tag } from '@/portals/code-review/components/badges.tsx';
 import { DateCell, MonoId, OptionalCell } from '@/portals/code-review/components/cells.tsx';
-import { ConfirmDialog } from '@/components/common/ConfirmDialog.tsx';
 import { DataTable } from '@/components/common/DataTable.tsx';
 import { columnHelper, type ColumnList } from '@/components/common/dataTableColumns.ts';
 import { EmptyState } from '@/components/common/states.tsx';
 import { Alert } from '@/components/ui/Alert.tsx';
 import { IconButton } from '@/components/ui/controls.tsx';
 import { ROUTES } from '@/config/routes.ts';
-import { ApiError } from '@/lib/apiClient.ts';
 import { formatDate, interpolate } from '@/lib/formatters.ts';
 import { useTasks } from '@/portals/code-review/hooks/useTasks.ts';
 import { useUsers } from '@/portals/code-review/hooks/useUsers.ts';
 import admin from '@/content/admin.json';
-import common from '@/content/common.json';
-import { useHandovers, useReturnHandover } from '../api/handovers.ts';
+import { useHandovers } from '../api/handovers.ts';
 import { ReassignHandoverDialog } from '../components/ReassignHandoverDialog.tsx';
 import { EmptyIllustration } from '@/components/common/EmptyIllustration.tsx';
 
@@ -111,10 +107,8 @@ export function AdminHandoversPage() {
   const { data: handovers, isPending, isFetching, error, refetch } = useHandovers();
   const { data: tasks } = useTasks('all');
   const { data: users } = useUsers();
-  const returnToQueue = useReturnHandover();
 
   const [reassigning, setReassigning] = useState<HandoverRow | null>(null);
-  const [returning, setReturning] = useState<HandoverRow | null>(null);
 
   const rows = useMemo<HandoverRow[]>(() => {
     const byId = new Map((tasks ?? []).map((task) => [task.id, task]));
@@ -157,28 +151,16 @@ export function AdminHandoversPage() {
               />
               {/* Only a pending handover can be acted on; the rest are history. */}
               {row.status === 'Pending' ? (
-                <>
-                  <IconButton
-                    label={interpolate(labels.actions.reassign, {
-                      taskCode: row.taskCode,
-                    })}
-                    icon={<UserPlus className="size-4" />}
-                    size="sm"
-                    onClick={() => {
-                      setReassigning(row);
-                    }}
-                  />
-                  <IconButton
-                    label={interpolate(labels.actions.return, {
-                      taskCode: row.taskCode,
-                    })}
-                    icon={<Undo2 className="size-4" />}
-                    size="sm"
-                    onClick={() => {
-                      setReturning(row);
-                    }}
-                  />
-                </>
+                <IconButton
+                  label={interpolate(labels.actions.reassign, {
+                    taskCode: row.taskCode,
+                  })}
+                  icon={<UserPlus className="size-4" />}
+                  size="sm"
+                  onClick={() => {
+                    setReassigning(row);
+                  }}
+                />
               ) : null}
             </div>
           );
@@ -238,34 +220,6 @@ export function AdminHandoversPage() {
           }}
         />
       )}
-
-      <ConfirmDialog
-        open={returning !== null}
-        onOpenChange={(open) => {
-          if (!open) setReturning(null);
-        }}
-        title={labels.return.title}
-        description={interpolate(labels.return.description, {
-          taskCode: returning?.taskCode ?? '',
-        })}
-        confirmLabel={labels.return.confirm}
-        tone="primary"
-        isPending={returnToQueue.isPending}
-        onConfirm={() => {
-          if (returning === null) return;
-          const row = returning;
-
-          returnToQueue.mutate(row.id, {
-            onSuccess: () => {
-              toast.success(interpolate(labels.return.success, { taskCode: row.taskCode }));
-              setReturning(null);
-            },
-            onError: (cause) => {
-              toast.error(cause instanceof ApiError ? cause.message : common.errors.generic);
-            },
-          });
-        }}
-      />
     </section>
   );
 }
