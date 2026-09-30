@@ -38,6 +38,22 @@ describe('ReviewTasksService task versions', () => {
 });
 
 describe('ReviewTasksService list visibility', () => {
+  it('limits the Admin list to tasks that have been submitted', async () => {
+    const findMany = vi.fn().mockResolvedValue([]);
+    const service = serviceWith({ task: { findMany } });
+
+    await service.findAll(actor(['ADMIN']), 'all');
+
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          status: { not: TaskStatus.DRAFT },
+          submittedAt: { not: null },
+        },
+      }),
+    );
+  });
+
   it('limits the Developer list to tasks owned by that developer', async () => {
     const findMany = vi.fn().mockResolvedValue([]);
     const service = serviceWith({ task: { findMany } });

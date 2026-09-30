@@ -33,9 +33,10 @@ import { WorkspaceOutlet } from '@/components/common/WorkspaceOutlet.tsx';
  *
  * Unlike the reviewer's four scoped queries, all six counters come from ONE
  * `scope=all` query. That is correct here and only here: an admin is authorised
- * to see every task, so counting client-side reveals nothing they could not
- * already read from the grid below — and six queries for six numbers over the
- * same rows would be six chances for the header to disagree with the table.
+ * to see every submitted task, so counting client-side reveals nothing they
+ * could not already read from the grid below — and six queries for six numbers
+ * over the same rows would be six chances for the header to disagree with the
+ * table.
  *
  * Each tab is a real route, not a Radix panel. Figma draws tabs; the previous
  * Next.js app used separate pages. Routing them satisfies both — deep links and

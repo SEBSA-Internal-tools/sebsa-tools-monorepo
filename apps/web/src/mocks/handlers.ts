@@ -445,8 +445,9 @@ export const handlers: HttpHandler[] = [
 
   /**
    * Scoped by the caller's relationship to the task. `scope=mine` is a
-   * developer's own submissions; `scope=all` is the admin view. Enforced here
-   * so a Developer cannot widen their view by editing a query string.
+   * developer's own tasks; `scope=all` is the admin view of submitted tasks.
+   * Enforced here so a Developer cannot widen their view by editing a query
+   * string and so drafts never leave their developer's workspace.
    */
   http.get('/api/tasks', async ({ request }) => {
     await delay(LATENCY_MS);
@@ -464,6 +465,7 @@ export const handlers: HttpHandler[] = [
       if (!user.roles.some((role) => role === 'Admin' || role === 'Super Admin')) {
         return errorResponse(403, 'FORBIDDEN', 'You do not have access to this workspace.');
       }
+      tasks = tasks.filter((task) => task.status !== 'Draft' && task.submittedAt !== null);
     } else if (scope === 'available' || scope === 'assigned' || scope === 'history') {
       if (!user.roles.includes('Reviewer')) {
         return errorResponse(403, 'FORBIDDEN', 'You do not have access to this workspace.');

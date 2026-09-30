@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { signInForTest } from '@/test/setup.ts';
-import { findUser } from '@/mocks/db.ts';
+import { db, findUser } from '@/mocks/db.ts';
 import { routes } from '@/app/routes.tsx';
 
 /**
@@ -94,7 +94,7 @@ describe('admin workspace guard', () => {
 });
 
 describe('admin tasks grid', () => {
-  it('shows every task, not just the signed-in admin’s own', async () => {
+  it('shows submitted tasks from every developer, but hides all drafts', async () => {
     renderAdmin();
 
     // Tasks raised by someone else entirely — SEMCO-013 by Pinsara, BLOM-009 by
@@ -102,26 +102,28 @@ describe('admin tasks grid', () => {
     // the handler, so these rows appearing proves the scope was honoured.
     expect(await taskRow('SEMCO-013')).toBeInTheDocument();
     expect(await taskRow('BLOM-009')).toBeInTheDocument();
+
+    const search = screen.getByRole('searchbox', { name: /search tasks/i });
+    const draftCodes = db.tasks
+      .filter((task) => task.status === 'Draft')
+      .map((task) => task.taskCode);
+    expect(draftCodes.length).toBeGreaterThan(0);
+
+    for (const taskCode of draftCodes) {
+      await userEvent.clear(search);
+      await userEvent.type(search, taskCode);
+      await waitFor(() => {
+        expect(screen.queryByText(taskCode)).toBeNull();
+      });
+    }
   });
 
-  it('offers Delete on a draft but NOT on a task under review', async () => {
+  it('offers Cancel but not Delete on a task under review', async () => {
     renderAdmin();
 
-    const draft = await taskRow('AASL-014');
-    expect(within(draft).getByRole('button', { name: /delete AASL-014/i })).toBeInTheDocument();
-
-    // The control. A task in review carries review cycles and findings that
-    // Reports counts, so it may be cancelled but never destroyed.
     const inReview = await taskRow('BLOM-010');
     expect(within(inReview).queryByRole('button', { name: /delete BLOM-010/i })).toBeNull();
     expect(within(inReview).getByRole('button', { name: /cancel BLOM-010/i })).toBeInTheDocument();
-  });
-
-  it('offers no Assign action on a draft — there is nothing to review yet', async () => {
-    renderAdmin();
-
-    const draft = await taskRow('AASL-014');
-    expect(within(draft).queryByRole('button', { name: /assign a reviewer/i })).toBeNull();
   });
 
   it('assigns a reviewer and moves the task into review', async () => {

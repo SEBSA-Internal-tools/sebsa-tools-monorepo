@@ -681,7 +681,10 @@ export class ReviewTasksService {
       if (!hasAdminAccess(user)) {
         throw new ForbiddenException('Only administrators may view all review tasks');
       }
-      return {};
+      return {
+        status: { not: TaskStatus.DRAFT },
+        submittedAt: { not: null },
+      };
     }
 
     if (scope === 'mine') {
