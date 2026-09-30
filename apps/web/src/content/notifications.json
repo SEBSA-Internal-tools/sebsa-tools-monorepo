@@ -15,6 +15,7 @@
     "ChangesRequested": "Changes requested",
     "TaskResubmitted": "Resubmitted",
     "TaskAssigned": "Assigned to you",
+    "TaskReassigned": "Reassigned to you",
     "TaskHandedOver": "Handed over",
     "TaskCancelled": "Cancelled"
   }

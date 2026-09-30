@@ -67,7 +67,8 @@ describe('HandoversService.reassign', () => {
     const prisma = {
       $transaction: vi.fn((operation: (client: typeof tx) => Promise<unknown>) => operation(tx)),
     };
-    const service = new HandoversService(prisma as never, audit as never);
+    const notifications = { create: vi.fn().mockResolvedValue({}) };
+    const service = new HandoversService(prisma as never, audit as never, notifications as never);
 
     await expect(service.reassign(handoverId, { reviewerId: reviewer.id }, actor)).resolves.toEqual(
       {
@@ -103,6 +104,14 @@ describe('HandoversService.reassign', () => {
           reason: existing.reason,
         }),
         newValue: expect.objectContaining({ reviewerName: reviewer.fullName }),
+      }),
+    );
+    expect(notifications.create).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        taskId,
+        recipientId: reviewer.id,
+        title: 'Task under review reassigned to you',
       }),
     );
   });

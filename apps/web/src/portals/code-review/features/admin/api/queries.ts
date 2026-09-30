@@ -123,6 +123,7 @@ export function useAssignReviewer() {
       void queryClient.invalidateQueries({
         queryKey: taskKeys.events(task.id),
       });
+      void queryClient.invalidateQueries({ queryKey: ['notifications'] });
     },
   });
 }

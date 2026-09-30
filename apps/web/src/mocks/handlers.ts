@@ -127,6 +127,17 @@ function toWireNotification(n: Notification & { userId: string }): Notification 
   return rest;
 }
 
+function createNotification(
+  input: Omit<Notification, 'id' | 'isRead' | 'createdAt'> & { userId: string },
+) {
+  db.notifications.push({
+    ...input,
+    id: `notification-${String(Date.now())}-${String(db.notifications.length + 1)}`,
+    isRead: false,
+    createdAt: new Date().toISOString(),
+  });
+}
+
 /** FL 2.5-01, applied server-side so the stored title cannot be spoofed. */
 function deriveTitle(customerName: string, crimId: string, version: string | null): string {
   const base = `${customerName.trim()} – ${crimId.trim()}`;
@@ -996,6 +1007,21 @@ export const handlers: HttpHandler[] = [
       oldValue: { status: isResubmission ? 'ChangesRequested' : 'Draft' },
       newValue: { status: task.status },
     });
+    if (isResubmission) {
+      const previousReview = reviewsForTask(task.id).find(
+        (review) => review.decision === 'ChangesRequested',
+      );
+      if (previousReview) {
+        createNotification({
+          userId: previousReview.reviewerId,
+          kind: 'TaskResubmitted',
+          title: `${task.title} resubmitted for review`,
+          body: `${user.name} resubmitted the task for your review.`,
+          href: `/crp/reviewer/tasks/${task.id}`,
+          taskId: task.id,
+        });
+      }
+    }
 
     return HttpResponse.json(toListItem(task));
   }),
@@ -1068,6 +1094,16 @@ export const handlers: HttpHandler[] = [
       pendingHandover.reassignedById = user.id;
       pendingHandover.resolvedAt = now;
     }
+    createNotification({
+      userId: user.id,
+      kind: pendingHandover ? 'TaskReassigned' : 'TaskAssigned',
+      title: `${task.title} ${pendingHandover ? 'reassigned' : 'assigned'} to you`,
+      body: pendingHandover
+        ? `${user.name} accepted the handed-over review task.`
+        : `${user.name} picked up this review task.`,
+      href: `/crp/reviewer/tasks/${task.id}`,
+      taskId: task.id,
+    });
 
     recordEvent({
       taskId: task.id,
@@ -1109,7 +1145,6 @@ export const handlers: HttpHandler[] = [
       taskId: task.id,
       description: `${user.name} started reviewing task '${task.title}'`,
     });
-
     return HttpResponse.json(toListItem(task));
   }),
 
@@ -1415,6 +1450,18 @@ export const handlers: HttpHandler[] = [
         newValue: { rank: review.rank },
       });
     }
+    createNotification({
+      userId: task.developerId,
+      kind: decision === 'Approved' ? 'TaskApproved' : 'ChangesRequested',
+      title:
+        decision === 'Approved' ? `${task.title} approved` : `Changes requested on ${task.title}`,
+      body:
+        decision === 'Approved'
+          ? `${user.name} approved your code review task.`
+          : `${user.name} requested changes to your code review task.`,
+      href: `/crp/developer/tasks/${task.id}`,
+      taskId: task.id,
+    });
 
     return HttpResponse.json(toListItem(task));
   }),
@@ -2104,6 +2151,14 @@ export const handlers: HttpHandler[] = [
       oldValue: { reviewerId: previousReviewerId },
       newValue: { reviewerId: reviewer.id, status: task.status },
     });
+    createNotification({
+      userId: reviewer.id,
+      kind: wasUnassigned ? 'TaskAssigned' : 'TaskReassigned',
+      title: `${task.title} ${wasUnassigned ? 'assigned' : 'reassigned'} to you`,
+      body: `${actor.name} ${wasUnassigned ? 'assigned' : 'reassigned'} this review task to ${reviewer.name}.`,
+      href: `/crp/reviewer/tasks/${task.id}`,
+      taskId: task.id,
+    });
 
     return HttpResponse.json(toListItem(task));
   }),
@@ -2777,6 +2832,20 @@ export const handlers: HttpHandler[] = [
       oldValue: { reviewerId: user.id, reviewerName: user.name },
       newValue: handover,
     });
+    for (const administrator of db.users.filter(
+      (candidate) =>
+        candidate.isActive &&
+        (candidate.roles.includes('Admin') || candidate.roles.includes('Super Admin')),
+    )) {
+      createNotification({
+        userId: administrator.id,
+        kind: 'TaskHandedOver',
+        title: `${task.title} handed over`,
+        body: `${user.name} handed over this review task for reassignment.`,
+        href: '/crp/admin/handovers',
+        taskId: task.id,
+      });
+    }
 
     return HttpResponse.json(toListItem(task));
   }),
@@ -2861,6 +2930,14 @@ export const handlers: HttpHandler[] = [
         reason: handover.reason,
       },
       newValue: { reviewerId: reviewer.id, reviewerName: reviewer.name },
+    });
+    createNotification({
+      userId: reviewer.id,
+      kind: 'TaskReassigned',
+      title: `${task.title} reassigned to you`,
+      body: `${actor.name} reassigned this review task to ${reviewer.name}.`,
+      href: `/crp/reviewer/tasks/${task.id}`,
+      taskId: task.id,
     });
 
     return HttpResponse.json(handover);

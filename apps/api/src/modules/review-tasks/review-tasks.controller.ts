@@ -22,6 +22,7 @@ import { Roles } from '../auth/decorators/roles.decorator.js';
 import type { AuthenticatedUser } from '../auth/auth.types.js';
 import { ReviewTaskQueryDto } from './dto/review-task-query.dto.js';
 import { NextTaskVersionQueryDto } from './dto/next-task-version-query.dto.js';
+import { AssignReviewerDto } from './dto/assign-reviewer.dto.js';
 
 @ApiTags('Review Tasks')
 @Controller(['review-tasks', 'tasks'])
@@ -77,6 +78,13 @@ export class ReviewTasksController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.tasks.pick(id, user);
+  }
+  @Post(':id/assign') @Roles('ADMIN') @ApiOkResponse() assign(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AssignReviewerDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.tasks.assign(id, dto.reviewerId, user);
   }
   @Delete(':id')
   @Roles('ADMIN')

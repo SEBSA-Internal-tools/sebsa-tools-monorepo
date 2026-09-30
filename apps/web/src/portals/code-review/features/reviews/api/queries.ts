@@ -132,6 +132,7 @@ export function useHandOver(taskId: string) {
         queryKey: taskKeys.events(task.id),
       });
       void queryClient.invalidateQueries({ queryKey: ['handovers'] });
+      void queryClient.invalidateQueries({ queryKey: ['notifications'] });
     },
   });
 }

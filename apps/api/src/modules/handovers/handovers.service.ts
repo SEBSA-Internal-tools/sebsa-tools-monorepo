@@ -9,6 +9,10 @@ import { PrismaService } from '../../prisma/prisma.service.js';
 import type { AuthenticatedUser } from '../auth/auth.types.js';
 import { AuditService } from '../audit/audit.service.js';
 import type { ReassignHandoverDto } from './dto/reassign-handover.dto.js';
+import {
+  NotificationsService,
+  TASK_REASSIGNED_NOTIFICATION,
+} from '../notifications/notifications.service.js';
 
 const handoverInclude = {
   task: true,
@@ -23,6 +27,7 @@ export class HandoversService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async findAll() {
@@ -117,6 +122,13 @@ export class HandoversService {
           reason: handover.reason,
         },
         newValue: { reviewerId: reviewer.id, reviewerName: reviewer.fullName },
+      });
+      await this.notifications.create(tx, {
+        taskId: handover.taskId,
+        recipientId: reviewer.id,
+        type: TASK_REASSIGNED_NOTIFICATION,
+        title: `${handover.task.title} reassigned to you`,
+        message: `${actor.name} reassigned this review task to ${reviewer.fullName}.`,
       });
 
       const updated = await tx.handoverTask.findUnique({

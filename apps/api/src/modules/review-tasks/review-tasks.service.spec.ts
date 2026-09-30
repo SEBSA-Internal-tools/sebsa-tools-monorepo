@@ -6,7 +6,12 @@ import type { AuthenticatedUser } from '../auth/auth.types.js';
 import { ReviewTasksService } from './review-tasks.service.js';
 
 const audit = { record: vi.fn().mockResolvedValue(undefined) };
-const serviceWith = (prisma: unknown) => new ReviewTasksService(prisma as never, audit as never);
+const notifications = {
+  create: vi.fn().mockResolvedValue({}),
+  createMany: vi.fn().mockResolvedValue({ count: 0 }),
+};
+const serviceWith = (prisma: unknown) =>
+  new ReviewTasksService(prisma as never, audit as never, notifications as never);
 
 function actor(roles: RoleCode[]): AuthenticatedUser {
   return {
@@ -419,6 +424,7 @@ describe('ReviewTasksService handover', () => {
   it('removes the assigned reviewer, records the reason, and returns the task to pickup', async () => {
     const reviewer = actor(['REVIEWER']);
     const taskId = '00000000-0000-0000-0000-000000000010';
+    const adminId = '00000000-0000-0000-0000-000000000011';
     const candidate = {
       id: taskId,
       title: 'Test task',
@@ -467,6 +473,7 @@ describe('ReviewTasksService handover', () => {
       },
       taskReviewerAssignment: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
       taskStatusHistory: { create: vi.fn().mockResolvedValue({}) },
+      user: { findMany: vi.fn().mockResolvedValue([{ id: adminId }]) },
     };
     const service = serviceWith({
       $transaction: vi.fn((operation: (client: typeof tx) => Promise<unknown>) => operation(tx)),
@@ -500,5 +507,12 @@ describe('ReviewTasksService handover', () => {
         newValue: expect.objectContaining({ reason: 'On leave next week.' }),
       }),
     );
+    expect(notifications.createMany).toHaveBeenCalledWith(tx, [
+      expect.objectContaining({
+        recipientId: adminId,
+        title: 'Test task handed over',
+        message: `${reviewer.name} handed over this review task for reassignment.`,
+      }),
+    ]);
   });
 });

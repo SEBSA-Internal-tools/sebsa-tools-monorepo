@@ -8,6 +8,7 @@ import {
 import {
   ChecklistStatus,
   HandoverStatus,
+  NotificationType,
   Prisma,
   ReviewerAssignmentType,
   TaskStatus,
@@ -21,6 +22,10 @@ import { formatTaskCode } from './task-code.js';
 import type { ReviewTaskScope } from './dto/review-task-query.dto.js';
 import { AuditService } from '../audit/audit.service.js';
 import type { CreateHandoverDto } from '../handovers/dto/create-handover.dto.js';
+import {
+  NotificationsService,
+  TASK_REASSIGNED_NOTIFICATION,
+} from '../notifications/notifications.service.js';
 
 const taskInclude = {
   customer: true,
@@ -71,6 +76,7 @@ export class ReviewTasksService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async findAll(user: AuthenticatedUser, scope: ReviewTaskScope = 'mine') {
@@ -410,8 +416,9 @@ export class ReviewTasksService {
     if (!hasAdminAccess(user) && task.developerId !== user.id) {
       throw new ForbiddenException('You cannot submit this review task');
     }
-    if (task.status !== TaskStatus.DRAFT) {
-      throw new ConflictException('Only a draft task can be submitted');
+    const isResubmission = task.status === TaskStatus.CHANGES_REQUESTED;
+    if (task.status !== TaskStatus.DRAFT && !isResubmission) {
+      throw new ConflictException('Only a draft or changes-requested task can be submitted');
     }
     if (!task.checklistCompleted) {
       throw new BadRequestException('Complete the quality checklist before submitting');
@@ -419,32 +426,35 @@ export class ReviewTasksService {
 
     const submitted = await this.prisma.$transaction(async (tx) => {
       const now = new Date();
+      const nextStatus = isResubmission ? TaskStatus.RESUBMITTED : TaskStatus.SUBMITTED;
       const updated = await tx.task.update({
         where: { id },
         data: {
-          status: TaskStatus.SUBMITTED,
+          status: nextStatus,
           submittedAt: now,
           currentReviewCycle: Math.max(task.currentReviewCycle, 1),
           statusHistory: {
             create: {
-              oldStatus: TaskStatus.DRAFT,
-              newStatus: TaskStatus.SUBMITTED,
+              oldStatus: task.status,
+              newStatus: nextStatus,
               changedBy: user.id,
-              remarks: 'Task submitted for review',
+              remarks: isResubmission ? 'Task resubmitted for review' : 'Task submitted for review',
             },
           },
         },
         include: taskInclude,
       });
       await this.audit.record(tx, user, {
-        actionType: 'TASK_SUBMITTED',
+        actionType: isResubmission ? 'TASK_RESUBMITTED' : 'TASK_SUBMITTED',
         entityType: 'TASK',
         entityId: id,
         taskId: id,
-        description: `${user.name} submitted task '${task.title}'`,
+        description: `${user.name} ${isResubmission ? 'resubmitted' : 'submitted'} task '${task.title}'`,
         oldValue: { status: task.status },
-        newValue: { status: TaskStatus.SUBMITTED },
+        newValue: { status: nextStatus },
       });
+      // The database status trigger creates TASK_RESUBMITTED in this same
+      // transaction. Initial SUBMITTED deliberately produces no notification.
       return updated;
     });
     return this.toResponse(submitted);
@@ -564,6 +574,15 @@ export class ReviewTasksService {
         oldValue: { status: candidate.status, reviewerId: null },
         newValue: { status: TaskStatus.IN_REVIEW, reviewerId: user.id },
       });
+      await this.notifications.create(tx, {
+        taskId: id,
+        recipientId: user.id,
+        type: pendingHandover ? TASK_REASSIGNED_NOTIFICATION : NotificationType.TASK_ASSIGNED,
+        title: `${candidate.title} ${pendingHandover ? 'reassigned' : 'assigned'} to you`,
+        message: pendingHandover
+          ? `${user.name} accepted the handed-over review task.`
+          : `${user.name} picked up this review task.`,
+      });
       if (pendingHandover) {
         await this.audit.record(tx, user, {
           actionType: 'HANDOVER_REASSIGNED',
@@ -591,6 +610,97 @@ export class ReviewTasksService {
       const task = await tx.task.findUnique({ where: { id }, include: taskInclude });
       if (!task) throw new NotFoundException(`Review task ${id} was not found`);
       return this.toResponse(task);
+    });
+  }
+
+  async assign(id: string, reviewerId: string, actor: AuthenticatedUser) {
+    return this.prisma.$transaction(async (tx) => {
+      const task = await tx.task.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          title: true,
+          developerId: true,
+          currentReviewerId: true,
+          status: true,
+        },
+      });
+      if (!task) throw new NotFoundException(`Review task ${id} was not found`);
+      if (task.status === TaskStatus.DRAFT) {
+        throw new ConflictException('A draft task cannot be assigned for review');
+      }
+
+      const reviewer = await tx.user.findFirst({
+        where: {
+          id: reviewerId,
+          status: 'ACTIVE',
+          deletedAt: null,
+          userRoles: { some: { role: { code: 'REVIEWER', deletedAt: null } } },
+        },
+        select: { id: true, fullName: true },
+      });
+      if (!reviewer) throw new BadRequestException('Select an active Reviewer');
+      if (reviewer.id === task.developerId) {
+        throw new BadRequestException('A developer cannot review their own task');
+      }
+      if (task.currentReviewerId === reviewer.id) {
+        throw new ConflictException(`${reviewer.fullName} is already assigned to this task`);
+      }
+
+      const isReassignment = task.currentReviewerId !== null;
+      const now = new Date();
+      await tx.taskReviewerAssignment.updateMany({
+        where: { taskId: id, isCurrent: true },
+        data: { isCurrent: false, unassignedAt: now },
+      });
+      await tx.taskReviewerAssignment.create({
+        data: {
+          taskId: id,
+          reviewerId: reviewer.id,
+          assignedBy: actor.id,
+          assignmentType: isReassignment
+            ? ReviewerAssignmentType.ADMIN_REASSIGNED
+            : ReviewerAssignmentType.ADMIN_ASSIGNED,
+        },
+      });
+      await tx.task.update({
+        where: { id },
+        data: { currentReviewerId: reviewer.id, status: TaskStatus.IN_REVIEW },
+      });
+      await tx.taskStatusHistory.create({
+        data: {
+          taskId: id,
+          oldStatus: task.status,
+          newStatus: TaskStatus.IN_REVIEW,
+          changedBy: actor.id,
+          remarks: `${isReassignment ? 'Reassigned' : 'Assigned'} to ${reviewer.fullName}`,
+        },
+      });
+      await this.notifications.create(tx, {
+        taskId: id,
+        recipientId: reviewer.id,
+        type: isReassignment ? TASK_REASSIGNED_NOTIFICATION : NotificationType.TASK_ASSIGNED,
+        title: `${task.title} ${isReassignment ? 'reassigned' : 'assigned'} to you`,
+        message: `${actor.name} ${isReassignment ? 'reassigned' : 'assigned'} this review task to ${reviewer.fullName}.`,
+      });
+      await this.audit.record(tx, actor, {
+        actionType: isReassignment ? 'TASK_REASSIGNED' : 'TASK_ASSIGNED',
+        entityType: 'TASK',
+        entityId: id,
+        taskId: id,
+        targetUserId: reviewer.id,
+        description: `${actor.name} ${isReassignment ? 'reassigned' : 'assigned'} task '${task.title}' to ${reviewer.fullName}`,
+        oldValue: { reviewerId: task.currentReviewerId, status: task.status },
+        newValue: {
+          reviewerId: reviewer.id,
+          reviewerName: reviewer.fullName,
+          status: TaskStatus.IN_REVIEW,
+        },
+      });
+
+      const updated = await tx.task.findUnique({ where: { id }, include: taskInclude });
+      if (!updated) throw new NotFoundException(`Review task ${id} was not found`);
+      return this.toResponse(updated);
     });
   }
 
@@ -669,6 +779,27 @@ export class ReviewTasksService {
           reason: dto.reason.trim(),
         },
       });
+
+      const administrators = await tx.user.findMany({
+        where: {
+          status: 'ACTIVE',
+          deletedAt: null,
+          userRoles: {
+            some: { role: { code: { in: ['ADMIN', 'SUPER_ADMIN'] }, deletedAt: null } },
+          },
+        },
+        select: { id: true },
+      });
+      await this.notifications.createMany(
+        tx,
+        administrators.map(({ id: recipientId }) => ({
+          taskId: id,
+          recipientId,
+          type: NotificationType.TASK_HANDOVER,
+          title: `${task.title} handed over`,
+          message: `${actor.name} handed over this review task for reassignment.`,
+        })),
+      );
 
       const updated = await tx.task.findUnique({ where: { id }, include: taskInclude });
       if (!updated) throw new NotFoundException(`Review task ${id} was not found`);

@@ -11,6 +11,7 @@ export const NOTIFICATION_KINDS = [
   'ChangesRequested',
   'TaskResubmitted',
   'TaskAssigned',
+  'TaskReassigned',
   'TaskHandedOver',
   'TaskCancelled',
 ] as const;
