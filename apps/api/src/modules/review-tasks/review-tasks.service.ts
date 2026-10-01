@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -14,6 +13,7 @@ import type {
 } from './dto/create-review-task.dto.js';
 import type { UpdateReviewTaskDto } from './dto/update-review-task.dto.js';
 import type { AuthenticatedUser } from '../auth/auth.types.js';
+import { ApiException } from '../../common/api-error.js';
 
 const taskInclude = {
   customer: true,
@@ -74,7 +74,7 @@ export class ReviewTasksService {
       where: { id },
       include: taskInclude,
     });
-    if (!task) throw new NotFoundException(`Review task ${id} was not found`);
+    if (!task) throw new ApiException('TASK_NOT_FOUND', `Review task ${id} was not found`);
     return task;
   }
 
@@ -156,9 +156,7 @@ export class ReviewTasksService {
         rethrowPrismaConflict(error);
       }
     }
-    throw new ConflictException(
-      'Could not allocate a task number; please retry',
-    );
+    throw new ApiException('VERSION_CONFLICT', 'Could not allocate a task number; please retry');
   }
 
   async update(id: string, dto: UpdateReviewTaskDto, user: AuthenticatedUser) {
@@ -178,7 +176,7 @@ export class ReviewTasksService {
             },
           });
           if (!existing?.developerChecklist)
-            throw new NotFoundException(`Review task ${id} was not found`);
+            throw new ApiException('TASK_NOT_FOUND', `Review task ${id} was not found`);
 
           const taskTypeIds =
             dto.taskTypeIds ??
@@ -280,8 +278,7 @@ export class ReviewTasksService {
           where: { id },
           include: { developerChecklist: true },
         });
-        if (!task)
-          throw new NotFoundException(`Review task ${id} was not found`);
+        if (!task) throw new ApiException('TASK_NOT_FOUND', `Review task ${id} was not found`);
         if (task.developerChecklist) {
           await tx.checklistAnswer.deleteMany({
             where: { checklistId: task.developerChecklist.id },
@@ -336,12 +333,11 @@ export class ReviewTasksService {
     const missing = [...requiredIds].filter((id) => !answeredIds.has(id));
     const invalid = [...answeredIds].filter((id) => !requiredIds.has(id));
     if (missing.length || invalid.length) {
-      throw new BadRequestException({
-        message:
-          'Checklist answers must exactly match all applicable active questions',
-        missingQuestionIds: missing,
-        invalidQuestionIds: invalid,
-      });
+      throw new ApiException(
+        'CHECKLIST_INCOMPLETE',
+        'Checklist answers must exactly match all applicable active questions',
+        [{ missingQuestionIds: missing, invalidQuestionIds: invalid }],
+      );
     }
   }
 }

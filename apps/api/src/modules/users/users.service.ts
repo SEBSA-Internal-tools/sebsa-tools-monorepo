@@ -1,6 +1,7 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { ApiException } from '../../common/api-error.js';
 import { rethrowPrismaConflict } from '../../common/prisma-errors.js';
 import type { CreateUserDto } from './dto/create-user.dto.js';
 import type { UpdateUserDto } from './dto/update-user.dto.js';
@@ -98,7 +99,10 @@ export class UsersService {
       where: { status: 'ACTIVE', userRoles: { some: { role: { code: 'ADMIN' } } } },
     });
     if (activeAdmins <= 1) {
-      throw new ConflictException('The last active administrator cannot be deactivated or deleted');
+      throw new ApiException(
+        'INVALID_STATE_TRANSITION',
+        'The last active administrator cannot be deactivated or deleted',
+      );
     }
   }
 }
