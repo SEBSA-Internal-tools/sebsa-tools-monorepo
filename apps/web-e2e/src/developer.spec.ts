@@ -156,8 +156,10 @@ test.describe('developer workspace', () => {
     await page.getByRole('option', { name: 'AASL' }).click();
     await page.getByLabel(/crim id/i).fill('CRIM-E2E');
 
-    // The derived title (FL 2.5-01) previews live in its read-only field.
-    await expect(page.getByLabel(/^title/i)).toHaveValue('AASL - CRIM-E2E');
+    // The derived title (FL 2.5-01, customer-CRIM-version) previews live in its read-only field.
+    const title = page.getByLabel('Generated Title');
+    await expect(title).toHaveValue(/^AASL-CRIM-E2E-\d+$/);
+    await expect(title).not.toBeEditable();
 
     await expect(nextToChecklist).toBeEnabled();
     await nextToChecklist.click();
@@ -348,9 +350,14 @@ test.describe('developer workspace', () => {
   test('a task detail page opens from the grid', async ({ page }) => {
     await signIn(page);
     await page.goto('/crp/developer');
-    await page.getByRole('table').waitFor();
 
-    await page.getByRole('row').nth(1).click();
+    // A row with a task code, not `nth(1)`: the loading skeleton renders its
+    // placeholder rows inside the same table, and clicking one does nothing.
+    const firstTask = page
+      .getByRole('row')
+      .filter({ hasText: /[A-Z]+-\d{3}/ })
+      .first();
+    await firstTask.click();
     await expect(page).toHaveURL(/\/developer\/tasks\/[^/]+$/);
     await expect(page.getByText(/task information/i)).toBeVisible();
     await expect(page.getByText(/task history/i)).toBeVisible();

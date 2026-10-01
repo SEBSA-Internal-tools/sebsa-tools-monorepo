@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Pencil, Power, Trash2, UserPlus, Users as UsersIcon } from 'lucide-react';
+import { Filter, Lock, Pencil, Power, Trash2, UserPlus, Users as UsersIcon } from 'lucide-react';
 import { toast } from 'sonner';
-import { ROLES, type User } from '@sdp/contracts';
+import { type Role, type User } from '@sdp/contracts';
 import { ActiveBadge, RoleBadges } from '@/portals/code-review/components/badges.tsx';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog.tsx';
 import { DataTable } from '@/components/common/DataTable.tsx';
@@ -9,15 +9,22 @@ import { columnHelper, type ColumnList } from '@/components/common/dataTableColu
 import { EmptyState } from '@/components/common/states.tsx';
 import { Button } from '@/components/ui/Button.tsx';
 import { IconButton, SearchField } from '@/components/ui/controls.tsx';
+import { Textarea } from '@/components/ui/controls.tsx';
+import { Field } from '@/components/ui/Field.tsx';
 import { Select, type SelectOption } from '@/components/ui/Select.tsx';
+import { Tooltip } from '@/components/ui/Tooltip.tsx';
+import { FilterResetButton } from '@/portals/code-review/components/TaskFilterBar.tsx';
 import { ALL } from '@/portals/code-review/components/taskFilters.ts';
 import { ApiError } from '@/lib/apiClient.ts';
+import { hasCapability, isPrivilegedRoleSet } from '@/lib/permissions.ts';
+import { useCurrentUser } from '@/hooks/useCurrentUser.ts';
 import { interpolate } from '@/lib/formatters.ts';
 import admin from '@/content/admin.json';
 import common from '@/content/common.json';
 import { useDeleteUser, useUpdateUser, useUsers } from '../api/queries.ts';
 import { UserFormDialog } from '../components/UserFormDialog.tsx';
 import { EmptyIllustration } from '@/components/common/EmptyIllustration.tsx';
+import { RoleMultiSelect } from '../components/RoleMultiSelect.tsx';
 
 /**
  * Admin — Users (screen 02).
@@ -31,13 +38,8 @@ import { EmptyIllustration } from '@/components/common/EmptyIllustration.tsx';
 const helper = columnHelper<User>();
 const labels = admin.users.columns;
 
-const ROLE_OPTIONS: SelectOption[] = [
-  { value: ALL, label: admin.users.roleAll },
-  ...ROLES.map((role) => ({ value: role, label: common.role[role] })),
-];
-
 const STATUS_OPTIONS: SelectOption[] = [
-  { value: ALL, label: admin.users.statusAll },
+  { value: ALL, label: 'All Statuses' },
   { value: 'active', label: admin.users.statusActive },
   { value: 'inactive', label: admin.users.statusInactive },
 ];
@@ -52,12 +54,14 @@ const STATUS_OPTIONS: SelectOption[] = [
 
 const nameColumn = helper.accessor('name', {
   header: labels.name,
-  cell: (context) => <span className="text-sm font-bold text-ink-900">{context.getValue()}</span>,
+  cell: (context) => (
+    <span className="text-sm font-semibold text-ink-900">{context.getValue()}</span>
+  ),
 });
 
 const emailColumn = helper.accessor('email', {
   header: labels.email,
-  cell: (context) => <span className="text-sm text-brand-blue-600">{context.getValue()}</span>,
+  cell: (context) => <span className="text-ink-600 text-sm font-normal">{context.getValue()}</span>,
 });
 
 const rolesColumn = helper.accessor('roles', {
@@ -71,6 +75,7 @@ const statusColumn = helper.accessor('isActive', {
 });
 
 export function AdminUsersPage() {
+  const { data: actor } = useCurrentUser();
   const { data: users, isPending, isFetching, error, refetch } = useUsers();
   // Destructured because `mutate` is referentially stable while the mutation
   // object is not — which is what lets the column definitions memoise honestly
@@ -79,30 +84,49 @@ export function AdminUsersPage() {
   const deleteUser = useDeleteUser();
 
   const [search, setSearch] = useState('');
-  const [role, setRole] = useState(ALL);
+  const [selectedRoles, setSelectedRoles] = useState<Role[]>([]);
   const [status, setStatus] = useState(ALL);
 
   const [editing, setEditing] = useState<User | null>(null);
   const [isFormOpen, setFormOpen] = useState(false);
-  const [deactivating, setDeactivating] = useState<User | null>(null);
+  const [statusChanging, setStatusChanging] = useState<{ user: User; isActive: boolean } | null>(
+    null,
+  );
   const [deleting, setDeleting] = useState<User | null>(null);
+  const [reason, setReason] = useState('');
+  const [reasonError, setReasonError] = useState<string | undefined>();
+
+  const canManagePrivileged = hasCapability(actor?.roles ?? [], 'users.manage.privileged');
+  const canPurge = hasCapability(actor?.roles ?? [], 'records.purge');
 
   const visible = useMemo(() => {
     const needle = search.trim().toLowerCase();
 
     return (users ?? []).filter((user) => {
-      if (role !== ALL && !user.roles.includes(role as (typeof ROLES)[number])) return false;
+      // MATCH ALL: User must have every single selected role
+      if (selectedRoles.length > 0 && !selectedRoles.every((role) => user.roles.includes(role))) {
+        return false;
+      }
       if (status === 'active' && !user.isActive) return false;
       if (status === 'inactive' && user.isActive) return false;
       if (needle === '') return true;
       return user.name.toLowerCase().includes(needle) || user.email.toLowerCase().includes(needle);
     });
-  }, [users, search, role, status]);
+  }, [users, search, selectedRoles, status]);
+
+  const handleClearFilters = useCallback(() => {
+    setSearch('');
+    setSelectedRoles([]);
+    setStatus(ALL);
+  }, []);
+
+  const isFiltered = search.trim() !== '' || selectedRoles.length > 0 || status !== ALL;
+  const resetPageTrigger = `${search}:${selectedRoles.slice().sort().join(',')}:${status}`;
 
   const setActive = useCallback(
-    (user: User, isActive: boolean) => {
+    (user: User, isActive: boolean, actionReason?: string) => {
       mutateUser(
-        { userId: user.id, input: { isActive } },
+        { userId: user.id, input: { isActive, ...(actionReason ? { reason: actionReason } : {}) } },
         {
           onSuccess: () => {
             toast.success(
@@ -111,7 +135,8 @@ export function AdminUsersPage() {
                 { name: user.name },
               ),
             );
-            setDeactivating(null);
+            setStatusChanging(null);
+            setReason('');
           },
           onError: (cause) => {
             toast.error(cause instanceof ApiError ? cause.message : common.errors.generic);
@@ -133,51 +158,70 @@ export function AdminUsersPage() {
         header: '',
         cell: (context) => {
           const user = context.row.original;
+          const privileged = isPrivilegedRoleSet(user.roles);
+          const mayManage = !privileged || canManagePrivileged;
           return (
-            <div className="flex items-center justify-end gap-0.5">
-              <IconButton
-                label={interpolate(admin.users.actions.edit, {
-                  name: user.name,
-                })}
-                icon={<Pencil className="size-4" />}
-                size="sm"
-                onClick={() => {
-                  setEditing(user);
-                  setFormOpen(true);
-                }}
-              />
-              <IconButton
-                label={interpolate(
-                  user.isActive ? admin.users.actions.deactivate : admin.users.actions.activate,
-                  { name: user.name },
-                )}
-                icon={<Power className="size-4" />}
-                tone={user.isActive ? 'danger' : 'success'}
-                size="sm"
-                onClick={() => {
-                  // Activating is harmless and immediate; deactivating locks
-                  // someone out, so only that direction asks.
-                  if (user.isActive) setDeactivating(user);
-                  else setActive(user, true);
-                }}
-              />
-              <IconButton
-                label={interpolate(admin.users.actions.delete, {
-                  name: user.name,
-                })}
-                icon={<Trash2 className="size-4" />}
-                tone="danger"
-                size="sm"
-                onClick={() => {
-                  setDeleting(user);
-                }}
-              />
+            <div className="flex items-center justify-end gap-1.5">
+              {!mayManage ? (
+                <Tooltip content="This account can only be managed by a Super Admin.">
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs font-medium text-ink-500 select-none"
+                    aria-label="Protected: this account can only be managed by a Super Admin"
+                  >
+                    <Lock className="size-3 text-ink-400" aria-hidden="true" />
+                    <span>Protected</span>
+                  </button>
+                </Tooltip>
+              ) : null}
+              {mayManage ? (
+                <IconButton
+                  label={interpolate(admin.users.actions.edit, { name: user.name })}
+                  icon={<Pencil className="size-4" />}
+                  size="sm"
+                  onClick={() => {
+                    setEditing(user);
+                    setFormOpen(true);
+                  }}
+                />
+              ) : null}
+              {mayManage ? (
+                <IconButton
+                  label={interpolate(
+                    user.isActive ? admin.users.actions.deactivate : admin.users.actions.activate,
+                    { name: user.name },
+                  )}
+                  icon={<Power className="size-4" />}
+                  tone={user.isActive ? 'danger' : 'success'}
+                  size="sm"
+                  onClick={() => {
+                    if (user.isActive || privileged) {
+                      setReason('');
+                      setReasonError(undefined);
+                      setStatusChanging({ user, isActive: !user.isActive });
+                    } else setActive(user, true);
+                  }}
+                />
+              ) : null}
+              {mayManage && canPurge ? (
+                <IconButton
+                  label={interpolate(admin.users.actions.delete, { name: user.name })}
+                  icon={<Trash2 className="size-4" />}
+                  tone="danger"
+                  size="sm"
+                  onClick={() => {
+                    setReason('');
+                    setReasonError(undefined);
+                    setDeleting(user);
+                  }}
+                />
+              ) : null}
             </div>
           );
         },
       }),
     ],
-    [setActive],
+    [canManagePrivileged, canPurge, setActive],
   );
 
   return (
@@ -200,42 +244,87 @@ export function AdminUsersPage() {
           void refetch();
         }}
         pageSize={15}
+        alwaysShowPagination
+        resetPageIndexTrigger={resetPageTrigger}
         toolbar={
-          <div className="flex w-full flex-wrap items-end gap-3">
-            <div className="min-w-56 flex-1">
-              <SearchField
-                value={search}
-                onValueChange={setSearch}
-                label={admin.users.searchLabel}
-                placeholder={admin.users.searchPlaceholder}
+          <div className="flex w-full flex-col gap-3.5">
+            {/* Row 1: Search receives majority space, Add User is primary CTA */}
+            <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="min-w-0 flex-1">
+                <SearchField
+                  value={search}
+                  onValueChange={setSearch}
+                  label={admin.users.searchLabel}
+                  placeholder={admin.users.searchPlaceholder}
+                />
+              </div>
+              <Button
+                variant="adminPrimary"
+                onClick={() => {
+                  setEditing(null);
+                  setFormOpen(true);
+                }}
+                className="w-full shrink-0 sm:w-auto"
+              >
+                <UserPlus className="size-4" aria-hidden="true" />
+                {admin.users.add}
+              </Button>
+            </div>
+
+            {/* Row 2: Task-filter-style controls, with balanced widths. */}
+            <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(18rem,24rem)_minmax(13rem,16rem)_auto]">
+              <div className="min-w-0">
+                <RoleMultiSelect
+                  selectedRoles={selectedRoles}
+                  onSelectedRolesChange={setSelectedRoles}
+                />
+              </div>
+              <div className="min-w-0">
+                <Select
+                  value={status}
+                  onValueChange={setStatus}
+                  options={STATUS_OPTIONS}
+                  label="Status"
+                  icon={<Filter className="size-4" />}
+                  variant="stacked"
+                  aria-label={admin.users.statusAll}
+                />
+              </div>
+              <FilterResetButton
+                isFiltered={isFiltered}
+                onReset={handleClearFilters}
+                className="w-full lg:w-auto"
               />
             </div>
-            <div className="w-44">
-              <Select
-                value={role}
-                onValueChange={setRole}
-                options={ROLE_OPTIONS}
-                aria-label={admin.users.roleAll}
-              />
+
+            <div className="flex min-h-5 items-center gap-1.5 text-xs font-medium text-ink-500 select-none">
+              <span>
+                Showing {visible.length} of {users?.length ?? 0} users
+              </span>
+              {isFiltered ? (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span className="text-violet-700">Filtered</span>
+                </>
+              ) : null}
             </div>
-            <div className="w-44">
-              <Select
-                value={status}
-                onValueChange={setStatus}
-                options={STATUS_OPTIONS}
-                aria-label={admin.users.statusAll}
-              />
-            </div>
-            <Button
-              onClick={() => {
-                setEditing(null);
-                setFormOpen(true);
-              }}
-            >
-              <UserPlus className="size-4" aria-hidden="true" />
-              {admin.users.add}
-            </Button>
           </div>
+        }
+        filteredEmptyState={
+          <EmptyState
+            icon={
+              <EmptyIllustration>
+                <UsersIcon />
+              </EmptyIllustration>
+            }
+            title={admin.users.emptyFilteredTitle}
+            hint={admin.users.emptyFilteredHint}
+            action={
+              <Button variant="secondary" onClick={handleClearFilters}>
+                {admin.users.clearFilters}
+              </Button>
+            }
+          />
         }
         emptyState={
           <EmptyState
@@ -254,6 +343,7 @@ export function AdminUsersPage() {
         <UserFormDialog
           key={editing?.id ?? 'new'}
           user={editing}
+          canManagePrivileged={canManagePrivileged}
           onClose={() => {
             setFormOpen(false);
           }}
@@ -261,20 +351,48 @@ export function AdminUsersPage() {
       ) : null}
 
       <ConfirmDialog
-        open={deactivating !== null}
+        open={statusChanging !== null}
         onOpenChange={(open) => {
-          if (!open) setDeactivating(null);
+          if (!open) setStatusChanging(null);
         }}
-        title={admin.users.deactivate.title}
+        title={
+          statusChanging?.isActive === true
+            ? admin.users.actions.activate.replace('{name}', statusChanging.user.name)
+            : admin.users.deactivate.title
+        }
         description={interpolate(admin.users.deactivate.description, {
-          name: deactivating?.name ?? '',
+          name: statusChanging?.user.name ?? '',
         })}
-        confirmLabel={admin.users.deactivate.confirm}
+        confirmLabel={
+          statusChanging?.isActive === true
+            ? admin.users.statusActive
+            : admin.users.deactivate.confirm
+        }
         isPending={isUpdating}
         onConfirm={() => {
-          if (deactivating !== null) setActive(deactivating, false);
+          if (statusChanging === null) return;
+          const privileged = isPrivilegedRoleSet(statusChanging.user.roles);
+          if (privileged && reason.trim() === '') {
+            setReasonError(admin.users.privileged.reasonRequired);
+            return;
+          }
+          setActive(statusChanging.user, statusChanging.isActive, reason.trim());
         }}
-      />
+      >
+        {statusChanging !== null && isPrivilegedRoleSet(statusChanging.user.roles) ? (
+          <Field label={admin.users.privileged.reasonLabel} required error={reasonError}>
+            <Textarea
+              value={reason}
+              onChange={(event) => {
+                setReason(event.target.value);
+                setReasonError(undefined);
+              }}
+              rows={3}
+              placeholder={admin.users.privileged.reasonPlaceholder}
+            />
+          </Field>
+        ) : null}
+      </ConfirmDialog>
 
       <ConfirmDialog
         open={deleting !== null}
@@ -282,26 +400,44 @@ export function AdminUsersPage() {
           if (!open) setDeleting(null);
         }}
         title={admin.users.delete.title}
-        description={interpolate(admin.users.delete.description, {
-          name: deleting?.name ?? '',
-        })}
+        description={interpolate(admin.users.delete.description, { name: deleting?.name ?? '' })}
         confirmLabel={admin.users.delete.confirm}
         isPending={deleteUser.isPending}
         onConfirm={() => {
           if (deleting === null) return;
+          if (reason.trim() === '') {
+            setReasonError(admin.users.privileged.reasonRequired);
+            return;
+          }
           const user = deleting;
 
-          deleteUser.mutate(user.id, {
-            onSuccess: () => {
-              toast.success(interpolate(admin.users.delete.success, { name: user.name }));
-              setDeleting(null);
+          deleteUser.mutate(
+            { userId: user.id, reason: reason.trim() },
+            {
+              onSuccess: () => {
+                toast.success(interpolate(admin.users.delete.success, { name: user.name }));
+                setDeleting(null);
+                setReason('');
+              },
+              onError: (cause) => {
+                toast.error(cause instanceof ApiError ? cause.message : common.errors.generic);
+              },
             },
-            onError: (cause) => {
-              toast.error(cause instanceof ApiError ? cause.message : common.errors.generic);
-            },
-          });
+          );
         }}
-      />
+      >
+        <Field label={admin.users.delete.reasonLabel} required error={reasonError}>
+          <Textarea
+            value={reason}
+            onChange={(event) => {
+              setReason(event.target.value);
+              setReasonError(undefined);
+            }}
+            rows={3}
+            placeholder={admin.users.delete.reasonPlaceholder}
+          />
+        </Field>
+      </ConfirmDialog>
     </section>
   );
 }

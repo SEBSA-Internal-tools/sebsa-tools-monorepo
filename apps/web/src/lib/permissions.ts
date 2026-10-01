@@ -1,6 +1,44 @@
 import type { Role } from '@sdp/contracts';
 import { WORKSPACE_ACCESS, WORKSPACE_ORDER, type WorkspaceKey } from '@/config/routes.ts';
 
+export const CAPABILITIES = [
+  'admin.access',
+  'tasks.manage',
+  'handovers.resolve',
+  'users.manage.standard',
+  'users.manage.privileged',
+  'records.purge',
+  'records.restore',
+  'audit.system.view',
+  'workflow.recover',
+] as const;
+export type Capability = (typeof CAPABILITIES)[number];
+
+const ADMIN_CAPABILITIES: readonly Capability[] = [
+  'admin.access',
+  'tasks.manage',
+  'handovers.resolve',
+  'users.manage.standard',
+];
+
+const SUPER_ADMIN_CAPABILITIES: readonly Capability[] = [
+  'users.manage.privileged',
+  'records.purge',
+  'records.restore',
+  'audit.system.view',
+  'workflow.recover',
+];
+
+/** Small capability seam shared by UI affordances and mock API enforcement. */
+export function hasCapability(roles: readonly Role[], capability: Capability): boolean {
+  if (roles.includes('SuperAdmin') && SUPER_ADMIN_CAPABILITIES.includes(capability)) return true;
+  return roles.includes('Admin') && ADMIN_CAPABILITIES.includes(capability);
+}
+
+export function isPrivilegedRoleSet(roles: readonly Role[]): boolean {
+  return roles.includes('Admin') || roles.includes('SuperAdmin');
+}
+
 /**
  * Workspace access rules — spec FL 2.1-02.
  *

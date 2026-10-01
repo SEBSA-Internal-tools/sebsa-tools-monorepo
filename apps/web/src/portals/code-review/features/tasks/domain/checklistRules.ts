@@ -3,9 +3,9 @@ import type {
   ChecklistCategory,
   ChecklistCategoryProgress,
   ChecklistProgress,
-  ChecklistQuestion,
   TaskTypeId,
 } from '@sdp/contracts';
+import { visibleCategories, visibleQuestions } from '@/lib/checklistVisibility.ts';
 
 const VALID_ANSWERS = new Set<ChecklistAnswer>(['Yes', 'No', 'NA']);
 
@@ -17,51 +17,12 @@ const VALID_ANSWERS = new Set<ChecklistAnswer>(['Yes', 'No', 'NA']);
  * type. Adding "Customization" to a question is a row edit; adding a whole task
  * type is a row insert. No code changes either way.
  *
- * The filter is applied to QUESTIONS, not categories. A category is a grouping
- * label with no task-type opinion of its own — it appears for a task type when
- * at least one of its questions does. That is what lets the same nine categories
- * serve five different question sets, with Unit Testing's four questions stored
- * once and shared by all of them.
+ * Applicability lives on the CATEGORY (`applicableTaskTypeIds`); every active
+ * question in it inherits that. The filter itself is shared with the admin
+ * checklist preview through `lib/checklistVisibility`.
  */
 
-/** A question is rendered when it is active and covers one of the chosen types. */
-function applies(question: ChecklistQuestion, taskTypeIds: readonly TaskTypeId[]): boolean {
-  return question.isActive && question.appliesTo.some((id) => taskTypeIds.includes(id));
-}
-
-/**
- * Categories that have at least one applicable question, in declared order, each
- * carrying only the questions that apply.
- *
- * With no task type selected the result is empty rather than "everything":
- * screen 23 shows an explicit prompt to pick a task type first, and rendering
- * all 29 questions before the user has narrowed anything would be worse than
- * showing none.
- */
-export function visibleCategories(
-  categories: readonly ChecklistCategory[],
-  taskTypeIds: readonly TaskTypeId[],
-): ChecklistCategory[] {
-  if (taskTypeIds.length === 0) return [];
-
-  return categories
-    .filter((category) => category.isActive)
-    .map((category) => ({
-      ...category,
-      questions: category.questions
-        .filter((question) => applies(question, taskTypeIds))
-        .sort((a, b) => a.order - b.order),
-    }))
-    .filter((category) => category.questions.length > 0)
-    .sort((a, b) => a.order - b.order);
-}
-
-export function visibleQuestions(
-  categories: readonly ChecklistCategory[],
-  taskTypeIds: readonly TaskTypeId[],
-): ChecklistQuestion[] {
-  return visibleCategories(categories, taskTypeIds).flatMap((category) => category.questions);
-}
+export { visibleCategories, visibleQuestions };
 
 function answerMap(
   answers: readonly { questionId: string; answer: string }[],

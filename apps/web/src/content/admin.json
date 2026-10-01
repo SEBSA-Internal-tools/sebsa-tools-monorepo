@@ -13,11 +13,21 @@
   },
   "kpis": {
     "total": "Total Tasks",
+    "totalSubtitle": "Overall operational tasks",
     "draft": "Draft",
+    "draftSubtitle": "In-progress · Not submitted",
     "submitted": "Submitted",
+    "submittedSubtitle": "Submitted · Awaiting review",
+    "awaitingReview": "Awaiting Review",
+    "awaitingReviewSubtitle": "Submitted · Waiting for reviewer",
     "inReview": "In Review",
+    "inReviewSubtitle": "Currently under review",
     "changesRequested": "Changes Requested",
-    "approved": "Approved"
+    "changesRequestedSubtitle": "Feedback · Needs revision",
+    "approved": "Approved",
+    "approvedSubtitle": "Review completed · Approved",
+    "cancelled": "Cancelled",
+    "cancelledSubtitle": "Terminated · Inactive"
   },
   "tasks": {
     "title": "All Tasks",
@@ -27,11 +37,11 @@
     "emptyHint": "Tasks appear here as soon as developers create them.",
     "filters": {
       "developer": "Developer",
-      "developerAll": "Developer: All Developers",
+      "developerAll": "All Developers",
       "reviewer": "Reviewer",
-      "reviewerAll": "Reviewer: All Reviewers",
+      "reviewerAll": "All Reviewers",
       "customer": "Customer",
-      "customerAll": "Customer: All Customers"
+      "customerAll": "All Customers"
     },
     "actions": {
       "view": "View {taskCode}",
@@ -54,7 +64,7 @@
     "cancel": {
       "title": "Cancel this task?",
       "description": "{taskCode} will be closed and can no longer be reviewed. The record is kept.",
-      "reasonLabel": "Reason (optional)",
+      "reasonLabel": "Reason for cancellation",
       "reasonPlaceholder": "Why is this being cancelled?",
       "confirm": "Cancel Task",
       "confirming": "Cancelling…",
@@ -64,6 +74,8 @@
     "delete": {
       "title": "Delete this task?",
       "description": "{taskCode} and everything attached to it will be permanently removed. This cannot be undone.",
+      "reasonLabel": "Reason for permanent deletion",
+      "reasonPlaceholder": "Explain why this task must be permanently deleted",
       "confirm": "Delete Task",
       "confirming": "Deleting…",
       "success": "{taskCode} deleted.",
@@ -78,11 +90,17 @@
     "searchLabel": "Search users",
     "searchPlaceholder": "Search users…",
     "roleAll": "Role: All Roles",
+    "rolesAll": "All Roles",
+    "rolesLabel": "Roles",
+    "clearRoles": "Clear roles",
     "statusAll": "Status: All Statuses",
     "statusActive": "Active",
     "statusInactive": "Inactive",
+    "clearFilters": "Clear Filters",
     "emptyTitle": "No users yet",
     "emptyHint": "Add the first user to give someone access to the portal.",
+    "emptyFilteredTitle": "No users match the selected filters.",
+    "emptyFilteredHint": "Try adjusting your search query, role selection, or status filter.",
     "columns": {
       "name": "Name",
       "email": "Email",
@@ -98,13 +116,18 @@
     "namePlaceholder": "Enter name",
     "emailLabel": "Email",
     "emailPlaceholder": "Enter email",
-    "rolesLabel": "Roles",
     "create": "Create User",
     "creating": "Creating…",
     "save": "Save Changes",
     "saving": "Saving…",
     "created": "{name} added.",
     "updated": "{name} updated.",
+    "privileged": {
+      "managed": "Managed by Super Admin",
+      "reasonLabel": "Reason for privileged change",
+      "reasonPlaceholder": "Explain why this privileged access is changing",
+      "reasonRequired": "Provide a reason for this privileged change."
+    },
     "actions": {
       "edit": "Edit {name}",
       "activate": "Activate {name}",
@@ -124,7 +147,9 @@
       "title": "Delete this user?",
       "description": "{name} will be permanently removed. This is only possible for a user with no tasks or reviews.",
       "confirm": "Delete User",
-      "success": "{name} deleted."
+      "success": "{name} deleted.",
+      "reasonLabel": "Reason for permanent deletion",
+      "reasonPlaceholder": "Explain why this account must be permanently deleted"
     }
   },
   "checklist": {
@@ -135,7 +160,7 @@
       "categories": "Categories",
       "taskTypes": "Task Types"
     },
-    "retiredNote": "Retired rows stay listed here. A submitted checklist keeps its own copy of the wording, so retiring a question never changes a past review.",
+    "retiredNote": "Inactive rows stay listed here. A submitted checklist keeps its own copy of the wording, so deactivating a question never changes a past review.",
     "questions": {
       "caption": "Every checklist question, its category and the task types it applies to",
       "noun": "questions",
@@ -178,8 +203,8 @@
       },
       "actions": {
         "edit": "Edit question: {text}",
-        "activate": "Restore question: {text}",
-        "deactivate": "Retire question: {text}",
+        "activate": "Activate question: {text}",
+        "deactivate": "Deactivate question: {text}",
         "delete": "Delete question: {text}"
       },
       "reorder": {
@@ -190,13 +215,13 @@
         "saved": "Question order saved."
       },
       "deactivate": {
-        "title": "Retire this question?",
+        "title": "Deactivate this question?",
         "description": "It stops appearing on new checklists. Checklists already submitted are unchanged.",
-        "confirm": "Retire Question",
-        "success": "Question retired."
+        "confirm": "Deactivate Question",
+        "success": "Question deactivated."
       },
       "activate": {
-        "success": "Question restored."
+        "success": "Question activated."
       },
       "delete": {
         "title": "Delete this question?",
@@ -229,18 +254,18 @@
       "updated": "Category updated.",
       "actions": {
         "edit": "Edit category: {name}",
-        "activate": "Restore category: {name}",
-        "deactivate": "Retire category: {name}",
+        "activate": "Activate category: {name}",
+        "deactivate": "Deactivate category: {name}",
         "delete": "Delete category: {name}"
       },
       "deactivate": {
-        "title": "Retire this category?",
+        "title": "Deactivate this category?",
         "description": "{name} and its questions stop appearing on new checklists.",
-        "confirm": "Retire Category",
-        "success": "{name} retired."
+        "confirm": "Deactivate Category",
+        "success": "{name} deactivated."
       },
       "activate": {
-        "success": "{name} restored."
+        "success": "{name} activated."
       },
       "delete": {
         "title": "Delete this category?",
@@ -280,18 +305,18 @@
       "updated": "Task type updated.",
       "actions": {
         "edit": "Edit task type: {name}",
-        "activate": "Restore task type: {name}",
-        "deactivate": "Retire task type: {name}",
+        "activate": "Activate task type: {name}",
+        "deactivate": "Deactivate task type: {name}",
         "delete": "Delete task type: {name}"
       },
       "deactivate": {
-        "title": "Retire this task type?",
+        "title": "Deactivate this task type?",
         "description": "{name} can no longer be chosen on new tasks. Existing tasks keep it.",
-        "confirm": "Retire Task Type",
-        "success": "{name} retired."
+        "confirm": "Deactivate Task Type",
+        "success": "{name} deactivated."
       },
       "activate": {
-        "success": "{name} restored."
+        "success": "{name} activated."
       },
       "delete": {
         "title": "Delete this task type?",
@@ -313,7 +338,7 @@
     "subtitle": "Reviews handed back for reassignment",
     "caption": "Tasks a reviewer handed back, and what happened to them",
     "noun": "handovers",
-    "pendingNote": "A handed-over task is held out of the Available queue until it is reassigned or returned, so two reviewers cannot claim it at once.",
+    "pendingNote": "Handed-over tasks stay out of the Available queue until they are reassigned or returned, preventing multiple reviewers from claiming the same task.",
     "emptyTitle": "No handovers",
     "emptyHint": "A reviewer who cannot finish a review hands it back here.",
     "columns": {
@@ -327,7 +352,28 @@
     "status": {
       "Pending": "Awaiting action",
       "Reassigned": "Reassigned",
-      "Cancelled": "Returned to queue"
+      "Cancelled": "Cancelled",
+      "ReturnedToQueue": "Returned to queue"
+    },
+    "filters": {
+      "searchLabel": "Search handovers",
+      "searchPlaceholder": "Search by Task ID, Title, CRIM ID, Reviewer, or Reason...",
+      "status": "Status",
+      "statusAll": "All Statuses",
+      "reviewer": "Handed Over By",
+      "reviewerAll": "All Reviewers",
+      "date": "Raised Date",
+      "dateAll": "All Time",
+      "dateToday": "Today",
+      "date7": "Last 7 Days",
+      "date30": "Last 30 Days",
+      "customer": "Customer",
+      "customerAll": "All Customers",
+      "summary": "Showing {visible} of {total} handovers",
+      "filtered": "· Filtered",
+      "emptyTitle": "No handovers match the selected filters.",
+      "emptyHint": "Adjust the filters or clear them to see all handovers.",
+      "clear": "Clear Filters"
     },
     "reassignedTo": "Reassigned to {name}",
     "returned": "Returned to the open queue",
@@ -396,8 +442,6 @@
       "approvedCaption": "{rate}% approval rate",
       "changesRequested": "Changes Requested",
       "changesRequestedCaption": "Pending revisions",
-      "delivered": "Delivered",
-      "deliveredCaption": "Of which delivered",
       "cancelled": "Cancelled",
       "cancelledCaption": "Tasks cancelled",
       "approvalRate": "Approval Rate",
@@ -530,7 +574,9 @@
       "title": "Delete this customer?",
       "description": "{name} will be permanently removed. This is only possible for a customer with no tasks.",
       "confirm": "Delete Customer",
-      "success": "{name} deleted."
+      "success": "{name} deleted.",
+      "reasonLabel": "Reason for permanent deletion",
+      "reasonPlaceholder": "Explain why this customer must be permanently deleted"
     }
   }
 }

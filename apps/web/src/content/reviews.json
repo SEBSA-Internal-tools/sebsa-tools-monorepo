@@ -12,6 +12,13 @@
   "analytics": {
     "title": "My Review Analytics",
     "subtitle": "Your review workload, turnaround and grading profile",
+    "timeRange": "Time Range",
+    "timeRanges": {
+      "all": "All Time",
+      "30d": "Last 30 Days",
+      "90d": "Last 90 Days",
+      "quarter": "This Quarter"
+    },
     "completed": "Reviews Completed",
     "completedCaption": "Decided across every cycle",
     "inQueue": "In My Queue",
@@ -68,9 +75,13 @@
   },
   "kpis": {
     "available": "Available Tasks",
+    "availableSubtitle": "Unclaimed tasks waiting for pickup",
     "inReview": "My In Review",
+    "inReviewSubtitle": "Active reviews assigned to you",
     "changesRequested": "Changes Requested",
-    "approved": "Reviews Approved"
+    "changesRequestedSubtitle": "Tasks awaiting developer rework",
+    "approved": "Reviews Approved",
+    "approvedSubtitle": "Tasks you reviewed and passed"
   },
   "available": {
     "title": "Available Review Tasks",
@@ -85,18 +96,30 @@
     "picked": "{taskCode} is yours. It is now In Review.",
     "lostRace": "Someone else picked this up first.",
     "filters": {
-      "customer": "All Customers",
+      "submissionType": "Submission Type",
+      "submissionTypeAll": "All Available",
+      "submissionTypeInitial": "Initial Submissions",
+      "submissionTypeReReview": "Re-Reviews",
+      "customer": "Customer",
+      "customerAll": "All Customers",
       "developer": "All Developers",
       "priority": "All Priorities"
     },
-    "columns": { "submitted": "Submitted" }
+    "columns": {
+      "submitted": "Submitted"
+    }
   },
   "assigned": {
     "title": "My Review Tasks",
     "caption": "Tasks you are currently reviewing",
     "emptyTitle": "No reviews in progress",
     "emptyHint": "Pick a task from the Available queue to start reviewing.",
-    "open": "Open review for {taskCode}"
+    "open": "Open review for {taskCode}",
+    "filters": {
+      "customer": "Customer",
+      "customerAll": "All Customers",
+      "priority": "All Priorities"
+    }
   },
   "history": {
     "title": "Review History",
@@ -104,7 +127,17 @@
     "emptyTitle": "No completed reviews yet",
     "emptyHint": "Reviews you approve or send back appear here.",
     "view": "View",
-    "viewAria": "View {taskCode}"
+    "viewAria": "View {taskCode}",
+    "filters": {
+      "decision": "Decision",
+      "decisionAll": "All Decided",
+      "decisionChangesRequested": "Changes Requested",
+      "decisionApproved": "Approved",
+      "customer": "Customer",
+      "customerAll": "All Customers",
+      "priority": "All Priorities",
+      "cycle": "Cycle"
+    }
   },
   "form": {
     "title": "Code Review Form",
@@ -113,14 +146,21 @@
     "taskDetails": "Task Details",
     "developerChecklist": "Developer Quality Checklist",
     "handover": "Hand Over",
-    "handoverTitle": "Hand this review over?",
+    "handoverTitle": "Hand Over Review",
+    "handoverSubtitle": "Transfer this review back to Admin for reassignment.",
     "handoverDescription": "{taskCode} returns to the admin queue. Your answers so far are kept, but the task leaves your list until an admin reassigns it.",
-    "handoverReasonLabel": "Reason",
-    "handoverReasonHint": "The admin sees this when deciding who picks it up.",
-    "handoverReasonPlaceholder": "e.g. On leave from Friday — needs someone with Lobby experience.",
-    "handoverConfirm": "Hand Over",
-    "handoverConfirming": "Handing over…",
+    "handoverReasonLabel": "Reason for handover",
+    "handoverReasonHint": "Briefly explain why you cannot continue this review.",
+    "handoverReasonPlaceholder": "Enter the reason you are unable to continue this review.",
+    "handoverReasonHelper": "This reason will be visible to Admin during reassignment.",
+    "handoverConfirm": "Hand Over Review",
+    "handoverConfirming": "Handing Over...",
     "handoverSuccess": "{taskCode} handed back to the admin queue.",
+    "handoverWhatHappensNext": "What happens next?",
+    "handoverPoint1": "Your current draft and review comments will be preserved.",
+    "handoverPoint2": "The task will leave your active review list.",
+    "handoverPoint3": "Admin will decide whether to reassign it or return it to the reviewer queue.",
+    "handoverReassurance": "Handing over does not approve, reject, or change the review cycle.",
     "developerAttachments": "Developer Screenshots",
     "developerAttachmentsHint": "Supporting images the developer attached with this submission.",
     "generalCheck": "3.1 General Check",
@@ -154,6 +194,11 @@
     "deciding": "Submitting…",
     "approved": "{taskCode} approved.",
     "changesRequested": "Changes requested on {taskCode}.",
+    "saveDraft": "Save Draft",
+    "savingDraft": "Saving draft…",
+    "draftSaved": "Review draft saved.",
+    "draftSavedAt": "Draft saved {time}",
+    "readyToApprove": "Ready to approve",
     "blockers": {
       "title": "Before you can submit this review",
       "generalCheckIncomplete": "Answer every General Check question",
@@ -167,11 +212,35 @@
       "wrongType": "{fileName} is not a PNG, JPG, GIF or WebP image.",
       "tooMany": "You can attach at most 10 screenshots."
     },
+    "rejections": {
+      "title": "Developer Rejections Review",
+      "subtitle": "The developer rejected one or more findings from the previous review cycle. Evaluate each justification.",
+      "finding": "Reviewer Finding",
+      "developerReason": "Developer Rejection Reason",
+      "accept": "Accept Rejection",
+      "overrule": "Do Not Accept",
+      "acceptedBadge": "Accepted (Cycle -1)",
+      "overruledBadge": "Not Accepted",
+      "pendingBadge": "Pending Evaluation",
+      "allAcceptedBanner": "All developer rejections have been accepted. You can now approve this task with the review cycle count reduced by 1.",
+      "singleAcceptedBanner": "The developer rejection has been accepted. You can now approve this task with the review cycle count reduced by 1."
+    },
+    "sidebar": {
+      "readinessTitle": "Review Readiness",
+      "readinessSubtitle": "Validation status of the current review form",
+      "cycleTitle": "Current Cycle",
+      "activityTitle": "Review Activity",
+      "notificationTitle": "Email Notification",
+      "notificationBody": "When you Approve or Request Changes, the developer will receive an email notification with a direct link to inspect the review findings."
+    },
     "historyTitle": "Review Cycle History",
     "historySubtitle": "Every completed cycle on this task, newest first.",
     "historyEmpty": "No completed cycles yet.",
     "cycleLabel": "Cycle {cycle}",
     "noScreenshots": "No screenshot feedback",
-    "noScreenshotsHint": "No screenshot feedback has been attached to this task."
+    "noScreenshotsHint": "No screenshot feedback has been attached to this task.",
+    "emptyCommentsTitle": "No review comments",
+    "emptyCommentsApprovedHint": "All quality requirements were met during this cycle. No review comments were recorded.",
+    "emptyCommentsChangesRequestedHint": "No review comments were recorded for this cycle."
   }
 }

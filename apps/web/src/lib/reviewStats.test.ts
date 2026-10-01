@@ -18,6 +18,7 @@ function review(overrides: Partial<Review> = {}): Review {
     reviewCycle: 1,
     reviewerId: 'u-reviewer',
     reviewerName: 'Reviewer',
+    comments: [],
     generalCheck: [],
     findings: {
       incorrectCode: '',

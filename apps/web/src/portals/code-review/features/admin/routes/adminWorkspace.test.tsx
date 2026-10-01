@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { signInForTest } from '@/test/setup.ts';
 import { routes } from '@/app/routes.tsx';
+import { db } from '@/mocks/db.ts';
 
 /**
  * The admin workspace, driven through the real route table and the real MSW
@@ -16,17 +17,15 @@ import { routes } from '@/app/routes.tsx';
  * only clicked Delete on a draft.
  */
 
-/** Holds all three roles, so `RequireWorkspace` lets them in. */
-const ADMIN = 'u-charith';
+/** Deliberately Admin-only, so workflow roles cannot mask an authorization gap. */
+const ADMIN = 'u-qa-admin';
+const SUPER_ADMIN = 'u-qa-superadmin';
 /** Developer only — the negative control for the workspace guard. */
 const DEVELOPER_ONLY = 'u-dheliya';
 
 function renderAdmin(path = '/crp/admin') {
   const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false, gcTime: 0 },
-      mutations: { retry: false },
-    },
+    defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } },
   });
 
   const router = createMemoryRouter(routes, { initialEntries: [path] });
@@ -54,9 +53,7 @@ function renderAdmin(path = '/crp/admin') {
  * re-types the filter, so consecutive lookups in one test are independent.
  */
 async function taskRow(taskCode: string) {
-  const search = await screen.findByRole('searchbox', {
-    name: /search tasks/i,
-  });
+  const search = await screen.findByRole('searchbox', { name: /search tasks/i });
   await userEvent.clear(search);
   await userEvent.type(search, taskCode);
 
@@ -92,11 +89,11 @@ describe('admin tasks grid', () => {
     expect(await taskRow('BLOM-009')).toBeInTheDocument();
   });
 
-  it('offers Delete on a draft but NOT on a task under review', async () => {
+  it('does not offer permanent task deletion to a normal Admin', async () => {
     renderAdmin();
 
-    const draft = await taskRow('AASL-014');
-    expect(within(draft).getByRole('button', { name: /delete AASL-014/i })).toBeInTheDocument();
+    const cancelled = await taskRow('AASL-012');
+    expect(within(cancelled).queryByRole('button', { name: /delete AASL-012/i })).toBeNull();
 
     // The control. A task in review carries review cycles and findings that
     // Reports counts, so it may be cancelled but never destroyed.
@@ -105,22 +102,31 @@ describe('admin tasks grid', () => {
     expect(within(inReview).getByRole('button', { name: /cancel BLOM-010/i })).toBeInTheDocument();
   });
 
-  it('offers no Assign action on a draft — there is nothing to review yet', async () => {
+  it('offers eligible permanent task deletion to a Super Admin', async () => {
+    signInForTest(SUPER_ADMIN);
+    renderAdmin();
+    const cancelled = await taskRow('AASL-012');
+    expect(within(cancelled).getByRole('button', { name: /delete AASL-012/i })).toBeInTheDocument();
+  });
+
+  it('keeps drafts out of the admin grid — they are private developer work', async () => {
     renderAdmin();
 
-    const draft = await taskRow('AASL-014');
-    expect(within(draft).queryByRole('button', { name: /assign a reviewer/i })).toBeNull();
+    // A live row first, so an empty grid cannot pass the absence check below.
+    expect(await taskRow('SEMCO-013')).toBeInTheDocument();
+    const search = screen.getByRole('searchbox', { name: /search tasks/i });
+    await userEvent.clear(search);
+    await userEvent.type(search, 'AASL-014');
+    await waitFor(() => {
+      expect(screen.queryByText('AASL-014')).not.toBeInTheDocument();
+    });
   });
 
   it('assigns a reviewer and moves the task into review', async () => {
     const { user } = renderAdmin();
 
     const row = await taskRow('BLOM-009');
-    await user.click(
-      within(row).getByRole('button', {
-        name: /assign a reviewer to BLOM-009/i,
-      }),
-    );
+    await user.click(within(row).getByRole('button', { name: /assign a reviewer to BLOM-009/i }));
 
     await user.click(await screen.findByRole('combobox', { name: /reviewer/i }));
 
@@ -156,6 +162,9 @@ describe('admin tasks grid', () => {
     expect(await screen.findByText(/cancel this task\?/i)).toBeInTheDocument();
     expect(within(row).getByText('Submitted')).toBeInTheDocument();
 
+    // Confirm stays disabled until the reason is given.
+    expect(screen.getByRole('button', { name: /^cancel task$/i })).toBeDisabled();
+    await user.type(screen.getByLabelText(/reason for cancellation/i), 'Duplicate of SEMCO-012');
     await user.click(screen.getByRole('button', { name: /^cancel task$/i }));
 
     await waitFor(() => {
@@ -169,6 +178,10 @@ describe('admin users tab', () => {
     const { user } = renderAdmin('/crp/admin/users');
 
     expect(await screen.findByText('dheliya.kankanamge@sebsaworld.com')).toBeInTheDocument();
+    // The grid pages at 15, so the seeded user count decides the page total.
+    const pages = Math.ceil(db.users.length / 15);
+    expect(screen.getByText(`Page 1 of ${String(pages)}`)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /previous page/i })).toBeDisabled();
 
     await user.click(screen.getByRole('button', { name: /add user/i }));
     await user.type(await screen.findByLabelText(/name/i), 'Test Person');
@@ -176,7 +189,43 @@ describe('admin users tab', () => {
     await user.click(screen.getByRole('checkbox', { name: 'Reviewer' }));
     await user.click(screen.getByRole('button', { name: /^create user$/i }));
 
+    // Search rather than paging: the new user sorts to the end of a multi-page grid.
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+    await user.type(screen.getByRole('searchbox', { name: /search users/i }), 'test.person');
     expect(await screen.findByText('test.person@sebsaworld.com')).toBeInTheDocument();
+  });
+
+  it('hides privileged role options and privileged mutations from a normal Admin', async () => {
+    const { user } = renderAdmin('/crp/admin/users');
+
+    await screen.findByText('qa.superadmin@sebsaworld.com');
+    const privilegedRow = screen.getByText('qa.superadmin@sebsaworld.com').closest('tr');
+    if (privilegedRow === null) throw new Error('No Super Admin row');
+    expect(within(privilegedRow).getByText('Protected')).toBeInTheDocument();
+    expect(
+      within(privilegedRow).queryByRole('button', { name: /edit QA Super Admin/i }),
+    ).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: /add user/i }));
+    expect(screen.getByRole('checkbox', { name: 'Developer' })).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Reviewer' })).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: 'Admin' })).toBeNull();
+    expect(screen.queryByRole('checkbox', { name: 'Super Admin' })).toBeNull();
+  });
+
+  it('exposes privileged roles to a Super Admin and keeps SuperAdmin paired with Admin', async () => {
+    signInForTest(SUPER_ADMIN);
+    const { user } = renderAdmin('/crp/admin/users');
+    await user.click(await screen.findByRole('button', { name: /add user/i }));
+
+    const adminRole = screen.getByRole('checkbox', { name: 'Admin' });
+    const superRole = screen.getByRole('checkbox', { name: 'Super Admin' });
+    expect(adminRole).not.toBeChecked();
+    await user.click(superRole);
+    expect(superRole).toBeChecked();
+    expect(adminRole).toBeChecked();
   });
 
   it('refuses to create a user with no role', async () => {
@@ -198,7 +247,7 @@ describe('admin users tab', () => {
     expect(await screen.findByText('Dheliya Kankanamge')).toBeInTheDocument();
 
     await user.click(screen.getByRole('combobox', { name: /role/i }));
-    await user.click(await screen.findByRole('option', { name: 'Admin' }));
+    await user.click(await screen.findByRole('checkbox', { name: 'Admin' }));
 
     // Dheliya is Developer-only, so the Admin filter must drop them.
     await waitFor(() => {
@@ -226,8 +275,8 @@ describe('admin customers tab', () => {
     expect(await screen.findByText('NORTHW')).toBeInTheDocument();
   });
 
-  it('refuses to delete a customer that has tasks', async () => {
-    const { user } = renderAdmin('/crp/admin/customers');
+  it('does not offer permanent customer deletion to a normal Admin', async () => {
+    renderAdmin('/crp/admin/customers');
 
     // Matched on the DESCRIPTION cell: 'BLOM' is both the chip name and the
     // code, so it is not a unique handle on the row.
@@ -235,22 +284,6 @@ describe('admin customers tab', () => {
     const row = cell.closest('tr');
     if (row === null) throw new Error('No BLOM row');
 
-    await user.click(within(row).getByRole('button', { name: /delete BLOM/i }));
-
-    const confirm = await screen.findByRole('button', {
-      name: /^delete customer$/i,
-    });
-    await user.click(confirm);
-
-    // Wait for the request to settle. The toast is NOT asserted here: `Toaster`
-    // is mounted in `App`, which the route table does not include, so a toast
-    // assertion in a router test never matches and passes for the wrong reason.
-    await waitFor(() => {
-      expect(confirm).toHaveAttribute('aria-busy', 'false');
-    });
-
-    // The handler refused: the dialog is still open and the customer survives.
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
-    expect(screen.getByText('Biomsterlandet')).toBeInTheDocument();
+    expect(within(row).queryByRole('button', { name: /delete BLOM/i })).toBeNull();
   });
 });

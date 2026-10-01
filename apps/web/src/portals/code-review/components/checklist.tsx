@@ -1,12 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { AlertCircle, CheckCircle2, ChevronDown, Info } from 'lucide-react';
 import * as RadixRadioGroup from '@radix-ui/react-radio-group';
-import {
-  CHECKLIST_ANSWERS,
-  GENERAL_CHECK_ANSWERS,
-  type ChecklistAnswer,
-  type GeneralCheckAnswer,
-} from '@sdp/contracts';
+import { CHECKLIST_ANSWERS, type ChecklistAnswer } from '@sdp/contracts';
 import { cn } from '@/components/ui';
 import common from '@/content/common.json';
 import { interpolate } from '@/lib/formatters.ts';
@@ -133,77 +128,6 @@ export function AnswerPicker({
             )}
           >
             {common.answer[option]}
-          </RadixRadioGroup.Item>
-        );
-      })}
-    </RadixRadioGroup.Root>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-/* General Check picker (reviewer screen 21)                                  */
-/* -------------------------------------------------------------------------- */
-
-const GENERAL_CHECK_ACTIVE: Record<GeneralCheckAnswer, string> = {
-  Ok: 'bg-emerald-600 text-white shadow-xs',
-  PartiallyOk: 'bg-amber-700 text-white shadow-xs',
-  NotOk: 'bg-rose-600 text-white shadow-xs',
-  NA: 'bg-slate-700 text-white shadow-xs',
-};
-
-export function GeneralCheckPicker({
-  value,
-  onValueChange,
-  questionLabel,
-  sectionLabel = '',
-  disabled = false,
-}: {
-  value: GeneralCheckAnswer | undefined;
-  onValueChange: (answer: GeneralCheckAnswer) => void;
-  questionLabel: string;
-  sectionLabel?: string;
-  disabled?: boolean;
-}) {
-  return (
-    <RadixRadioGroup.Root
-      value={value ?? null}
-      onValueChange={(val) => {
-        onValueChange(val as GeneralCheckAnswer);
-      }}
-      disabled={disabled}
-      aria-label={sectionLabel ? `${sectionLabel}: ${questionLabel}` : questionLabel}
-      onKeyDown={(event) => {
-        const direction =
-          event.key === 'ArrowRight' || event.key === 'ArrowDown'
-            ? 1
-            : event.key === 'ArrowLeft' || event.key === 'ArrowUp'
-              ? -1
-              : 0;
-        if (direction === 0 || !(event.target instanceof HTMLButtonElement)) return;
-        const index = GENERAL_CHECK_ANSWERS.indexOf(event.target.value as GeneralCheckAnswer);
-        const next =
-          GENERAL_CHECK_ANSWERS[
-            (index + direction + GENERAL_CHECK_ANSWERS.length) % GENERAL_CHECK_ANSWERS.length
-          ];
-        if (next !== undefined) onValueChange(next);
-      }}
-      className="inline-flex rounded-lg border border-line bg-canvas/80 p-1 shadow-2xs"
-    >
-      {GENERAL_CHECK_ANSWERS.map((option) => {
-        const isSelected = value === option;
-        return (
-          <RadixRadioGroup.Item
-            key={option}
-            value={option}
-            className={cn(
-              'rounded-md px-2.5 py-1 text-xs font-semibold transition-all duration-150',
-              'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600',
-              isSelected
-                ? cn(GENERAL_CHECK_ACTIVE[option], 'font-bold')
-                : 'text-ink-600 hover:bg-surface hover:text-ink-900',
-            )}
-          >
-            {common.generalCheckAnswer[option]}
           </RadixRadioGroup.Item>
         );
       })}

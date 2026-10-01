@@ -150,5 +150,38 @@
     ],
     "isActive": true,
     "createdAt": "2026-09-09T09:00:00.000Z"
+  },
+  {
+    "id": "u-qa-admin",
+    "name": "QA Normal Admin",
+    "email": "qa.admin@sebsaworld.com",
+    "roles": [
+      "Admin"
+    ],
+    "isActive": true,
+    "createdAt": "2026-09-22T09:00:00.000Z"
+  },
+  {
+    "id": "u-qa-superadmin",
+    "name": "QA Super Admin",
+    "email": "qa.superadmin@sebsaworld.com",
+    "roles": [
+      "Admin",
+      "SuperAdmin"
+    ],
+    "isActive": true,
+    "createdAt": "2026-09-22T09:01:00.000Z"
+  },
+  {
+    "id": "u-qa-superreviewer",
+    "name": "QA Super Admin Reviewer",
+    "email": "qa.superreviewer@sebsaworld.com",
+    "roles": [
+      "Admin",
+      "SuperAdmin",
+      "Reviewer"
+    ],
+    "isActive": true,
+    "createdAt": "2026-09-22T09:02:00.000Z"
   }
 ]

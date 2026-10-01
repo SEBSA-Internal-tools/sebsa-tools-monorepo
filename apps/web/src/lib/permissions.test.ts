@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { Role } from '@sdp/contracts';
-import { accessibleWorkspaces, canAccessWorkspace, hasNoWorkspaceAccess } from './permissions.ts';
+import {
+  accessibleWorkspaces,
+  canAccessWorkspace,
+  hasCapability,
+  hasNoWorkspaceAccess,
+  isPrivilegedRoleSet,
+} from './permissions.ts';
 
 const DEVELOPER: Role[] = ['Developer'];
 const REVIEWER: Role[] = ['Reviewer'];
@@ -20,10 +26,10 @@ describe('canAccessWorkspace', () => {
     expect(canAccessWorkspace(REVIEWER, 'admin')).toBe(false);
   });
 
-  it('grants an admin all three workspaces, not just admin (spec FL 2.1-02)', () => {
+  it('grants an admin the admin workspace without implicitly granting developer or reviewer workspaces', () => {
     expect(canAccessWorkspace(ADMIN, 'admin')).toBe(true);
-    expect(canAccessWorkspace(ADMIN, 'developer')).toBe(true);
-    expect(canAccessWorkspace(ADMIN, 'reviewer')).toBe(true);
+    expect(canAccessWorkspace(ADMIN, 'developer')).toBe(false);
+    expect(canAccessWorkspace(ADMIN, 'reviewer')).toBe(false);
   });
 });
 
@@ -48,5 +54,29 @@ describe('hasNoWorkspaceAccess', () => {
 
   it('does not flag an account with any role', () => {
     expect(hasNoWorkspaceAccess(DEVELOPER)).toBe(false);
+  });
+});
+
+describe('hasCapability', () => {
+  it('keeps daily operations with Admin and privileged governance with SuperAdmin', () => {
+    expect(hasCapability(['Admin'], 'tasks.manage')).toBe(true);
+    expect(hasCapability(['Admin'], 'users.manage.standard')).toBe(true);
+    expect(hasCapability(['Admin'], 'users.manage.privileged')).toBe(false);
+    expect(hasCapability(['Admin'], 'records.purge')).toBe(false);
+    expect(hasCapability(['Admin', 'SuperAdmin'], 'users.manage.privileged')).toBe(true);
+    expect(hasCapability(['Admin', 'SuperAdmin'], 'records.purge')).toBe(true);
+  });
+
+  it('does not grant Developer or Reviewer workspaces through SuperAdmin alone', () => {
+    expect(canAccessWorkspace(['SuperAdmin'], 'developer')).toBe(false);
+    expect(canAccessWorkspace(['SuperAdmin'], 'reviewer')).toBe(false);
+  });
+});
+
+describe('isPrivilegedRoleSet', () => {
+  it('treats Admin or SuperAdmin as privileged', () => {
+    expect(isPrivilegedRoleSet(['Developer', 'Reviewer'])).toBe(false);
+    expect(isPrivilegedRoleSet(['Admin'])).toBe(true);
+    expect(isPrivilegedRoleSet(['SuperAdmin'])).toBe(true);
   });
 });

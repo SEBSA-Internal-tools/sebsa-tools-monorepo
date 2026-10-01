@@ -142,6 +142,26 @@ describe('authenticated routing', () => {
     ).toBeInTheDocument();
   });
 
+  it('keeps an admin-only account out of the developer and reviewer workspaces', async () => {
+    // Governance: each workspace needs its own role; Admin does not imply the others.
+    signInForTest('u-qa-admin');
+    for (const path of ['/crp/developer', '/crp/reviewer']) {
+      const { router, unmount } = renderApp(path);
+      await waitFor(() => expect(router.state.location.pathname).not.toBe(path));
+      unmount();
+    }
+  });
+
+  it('lets a Super Admin into the admin workspace', async () => {
+    signInForTest('u-qa-superadmin');
+    const { router } = renderApp('/crp/admin');
+
+    await waitFor(() => expect(router.state.location.pathname).toBe('/crp/admin'));
+    expect(
+      await screen.findByRole('heading', { name: 'Admin Dashboard', level: 1 }),
+    ).toBeInTheDocument();
+  });
+
   it('redirects an unknown path to /404 rather than crashing', async () => {
     signInForTest();
     const { router } = renderApp('/definitely-not-a-route');

@@ -30,10 +30,7 @@ const IN_REVIEW_TASK = 't-blom-010';
 
 function renderAt(path: string) {
   const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false, gcTime: 0 },
-      mutations: { retry: false },
-    },
+    defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } },
   });
 
   const router = createMemoryRouter(routes, { initialEntries: [path] });
@@ -65,7 +62,7 @@ async function handOver(reason = 'On leave from Friday.') {
 
   const dialog = await screen.findByRole('dialog');
   await user.type(within(dialog).getByRole('textbox', { name: /^reason/i }), reason);
-  await user.click(within(dialog).getByRole('button', { name: /^hand over$/i }));
+  await user.click(within(dialog).getByRole('button', { name: /hand over/i }));
 
   await waitFor(() => {
     expect(screen.queryByRole('dialog')).toBeNull();
@@ -95,11 +92,15 @@ describe('reviewer hands a task back', () => {
 
     await user.click(await screen.findByRole('button', { name: /hand over/i }));
     const dialog = await screen.findByRole('dialog');
-    await user.click(within(dialog).getByRole('button', { name: /^hand over$/i }));
+    await user.click(within(dialog).getByRole('button', { name: /hand over/i }));
 
     // The reason is the only thing the admin has to go on when choosing who
     // picks the task up, so an empty one is refused rather than stored.
-    expect(await screen.findByText(/explain why this review is being handed over/i)).toBeVisible();
+    expect(
+      await screen.findByText(
+        /(explain why this review is being handed over|please provide a reason for handing over this review)/i,
+      ),
+    ).toBeVisible();
     expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 
@@ -112,9 +113,7 @@ describe('reviewer hands a task back', () => {
     // Filtered to the code rather than read off page 1: the admin grid pages at
     // 15 over a seed with more tasks than that, so which rows are visible
     // depends on the fixture dates rather than on anything under test here.
-    const search = await screen.findByRole('searchbox', {
-      name: /search tasks/i,
-    });
+    const search = await screen.findByRole('searchbox', { name: /search tasks/i });
     await user.type(search, 'BLOM-010');
 
     const cell = await screen.findByText('BLOM-010');
@@ -152,11 +151,18 @@ describe('admin handover queue', () => {
     await handOver('Needs someone with Lobby experience.');
 
     signInForTest(ADMIN);
-    renderAt('/crp/admin/handovers');
+    const { user } = renderAt('/crp/admin/handovers');
 
-    expect(await screen.findByText('BLOM-010')).toBeInTheDocument();
+    const taskCode = await screen.findByText('BLOM-010');
+    const row = taskCode.closest('tr');
+    if (row === null) throw new Error('No handover row');
+
     expect(screen.getByText(/needs someone with lobby experience/i)).toBeInTheDocument();
-    expect(screen.getByText('Awaiting action')).toBeInTheDocument();
+    expect(within(row).getByText('Awaiting action')).toBeInTheDocument();
+
+    await user.click(within(row).getByRole('button', { name: /view reason/i }));
+    const dialog = await screen.findByRole('dialog', { name: 'Handover Reason' });
+    expect(within(dialog).getByText(/needs someone with lobby experience/i)).toBeInTheDocument();
   });
 
   it('reassigns to another reviewer and puts the task back in review', async () => {
@@ -201,9 +207,7 @@ describe('admin handover queue', () => {
     if (row === null) throw new Error('No handover row');
 
     await user.click(
-      within(row).getByRole('button', {
-        name: /return BLOM-010 to the open queue/i,
-      }),
+      within(row).getByRole('button', { name: /return BLOM-010 to the open queue/i }),
     );
     await user.click(await screen.findByRole('button', { name: /^return to queue$/i }));
 

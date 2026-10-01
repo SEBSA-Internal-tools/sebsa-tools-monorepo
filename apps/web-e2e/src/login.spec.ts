@@ -15,11 +15,20 @@ const dirname = path.dirname(fileURLToPath(import.meta.url));
 const SEEDED_EMAIL = 'hiruni.wijethilaka@sebsaworld.com';
 const DEMO_PASSWORD = 'Sebsa@2026';
 
-/** Fails the test on any console error, so a silent runtime break cannot pass. */
+/**
+ * Fails the test on any console error, so a silent runtime break cannot pass.
+ *
+ * One exception: signed out, the session check `GET /api/auth/me` answers 401 by
+ * design (cookies are the source of truth, `hooks/useSession.ts`), and Chromium
+ * logs every 4xx resource as a console error.
+ */
 function failOnConsoleErrors(page: Page): string[] {
   const errors: string[] = [];
   page.on('console', (msg) => {
-    if (msg.type() === 'error') errors.push(msg.text());
+    if (msg.type() !== 'error') return;
+    const isSignedOutSessionCheck =
+      msg.text().includes('401') && msg.location().url.endsWith('/api/auth/me');
+    if (!isSignedOutSessionCheck) errors.push(msg.text());
   });
   page.on('pageerror', (err) => errors.push(err.message));
   return errors;

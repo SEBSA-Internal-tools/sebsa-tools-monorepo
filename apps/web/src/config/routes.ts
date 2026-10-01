@@ -26,18 +26,25 @@ export const ROUTES = {
   },
   admin: {
     root: routePaths.crp.admin.dashboard,
+    task: routePaths.crp.admin.task,
     users: routePaths.crp.admin.users,
     customers: routePaths.crp.admin.customers,
     checklist: routePaths.crp.admin.checklist,
     handovers: routePaths.crp.admin.handovers,
+    handover: routePaths.crp.admin.handover,
+    handoverTask: routePaths.crp.admin.handoverTask,
     reports: routePaths.crp.admin.reports,
   },
 } as const;
 
+/**
+ * Which roles may enter each workspace. Admin-only users do not implicitly gain
+ * the Developer or Reviewer workspaces; each requires its own role.
+ */
 export const WORKSPACE_ACCESS = {
-  developer: ['Developer', 'Admin'],
-  reviewer: ['Reviewer', 'Admin'],
-  admin: ['Admin'],
+  developer: ['Developer'],
+  reviewer: ['Reviewer'],
+  admin: ['Admin', 'SuperAdmin'],
 } as const satisfies Record<string, readonly Role[]>;
 
 export type WorkspaceKey = keyof typeof WORKSPACE_ACCESS;

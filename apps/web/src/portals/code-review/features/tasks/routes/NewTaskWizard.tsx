@@ -5,7 +5,6 @@ import {
   ArrowRight,
   CheckCircle2,
   FilePlus2,
-  ListChecks,
   Pencil,
   Save,
   Send,
@@ -14,14 +13,8 @@ import {
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/Button.tsx';
-import { Card, CardBody, CardHeader } from '@/components/ui/Card.tsx';
 import { PageHeader } from '@/components/common/PageHeader.tsx';
-import {
-  RequirementList,
-  Stepper,
-  type Requirement,
-  type Step,
-} from '@/components/common/Stepper.tsx';
+import { Stepper, type Requirement, type Step } from '@/components/common/Stepper.tsx';
 import { ROUTES } from '@/config/routes.ts';
 import { ApiError } from '@/lib/apiClient.ts';
 import { interpolate } from '@/lib/formatters.ts';
@@ -33,6 +26,7 @@ import { checklistProgress } from '../domain/checklistRules.ts';
 import {
   useChecklistTemplate,
   useCreateTask,
+  useNextTaskVersion,
   useSaveChecklist,
   useSubmitTask,
   useTask,
@@ -49,7 +43,7 @@ import {
 } from '../domain/taskRules.ts';
 import { useTaskDraft } from '../hooks/useTaskDraft.ts';
 import { ChecklistSidePanels, WizardChecklistStep } from '../components/WizardChecklistStep.tsx';
-import { SystemInformationPanel, WizardDetailsStep } from '../components/WizardDetailsStep.tsx';
+import { TaskSummaryCard, WizardDetailsStep } from '../components/WizardDetailsStep.tsx';
 import { ReviewSidePanels, WizardReviewStep } from '../components/WizardReviewStep.tsx';
 import { PageContainer } from '@/components/common/PageContainer.tsx';
 import { ErrorState, LoadingState } from '@/components/common/states.tsx';
@@ -73,16 +67,13 @@ function isWizardStep(value: string | undefined): value is TaskWizardStep {
 
 /** Requirements each step surfaces in its side panel, in the order shown. */
 const PANEL_REQUIREMENTS: Record<TaskWizardStep, readonly TaskRequirement[]> = {
-  details: ['customer', 'crimId', 'versionTooLong'],
+  details: ['customer', 'crimId'],
   checklist: ['taskTypes', 'checklist'],
   review: [],
 };
 
 export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } = {}) {
-  const { step, taskId: routeTaskId } = useParams<{
-    step: string;
-    taskId?: string;
-  }>();
+  const { step, taskId: routeTaskId } = useParams<{ step: string; taskId?: string }>();
   const navigate = useNavigate();
   const draft = useTaskDraft();
   const { data: user } = useCurrentUser();
@@ -144,6 +135,18 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
   const actionInFlight = useRef(false);
 
   const effectiveTaskId = draft.taskId ?? editTaskId ?? '';
+  const isPersistedDraft = draft.taskId !== null || isEditMode;
+  const nextVersion = useNextTaskVersion(draft.customerId, draft.crimId, !isPersistedDraft);
+  const displayedVersion = isPersistedDraft
+    ? draft.version
+    : nextVersion.data === undefined
+      ? ''
+      : String(nextVersion.data.version);
+  const hasIdentityInputs = draft.customerId !== '' && draft.crimId.trim() !== '';
+  const isVersionChecking =
+    !isPersistedDraft && hasIdentityInputs && (nextVersion.isPending || nextVersion.isFetching);
+  const isVersionError = !isPersistedDraft && hasIdentityInputs && nextVersion.isError;
+  const versionReady = isPersistedDraft || nextVersion.isSuccess;
   const createTask = useCreateTask();
   const updateTask = useUpdateTask(effectiveTaskId);
   const saveChecklist = useSaveChecklist(effectiveTaskId);
@@ -160,20 +163,12 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
         draft: {
           customerId: draft.customerId,
           crimId: draft.crimId,
-          version: draft.version,
           priority: draft.priority,
         },
         taskTypes: draft.taskTypeIds,
         isChecklistComplete: progress.isComplete,
       }),
-    [
-      draft.customerId,
-      draft.crimId,
-      draft.version,
-      draft.priority,
-      draft.taskTypeIds,
-      progress.isComplete,
-    ],
+    [draft.customerId, draft.crimId, draft.priority, draft.taskTypeIds, progress.isComplete],
   );
 
   const getStepUrl = (targetStep: string) =>
@@ -272,13 +267,16 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
           : 'upcoming',
   }));
 
-  const requirements: Requirement[] = PANEL_REQUIREMENTS[currentStep].map((requirement) => ({
+  const detailsRequirementCodes: TaskRequirement[] = ['customer', 'crimId'];
+
+  const requirements: Requirement[] = (
+    currentStep === 'details' ? detailsRequirementCodes : PANEL_REQUIREMENTS[currentStep]
+  ).map((requirement) => ({
     id: requirement,
     label: tasks.wizard.requirements[requirement],
     state: missing.includes(requirement) ? 'blocking' : 'met',
   }));
 
-  const blockedCount = requirementsForStep(currentStep, missing).length;
   const canAdvance = canLeaveStep(currentStep, missing);
 
   /**
@@ -289,6 +287,10 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
    * attach to, which is why the create has to have happened first.
    */
   async function persist({ saveAll = false }: { saveAll?: boolean } = {}): Promise<string | null> {
+    if (!versionReady) {
+      toast.error('Unable to determine the next version. Please try again.');
+      return null;
+    }
     try {
       let taskId = draft.taskId;
       let createdNow = taskId === null;
@@ -298,7 +300,6 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
           const updated = await updateTask.mutateAsync({
             customerId: draft.customerId,
             crimId: draft.crimId.trim(),
-            version: draft.version.trim(),
             priority: draft.priority,
             ...(currentStep === 'review' || saveAll
               ? { noteToReviewer: draft.remarks.trim() }
@@ -322,11 +323,16 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
         const created = await createTask.mutateAsync({
           customerId: draft.customerId,
           crimId: draft.crimId.trim(),
-          version: draft.version.trim(),
           priority: draft.priority,
         });
         taskId = created.id;
-        draft.setTaskId(created.id, created.taskCode, created.createdAt, created.submittedAt);
+        draft.hydrate({
+          taskId: created.id,
+          taskCode: created.taskCode,
+          version: created.version ?? '',
+          createdAt: created.createdAt,
+          submittedAt: created.submittedAt,
+        });
       }
 
       // A mutation hook created before POST still points at an empty task id, so
@@ -354,10 +360,7 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
         ) {
           latest.hydrate({
             taskTypeIds: saved.taskTypeIds,
-            answers: saved.answers.map(({ questionId, answer }) => ({
-              questionId,
-              answer,
-            })),
+            answers: saved.answers.map(({ questionId, answer }) => ({ questionId, answer })),
             remarks: saved.remarks,
           });
         }
@@ -413,6 +416,8 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
 
     try {
       const submitted = await submitTask.mutateAsync();
+      // No `draft.reset()` here: clearing the store before navigation re-renders
+      // this wizard against an empty draft. `SubmissionConfirmedPage` clears it.
       // `replace`, so browser Back from the confirmation returns to My Tasks
       // rather than to a review step for a task that has already gone.
       void navigate(ROUTES.developer.newTaskStep('confirmed'), {
@@ -441,28 +446,53 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
     }
   }
 
+  const requiredFieldsMissing =
+    currentStep === 'details'
+      ? (draft.customerId === '' ? 1 : 0) + (draft.crimId.trim() === '' ? 1 : 0)
+      : requirementsForStep(currentStep, missing).length;
+
   const statusLine =
     currentStep === 'review' && missing.length === 0 ? (
       <span className="flex items-center gap-1.5 text-sm font-medium text-success">
         <CheckCircle2 className="size-4" aria-hidden="true" />
         {tasks.wizard.status.allRequirementsMet}
       </span>
-    ) : blockedCount > 0 ? (
+    ) : currentStep === 'checklist' ? (
+      draft.taskTypeIds.length === 0 ? (
+        <span className="flex items-center gap-1.5 text-sm font-medium text-warning">
+          <AlertCircle className="size-4" aria-hidden="true" />
+          {tasks.wizard.status.selectTaskType}
+        </span>
+      ) : unanswered > 0 ? (
+        <span className="flex items-center gap-1.5 text-sm font-medium text-warning">
+          <AlertCircle className="size-4" aria-hidden="true" />
+          {interpolate(
+            unanswered === 1
+              ? tasks.wizard.status.questionsUnanswered
+              : tasks.wizard.status.questionsUnansweredPlural,
+            { count: unanswered },
+          )}
+        </span>
+      ) : progress.isComplete ? (
+        <span className="flex items-center gap-1.5 text-sm font-medium text-success">
+          <CheckCircle2 className="size-4" aria-hidden="true" />
+          {tasks.wizard.status.allChecklistCompleted}
+        </span>
+      ) : null
+    ) : currentStep === 'details' && requiredFieldsMissing === 0 && nextVersion.isError ? (
       <span className="flex items-center gap-1.5 text-sm font-medium text-warning">
         <AlertCircle className="size-4" aria-hidden="true" />
-        {currentStep === 'checklist' && unanswered > 0
-          ? interpolate(
-              unanswered === 1
-                ? tasks.wizard.status.questionsUnanswered
-                : tasks.wizard.status.questionsUnansweredPlural,
-              { count: unanswered },
-            )
-          : interpolate(
-              blockedCount === 1
-                ? tasks.wizard.status.requiredRemaining
-                : tasks.wizard.status.requiredRemainingPlural,
-              { count: blockedCount },
-            )}
+        Unable to determine the next version. Please try again.
+      </span>
+    ) : currentStep === 'details' && requiredFieldsMissing > 0 ? (
+      <span className="flex items-center gap-1.5 text-sm font-medium text-warning">
+        <AlertCircle className="size-4" aria-hidden="true" />
+        {interpolate(
+          requiredFieldsMissing === 1
+            ? tasks.wizard.status.requiredRemaining
+            : tasks.wizard.status.requiredRemainingPlural,
+          { count: requiredFieldsMissing },
+        )}
       </span>
     ) : null;
 
@@ -480,7 +510,7 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
             className="size-3.5 text-ink-500 transition-transform duration-150 group-hover:-translate-x-0.5"
             aria-hidden="true"
           />
-          {isEditMode ? 'Back to Task Details' : 'Back to Dashboard'}
+          {isEditMode ? 'Back to Task Overview' : 'Back to Dashboard'}
         </button>
       </div>
 
@@ -501,25 +531,30 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:items-stretch">
         <div className="h-full">
-          {currentStep === 'details' ? <WizardDetailsStep showErrors={showErrors} /> : null}
+          {currentStep === 'details' ? (
+            <WizardDetailsStep
+              className="h-full"
+              showErrors={showErrors}
+              version={displayedVersion}
+              versionPending={isVersionChecking}
+              versionError={isVersionError}
+              identityLocked={isPersistedDraft}
+              title={isEditMode ? existingTask?.title : nextVersion.data?.title}
+            />
+          ) : null}
           {currentStep === 'checklist' ? <WizardChecklistStep /> : null}
           {currentStep === 'review' ? <WizardReviewStep /> : null}
         </div>
 
-        <div className="flex flex-col space-y-5">
+        <div className="h-full">
           {currentStep === 'details' ? (
-            <>
-              <Card>
-                <CardHeader
-                  title={tasks.wizard.blockedTitle}
-                  icon={<ListChecks className="size-4 text-violet-600" />}
-                />
-                <CardBody className="pt-3">
-                  <RequirementList requirements={requirements} />
-                </CardBody>
-              </Card>
-              <SystemInformationPanel className="flex-1" />
-            </>
+            <TaskSummaryCard
+              className="h-full"
+              requirements={requirements}
+              version={displayedVersion}
+              versionPending={isVersionChecking}
+              title={isEditMode ? existingTask?.title : nextVersion.data?.title}
+            />
           ) : null}
           {currentStep === 'checklist' ? <ChecklistSidePanels /> : null}
           {currentStep === 'review' ? <ReviewSidePanels /> : null}
@@ -544,17 +579,7 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
             >
               {tasks.wizard.backTo[stepIndex === 1 ? 'details' : 'checklist']}
             </Button>
-          ) : (
-            <Button
-              variant="ghost"
-              disabled={isBusy}
-              leadingIcon={<ArrowLeft className="size-4" aria-hidden="true" />}
-              onClick={handleReturnToContext}
-              className="text-ink-600 hover:text-ink-900"
-            >
-              {isEditMode ? 'Back to Task Details' : 'Back to Dashboard'}
-            </Button>
-          )}
+          ) : null}
 
           <Button
             variant="ghost"
@@ -580,7 +605,7 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
             isLoading={isBusy}
             // Saving needs enough to create a task: the server derives the title
             // and the task code from exactly these fields.
-            disabled={draft.customerId === '' || draft.crimId.trim() === ''}
+            disabled={draft.customerId === '' || draft.crimId.trim() === '' || !versionReady}
           >
             {tasks.wizard.saveDraft}
           </Button>
@@ -603,7 +628,7 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
               }}
               isLoading={isBusy}
               trailingIcon={<ArrowRight className="size-4" aria-hidden="true" />}
-              aria-disabled={!canAdvance}
+              aria-disabled={!canAdvance || !versionReady}
             >
               {tasks.wizard.nextTo[currentStep === 'details' ? 'checklist' : 'review']}
             </Button>

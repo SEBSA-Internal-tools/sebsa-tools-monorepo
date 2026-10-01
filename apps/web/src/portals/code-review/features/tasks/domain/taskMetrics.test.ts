@@ -10,6 +10,7 @@ function review(overrides: Partial<Review> = {}): Review {
     reviewCycle: 1,
     reviewerId: 'u-reviewer',
     reviewerName: 'Reviewer',
+    comments: [],
     generalCheck: [],
     findings: {
       incorrectCode: '',
@@ -39,6 +40,8 @@ function task(status: TaskStatus, reviewCycle = 1): TaskListItem {
     priority: 'Medium',
     status,
     reviewCycle,
+    historicalCycle: reviewCycle,
+    adjustedCycles: [],
     developerId: 'u-dev',
     reviewerId: null,
     taskTypeIds: ['tt-customization'],
@@ -120,14 +123,6 @@ describe('taskMetrics', () => {
     expect(metrics.approvalRate).toBe(100);
   });
 
-  it('treats Delivered as approved', () => {
-    const metrics = taskMetrics([task('Delivered'), task('InReview')]);
-
-    expect(metrics.approved).toBe(1);
-    expect(metrics.submitted).toBe(2);
-    expect(metrics.approvalRate).toBe(50);
-  });
-
   it('averages cycles over approved tasks only', () => {
     // The In Review task sits at cycle 5 and must not skew the average, which
     // describes how many rounds approval took.
@@ -165,7 +160,7 @@ describe('taskMetrics', () => {
      */
     const metrics = taskMetrics([
       task('Approved', 1),
-      task('Delivered', 2),
+      task('Approved', 2),
       task('InReview', 3),
       task('ChangesRequested', 4),
       task('Cancelled', 5),

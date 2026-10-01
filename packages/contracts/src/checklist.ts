@@ -26,28 +26,12 @@ export type TaskTypeRecord = z.infer<typeof taskTypeRecordSchema>;
 /* Checklist template — the question bank                                      */
 /* -------------------------------------------------------------------------- */
 
-/**
- * A question belongs to one Category and declares which Task Types it applies
- * to (spec FL 2.6-01).
- *
- * The applicability lives on the QUESTION, not on the category. Unit Testing's
- * four questions and Completion's three are shared verbatim by all five task
- * types; Configurations' single question by two of them. Putting `appliesTo` on
- * the category would have forced a category to be all-or-nothing per task type,
- * so Unit Testing could never gain a Customization-only question without being
- * cloned. Putting it on the question keeps one row per question — edit the
- * wording once and every task type sees it.
- *
- * Modelled as real rows rather than JSONB because Reports needs per-question
- * aggregation (plan §2.4).
- */
+/** A question belongs to exactly one category. Its category owns applicability. */
 export const checklistQuestionSchema = z.object({
   id: idSchema,
   categoryId: idSchema,
   text: z.string().min(1),
   order: z.number().int().min(0),
-  /** Task type ids this question renders for. Never empty. */
-  appliesTo: z.array(taskTypeIdSchema).min(1),
   isActive: z.boolean(),
 });
 export type ChecklistQuestion = z.infer<typeof checklistQuestionSchema>;
@@ -55,9 +39,8 @@ export type ChecklistQuestion = z.infer<typeof checklistQuestionSchema>;
 /**
  * A grouping label with an order — "Reservation", "Code", "Unit Testing".
  *
- * The category itself has no task-type opinion. It appears for a task type when
- * at least one of its questions does, which is what makes the same nine
- * categories serve five different question sets.
+ * A category applies to one or more task types. Every active question in it
+ * inherits that applicability.
  *
  * The specification calls this a "section"; the business calls it a Category and
  * administers it. Same concept, and the wizard keeps the wireframe's
@@ -68,6 +51,7 @@ export const checklistCategorySchema = z.object({
   name: z.string().min(1),
   order: z.number().int().min(0),
   isActive: z.boolean(),
+  applicableTaskTypeIds: z.array(taskTypeIdSchema).min(1),
   questions: z.array(checklistQuestionSchema),
 });
 export type ChecklistCategory = z.infer<typeof checklistCategorySchema>;
@@ -86,13 +70,13 @@ export type ChecklistCategory = z.infer<typeof checklistCategorySchema>;
  * it is built. Worth stating plainly because it turns a compile-time constant
  * into runtime data, which is a larger change than it looks.
  *
- * `order` is optional on create: omitting it appends to the end of its group,
- * which is what an admin adding a question almost always wants.
+ * Categories and questions may be appended by their creation endpoints. Task
+ * type order is deliberately excluded: it is managed only by the full-list
+ * reorder endpoint, which keeps the sequence dense and unique.
  */
 
 export const createTaskTypeInputSchema = z.object({
   name: z.string().trim().min(1, 'Name is required'),
-  order: z.number().int().min(0).optional(),
 });
 export type CreateTaskTypeInput = z.infer<typeof createTaskTypeInputSchema>;
 
@@ -103,6 +87,7 @@ export type UpdateTaskTypeInput = z.infer<typeof updateTaskTypeInputSchema>;
 
 export const createChecklistCategoryInputSchema = z.object({
   name: z.string().trim().min(1, 'Name is required'),
+  applicableTaskTypeIds: z.array(taskTypeIdSchema).min(1, 'Select at least one task type'),
   order: z.number().int().min(0).optional(),
 });
 export type CreateChecklistCategoryInput = z.infer<typeof createChecklistCategoryInputSchema>;
@@ -132,11 +117,6 @@ export type DuplicateOrderStrategy = z.infer<typeof duplicateOrderStrategySchema
 export const createChecklistQuestionInputSchema = z.object({
   categoryId: idSchema.min(1, 'Select a category'),
   text: z.string().trim().min(1, 'Enter the question'),
-  /**
-   * Never empty. A question that applies to no task type would be invisible to
-   * every developer while still occupying the bank — a silent no-op row.
-   */
-  appliesTo: z.array(taskTypeIdSchema).min(1, 'Select at least one task type'),
   order: z.number().int().min(0).optional(),
   /** Only meaningful alongside an explicit `order`. See the enum above. */
   onDuplicateOrder: duplicateOrderStrategySchema.optional(),
@@ -227,6 +207,33 @@ export const taskChecklistSchema = z.object({
   developerId: idSchema,
 });
 export type TaskChecklist = z.infer<typeof taskChecklistSchema>;
+
+/** An immutable, self-contained checklist captured at submit time. */
+export const checklistSubmissionSchema = z.object({
+  id: idSchema,
+  taskId: idSchema,
+  version: z.number().int().min(1),
+  submittedAt: isoDateTimeSchema,
+  developerId: idSchema,
+  taskTypes: z.array(z.object({ id: idSchema, name: z.string().min(1) })),
+  categories: z.array(
+    z.object({
+      categoryId: idSchema,
+      categoryName: z.string().min(1),
+      categoryOrder: z.number().int().min(0),
+      questions: z.array(
+        z.object({
+          questionId: idSchema,
+          questionText: z.string().min(1),
+          questionOrder: z.number().int().min(0),
+          answer: checklistAnswerSchema,
+        }),
+      ),
+    }),
+  ),
+  remarks: z.string(),
+});
+export type ChecklistSubmission = z.infer<typeof checklistSubmissionSchema>;
 
 /**
  * What the developer submits from wizard step 2.

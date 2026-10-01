@@ -38,10 +38,7 @@ export function useAdminChecklistTemplate() {
   return useQuery({
     queryKey: checklistAdminKeys.template,
     queryFn: ({ signal }) =>
-      api.get('/checklist-template', templateSchema, {
-        signal,
-        searchParams: { scope: 'all' },
-      }),
+      api.get('/checklist-template', templateSchema, { signal, searchParams: { scope: 'all' } }),
   });
 }
 
@@ -61,10 +58,7 @@ export function useAdminTaskTypes() {
   return useQuery({
     queryKey: checklistAdminKeys.taskTypes,
     queryFn: ({ signal }) =>
-      api.get('/task-types', taskTypesSchema, {
-        signal,
-        searchParams: { scope: 'all' },
-      }),
+      api.get('/task-types', taskTypesSchema, { signal, searchParams: { scope: 'all' } }),
   });
 }
 
@@ -73,15 +67,13 @@ function useTemplateMutation<TInput, TResult>(request: (input: TInput) => Promis
 
   return useMutation({
     mutationFn: request,
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: checklistAdminKeys.template,
-      });
-      void queryClient.invalidateQueries({
-        queryKey: checklistAdminKeys.taskTypes,
-      });
-      void queryClient.invalidateQueries({ queryKey: taskKeys.template() });
-      void queryClient.invalidateQueries({ queryKey: taskKeys.taskTypes() });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: checklistAdminKeys.template }),
+        queryClient.invalidateQueries({ queryKey: checklistAdminKeys.taskTypes }),
+        queryClient.invalidateQueries({ queryKey: taskKeys.template() }),
+        queryClient.invalidateQueries({ queryKey: taskKeys.taskTypes() }),
+      ]);
     },
   });
 }

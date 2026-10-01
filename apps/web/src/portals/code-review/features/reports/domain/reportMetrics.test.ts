@@ -30,7 +30,6 @@ const STATUS_LABELS: Record<TaskStatus, string> = {
   ChangesRequested: 'Changes Requested',
   ReSubmitted: 'Re-Submitted',
   Approved: 'Approved',
-  Delivered: 'Delivered',
   Cancelled: 'Cancelled',
 };
 
@@ -53,6 +52,8 @@ function task(overrides: Partial<TaskListItem> = {}): TaskListItem {
     priority: 'Medium',
     status: 'Submitted',
     reviewCycle: 1,
+    historicalCycle: 1,
+    adjustedCycles: [],
     developerId: 'u-dev',
     reviewerId: 'u-rev',
     taskTypeIds: ['tt-customization'],
@@ -80,6 +81,7 @@ function review(overrides: Partial<Review> = {}): Review {
     reviewCycle: 1,
     reviewerId: 'u-rev',
     reviewerName: 'Rev One',
+    comments: [],
     generalCheck: [],
     findings: {
       incorrectCode: '',

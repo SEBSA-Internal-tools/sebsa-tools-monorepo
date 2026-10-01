@@ -30,7 +30,7 @@ import { useCurrentUser } from '@/hooks/useCurrentUser.ts';
 import common from '@/content/common.json';
 import tasks from '@/content/tasks.json';
 import { checklistProgress, visibleCategories } from '../domain/checklistRules.ts';
-import { useChecklistTemplate, useCustomers, useTaskTypes } from '../api/queries.ts';
+import { useChecklistTemplate, useCustomers, useTask, useTaskTypes } from '../api/queries.ts';
 import { deriveTitle } from '../domain/taskRules.ts';
 import { findAnswer, useTaskDraft } from '../hooks/useTaskDraft.ts';
 
@@ -48,10 +48,12 @@ export function WizardReviewStep() {
   const { data: template } = useChecklistTemplate();
   const { data: user } = useCurrentUser();
   const { data: taskTypes } = useTaskTypes();
+  const { data: persistedTask } = useTask(paramTaskId ?? draft.taskId ?? undefined);
 
   const customer = customers?.find((c) => c.id === draft.customerId);
   const categories = visibleCategories(template ?? [], draft.taskTypeIds);
-  const derivedTitle = deriveTitle(customer?.name ?? '', draft.crimId, draft.version);
+  const derivedTitle =
+    persistedTask?.title ?? deriveTitle(customer?.code ?? '', draft.crimId, draft.version);
 
   const taskDetailRows = [
     {

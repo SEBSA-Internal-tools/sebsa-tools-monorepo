@@ -9,7 +9,10 @@ import {
   MAX_FEEDBACK_SUMMARY_CHARS,
 } from './enums.js';
 
-// General Check — spec §3.1, 13 fixed questions.
+/* -------------------------------------------------------------------------- */
+/* General Check — spec §3.1, 13 fixed questions                               */
+/* -------------------------------------------------------------------------- */
+
 export const generalCheckQuestionSchema = z.object({
   id: idSchema,
   text: z.string().min(1),
@@ -23,7 +26,10 @@ export const generalCheckEntrySchema = z.object({
 });
 export type GeneralCheckEntry = z.infer<typeof generalCheckEntrySchema>;
 
-// Screenshots — spec §2.9.2.6.
+/* -------------------------------------------------------------------------- */
+/* Screenshots — spec §2.9.2.6                                                 */
+/* -------------------------------------------------------------------------- */
+
 export const reviewScreenshotSchema = z.object({
   id: idSchema,
   fileName: z.string().min(1),
@@ -40,8 +46,29 @@ export const reviewScreenshotSchema = z.object({
 });
 export type ReviewScreenshot = z.infer<typeof reviewScreenshotSchema>;
 
-// Review — one row per cycle.
-/** The three Detailed Review Findings text areas from screen 12, §3.2. */
+/* -------------------------------------------------------------------------- */
+/* Review Comment — unified reviewer feedback entity                         */
+/* -------------------------------------------------------------------------- */
+
+export const reviewCommentSchema = z.object({
+  id: idSchema,
+  reviewId: idSchema.optional(),
+  reviewCycle: z.number().int().min(1),
+  reviewerId: idSchema.optional(),
+  reviewerName: z.string().optional(),
+  reviewSessionId: idSchema.optional(),
+  text: z.string().min(1, 'Enter feedback for this review comment.'),
+  screenshots: z.array(reviewScreenshotSchema).default([]),
+  createdAt: isoDateTimeSchema,
+  updatedAt: isoDateTimeSchema.optional(),
+});
+export type ReviewComment = z.infer<typeof reviewCommentSchema>;
+
+/* -------------------------------------------------------------------------- */
+/* Review — one row per cycle                                                  */
+/* -------------------------------------------------------------------------- */
+
+/** Legacy Detailed Review Findings text areas (preserved for historical compatibility). */
 export const reviewFindingsSchema = z.object({
   incorrectCode: z.string(),
   incompleteImplementation: z.string(),
@@ -53,15 +80,27 @@ export const reviewSchema = z.object({
   id: idSchema,
   taskId: idSchema,
   reviewCycle: z.number().int().min(1),
-  reviewerId: idSchema,
-  reviewerName: z.string(),
+  reviewerId: idSchema.nullable(),
+  reviewerName: z.string().nullable(),
+  currentReviewSessionId: idSchema.optional().nullable(),
 
-  generalCheck: z.array(generalCheckEntrySchema),
-  findings: reviewFindingsSchema,
-  otherRemarks: z.string(),
-  feedbackSummary: z.string().max(MAX_FEEDBACK_SUMMARY_CHARS),
+  /** Active unified reviewer feedback items. */
+  comments: z.array(reviewCommentSchema).default([]),
+
+  /** Legacy fields (with defaults for backwards compatibility with historical fixtures). */
+  generalCheck: z.array(generalCheckEntrySchema).default([]),
+  findings: reviewFindingsSchema.default({
+    incorrectCode: '',
+    incompleteImplementation: '',
+    sourceFormatting: '',
+  }),
+  otherRemarks: z.string().default(''),
+  feedbackSummary: z.string().max(MAX_FEEDBACK_SUMMARY_CHARS).default(''),
+  screenshots: z.array(reviewScreenshotSchema).default([]),
+
   rank: reviewRankSchema.nullable(),
-  screenshots: z.array(reviewScreenshotSchema),
+  previousFeedbackReviewNote: z.string().optional().nullable(),
+  previousFeedbackAcknowledged: z.boolean().optional().nullable(),
 
   /** Null while the review is still a draft (spec p.10: auto-saved draft). */
   decision: reviewDecisionSchema.nullable(),
@@ -72,55 +111,64 @@ export const reviewSchema = z.object({
 export type Review = z.infer<typeof reviewSchema>;
 
 /**
- * What the reviewer submits from screen 12.
- *
- * Deliberately permissive: the hard rules — every General Check item answered
- * (FL 2.9.2.4-01), findings required when any answer is Partially OK / Not OK
- * (FL 2.9.2.4-02), and Rank 2/3 requiring findings + a screenshot and blocking
- * Approve (FL 2.9.2.5-01) — are cross-field and depend on the chosen action.
- * They live in the domain layer so each produces its exact spec message.
+ * What the reviewer submits / autosaves.
  */
 export const reviewDraftSchema = z.object({
-  generalCheck: z.array(generalCheckEntrySchema),
-  findings: reviewFindingsSchema,
-  otherRemarks: z.string().trim().default(''),
-  feedbackSummary: z
-    .string()
-    .trim()
-    .max(
-      MAX_FEEDBACK_SUMMARY_CHARS,
-      `Summary must be ${MAX_FEEDBACK_SUMMARY_CHARS} characters or fewer`,
-    )
-    .default(''),
+  currentReviewSessionId: idSchema.optional().nullable(),
   rank: reviewRankSchema.nullable(),
+  comments: z.array(reviewCommentSchema).default([]),
+  previousFeedbackReviewNote: z.string().optional().nullable(),
+  previousFeedbackAcknowledged: z.boolean().optional().nullable(),
+
+  /** Legacy fields (with defaults for backwards compatibility). */
+  generalCheck: z.array(generalCheckEntrySchema).default([]),
+  findings: reviewFindingsSchema.default({
+    incorrectCode: '',
+    incompleteImplementation: '',
+    sourceFormatting: '',
+  }),
+  otherRemarks: z.string().trim().default(''),
+  feedbackSummary: z.string().trim().default(''),
 });
 export type ReviewDraft = z.infer<typeof reviewDraftSchema>;
 
-// Issue responses — the developer's reply to each finding (spec §1.5 p.11).
+/* -------------------------------------------------------------------------- */
+/* Issue responses — the developer's reply to each comment (single source of truth) */
+/* -------------------------------------------------------------------------- */
+
 export const issueResponseRecordSchema = z.object({
   id: idSchema,
   taskId: idSchema,
-  /** The cycle whose feedback is being answered. */
+  /** The immutable historical cycle whose feedback is being answered. */
   reviewCycle: z.number().int().min(1),
+  /** Foreign key linking to the ReviewComment. */
+  commentId: idSchema.optional().nullable(),
   /** Null when responding to the review as a whole rather than one screenshot. */
-  screenshotId: idSchema.nullable(),
+  screenshotId: idSchema.nullable().optional(),
   kind: issueResponseSchema,
   /** Mandatory when `kind` is "Rejected" (FL 2.11.2.3-01). */
   rejectionReason: z.string().nullable(),
-  /** The reviewer's ruling on a rejection (FL 2.11.2.3-02). */
+  /** The reviewer's ruling on a developer response (FL 2.11.2.3-02). */
   verdict: rejectionVerdictSchema,
+  /** Reviewer follow-up explanation or note (mandatory for negative verdicts: Not Resolved / Do Not Accept). */
+  reviewerComment: z.string().trim().nullable().optional(),
   respondedAt: isoDateTimeSchema,
+  adjudicatedAt: isoDateTimeSchema.optional().nullable(),
 });
 export type IssueResponseRecord = z.infer<typeof issueResponseRecordSchema>;
 
 export const issueResponseDraftSchema = z.object({
-  screenshotId: idSchema.nullable(),
+  commentId: idSchema.optional().nullable(),
+  screenshotId: idSchema.nullable().optional(),
   kind: issueResponseSchema,
   rejectionReason: z.string().trim().optional(),
 });
 export type IssueResponseDraft = z.infer<typeof issueResponseDraftSchema>;
 
-// Cycle history — screen 14 and the developer's Review Feedback History.
+/* -------------------------------------------------------------------------- */
+/* Cycle history — screen 14 and the developer's Review Feedback History       */
+/* -------------------------------------------------------------------------- */
+
 /** One past cycle, newest first (spec §1.5 p.11: descending order). */
 export const reviewHistoryEntrySchema = reviewSchema.extend({
   responses: z.array(issueResponseRecordSchema),

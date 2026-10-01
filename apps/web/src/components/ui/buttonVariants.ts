@@ -61,6 +61,14 @@ export const buttonVariants = cva(
     variants: {
       variant: {
         primary: 'bg-violet-600 text-white hover:bg-violet-700',
+        /** Moderate, accessible CTA used by Admin workflows without changing other workspaces. */
+        adminPrimary: [
+          'bg-brand-purple text-white shadow-xs',
+          'hover:brightness-95 active:brightness-90',
+          'focus-visible:outline-violet-600',
+          'disabled:bg-line-strong disabled:text-ink-500 disabled:opacity-100',
+          'aria-disabled:bg-line-strong aria-disabled:text-ink-500 aria-disabled:opacity-100',
+        ].join(' '),
         /** Brand ramp. Reserved for the single most important action on a page. */
         brand: 'bg-brand-gradient text-white shadow-card hover:opacity-95',
         /**

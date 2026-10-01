@@ -11,10 +11,7 @@ const DEVELOPER = 'u-hiruni';
 
 function renderMyTasks(initialEntry = '/crp/developer') {
   const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false, gcTime: 0 },
-      mutations: { retry: false },
-    },
+    defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } },
   });
   const router = createMemoryRouter(routes, { initialEntries: [initialEntry] });
 
@@ -39,6 +36,13 @@ describe('Developer Dashboard Summary Cards & Filter Interconnection', () => {
     signInForTest(DEVELOPER);
   });
 
+  it('renders task titles without a separate version tag', async () => {
+    renderMyTasks();
+    await screen.findByRole('table');
+
+    expect(screen.queryByTestId('version-tag')).not.toBeInTheDocument();
+  });
+
   it('renders summary cards with counts matching the actual task data', async () => {
     renderMyTasks();
     await screen.findByRole('table');
@@ -49,32 +53,22 @@ describe('Developer Dashboard Summary Cards & Filter Interconnection', () => {
       (t) => t.status === 'Submitted' || t.status === 'ReSubmitted' || t.status === 'InReview',
     ).length;
     const changesCount = ownTasks.filter((t) => t.status === 'ChangesRequested').length;
-    const approvedCount = ownTasks.filter(
-      (t) => t.status === 'Approved' || t.status === 'Delivered',
-    ).length;
+    const approvedCount = ownTasks.filter((t) => t.status === 'Approved').length;
 
     // Check Draft Card
-    const draftCard = await screen.findByRole('button', {
-      name: /draft tasks/i,
-    });
+    const draftCard = await screen.findByRole('button', { name: /draft tasks/i });
     expect(draftCard).toHaveTextContent(String(draftCount));
 
     // Check Submitted Card
-    const submittedCard = await screen.findByRole('button', {
-      name: /submitted tasks/i,
-    });
+    const submittedCard = await screen.findByRole('button', { name: /submitted tasks/i });
     expect(submittedCard).toHaveTextContent(String(submittedCount));
 
     // Check Changes Requested Card
-    const changesCard = await screen.findByRole('button', {
-      name: /changes requested/i,
-    });
+    const changesCard = await screen.findByRole('button', { name: /changes requested/i });
     expect(changesCard).toHaveTextContent(String(changesCount));
 
     // Check Approved Card
-    const approvedCard = await screen.findByRole('button', {
-      name: /approved/i,
-    });
+    const approvedCard = await screen.findByRole('button', { name: /approved/i });
     expect(approvedCard).toHaveTextContent(String(approvedCount));
   });
 
@@ -83,9 +77,7 @@ describe('Developer Dashboard Summary Cards & Filter Interconnection', () => {
     renderMyTasks();
     await screen.findByRole('table');
 
-    const draftCard = await screen.findByRole('button', {
-      name: /draft tasks/i,
-    });
+    const draftCard = await screen.findByRole('button', { name: /draft tasks/i });
     await user.click(draftCard);
 
     // Draft card should be active/pressed
@@ -107,9 +99,7 @@ describe('Developer Dashboard Summary Cards & Filter Interconnection', () => {
     renderMyTasks();
     await screen.findByRole('table');
 
-    const submittedCard = await screen.findByRole('button', {
-      name: /submitted tasks/i,
-    });
+    const submittedCard = await screen.findByRole('button', { name: /submitted tasks/i });
     await user.click(submittedCard);
 
     expect(submittedCard).toHaveAttribute('aria-pressed', 'true');
@@ -124,9 +114,7 @@ describe('Developer Dashboard Summary Cards & Filter Interconnection', () => {
     renderMyTasks();
     await screen.findByRole('table');
 
-    const changesCard = await screen.findByRole('button', {
-      name: /changes requested/i,
-    });
+    const changesCard = await screen.findByRole('button', { name: /changes requested/i });
     await user.click(changesCard);
 
     expect(changesCard).toHaveAttribute('aria-pressed', 'true');
@@ -146,9 +134,7 @@ describe('Developer Dashboard Summary Cards & Filter Interconnection', () => {
     renderMyTasks();
     await screen.findByRole('table');
 
-    const approvedCard = await screen.findByRole('button', {
-      name: /approved/i,
-    });
+    const approvedCard = await screen.findByRole('button', { name: /approved/i });
     await user.click(approvedCard);
 
     expect(approvedCard).toHaveAttribute('aria-pressed', 'true');
@@ -157,7 +143,7 @@ describe('Developer Dashboard Summary Cards & Filter Interconnection', () => {
     const rows = getRows();
     expect(rows.length).toBeGreaterThan(0);
     for (const row of rows) {
-      expect(within(row).getByText(/Approved|Delivered/)).toBeInTheDocument();
+      expect(within(row).getByText('Approved')).toBeInTheDocument();
     }
   });
 
@@ -166,9 +152,7 @@ describe('Developer Dashboard Summary Cards & Filter Interconnection', () => {
     renderMyTasks();
     await screen.findByRole('table');
 
-    const draftCard = await screen.findByRole('button', {
-      name: /draft tasks/i,
-    });
+    const draftCard = await screen.findByRole('button', { name: /draft tasks/i });
     const initialRowCount = getRows().length;
 
     // Click to select
@@ -188,9 +172,7 @@ describe('Developer Dashboard Summary Cards & Filter Interconnection', () => {
     renderMyTasks();
     await screen.findByRole('table');
 
-    const draftCard = await screen.findByRole('button', {
-      name: /draft tasks/i,
-    });
+    const draftCard = await screen.findByRole('button', { name: /draft tasks/i });
     expect(draftCard).toHaveAttribute('aria-pressed', 'false');
 
     // Open status dropdown and select Draft
@@ -219,9 +201,7 @@ describe('Developer Dashboard Summary Cards & Filter Interconnection', () => {
     const initialRowCount = getRows().length;
 
     // Select Changes Requested card
-    const changesCard = await screen.findByRole('button', {
-      name: /changes requested/i,
-    });
+    const changesCard = await screen.findByRole('button', { name: /changes requested/i });
     await user.click(changesCard);
     expect(changesCard).toHaveAttribute('aria-pressed', 'true');
 
@@ -248,15 +228,11 @@ describe('Developer Dashboard Summary Cards & Filter Interconnection', () => {
     await screen.findByText('AIM-002');
 
     // 1. Select Draft Tasks card
-    const draftCard = await screen.findByRole('button', {
-      name: /draft tasks/i,
-    });
+    const draftCard = await screen.findByRole('button', { name: /draft tasks/i });
     await user.click(draftCard);
 
     // 2. Type search text
-    const searchInput = screen.getByRole('searchbox', {
-      name: /search tasks/i,
-    });
+    const searchInput = screen.getByRole('searchbox', { name: /search tasks/i });
     await user.type(searchInput, 'AIM');
 
     const rows = getRows();

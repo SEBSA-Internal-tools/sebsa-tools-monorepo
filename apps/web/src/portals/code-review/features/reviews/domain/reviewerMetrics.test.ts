@@ -27,6 +27,7 @@ function review(overrides: Partial<Review> = {}): Review {
     reviewCycle: 1,
     reviewerId: 'u-reviewer',
     reviewerName: 'Reviewer',
+    comments: [],
     generalCheck: [],
     findings: {
       incorrectCode: '',
@@ -67,6 +68,8 @@ function task(overrides: Partial<TaskListItem> = {}): TaskListItem {
     priority: 'Medium',
     status: 'Approved',
     reviewCycle: 1,
+    historicalCycle: 1,
+    adjustedCycles: [],
     developerId: 'u-dev',
     reviewerId: 'u-reviewer',
     taskTypeIds: ['tt-customization'],

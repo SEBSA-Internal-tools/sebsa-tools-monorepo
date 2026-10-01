@@ -27,7 +27,6 @@ const STATUS_CLASSES: Record<TaskStatus, string> = {
     'bg-status-changes-requested-surface text-status-changes-requested border-amber-200/50',
   ReSubmitted: 'bg-status-re-submitted-surface text-status-re-submitted border-indigo-200/50',
   Approved: 'bg-status-approved-surface text-status-approved border-emerald-200/50',
-  Delivered: 'bg-status-delivered-surface text-status-delivered border-teal-200/50',
   Cancelled: 'bg-status-cancelled-surface text-status-cancelled border-rose-200/50',
 };
 
@@ -115,22 +114,54 @@ export function CustomerChip({
 /* -------------------------------------------------------------------------- */
 
 const ROLE_CLASSES: Record<Role, string> = {
-  Developer: 'bg-brand-blue-100 text-brand-blue-700',
-  Reviewer: 'bg-emerald-100 text-emerald-700',
-  Admin: 'bg-violet-100 text-violet-700',
+  Developer: 'bg-brand-blue-100 text-brand-blue-700 border-brand-blue-700',
+  Reviewer: 'bg-emerald-100 text-emerald-700 border-emerald-700',
+  Admin: 'bg-violet-100 text-violet-700 border-violet-700',
+  SuperAdmin: 'bg-purple-100 text-purple-800 border-purple-800',
 };
 
-/** Internal: callers want `RoleBadges`, which renders the user's whole set. */
-function RoleBadge({ role, className }: { role: Role; className?: string }) {
-  return <span className={cn(BADGE_BASE, ROLE_CLASSES[role], className)}>{common.role[role]}</span>;
+const ROLE_BADGE_BASE =
+  'inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap border leading-tight';
+
+export interface RoleBadgeProps {
+  role: Role;
+  className?: string;
+  size?: 'sm' | 'md';
+}
+
+/**
+ * A single role badge (Developer, Reviewer, Admin, Super Admin).
+ * Shared uniform geometry across all roles; only semantic color tokens differ.
+ */
+export function RoleBadge({ role, size = 'sm', className }: RoleBadgeProps) {
+  return (
+    <span
+      className={cn(
+        ROLE_BADGE_BASE,
+        size === 'md' && 'px-2.5 py-0.5 text-xs',
+        ROLE_CLASSES[role],
+        className,
+      )}
+    >
+      {common.role[role]}
+    </span>
+  );
 }
 
 /** The role set as rendered in the Users table — one badge per role. */
-export function RoleBadges({ roles, className }: { roles: readonly Role[]; className?: string }) {
+export function RoleBadges({
+  roles,
+  size = 'sm',
+  className,
+}: {
+  roles: readonly Role[];
+  size?: 'sm' | 'md';
+  className?: string;
+}) {
   return (
-    <span className={cn('inline-flex flex-wrap gap-1', className)}>
+    <span className={cn('inline-flex flex-wrap items-center gap-1', className)}>
       {roles.map((role) => (
-        <RoleBadge key={role} role={role} />
+        <RoleBadge key={role} role={role} size={size} />
       ))}
     </span>
   );
@@ -150,8 +181,88 @@ export function CycleBadge({ cycle, className }: { cycle: number; className?: st
   return (
     <span
       className={cn(BADGE_BASE, 'border-violet-200/60 bg-violet-100/80 text-violet-700', className)}
+      title={`Counted Cycle: ${cycle}`}
     >
       {common.badges.cycle} {cycle}
+    </span>
+  );
+}
+
+/**
+ * Badge representing the current sequential review round in the task lifecycle.
+ */
+export function ReviewRoundBadge({ round, className }: { round: number; className?: string }) {
+  return (
+    <span
+      data-testid="version-tag"
+      className={cn(
+        BADGE_BASE,
+        'border-violet-200/70 bg-violet-100/90 font-semibold text-violet-700',
+        className,
+      )}
+      title="The current review round. Historical review records preserve their original round numbers."
+    >
+      Round {round}
+    </span>
+  );
+}
+
+/**
+ * Badge representing the counted cycle used for developer performance.
+ */
+export function CountedCycleBadge({
+  counted,
+  adjustment = 0,
+  className,
+}: {
+  counted: number;
+  adjustment?: number;
+  className?: string;
+}) {
+  const tooltip =
+    adjustment > 0
+      ? `The cycle count used for developer performance (${counted}). Reduced by ${adjustment} because all developer rejections were accepted.`
+      : 'The cycle count used for developer performance. This may be lower if a review cycle was excluded after all rejected comments were accepted.';
+
+  return (
+    <span
+      className={cn(
+        BADGE_BASE,
+        'border-sky-200/70 bg-sky-100/90 font-semibold text-sky-800',
+        className,
+      )}
+      title={tooltip}
+    >
+      Counted {counted}
+    </span>
+  );
+}
+
+/**
+ * Two visually distinct compact badges rendering Review Round and Counted Cycle side-by-side.
+ */
+export function ReviewCycleBadges({
+  round,
+  counted,
+  className,
+}: {
+  round: number;
+  counted: number;
+  className?: string;
+}) {
+  const adjustment = Math.max(0, round - counted);
+  return (
+    <span className={cn('inline-flex items-center gap-1.5', className)}>
+      <ReviewRoundBadge round={round} />
+      <CountedCycleBadge counted={counted} adjustment={adjustment} />
+      {adjustment > 0 ? (
+        <span
+          className="inline-flex items-center rounded-md border border-emerald-200/70 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 shadow-2xs"
+          title={`A qualifying review round was excluded from the effective count (-${adjustment}). See Task History for cycle adjustment details.`}
+        >
+          Adjusted (-{adjustment})
+        </span>
+      ) : null}
     </span>
   );
 }

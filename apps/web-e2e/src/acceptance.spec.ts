@@ -92,12 +92,24 @@ async function openWorkspace(page: Page, workspace: 'Developer' | 'Reviewer' | '
     .click();
 }
 
-async function answerAllGeneralCheck(page: Page, answer: string) {
-  const groups = page.locator('[role="radiogroup"]').filter({ hasText: 'Partially OK' });
-  await expect(groups).toHaveCount(13);
-  for (let i = 0; i < 13; i += 1) {
-    await groups.nth(i).getByRole('radio', { name: answer, exact: true }).click();
-  }
+/** Adds one review comment on the reviewer assessment. */
+async function addComment(page: Page, text: string) {
+  await page
+    .getByRole('button', { name: /add comment/i })
+    .first()
+    .click();
+  await page
+    .getByPlaceholder(/describe the actionable issue/i)
+    .last()
+    .fill(text);
+}
+
+/** Opens the decision, confirms it in the dialog, and waits for the success state. */
+async function confirmDecision(page: Page, action: RegExp, outcome: string) {
+  await page.getByRole('button', { name: action }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('button', { name: action }).click();
+  await expect(dialog.getByText(outcome, { exact: true })).toBeVisible();
 }
 
 async function scan(page: Page) {
@@ -134,8 +146,10 @@ test.describe('Phase 1 acceptance', () => {
     await page.getByRole('combobox', { name: /customer/i }).click();
     await page.getByRole('option', { name: 'AASL' }).click();
     await page.getByLabel(/crim id/i).fill('CRIM-ACCEPT-1');
-    // FL 2.5-01: the title is derived, never typed.
-    await expect(page.getByLabel(/^title/i)).toHaveValue('AASL - CRIM-ACCEPT-1');
+    // FL 2.5-01: the title is derived (customer-CRIM-version), never typed.
+    const title = page.getByLabel('Generated Title');
+    await expect(title).toHaveValue(/^AASL-CRIM-ACCEPT-1-\d+$/);
+    await expect(title).not.toBeEditable();
 
     await expect(next).toBeEnabled();
     await next.click();
@@ -189,12 +203,14 @@ test.describe('Phase 1 acceptance', () => {
       .click();
     await page.waitForURL(/\/reviewer\/tasks\//);
 
-    await page.getByRole('link', { name: /^back$/i }).click();
-    await page.getByRole('table').waitFor();
-    await expect(page.getByText(firstCode)).toHaveCount(0);
+    // Once picked, the task is the reviewer's, so Back returns to where it now lives.
+    await page.getByRole('link', { name: /^back to my review tasks$/i }).click();
+    await page.waitForURL(/\/reviewer\/my-tasks/);
+    await expect(page.getByRole('cell', { name: firstCode, exact: true })).toBeVisible();
 
-    await page.getByRole('link', { name: /my review tasks/i }).click();
-    await expect(page.getByText(firstCode)).toBeVisible();
+    await page.getByRole('link', { name: /^available tasks/i }).click();
+    await page.getByRole('table').waitFor();
+    await expect(page.getByRole('cell', { name: firstCode, exact: true })).toHaveCount(0);
   });
 
   /**
@@ -202,55 +218,54 @@ test.describe('Phase 1 acceptance', () => {
    * (FL 2.9.2.6-01), then Request Changes, then the cycle increment.
    */
   test('4 · Rank 2 blocks Approve, and Request Changes increments the cycle', async ({ page }) => {
-    // Thirteen General Check answers, a file upload and a decision. It finishes
-    // in ~10s alone but the suite runs four workers against one dev server, and
-    // under that contention it exceeds the 30s default. `slow()` triples the
-    // budget for this test only — the honest alternative to raising the global
-    // timeout and slowing every failure down with it.
+    // A review, a screenshot and a confirmed decision under four parallel
+    // workers; `slow()` triples the budget for this test only.
     test.slow();
     await signIn(page, REVIEWER.email);
     await page.goto('/crp/reviewer');
     await page.getByRole('table').waitFor();
+
+    // A clean cycle-1 task raised by someone else, so the outcome is predictable.
+    const code = 'AIM-004';
+    await page.getByRole('searchbox', { name: /search/i }).fill(code);
     await page
+      .getByRole('row')
+      .filter({ hasText: code })
       .getByRole('button', { name: /pick .* for review/i })
-      .first()
       .click();
     await page.waitForURL(/\/reviewer\/tasks\//);
-
-    await answerAllGeneralCheck(page, 'OK');
-    await page.getByLabel(/incorrect code and performance/i).fill('Cancellation path is missing.');
-    await page.getByLabel(/summary comments/i).fill('Needs another pass.');
+    await page.getByRole('heading', { name: /reviewer assessment/i }).waitFor();
 
     await page.getByRole('radio', { name: /rank 2/i }).click();
 
-    // Approve is gone, and the screen says why — a silently disabled button
-    // reads as a bug rather than as a rule.
+    // Approve is gone at a defect rank.
     await expect(page.getByRole('button', { name: /approve task/i })).toBeDisabled();
-    await expect(page.getByText(/approve is not available at rank 2 or rank 3/i)).toBeVisible();
 
-    // Request Changes still wants evidence at a defect rank.
-    const requestChanges = page.getByRole('button', {
-      name: /request changes/i,
-    });
+    // Request Changes wants evidence: at least one written review comment, and
+    // the screen says so rather than leaving a silently disabled button.
+    const requestChanges = page.getByRole('button', { name: /request changes/i });
     await expect(requestChanges).toBeDisabled();
-    await expect(page.getByText(/attach at least one screenshot/i)).toBeVisible();
+    await expect(page.getByText(/review comments required/i)).toBeVisible();
 
-    await page.locator('input[type="file"]').setInputFiles({
+    await addComment(page, 'Cancellation path is missing.');
+    // A screenshot is optional supporting evidence on a comment.
+    await page.locator('input[type="file"]').first().setInputFiles({
       name: 'defect.png',
       mimeType: 'image/png',
       buffer: PNG_BYTES,
     });
 
     await expect(requestChanges).toBeEnabled();
-    await requestChanges.click();
-    await expect(page).toHaveURL(/\/reviewer$/);
+    await confirmDecision(page, /request changes/i, 'Changes Requested');
+    // The success state moves to Review History on its own (850ms); clicking its
+    // button races that redirect, so wait for the destination instead.
+    await page.waitForURL(/\/reviewer\/history/);
 
     // The cycle incremented — the one thing Request Changes does that Approve
     // does not (spec p.10).
-    await page.getByRole('link', { name: /review history/i }).click();
-    await page.getByRole('table').waitFor();
-    await expect(page.getByRole('table')).toContainText('Changes Requested');
-    await expect(page.getByRole('table').getByText('2', { exact: true }).first()).toBeVisible();
+    const row = page.getByRole('row').filter({ hasText: code });
+    await expect(row).toContainText('Changes Requested');
+    await expect(row.getByRole('cell', { name: '2', exact: true })).toBeVisible();
   });
 
   /**
@@ -286,17 +301,12 @@ test.describe('Phase 1 acceptance', () => {
       .click();
     await page.waitForURL(/\/reviewer\/tasks\//);
 
-    await answerAllGeneralCheck(page, 'OK');
-    await page.getByLabel(/incorrect code and performance/i).fill('The rollback branch is wrong.');
-    await page.getByLabel(/summary comments/i).fill('One issue to address.');
+    const findingText = 'The rollback branch is wrong.';
+    await page.getByRole('heading', { name: /reviewer assessment/i }).waitFor();
     await page.getByRole('radio', { name: /rank 2/i }).click();
-    await page.locator('input[type="file"]').setInputFiles({
-      name: 'defect.png',
-      mimeType: 'image/png',
-      buffer: PNG_BYTES,
-    });
-    await page.getByRole('button', { name: /request changes/i }).click();
-    await expect(page).toHaveURL(/\/reviewer$/);
+    await addComment(page, findingText);
+    await confirmDecision(page, /request changes/i, 'Changes Requested');
+    await page.waitForURL(/\/reviewer\/history/);
 
     // Hand over to the developer who raised it — no reload, so the review the
     // reviewer just submitted is still in the store.
@@ -310,7 +320,12 @@ test.describe('Phase 1 acceptance', () => {
 
     // Reject without a reason: refused, in the words the spec mandates
     // (FL 2.11.2.3-01).
-    const finding = page.getByRole('listitem').filter({ hasText: /detailed review findings/i });
+    // The finding card is the innermost block holding both the reviewer's text and its Reject action.
+    const finding = page
+      .locator('div')
+      .filter({ hasText: findingText })
+      .filter({ has: page.getByRole('button', { name: /^reject$/i }) })
+      .last();
     await finding.getByRole('button', { name: /^reject$/i }).click();
     await finding.getByRole('button', { name: /save rejection/i }).click();
 
@@ -359,9 +374,12 @@ test.describe('Phase 1 acceptance', () => {
     const row = page.getByRole('row').filter({ hasText: 'SEMCO-012' });
     await row.getByRole('button', { name: /cancel SEMCO-012/i }).click();
 
-    // Nothing changes until the confirmation is answered.
+    // Nothing changes until the confirmation is answered, with a reason.
     await expect(page.getByText(/cancel this task\?/i)).toBeVisible();
-    await page.getByRole('button', { name: /^cancel task$/i }).click();
+    const confirm = page.getByRole('button', { name: /^cancel task$/i });
+    await expect(confirm).toBeDisabled();
+    await page.getByLabel(/reason for cancellation/i).fill('Withdrawn by the customer.');
+    await confirm.click();
 
     await expect(row.getByText('Cancelled')).toBeVisible();
     // And a cancelled task can no longer be cancelled again.

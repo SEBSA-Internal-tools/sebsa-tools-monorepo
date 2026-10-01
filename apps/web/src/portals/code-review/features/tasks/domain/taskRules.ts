@@ -1,4 +1,4 @@
-import { taskDraftSchema, type TaskDraft } from '@sdp/contracts';
+import { deriveTaskTitle, taskDraftSchema, type TaskDraft } from '@sdp/contracts';
 
 /**
  * Rules for creating and submitting a review task.
@@ -14,18 +14,14 @@ import { taskDraftSchema, type TaskDraft } from '@sdp/contracts';
 /* -------------------------------------------------------------------------- */
 
 /**
- * `Customer - CRIM ID[ Version]`, e.g. "AASL - CRIM-848 V1".
+ * `CustomerCode-CRIM ID-Version`, e.g. "AASL-CRIM-848-1".
  *
  * Derived, never typed: the title column in every grid has to stay parseable,
  * and a free-text title would drift from the CRIM ID it is supposed to name.
  * Inputs are trimmed because a trailing space in the CRIM field would otherwise
  * become a permanent part of the record.
  */
-export function deriveTitle(customerName: string, crimId: string, version?: string | null): string {
-  const base = `${customerName.trim()} - ${crimId.trim()}`;
-  const suffix = version?.trim() ?? '';
-  return suffix === '' ? base : `${base} ${suffix}`;
-}
+export const deriveTitle = deriveTaskTitle;
 
 /* -------------------------------------------------------------------------- */
 /* Requirements                                                                */
@@ -38,13 +34,7 @@ export function deriveTitle(customerName: string, crimId: string, version?: stri
  * and the same code renders differently in the three places it appears (a field
  * error, a wizard requirement row, a disabled-button tooltip).
  */
-export const TASK_REQUIREMENTS = [
-  'customer',
-  'crimId',
-  'versionTooLong',
-  'taskTypes',
-  'checklist',
-] as const;
+export const TASK_REQUIREMENTS = ['customer', 'crimId', 'taskTypes', 'checklist'] as const;
 export type TaskRequirement = (typeof TASK_REQUIREMENTS)[number];
 
 export interface TaskReadinessInput {
@@ -72,9 +62,6 @@ export function missingRequirements(input: TaskReadinessInput): TaskRequirement[
 
   if (!shape.customerId.safeParse(draft.customerId ?? '').success) missing.push('customer');
   if (!shape.crimId.safeParse(draft.crimId ?? '').success) missing.push('crimId');
-  if (draft.version !== undefined && !shape.version.safeParse(draft.version).success) {
-    missing.push('versionTooLong');
-  }
   if (taskTypes.length === 0) missing.push('taskTypes');
   if (!isChecklistComplete) missing.push('checklist');
 
@@ -95,7 +82,7 @@ export type TaskWizardStep = (typeof TASK_WIZARD_STEPS)[number];
 
 /** Which requirements each step owns. Used to colour the stepper and gate Next. */
 const STEP_REQUIREMENTS: Record<TaskWizardStep, readonly TaskRequirement[]> = {
-  details: ['customer', 'crimId', 'versionTooLong'],
+  details: ['customer', 'crimId'],
   checklist: ['taskTypes', 'checklist'],
   review: [],
 };

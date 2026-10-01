@@ -20,6 +20,7 @@ export interface TaskFilters {
   status: string;
   priority: string;
   cycle: string;
+  customerId?: string;
   /**
    * A dashboard counter's selection — a `KpiBucket` key, or `ALL`.
    *
@@ -40,6 +41,7 @@ export const EMPTY_TASK_FILTERS: TaskFilters = {
   status: ALL,
   priority: ALL,
   cycle: ALL,
+  customerId: ALL,
   bucket: ALL,
 };
 
@@ -55,15 +57,15 @@ export function filterTasks(items: readonly TaskListItem[], filters: TaskFilters
 
   return items.filter((task) => {
     if (filters.status !== ALL) {
-      if (filters.status === 'Approved') {
-        if (task.status !== 'Approved' && task.status !== 'Delivered') return false;
-      } else if (filters.status === 'Submitted' && filters.bucket === 'awaitingReview') {
+      if (filters.status === 'Submitted' && filters.bucket === 'awaitingReview') {
         if (
           task.status !== 'Submitted' &&
           task.status !== 'ReSubmitted' &&
           task.status !== 'InReview'
         )
           return false;
+      } else if (filters.status === 'Submitted' && filters.bucket === 'awaitingReviewAdmin') {
+        if (task.status !== 'Submitted' && task.status !== 'ReSubmitted') return false;
       } else if (task.status !== filters.status) {
         return false;
       }
@@ -75,6 +77,14 @@ export function filterTasks(items: readonly TaskListItem[], filters: TaskFilters
     if (statuses !== null && !statuses.includes(task.status)) return false;
 
     if (filters.priority !== ALL && task.priority !== filters.priority) return false;
+
+    if (
+      filters.customerId &&
+      filters.customerId !== ALL &&
+      task.customerId !== filters.customerId
+    ) {
+      return false;
+    }
 
     if (filters.cycle !== ALL) {
       // "3+" is one bucket: past cycle 3 the exact number matters less than the

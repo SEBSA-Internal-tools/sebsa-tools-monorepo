@@ -1,11 +1,13 @@
 import { useMemo } from 'react';
 import { Building2, Code2, UserCheck } from 'lucide-react';
-import type { Customer, User } from '@sdp/contracts';
+import { TASK_STATUSES, type Customer, type User } from '@sdp/contracts';
 import { Select, type SelectOption } from '@/components/ui/Select.tsx';
 import { TaskFilterBar } from '@/portals/code-review/components/TaskFilterBar.tsx';
 import { ALL } from '@/portals/code-review/components/taskFilters.ts';
 import admin from '@/content/admin.json';
-import type { AdminTaskFilters } from './adminTaskFilters.ts';
+import common from '@/content/common.json';
+import tasks from '@/content/tasks.json';
+import { EMPTY_ADMIN_FILTERS, type AdminTaskFilters } from './adminTaskFilters.ts';
 
 /**
  * Screen 01's filter row: the shared task filters plus customer, developer and
@@ -17,6 +19,14 @@ import type { AdminTaskFilters } from './adminTaskFilters.ts';
  */
 
 const labels = admin.tasks.filters;
+
+const ADMIN_STATUS_OPTIONS: SelectOption[] = [
+  { value: ALL, label: tasks.list.filters.statusAll },
+  ...TASK_STATUSES.filter((status) => status !== 'Draft').map((status) => ({
+    value: status,
+    label: common.status[status],
+  })),
+];
 
 function peopleOptions(users: readonly User[], allLabel: string): SelectOption[] {
   return [
@@ -79,9 +89,14 @@ export function AdminTaskFilterBar({
     <div className="w-full space-y-3">
       <TaskFilterBar
         filters={filters}
+        statusOptions={ADMIN_STATUS_OPTIONS}
         onChange={(next) => {
           onChange({ ...filters, ...next });
         }}
+        onReset={() => {
+          onChange(EMPTY_ADMIN_FILTERS);
+        }}
+        hasAdditionalFilters={filters.developerId !== ALL || filters.reviewerId !== ALL}
       />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -93,6 +108,7 @@ export function AdminTaskFilterBar({
           options={customerOptions}
           label={labels.customer}
           icon={<Building2 className="size-4" />}
+          variant="stacked"
           aria-label={labels.customer}
         />
         <Select
@@ -103,6 +119,7 @@ export function AdminTaskFilterBar({
           options={developerOptions}
           label={labels.developer}
           icon={<Code2 className="size-4" />}
+          variant="stacked"
           aria-label={labels.developer}
         />
         <Select
@@ -113,6 +130,7 @@ export function AdminTaskFilterBar({
           options={reviewerOptions}
           label={labels.reviewer}
           icon={<UserCheck className="size-4" />}
+          variant="stacked"
           aria-label={labels.reviewer}
         />
       </div>

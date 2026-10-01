@@ -71,11 +71,11 @@ describe('the seeded checklist matches the specification', () => {
   });
 
   it('stores each shared question once rather than per task type', () => {
-    // The reason `appliesTo` lives on the question: correcting a typo in a Unit
-    // Testing question must be a single edit.
+    // Applicability lives on the category, so a shared category's questions are
+    // stored once and a wording fix is a single edit.
     const unitTesting = TEMPLATE.find((c) => c.name === 'Unit Testing');
     expect(unitTesting?.questions).toHaveLength(4);
-    expect(unitTesting?.questions.every((q) => q.appliesTo.length === 5)).toBe(true);
+    expect(unitTesting?.applicableTaskTypeIds).toHaveLength(5);
   });
 });
 
@@ -92,15 +92,9 @@ const FIXTURE: ChecklistCategory[] = [
     name: 'Shared',
     order: 10,
     isActive: true,
+    applicableTaskTypeIds: [A, B],
     questions: [
-      {
-        id: 'q-s1',
-        categoryId: 'cat-shared',
-        text: 'Shared 1',
-        order: 10,
-        appliesTo: [A, B],
-        isActive: true,
-      },
+      { id: 'q-s1', categoryId: 'cat-shared', text: 'Shared 1', order: 10, isActive: true },
     ],
   },
   {
@@ -108,23 +102,10 @@ const FIXTURE: ChecklistCategory[] = [
     name: 'A only',
     order: 20,
     isActive: true,
+    applicableTaskTypeIds: [A],
     questions: [
-      {
-        id: 'q-a1',
-        categoryId: 'cat-a-only',
-        text: 'A 1',
-        order: 10,
-        appliesTo: [A],
-        isActive: true,
-      },
-      {
-        id: 'q-a2',
-        categoryId: 'cat-a-only',
-        text: 'A 2',
-        order: 20,
-        appliesTo: [A],
-        isActive: true,
-      },
+      { id: 'q-a1', categoryId: 'cat-a-only', text: 'A 1', order: 10, isActive: true },
+      { id: 'q-a2', categoryId: 'cat-a-only', text: 'A 2', order: 20, isActive: true },
     ],
   },
   {
@@ -132,15 +113,9 @@ const FIXTURE: ChecklistCategory[] = [
     name: 'Retired',
     order: 30,
     isActive: false,
+    applicableTaskTypeIds: [A],
     questions: [
-      {
-        id: 'q-r1',
-        categoryId: 'cat-retired',
-        text: 'Retired 1',
-        order: 10,
-        appliesTo: [A],
-        isActive: true,
-      },
+      { id: 'q-r1', categoryId: 'cat-retired', text: 'Retired 1', order: 10, isActive: true },
     ],
   },
   {
@@ -148,23 +123,10 @@ const FIXTURE: ChecklistCategory[] = [
     name: 'Mixed',
     order: 40,
     isActive: true,
+    applicableTaskTypeIds: [A],
     questions: [
-      {
-        id: 'q-m1',
-        categoryId: 'cat-mixed',
-        text: 'Live',
-        order: 10,
-        appliesTo: [A],
-        isActive: true,
-      },
-      {
-        id: 'q-m2',
-        categoryId: 'cat-mixed',
-        text: 'Retired',
-        order: 20,
-        appliesTo: [A],
-        isActive: false,
-      },
+      { id: 'q-m1', categoryId: 'cat-mixed', text: 'Live', order: 10, isActive: true },
+      { id: 'q-m2', categoryId: 'cat-mixed', text: 'Retired', order: 20, isActive: false },
     ],
   },
 ];

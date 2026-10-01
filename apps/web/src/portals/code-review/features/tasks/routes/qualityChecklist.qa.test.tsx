@@ -13,10 +13,7 @@ const DEVELOPER = 'u-hiruni';
 
 function renderRoute(path: string) {
   const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false, gcTime: 0 },
-      mutations: { retry: false },
-    },
+    defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } },
   });
   const router = createMemoryRouter(routes, { initialEntries: [path] });
   const result = render(
@@ -135,9 +132,7 @@ describe('Quality Checklist complete functional QA', () => {
     const { user } = renderChecklist();
     await user.click(await screen.findByRole('checkbox', { name: 'Quick Report' }));
 
-    const progressbar = screen.getByRole('progressbar', {
-      name: /section progress/i,
-    });
+    const progressbar = screen.getByRole('progressbar', { name: /section progress/i });
     expect(progressbar).toHaveAttribute('aria-valuenow', '0');
     expect(progressbar).toHaveAttribute('aria-valuetext', '0 of 9 answered');
 
@@ -180,25 +175,19 @@ describe('Quality Checklist complete functional QA', () => {
     await user.click(screen.getByRole('button', { name: 'Quick Reports' }));
     expect(screen.getAllByRole('radiogroup')).toHaveLength(9);
     expect(
-      within(screen.getAllByRole('radiogroup')[0]!).getByRole('radio', {
-        name: 'Yes',
-      }),
+      within(screen.getAllByRole('radiogroup')[0]!).getByRole('radio', { name: 'Yes' }),
     ).toHaveAttribute('aria-checked', 'true');
   });
 
   it('preserves an answer during unsaved reselection, then drops it after a full-replacement save', async () => {
     const { task, user } = renderChecklist();
-    const customization = await screen.findByRole('checkbox', {
-      name: 'Customization',
-    });
+    const customization = await screen.findByRole('checkbox', { name: 'Customization' });
     const quickReport = screen.getByRole('checkbox', { name: 'Quick Report' });
     await user.click(customization);
     await user.click(quickReport);
 
     const quickQuestionName = /have you used views instead of tables/i;
-    const quickQuestion = screen.getByRole('radiogroup', {
-      name: quickQuestionName,
-    });
+    const quickQuestion = screen.getByRole('radiogroup', { name: quickQuestionName });
     await user.click(within(quickQuestion).getByRole('radio', { name: 'Yes' }));
     expect(screen.getAllByText('1 of 25 answered').length).toBeGreaterThan(0);
 
@@ -266,9 +255,7 @@ describe('Quality Checklist complete functional QA', () => {
     });
     expect(await screen.findByRole('checkbox', { name: 'Quick Report' })).toBeChecked();
     expect(
-      within(screen.getAllByRole('radiogroup')[0]!).getByRole('radio', {
-        name: 'No',
-      }),
+      within(screen.getAllByRole('radiogroup')[0]!).getByRole('radio', { name: 'No' }),
     ).toHaveAttribute('aria-checked', 'true');
     expect(screen.getByLabelText(/additional remarks/i)).toHaveValue(longRemarks);
   });
@@ -280,9 +267,7 @@ describe('Quality Checklist complete functional QA', () => {
     const groups = screen.getAllByRole('radiogroup');
     for (let index = 0; index < groups.length; index += 1) {
       await user.click(
-        within(groups[index]!).getByRole('radio', {
-          name: index === 0 ? 'No' : 'Yes',
-        }),
+        within(groups[index]!).getByRole('radio', { name: index === 0 ? 'No' : 'Yes' }),
       );
     }
     fireEvent.change(screen.getByLabelText(/additional remarks/i), {
@@ -373,9 +358,7 @@ describe('Quality Checklist complete functional QA', () => {
 
     const { user, router } = renderRoute('/crp/developer/tasks/new/details');
 
-    const nextBtn = await screen.findByRole('button', {
-      name: /next: quality checklist/i,
-    });
+    const nextBtn = await screen.findByRole('button', { name: /next: quality checklist/i });
     await user.click(nextBtn);
 
     // Should self-heal by creating a new task and advancing to checklist without 404 toast error
@@ -386,5 +369,60 @@ describe('Quality Checklist complete functional QA', () => {
     const state = useTaskDraft.getState();
     expect(state.taskId).not.toBe('task-non-existent-999');
     expect(state.taskId).toBeTruthy();
+  });
+
+  it('verifies Step 2 footer status messages across all completion states', async () => {
+    const { user } = renderChecklist();
+
+    // 1. Initial Step 2 state: no task types selected
+    expect(await screen.findByText(/select at least one task type to load/i)).toBeInTheDocument();
+    // Stale Step 1 messages must never appear
+    expect(screen.queryByText(/required field(s)? remaining/i)).not.toBeInTheDocument();
+
+    // 2. Select Quick Report (9 questions)
+    await user.click(await screen.findByRole('checkbox', { name: 'Quick Report' }));
+    expect((await screen.findAllByText('0 of 9 answered')).length).toBeGreaterThan(0);
+
+    // 3. Answer 8 of the 9 questions
+    const groups = screen.getAllByRole('radiogroup');
+    for (let i = 0; i < 8; i += 1) {
+      await user.click(within(groups[i]!).getByRole('radio', { name: 'Yes' }));
+    }
+    expect((await screen.findAllByText('8 of 9 answered')).length).toBeGreaterThan(0);
+
+    // 4. Answer the last question (9 of 9 answered)
+    await user.click(within(groups[8]!).getByRole('radio', { name: 'No' }));
+    expect((await screen.findAllByText('All Complete')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('9 of 9 answered')).length).toBeGreaterThan(0);
+  });
+
+  it('persists Created Date and keeps Submitted Date null across draft edits, reloads, and saves', async () => {
+    const testCreatedAt = '2026-01-15T10:30:00.000Z';
+    const task = hydrateTask({
+      createdAt: testCreatedAt,
+      submittedAt: null,
+    });
+
+    const { user, unmount } = renderRoute(`/crp/developer/tasks/${task.id}/edit/details`);
+
+    // System information displays initial created date
+    expect(await screen.findByText(/jan 15, 2026/i)).toBeInTheDocument();
+    // Submitted date is empty '—' while in Draft
+    expect(screen.getAllByText('—').length).toBeGreaterThan(0);
+
+    // Save draft
+    await user.click(screen.getByRole('button', { name: /save draft/i }));
+
+    // Created date in store must remain unchanged
+    expect(useTaskDraft.getState().createdAt).toBe(testCreatedAt);
+    expect(useTaskDraft.getState().submittedAt).toBeNull();
+
+    unmount();
+
+    // Reopen edit task route
+    const reopened = renderRoute(`/crp/developer/tasks/${task.id}/edit/details`);
+    expect(await reopened.findByText(/jan 15, 2026/i)).toBeInTheDocument();
+    expect(useTaskDraft.getState().createdAt).toBe(testCreatedAt);
+    expect(useTaskDraft.getState().submittedAt).toBeNull();
   });
 });

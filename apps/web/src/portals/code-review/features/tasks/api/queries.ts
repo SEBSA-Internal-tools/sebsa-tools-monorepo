@@ -3,13 +3,14 @@ import { z } from 'zod';
 import {
   taskChecklistSchema,
   issueResponseRecordSchema,
-  taskEventSchema,
   taskListItemSchema,
+  nextTaskVersionSchema,
   type ChecklistDraft,
   type TaskDraft,
 } from '@sdp/contracts';
 import { api } from '@/lib/apiClient.ts';
 import { taskKeys } from '@/portals/code-review/hooks/useTasks.ts';
+import { reviewKeys } from '@/portals/code-review/hooks/useReviews.ts';
 import type { ResponseLike } from '../domain/responseRules.ts';
 
 /**
@@ -20,6 +21,9 @@ export {
   taskKeys,
   useTask,
   useTaskChecklist,
+  useChecklistSubmissions,
+  useIssueResponses,
+  useTaskEvents,
   useTasks,
   type TaskScope,
 } from '@/portals/code-review/hooks/useTasks.ts';
@@ -45,14 +49,17 @@ export {
  * with.
  */
 
-export function useTaskEvents(taskId: string | undefined) {
+export function useNextTaskVersion(customerId: string, crimId: string, enabled = true) {
+  const normalizedCrimId = crimId.trim().toLocaleLowerCase();
   return useQuery({
-    queryKey: taskKeys.events(taskId ?? ''),
+    queryKey: [...taskKeys.all, 'next-version', customerId, normalizedCrimId],
     queryFn: ({ signal }) =>
-      api.get(`/tasks/${taskId ?? ''}/events`, z.array(taskEventSchema), {
+      api.get('/task-identities/next-version', nextTaskVersionSchema, {
         signal,
+        searchParams: { customerId, crimId: crimId.trim() },
       }),
-    enabled: taskId !== undefined && taskId !== '',
+    enabled: enabled && customerId !== '' && normalizedCrimId !== '',
+    staleTime: 0,
   });
 }
 
@@ -106,13 +113,34 @@ export function useSubmitTask(taskId: string) {
 
   return useMutation({
     mutationFn: () => api.post(`/tasks/${taskId}/submit`, taskListItemSchema),
-    onSuccess: (task) => {
+    onSuccess: async (task) => {
       queryClient.setQueryData(taskKeys.detail(task.id), task);
-      void queryClient.invalidateQueries({ queryKey: taskKeys.lists() });
-      void queryClient.invalidateQueries({
-        queryKey: taskKeys.events(task.id),
-      });
-      void queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      await Promise.all(
+        [
+          taskKeys.lists(),
+          taskKeys.events(task.id),
+          taskKeys.responses(task.id),
+          taskKeys.checklistSubmissions(task.id),
+          reviewKeys.current(task.id),
+          reviewKeys.history(task.id),
+          ['notifications'],
+        ].map((queryKey) => queryClient.invalidateQueries({ queryKey })),
+      );
+    },
+  });
+}
+
+export function useDiscardDraft() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (taskId: string) => api.delete(`/tasks/${taskId}`, z.unknown()),
+    onSuccess: async (_data, taskId) => {
+      queryClient.removeQueries({ queryKey: taskKeys.detail(taskId) });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: taskKeys.lists() }),
+        queryClient.invalidateQueries({ queryKey: ['notifications'] }),
+      ]);
     },
   });
 }
@@ -120,15 +148,6 @@ export function useSubmitTask(taskId: string) {
 /* -------------------------------------------------------------------------- */
 /* Responding to review feedback (FL 2.11.2.3-01)                              */
 /* -------------------------------------------------------------------------- */
-
-export function useIssueResponses(taskId: string | undefined) {
-  return useQuery({
-    queryKey: [...taskKeys.all, 'responses', taskId ?? ''],
-    queryFn: ({ signal }) =>
-      api.get(`/tasks/${taskId ?? ''}/responses`, z.array(issueResponseRecordSchema), { signal }),
-    enabled: taskId !== undefined && taskId !== '',
-  });
-}
 
 /**
  * Record one response.
@@ -143,8 +162,25 @@ export function useRespondToIssue(taskId: string) {
   return useMutation({
     mutationFn: (input: ResponseLike) =>
       api.post(`/tasks/${taskId}/responses`, z.array(issueResponseRecordSchema), input),
-    onSuccess: (records) => {
-      queryClient.setQueryData([...taskKeys.all, 'responses', taskId], records);
+    onSuccess: async (records) => {
+      queryClient.setQueryData(taskKeys.responses(taskId), records);
+      await queryClient.invalidateQueries({ queryKey: reviewKeys.history(taskId) });
+    },
+  });
+}
+
+/**
+ * Remove one response (reverting it to Pending).
+ */
+export function useDeleteIssueResponse(taskId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (responseId: string) =>
+      api.delete(`/tasks/${taskId}/responses/${responseId}`, z.array(issueResponseRecordSchema)),
+    onSuccess: async (records) => {
+      queryClient.setQueryData(taskKeys.responses(taskId), records);
+      await queryClient.invalidateQueries({ queryKey: reviewKeys.history(taskId) });
     },
   });
 }

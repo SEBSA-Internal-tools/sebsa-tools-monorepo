@@ -114,10 +114,10 @@ test.describe('mock API recovery', () => {
     await page.getByRole('link', { name: /handovers/i }).click();
     await expect(page).toHaveURL(/\/admin\/handovers$/);
 
-    // The seed raises no handovers, so a SUCCESSFUL request renders the empty
-    // state. That is the assertion: an empty result proves the fetch resolved,
-    // where an error state would prove it did not.
-    await expect(page.getByText(/no handovers/i).first()).toBeVisible();
+    // The seed raises handovers, so a SUCCESSFUL request lists them. That is the
+    // assertion: rows prove the fetch resolved, where an error state would prove
+    // it did not.
+    await expect(page.getByText(/showing [1-9]\d* of [1-9]\d* handovers/i)).toBeVisible();
 
     // Neither failure screen may appear: not the whole-app one...
     await expect(page.getByText(/lost contact with the demo data/i)).toHaveCount(0);

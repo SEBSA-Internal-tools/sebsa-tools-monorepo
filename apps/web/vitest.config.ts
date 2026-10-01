@@ -90,7 +90,7 @@ export default mergeConfig(
            * of `lib/`, because `apiClient` and `queryClient` are infrastructure
            * and are covered through the screens that use them.
            */
-          '**/src/lib/{statusMachine,permissions,storedChecklist,kpiBuckets,checklistOrdering,reviewStats}.ts':
+          '**/src/lib/{statusMachine,taskPolicy,permissions,storedChecklist,kpiBuckets,checklistOrdering,checklistVisibility,reviewCycles,reviewStats}.ts':
             {
               statements: 90,
               branches: 85,

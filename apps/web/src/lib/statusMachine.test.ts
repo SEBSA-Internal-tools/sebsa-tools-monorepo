@@ -5,12 +5,17 @@ import {
   canCancelTask,
   canDecideReview,
   canDeleteTask,
+  canDiscardDraft,
+  canEditDraft,
   canEditTask,
   canHandOver,
   canPickForReview,
+  canPurgeTask,
+  canReassignReviewer,
   canRespondToFindings,
   canSubmitForReview,
   canTransition,
+  canViewTask,
   isTerminal,
   nextStatuses,
   type TaskActor,
@@ -36,22 +41,21 @@ describe('transitions', () => {
     expect(canTransition('Draft', 'Approved')).toBe(false);
     expect(canTransition('InReview', 'ChangesRequested')).toBe(true);
     expect(canTransition('ChangesRequested', 'ReSubmitted')).toBe(true);
-    expect(canTransition('Approved', 'Delivered')).toBe(true);
+    expect(canTransition('InReview', 'Approved')).toBe(true);
   });
 
-  it('treats Delivered and Cancelled as terminal, and nothing else', () => {
+  it('treats Approved and Cancelled as terminal, and nothing else', () => {
     const terminal = TASK_STATUSES.filter(isTerminal);
-    expect(terminal).toEqual(['Delivered', 'Cancelled']);
+    expect(terminal).toEqual(['Approved', 'Cancelled']);
 
     for (const status of terminal) {
       expect(nextStatuses(status)).toHaveLength(0);
     }
   });
 
-  it('lets an admin cancel from every non-terminal state', () => {
+  it('keeps Draft -> Cancelled in the contract while the admin policy excludes Draft', () => {
     const cancellable = TASK_STATUSES.filter((status) => canTransition(status, 'Cancelled'));
-    // Approved is deliberately excluded: an approved task is handed to the
-    // Delivery Portal, and cancelling it there is that system's decision.
+    // Approved is excluded: an approved task is handed to the Delivery Portal.
     expect(cancellable).toEqual([
       'Draft',
       'Submitted',
@@ -59,6 +63,8 @@ describe('transitions', () => {
       'ChangesRequested',
       'ReSubmitted',
     ]);
+    // A Draft is private to its developer, who discards it instead.
+    expect(canCancelTask(actor(ADMIN, 'Admin'), task({ status: 'Draft' }))).toBe(false);
   });
 
   it('never lets a status transition to itself', () => {
@@ -69,9 +75,9 @@ describe('transitions', () => {
 });
 
 describe('canEditTask', () => {
-  it('permits the owning developer while the task is theirs to change', () => {
+  it('permits the owning developer on Draft, but not on ChangesRequested (which is response turn only)', () => {
     expect(canEditTask(actor(DEV, 'Developer'), task({ status: 'Draft' }))).toBe(true);
-    expect(canEditTask(actor(DEV, 'Developer'), task({ status: 'ChangesRequested' }))).toBe(true);
+    expect(canEditTask(actor(DEV, 'Developer'), task({ status: 'ChangesRequested' }))).toBe(false);
   });
 
   it('refuses once the task is with a reviewer', () => {
@@ -112,10 +118,7 @@ describe('canPickForReview', () => {
 
   it('blocks a task another reviewer already holds', () => {
     expect(
-      canPickForReview(actor(REVIEWER, 'Reviewer'), {
-        ...submitted,
-        reviewerId: OTHER_REVIEWER,
-      }),
+      canPickForReview(actor(REVIEWER, 'Reviewer'), { ...submitted, reviewerId: OTHER_REVIEWER }),
     ).toBe(false);
   });
 
@@ -139,12 +142,9 @@ describe('canDecideReview and canHandOver', () => {
   });
 
   it('refuses once the review is decided', () => {
-    expect(
-      canDecideReview(actor(REVIEWER, 'Reviewer'), {
-        ...inReview,
-        status: 'Approved',
-      }),
-    ).toBe(false);
+    expect(canDecideReview(actor(REVIEWER, 'Reviewer'), { ...inReview, status: 'Approved' })).toBe(
+      false,
+    );
   });
 
   it('gates handover the same way as a decision', () => {
@@ -162,15 +162,18 @@ describe('canCancelTask', () => {
   });
 
   it('refuses a terminal task', () => {
-    for (const status of ['Delivered', 'Cancelled'] satisfies TaskStatus[]) {
+    for (const status of ['Approved', 'Cancelled'] satisfies TaskStatus[]) {
       expect(canCancelTask(actor(ADMIN, 'Admin'), task({ status }))).toBe(false);
     }
   });
 });
 
 describe('canDeleteTask', () => {
-  it('requires the Admin role', () => {
-    expect(canDeleteTask(actor(ADMIN, 'Admin'), task({ status: 'Draft' }))).toBe(true);
+  it('requires the SuperAdmin role', () => {
+    expect(canDeleteTask(actor(ADMIN, 'Admin'), task({ status: 'Draft' }))).toBe(false);
+    expect(canDeleteTask(actor(ADMIN, 'Admin', 'SuperAdmin'), task({ status: 'Draft' }))).toBe(
+      true,
+    );
     expect(canDeleteTask(actor(DEV, 'Developer', 'Reviewer'), task({ status: 'Draft' }))).toBe(
       false,
     );
@@ -182,7 +185,7 @@ describe('canDeleteTask', () => {
    */
   it('is narrower than cancel — only Draft and Cancelled may be destroyed', () => {
     const deletable: TaskStatus[] = ['Draft', 'Cancelled'];
-    const admin = actor(ADMIN, 'Admin');
+    const admin = actor(ADMIN, 'Admin', 'SuperAdmin');
 
     for (const status of TASK_STATUSES) {
       expect(canDeleteTask(admin, task({ status }))).toBe(deletable.includes(status));
@@ -206,23 +209,106 @@ describe('canAssignReviewer', () => {
     ).toBe(false);
   });
 
-  it('refuses a Draft — nothing has been submitted to review yet', () => {
+  it('permits initial assignment only on Submitted and ReSubmitted when unassigned', () => {
+    expect(canAssignReviewer(actor(ADMIN, 'Admin'), task({ status: 'Submitted' }))).toBe(true);
+    expect(canAssignReviewer(actor(ADMIN, 'Admin'), task({ status: 'ReSubmitted' }))).toBe(true);
     expect(canAssignReviewer(actor(ADMIN, 'Admin'), task({ status: 'Draft' }))).toBe(false);
+    expect(canAssignReviewer(actor(ADMIN, 'Admin'), task({ status: 'ChangesRequested' }))).toBe(
+      false,
+    );
+    expect(canAssignReviewer(actor(ADMIN, 'Admin'), task({ status: 'Approved' }))).toBe(false);
+    expect(canAssignReviewer(actor(ADMIN, 'Admin'), task({ status: 'Cancelled' }))).toBe(false);
   });
 
-  it('refuses a terminal task', () => {
-    for (const status of ['Delivered', 'Cancelled'] satisfies TaskStatus[]) {
-      expect(canAssignReviewer(actor(ADMIN, 'Admin'), task({ status }))).toBe(false);
-    }
-  });
-
-  it('allows reassignment of a task that already has a reviewer', () => {
+  it('blocks generic assign if the task is already assigned or handed over', () => {
     expect(
       canAssignReviewer(
+        actor(ADMIN, 'Admin'),
+        task({ status: 'Submitted', reviewerId: OTHER_REVIEWER }),
+      ),
+    ).toBe(false);
+    expect(
+      canAssignReviewer(actor(ADMIN, 'Admin'), task({ status: 'Submitted', isHandedOver: true })),
+    ).toBe(false);
+  });
+});
+
+describe('canReassignReviewer', () => {
+  it('permits Admin reassignment on InReview task with existing reviewer and not handed over', () => {
+    expect(
+      canReassignReviewer(
         actor(ADMIN, 'Admin'),
         task({ status: 'InReview', reviewerId: OTHER_REVIEWER }),
       ),
     ).toBe(true);
+    expect(
+      canReassignReviewer(actor(ADMIN, 'Admin'), task({ status: 'InReview', reviewerId: null })),
+    ).toBe(false);
+    expect(
+      canReassignReviewer(
+        actor(ADMIN, 'Admin'),
+        task({ status: 'InReview', reviewerId: OTHER_REVIEWER, isHandedOver: true }),
+      ),
+    ).toBe(false);
+    expect(
+      canReassignReviewer(
+        actor(REVIEWER, 'Reviewer'),
+        task({ status: 'InReview', reviewerId: OTHER_REVIEWER }),
+      ),
+    ).toBe(false);
+  });
+});
+
+describe('canViewTask', () => {
+  it('makes Draft developer-private (visible only to owning developer with Developer role)', () => {
+    const draft = task({ status: 'Draft', developerId: DEV });
+    expect(canViewTask(actor(DEV, 'Developer'), draft)).toBe(true);
+    expect(canViewTask(actor('other-dev', 'Developer'), draft)).toBe(false);
+    expect(canViewTask(actor(ADMIN, 'Admin'), draft)).toBe(false);
+    expect(canViewTask(actor(REVIEWER, 'Reviewer'), draft)).toBe(false);
+  });
+
+  it('allows Admin and owning Developer to view non-Draft tasks', () => {
+    const submitted = task({ status: 'Submitted', developerId: DEV });
+    expect(canViewTask(actor(ADMIN, 'Admin'), submitted)).toBe(true);
+    expect(canViewTask(actor(DEV, 'Developer'), submitted)).toBe(true);
+  });
+
+  it('allows Reviewer to view available, assigned, or historical tasks', () => {
+    const available = task({ status: 'Submitted', developerId: DEV, reviewerId: null });
+    expect(canViewTask(actor(REVIEWER, 'Reviewer'), available)).toBe(true);
+    // Reviewer without Developer role cannot view own submission in available queue
+    expect(canViewTask(actor(DEV, 'Reviewer'), available)).toBe(false);
+
+    const assigned = task({ status: 'InReview', developerId: DEV, reviewerId: REVIEWER });
+    expect(canViewTask(actor(REVIEWER, 'Reviewer'), assigned)).toBe(true);
+    expect(canViewTask(actor(OTHER_REVIEWER, 'Reviewer'), assigned)).toBe(false);
+
+    const historical = task({ status: 'Approved', developerId: DEV, reviewerId: OTHER_REVIEWER });
+    expect(
+      canViewTask(actor(REVIEWER, 'Reviewer'), historical, { hasHistoricalReview: true }),
+    ).toBe(true);
+    expect(
+      canViewTask(actor(REVIEWER, 'Reviewer'), historical, { hasHistoricalReview: false }),
+    ).toBe(false);
+  });
+});
+
+describe('canDiscardDraft', () => {
+  it('allows owning developer to discard Draft if no workflow evidence exists', () => {
+    const draft = task({ status: 'Draft', developerId: DEV });
+    expect(canDiscardDraft(actor(DEV, 'Developer'), draft)).toBe(true);
+    expect(canDiscardDraft(actor(ADMIN, 'Admin'), draft)).toBe(false);
+    expect(canDiscardDraft(actor('other-dev', 'Developer'), draft)).toBe(false);
+  });
+
+  it('blocks discard if task is not Draft or has submitted snapshots', () => {
+    expect(canDiscardDraft(actor(DEV, 'Developer'), task({ status: 'Submitted' }))).toBe(false);
+    expect(
+      canDiscardDraft(actor(DEV, 'Developer'), task({ status: 'Draft' }), {
+        hasSubmittedSnapshot: true,
+      }),
+    ).toBe(false);
   });
 });
 
@@ -235,5 +321,36 @@ describe('canRespondToFindings', () => {
     expect(
       canRespondToFindings(actor(REVIEWER, 'Developer'), task({ status: 'ChangesRequested' })),
     ).toBe(false);
+  });
+});
+
+describe('canEditDraft', () => {
+  it('allows owning developer with Developer role to edit Draft only', () => {
+    const draft = task({ status: 'Draft', developerId: DEV });
+    expect(canEditDraft(actor(DEV, 'Developer'), draft)).toBe(true);
+    expect(canEditDraft(actor(DEV, 'Reviewer'), draft)).toBe(false);
+    expect(canEditDraft(actor('other-dev', 'Developer'), draft)).toBe(false);
+    expect(
+      canEditDraft(actor(DEV, 'Developer'), task({ status: 'Submitted', developerId: DEV })),
+    ).toBe(false);
+  });
+});
+
+describe('canPurgeTask', () => {
+  it('allows SuperAdmin to purge Draft or Cancelled task with zero evidence', () => {
+    const draft = task({ status: 'Draft' });
+    const cancelled = task({ status: 'Cancelled' });
+    expect(canPurgeTask(actor(ADMIN, 'SuperAdmin'), draft, {})).toBe(true);
+    expect(canPurgeTask(actor(ADMIN, 'SuperAdmin'), cancelled, {})).toBe(true);
+    expect(canPurgeTask(actor(ADMIN, 'Admin'), draft, {})).toBe(false);
+    expect(canPurgeTask(actor(DEV, 'Developer'), draft, {})).toBe(false);
+  });
+
+  it('blocks SuperAdmin purge if workflow evidence exists', () => {
+    const cancelled = task({ status: 'Cancelled' });
+    expect(
+      canPurgeTask(actor(ADMIN, 'SuperAdmin'), cancelled, { hasSubmittedSnapshot: true }),
+    ).toBe(false);
+    expect(canPurgeTask(actor(ADMIN, 'SuperAdmin'), cancelled, { hasReviews: true })).toBe(false);
   });
 });

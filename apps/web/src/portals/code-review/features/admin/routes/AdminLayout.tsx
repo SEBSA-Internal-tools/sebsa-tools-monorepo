@@ -4,13 +4,13 @@ import {
   CheckCircle2,
   ClipboardCheck,
   ClipboardList,
-  FileEdit,
   Inbox,
   ListChecks,
   ScanSearch,
   Send,
   Shield,
   Users,
+  XCircle,
 } from 'lucide-react';
 import type { TaskListItem, TaskStatus } from '@sdp/contracts';
 import { StatCard } from '@/components/common/KpiCard.tsx';
@@ -57,9 +57,7 @@ export function AdminLayout() {
     <PageContainer className="space-y-6">
       <PageHeader
         title={admin.workspace.title}
-        subtitle={interpolate(admin.workspace.subtitle, {
-          name: user?.name ?? '',
-        })}
+        subtitle={interpolate(admin.workspace.subtitle, { name: user?.name ?? '' })}
         icon={<Shield className="size-5" />}
         tone="admin"
       />
@@ -87,6 +85,7 @@ export function AdminLayout() {
               tone="violet"
               size="compact"
               icon={<ClipboardList className="size-4" />}
+              subtitle={admin.kpis.totalSubtitle}
               // Total is the "show everything again" control, so the row has no
               // dead card and there is an obvious way back from a filter.
               isActive={bucket.isUnfiltered(grid)}
@@ -95,25 +94,18 @@ export function AdminLayout() {
               }}
             />
             <StatCard
-              label={admin.kpis.draft}
-              value={countByStatus(all, 'Draft')}
-              tone="neutral"
-              size="compact"
-              icon={<FileEdit className="size-4" />}
-              isActive={bucket.isActive('draft', grid)}
-              onSelect={() => {
-                bucket.select('draft', grid);
-              }}
-            />
-            <StatCard
-              label={admin.kpis.submitted}
-              value={countByStatus(all, 'Submitted')}
+              label={admin.kpis.awaitingReview}
+              value={
+                all.filter((task) => task.status === 'Submitted' || task.status === 'ReSubmitted')
+                  .length
+              }
               tone="blue"
               size="compact"
               icon={<Send className="size-4" />}
-              isActive={bucket.isActive('submitted', grid)}
+              subtitle={admin.kpis.awaitingReviewSubtitle}
+              isActive={bucket.isActive('awaitingReviewAdmin', grid)}
               onSelect={() => {
-                bucket.select('submitted', grid);
+                bucket.select('awaitingReviewAdmin', grid);
               }}
             />
             <StatCard
@@ -122,6 +114,7 @@ export function AdminLayout() {
               tone="violet"
               size="compact"
               icon={<ScanSearch className="size-4" />}
+              subtitle={admin.kpis.inReviewSubtitle}
               isActive={bucket.isActive('inReview', grid)}
               onSelect={() => {
                 bucket.select('inReview', grid);
@@ -133,6 +126,7 @@ export function AdminLayout() {
               tone="amber"
               size="compact"
               icon={<AlertCircle className="size-4" />}
+              subtitle={admin.kpis.changesRequestedSubtitle}
               isActive={bucket.isActive('changesRequested', grid)}
               onSelect={() => {
                 bucket.select('changesRequested', grid);
@@ -140,13 +134,26 @@ export function AdminLayout() {
             />
             <StatCard
               label={admin.kpis.approved}
-              value={countByStatus(all, 'Approved') + countByStatus(all, 'Delivered')}
+              value={countByStatus(all, 'Approved')}
               tone="green"
               size="compact"
               icon={<CheckCircle2 className="size-4" />}
+              subtitle={admin.kpis.approvedSubtitle}
               isActive={bucket.isActive('approved', grid)}
               onSelect={() => {
                 bucket.select('approved', grid);
+              }}
+            />
+            <StatCard
+              label={admin.kpis.cancelled}
+              value={countByStatus(all, 'Cancelled')}
+              tone="red"
+              size="compact"
+              icon={<XCircle className="size-4" />}
+              subtitle={admin.kpis.cancelledSubtitle}
+              isActive={bucket.isActive('cancelled', grid)}
+              onSelect={() => {
+                bucket.select('cancelled', grid);
               }}
             />
           </>
