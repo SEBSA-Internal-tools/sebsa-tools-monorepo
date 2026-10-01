@@ -102,6 +102,11 @@ function listenForAuthEvents(): void {
   });
   window.addEventListener('sdp:unauthorized', () => {
     const state = useSession.getState();
+    // Returning to an idle tab refetches every stale query at once, so 401s
+    // arrive in a burst. The first one expires the session; the rest must not
+    // downgrade that to a plain sign-out, which would cancel the expiry screen
+    // and the login reminder and bounce the user to the form unexplained.
+    if (state.isExpired || (state.didExpire && !state.isAuthenticated)) return;
     if (state.isAuthenticated) state.expireSession();
     else state.signOut();
   });
