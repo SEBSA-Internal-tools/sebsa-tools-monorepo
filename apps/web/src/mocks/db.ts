@@ -8,6 +8,7 @@ import {
   generalCheckQuestionSchema,
   taskEventSchema,
   taskSchema,
+  systemAuditEventSchema,
   userSchema,
   type ChecklistCategory,
   type GeneralCheckQuestion,
@@ -20,9 +21,12 @@ import {
   type Notification,
   type Task,
   type TaskChecklist,
+  type ChecklistSubmission,
   type TaskEvent,
   type TaskListItem,
   type User,
+  type SystemAuditAction,
+  type SystemAuditEvent,
 } from '@sdp/contracts';
 import rawUsers from './data/users.json';
 import rawCustomers from './data/customers.json';
@@ -31,9 +35,11 @@ import rawNotifications from './data/notifications.json';
 import rawChecklistTemplate from './data/checklistTemplate.json';
 import rawTaskTypes from './data/taskTypes.json';
 import rawGeneralCheck from './data/generalCheck.json';
+import { getQaResponseScenarios } from './qaScenarios.ts';
 
 /**
- * In-memory store behind the MSW handlers.
+ * Store behind the MSW handlers. Browser startup restores a validated snapshot,
+ * and successful browser mutations persist it; Node tests use fresh seed data.
  *
  * Deleted wholesale in Phase 2 — nothing outside `src/mocks/` imports it.
  *
@@ -78,7 +84,9 @@ interface Database {
   issueResponses: IssueResponseRecord[];
   attachments: TaskAttachment[];
   checklists: TaskChecklist[];
+  checklistSubmissions: ChecklistSubmission[];
   events: TaskEvent[];
+  auditEvents: SystemAuditEvent[];
   /**
    * Per-customer task number, the counter behind `AASL-019` (plan risk R2).
    *
@@ -88,6 +96,8 @@ interface Database {
    * transaction. Modelling it the same way here keeps the two honest.
    */
   sequences: Record<string, number>;
+  /** Highest system-issued version per normalized customer/CRIM identity. */
+  versionSequences: Record<string, number>;
 }
 
 /**
@@ -127,24 +137,56 @@ function buildDatabase(): Database {
   );
 
   const template = seed('checklistTemplate', rawChecklistTemplate, checklistCategorySchema.array());
+  const reviews = seedReviews(tasks);
+  const qaData = getQaResponseScenarios();
+  const allTasks = [...tasks, ...qaData.tasks];
+  const allReviews = [...reviews, ...qaData.reviews];
+  const taskTypes = seed('taskTypes', rawTaskTypes, taskTypeRecordSchema.array());
+  const checklists = seedChecklists(allTasks, template);
+
+  // Requirement 40: Normalize legacy active workflow fields
+  for (const task of allTasks) {
+    if (task.status === 'Cancelled') {
+      task.reviewerId = null;
+      task.currentReviewSessionId = null;
+      task.isHandedOver = false;
+    } else if (task.status === 'ChangesRequested' || task.status === 'Approved') {
+      task.currentReviewSessionId = null;
+    }
+  }
+
+  const allHandovers = [...(qaData.handovers ?? [])];
+  for (const handover of allHandovers) {
+    const task = allTasks.find((t) => t.id === handover.taskId);
+    if (task?.status === 'Cancelled' && handover.status === 'Pending') {
+      handover.status = 'Cancelled';
+      handover.resolvedAt = handover.resolvedAt ?? task.updatedAt;
+    }
+  }
 
   return {
     users: seededUsers.map((u) => ({ ...u })),
     // Cloned so runtime mutations cannot write back into the module-level copy
     // that `withDerivedFields` reads, which would break `resetDb()`.
     customers: seededCustomers.map((c) => ({ ...c })),
-    tasks,
-    notifications: seed('notifications', rawNotifications, storedNotificationSchema.array()),
-    taskTypes: seed('taskTypes', rawTaskTypes, taskTypeRecordSchema.array()),
+    tasks: allTasks,
+    notifications: [
+      ...seed('notifications', rawNotifications, storedNotificationSchema.array()),
+      ...(qaData.notifications ?? []),
+    ],
+    taskTypes,
     checklistTemplate: template,
     generalCheck: seed('generalCheck', rawGeneralCheck, generalCheckQuestionSchema.array()),
-    handovers: [],
-    reviews: seedReviews(tasks),
-    issueResponses: [],
+    handovers: allHandovers,
+    reviews: allReviews,
+    issueResponses: [...qaData.issueResponses],
     attachments: [],
-    checklists: seedChecklists(tasks, template),
-    events: seedEvents(tasks),
+    checklists,
+    checklistSubmissions: seedChecklistSubmissions(allTasks, taskTypes, template, checklists),
+    events: [...seedEvents(tasks, reviews), ...qaData.events],
+    auditEvents: [],
     sequences: seedSequences(tasks),
+    versionSequences: versionSequencesFromTasks(allTasks),
   };
 }
 
@@ -211,7 +253,7 @@ function seedReviews(tasks: Task[]): Review[] {
   for (const task of tasks) {
     if (task.reviewerId === null) continue;
 
-    const isApproved = task.status === 'Approved' || task.status === 'Delivered';
+    const isApproved = task.status === 'Approved';
     const decidedCycles = isApproved ? task.reviewCycle : task.reviewCycle - 1;
     const latest = Date.parse(task.submittedAt ?? task.createdAt);
 
@@ -239,16 +281,40 @@ function seedReviews(tasks: Task[]): Review[] {
         reviewCycle: cycle,
         reviewerId: task.reviewerId,
         reviewerName: seededUsers.find((u) => u.id === task.reviewerId)?.name ?? 'Unknown',
+        currentReviewSessionId: task.id === 't-semco-017' ? `rs-${task.id}-1` : null,
+        comments:
+          task.id === 't-semco-017'
+            ? [
+                {
+                  id: `cm-${id}-1`,
+                  reviewCycle: cycle,
+                  text: 'The batch transaction does not properly handle the retry cancellation path when database timeouts occur.',
+                  createdAt,
+                  reviewerId: task.reviewerId,
+                  reviewerName:
+                    seededUsers.find((u) => u.id === task.reviewerId)?.name ?? 'Hiruni Wijethilaka',
+                  reviewSessionId: `rs-${task.id}-1`,
+                  screenshots: [],
+                },
+                {
+                  id: `cm-${id}-2`,
+                  reviewCycle: cycle,
+                  text: 'Please add unit tests covering the error rollback scenario in the worker pool.',
+                  createdAt,
+                  reviewerId: task.reviewerId,
+                  reviewerName:
+                    seededUsers.find((u) => u.id === task.reviewerId)?.name ?? 'Hiruni Wijethilaka',
+                  reviewSessionId: `rs-${task.id}-1`,
+                  screenshots: [],
+                },
+              ]
+            : [],
         generalCheck: [],
         findings: isFinalApproval
-          ? {
-              incorrectCode: '',
-              incompleteImplementation: '',
-              sourceFormatting: '',
-            }
+          ? { incorrectCode: '', incompleteImplementation: '', sourceFormatting: '' }
           : {
               incorrectCode: 'Logic does not cover the cancellation path.',
-              incompleteImplementation: '',
+              incompleteImplementation: 'Missing test coverage for rollback handler.',
               sourceFormatting: '',
             },
         otherRemarks: '',
@@ -258,6 +324,7 @@ function seedReviews(tasks: Task[]): Review[] {
         // Rank 1 permits approval; 2 and 3 force the Request Changes path
         // (FL 2.9.2.5-01), so a Request Changes cycle can never carry rank 1.
         rank: isFinalApproval ? 1 : cycle % 2 === 0 ? 3 : 2,
+        previousFeedbackReviewNote: null,
         screenshots: [],
         decision: isFinalApproval ? 'Approved' : 'ChangesRequested',
         decidedAt,
@@ -284,13 +351,16 @@ function seedChecklists(tasks: Task[], template: ChecklistCategory[]): TaskCheck
       // Same filter the domain layer applies: a question renders when it is
       // active and covers one of the task's types.
       const questions = template
-        .filter((category) => category.isActive)
+        .filter(
+          (category) =>
+            category.isActive &&
+            category.applicableTaskTypeIds.some((id) => task.taskTypeIds.includes(id)),
+        )
+        .sort((a, b) => a.order - b.order)
         .flatMap((category) =>
           category.questions
-            .filter(
-              (question) =>
-                question.isActive && question.appliesTo.some((id) => task.taskTypeIds.includes(id)),
-            )
+            .filter((question) => question.isActive)
+            .sort((a, b) => a.order - b.order)
             .map((question) => ({ question, categoryName: category.name })),
         );
 
@@ -318,7 +388,7 @@ function seedChecklists(tasks: Task[], template: ChecklistCategory[]): TaskCheck
 }
 
 /** A minimal audit trail so the detail screens have real history to render. */
-function seedEvents(tasks: Task[]): TaskEvent[] {
+function seedEvents(tasks: Task[], reviews: Review[]): TaskEvent[] {
   const events: TaskEvent[] = [];
 
   for (const task of tasks) {
@@ -360,6 +430,33 @@ function seedEvents(tasks: Task[]): TaskEvent[] {
     }
   }
 
+  for (const review of reviews) {
+    if (review.reviewerId === null) continue;
+    if (review.decision === 'ChangesRequested') {
+      events.push({
+        id: `ev-${review.taskId}-changes-requested-${String(review.reviewCycle)}`,
+        taskId: review.taskId,
+        kind: 'ChangesRequested',
+        reviewCycle: review.reviewCycle,
+        actorId: review.reviewerId,
+        actorName: '',
+        note: review.feedbackSummary === '' ? null : review.feedbackSummary,
+        occurredAt: review.decidedAt ?? review.updatedAt,
+      });
+    } else if (review.decision === 'Approved') {
+      events.push({
+        id: `ev-${review.taskId}-approved-${String(review.reviewCycle)}`,
+        taskId: review.taskId,
+        kind: 'Approved',
+        reviewCycle: review.reviewCycle,
+        actorId: review.reviewerId,
+        actorName: '',
+        note: review.feedbackSummary === '' ? null : review.feedbackSummary,
+        occurredAt: review.decidedAt ?? review.updatedAt,
+      });
+    }
+  }
+
   return events.map((event) => taskEventSchema.parse(event));
 }
 
@@ -374,6 +471,82 @@ function seedSequences(tasks: Task[]): Record<string, number> {
   }
 
   return sequences;
+}
+
+export function normalizeCrimId(crimId: string): string {
+  return crimId.trim().toLocaleLowerCase();
+}
+
+export function taskIdentityKey(customerId: string, crimId: string): string {
+  return `${customerId}\u0000${normalizeCrimId(crimId)}`;
+}
+
+/** Legacy V1/v1/integer values count; release labels such as v1.0 remain historical only. */
+function sequentialVersion(value: string | null): number | null {
+  if (value === null) return null;
+  const match = /^(?:v)?(0|[1-9]\d*)$/i.exec(value.trim());
+  return match?.[1] === undefined ? null : Number(match[1]);
+}
+
+export function versionSequencesFromTasks(tasks: readonly Task[]): Record<string, number> {
+  const sequences: Record<string, number> = {};
+  for (const task of tasks) {
+    const parsed = sequentialVersion(task.version);
+    if (parsed === null) continue;
+    const key = taskIdentityKey(task.customerId, task.crimId);
+    sequences[key] = Math.max(sequences[key] ?? -1, parsed);
+  }
+  return sequences;
+}
+
+function seedChecklistSubmissions(
+  tasks: readonly Task[],
+  taskTypes: readonly TaskTypeRecord[],
+  template: readonly ChecklistCategory[],
+  checklists: readonly TaskChecklist[],
+): ChecklistSubmission[] {
+  return checklists.flatMap((checklist) => {
+    const task = tasks.find((entry) => entry.id === checklist.taskId);
+    if (task?.submittedAt === null || task === undefined) return [];
+    const byCategory = new Map<string, ChecklistSubmission['categories'][number]>();
+    for (const answer of checklist.answers) {
+      const key = answer.categoryName;
+      const source = template.find((category) => category.name === key);
+      const category = byCategory.get(key) ?? {
+        categoryId: source?.id ?? `snapshot-${key.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+        categoryName: key,
+        categoryOrder: source?.order ?? byCategory.size + 1,
+        questions: [],
+      };
+      category.questions.push({
+        questionId: answer.questionId,
+        questionText: answer.questionText,
+        questionOrder: answer.order,
+        answer: answer.answer,
+      });
+      byCategory.set(key, category);
+    }
+    return [
+      {
+        id: `cls-${task.id}-1`,
+        taskId: task.id,
+        version: 1,
+        submittedAt: task.submittedAt,
+        developerId: checklist.developerId,
+        taskTypes: checklist.taskTypeIds.map((id) => ({
+          id,
+          name: taskTypes.find((entry) => entry.id === id)?.name ?? id,
+        })),
+        categories: [...byCategory.values()]
+          .map((category) => ({
+            ...category,
+            questions: [...category.questions].sort((a, b) => a.questionOrder - b.questionOrder),
+          }))
+          .sort((a, b) => a.categoryOrder - b.categoryOrder),
+        remarks: checklist.remarks,
+      },
+    ];
+  });
 }
 
 export const db: Database = buildDatabase();
@@ -393,8 +566,11 @@ export function resetDb(): void {
   db.issueResponses = fresh.issueResponses;
   db.attachments = fresh.attachments;
   db.checklists = fresh.checklists;
+  db.checklistSubmissions = fresh.checklistSubmissions;
   db.events = fresh.events;
+  db.auditEvents = fresh.auditEvents;
   db.sequences = fresh.sequences;
+  db.versionSequences = fresh.versionSequences;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -437,6 +613,12 @@ export function findChecklist(taskId: string): TaskChecklist | undefined {
   return db.checklists.find((c) => c.taskId === taskId);
 }
 
+export function checklistSubmissionsForTask(taskId: string): ChecklistSubmission[] {
+  return db.checklistSubmissions
+    .filter((entry) => entry.taskId === taskId)
+    .sort((a, b) => b.version - a.version);
+}
+
 /**
  * Issues the next per-customer task number, e.g. `AASL-019`.
  *
@@ -452,6 +634,18 @@ export function issueTaskCode(customerId: string): string {
   return `${customer?.code ?? 'TASK'}-${String(next).padStart(3, '0')}`;
 }
 
+export function peekNextTaskVersion(customerId: string, crimId: string): number {
+  return (db.versionSequences[taskIdentityKey(customerId, crimId)] ?? -1) + 1;
+}
+
+/** One synchronous mutation; production must perform this inside the insert transaction. */
+export function issueTaskVersion(customerId: string, crimId: string): number {
+  const key = taskIdentityKey(customerId, crimId);
+  const version = (db.versionSequences[key] ?? -1) + 1;
+  db.versionSequences[key] = version;
+  return version;
+}
+
 export function recordEvent(event: Omit<TaskEvent, 'id' | 'actorName'>): TaskEvent {
   const actor = findUser(event.actorId);
   const stored: TaskEvent = {
@@ -463,13 +657,29 @@ export function recordEvent(event: Omit<TaskEvent, 'id' | 'actorName'>): TaskEve
   return stored;
 }
 
+export function recordSystemAuditEvent(event: {
+  action: SystemAuditAction;
+  actorId: string;
+  targetType: SystemAuditEvent['targetType'];
+  targetId: string;
+  targetLabel: string;
+  reason: string;
+}): SystemAuditEvent {
+  const actor = findUser(event.actorId);
+  const stored = systemAuditEventSchema.parse({
+    ...event,
+    id: `audit-${String(db.auditEvents.length + 1)}-${crypto.randomUUID()}`,
+    actorName: actor?.name ?? 'Unknown',
+    occurredAt: new Date().toISOString(),
+  });
+  db.auditEvents.push(stored);
+  return stored;
+}
+
 export function eventsForTask(taskId: string): TaskEvent[] {
   return db.events
     .filter((event) => event.taskId === taskId)
-    .map((event) => ({
-      ...event,
-      actorName: findUser(event.actorId)?.name ?? 'Unknown',
-    }))
+    .map((event) => ({ ...event, actorName: findUser(event.actorId)?.name ?? 'Unknown' }))
     .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
 }
 

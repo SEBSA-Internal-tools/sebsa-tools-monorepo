@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_VERSION_CHARS } from '@sdp/contracts';
 import {
   canLeaveStep,
   canSubmit,
@@ -18,20 +17,20 @@ const READY: TaskReadinessInput = {
 
 describe('deriveTitle (FL 2.5-01)', () => {
   it('joins customer and CRIM ID', () => {
-    expect(deriveTitle('AASL', 'CRIM-848')).toBe('AASL - CRIM-848');
+    expect(deriveTitle('AASL', 'CRIM-848')).toBe('AASL-CRIM-848');
   });
 
   it('appends the version only when there is one', () => {
-    expect(deriveTitle('AASL', 'CRIM-848', 'V1')).toBe('AASL - CRIM-848 V1');
-    expect(deriveTitle('AASL', 'CRIM-848', '')).toBe('AASL - CRIM-848');
-    expect(deriveTitle('AASL', 'CRIM-848', null)).toBe('AASL - CRIM-848');
-    expect(deriveTitle('AASL', 'CRIM-848', undefined)).toBe('AASL - CRIM-848');
+    expect(deriveTitle('AASL', 'CRIM-848', 'V1')).toBe('AASL-CRIM-848-V1');
+    expect(deriveTitle('AASL', 'CRIM-848', '')).toBe('AASL-CRIM-848');
+    expect(deriveTitle('AASL', 'CRIM-848', null)).toBe('AASL-CRIM-848');
+    expect(deriveTitle('AASL', 'CRIM-848', undefined)).toBe('AASL-CRIM-848');
   });
 
   it('trims, so stray whitespace never becomes part of the record', () => {
-    expect(deriveTitle('  AASL ', ' CRIM-848  ', '  V1 ')).toBe('AASL - CRIM-848 V1');
+    expect(deriveTitle('  AASL ', ' CRIM-848  ', '  V1 ')).toBe('AASL-CRIM-848-V1');
     // A version that is only whitespace is no version at all.
-    expect(deriveTitle('AASL', 'CRIM-848', '   ')).toBe('AASL - CRIM-848');
+    expect(deriveTitle('AASL', 'CRIM-848', '   ')).toBe('AASL-CRIM-848');
   });
 });
 
@@ -58,22 +57,6 @@ describe('missingRequirements', () => {
         draft: { ...READY.draft, crimId: '   ' },
       }),
     ).toEqual(['crimId']);
-  });
-
-  it('flags an over-long version but accepts one at the limit', () => {
-    const atLimit = 'v'.repeat(MAX_VERSION_CHARS);
-    expect(
-      missingRequirements({
-        ...READY,
-        draft: { ...READY.draft, version: atLimit },
-      }),
-    ).toEqual([]);
-    expect(
-      missingRequirements({
-        ...READY,
-        draft: { ...READY.draft, version: `${atLimit}x` },
-      }),
-    ).toEqual(['versionTooLong']);
   });
 
   it('blocks submission on an incomplete checklist (FL 2.2-03)', () => {

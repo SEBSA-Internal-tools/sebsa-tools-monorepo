@@ -17,8 +17,8 @@ import { expect, test, type Page } from '@playwright/test';
  * code path deterministically and models a real case in its own right: an account
  * deactivated or a token revoked while the tab sat open, and on the Phase 2
  * backend, a genuinely expired token. The app boots believing it is signed in —
- * the envelope is live — and `/auth/me` answers 401 in-page, which is exactly the
- * sequence that used to crash.
+ * the stored mock identity is present — and `/auth/me` answers 401 in-page, which
+ * is exactly the sequence that used to crash.
  *
  * The two-hour timer reaches the same `expireSession()` and is covered in
  * `src/app/sessionLifecycle.test.tsx`, where the clock can be controlled.
@@ -26,7 +26,8 @@ import { expect, test, type Page } from '@playwright/test';
 
 const EMAIL = 'hiruni.wijethilaka@sebsaworld.com';
 const PASSWORD = 'Sebsa@2026';
-const SESSION_KEY = 'sdp.session';
+// `MOCK_IDENTITY_KEY` in `apps/web/src/lib/apiClient.ts`: read from sessionStorage, then localStorage.
+const IDENTITY_KEY = 'sdp.mock-user-id';
 const DRAFT_KEY = 'sdp.taskDraft';
 
 async function signIn(page: Page) {
@@ -38,23 +39,14 @@ async function signIn(page: Page) {
 }
 
 /**
- * Leaves a live envelope naming an account the server rejects, then reloads so
+ * Leaves a stored identity naming an account the server rejects, then reloads so
  * the app boots trusting it.
  */
 async function rejectTheStoredSession(page: Page, path: string) {
-  await page.evaluate(
-    ({ key, expiresAt }) => {
-      window.localStorage.setItem(
-        key,
-        JSON.stringify({
-          userId: 'u-revoked-account',
-          expiresAt,
-          remember: true,
-        }),
-      );
-    },
-    { key: SESSION_KEY, expiresAt: Date.now() + 60 * 60 * 1000 },
-  );
+  await page.evaluate((key) => {
+    window.sessionStorage.setItem(key, 'u-revoked-account');
+    window.localStorage.setItem(key, 'u-revoked-account');
+  }, IDENTITY_KEY);
 
   await page.goto(path);
 }
@@ -73,8 +65,8 @@ test.describe('session expiry', () => {
     // And not the old misleading message either.
     await expect(page.getByText(/authentication failed/i)).toHaveCount(0);
 
-    // Informative, not just a bounce: the rule that caused it, and what was done.
-    await expect(page.getByText(/2 hours without activity/i)).toBeVisible();
+    // Informative, not just a bounce: what happened, and what was done.
+    await expect(page.getByText(/your secure sign-in has expired/i)).toBeVisible();
     await expect(page.getByText(/have been cleared/i)).toBeVisible();
 
     // Deliberately still on the route the user was on — the redirect is theirs to
@@ -101,13 +93,13 @@ test.describe('session expiry', () => {
     });
 
     const stored = await page.evaluate(
-      ({ session, draft }) => ({
-        session: window.localStorage.getItem(session),
+      ({ identity, draft }) => ({
+        identity: window.sessionStorage.getItem(identity) ?? window.localStorage.getItem(identity),
         draft: window.sessionStorage.getItem(draft),
       }),
-      { session: SESSION_KEY, draft: DRAFT_KEY },
+      { identity: IDENTITY_KEY, draft: DRAFT_KEY },
     );
-    expect(stored.session).toBeNull();
+    expect(stored.identity).toBeNull();
     expect(stored.draft).toBeNull();
   });
 

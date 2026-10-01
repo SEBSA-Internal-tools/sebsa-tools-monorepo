@@ -81,19 +81,43 @@ export function StatCardSkeleton({
 }) {
   const compact = size === 'compact';
 
+  if (compact) {
+    return (
+      <div
+        className={cn(
+          'flex h-full flex-col justify-between rounded-2xl border border-line bg-surface p-3.5 shadow-card sm:p-4',
+          className,
+        )}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <Skeleton className="size-8.5 shrink-0 rounded-xl" />
+        </div>
+        <div className="mt-3 flex-1 space-y-2">
+          <Skeleton className="h-3 w-16" />
+          <Skeleton className="h-7 w-12" />
+        </div>
+        <Skeleton className="mt-2 h-2.5 w-24" />
+      </div>
+    );
+  }
+
   return (
     <div
       className={cn(
-        'flex h-full flex-col justify-between rounded-card border border-line bg-surface shadow-card',
-        compact ? 'p-4' : 'p-5',
+        'flex h-full flex-col justify-between rounded-2xl border border-line bg-surface p-5 shadow-card',
         className,
       )}
     >
-      <div className="flex items-start justify-between gap-3">
-        <Skeleton className="h-3.5 w-24" />
-        <Skeleton className={cn('shrink-0 rounded-control', compact ? 'size-8' : 'size-9')} />
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Skeleton className="size-10 shrink-0 rounded-full" />
+          <Skeleton className="h-4 w-24" />
+        </div>
       </div>
-      <Skeleton className={cn('h-8 w-14', compact ? 'mt-3' : 'mt-6')} />
+      <div className="mt-3 space-y-2">
+        <Skeleton className="h-8 w-14" />
+        <Skeleton className="h-3 w-32" />
+      </div>
     </div>
   );
 }

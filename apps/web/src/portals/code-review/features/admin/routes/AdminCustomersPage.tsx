@@ -9,9 +9,12 @@ import { columnHelper, type ColumnList } from '@/components/common/dataTableColu
 import { MonoId, OptionalCell } from '@/portals/code-review/components/cells.tsx';
 import { EmptyState } from '@/components/common/states.tsx';
 import { Button } from '@/components/ui/Button.tsx';
-import { IconButton, SearchField } from '@/components/ui/controls.tsx';
+import { IconButton, SearchField, Textarea } from '@/components/ui/controls.tsx';
+import { Field } from '@/components/ui/Field.tsx';
 import { ApiError } from '@/lib/apiClient.ts';
 import { interpolate } from '@/lib/formatters.ts';
+import { hasCapability } from '@/lib/permissions.ts';
+import { useCurrentUser } from '@/hooks/useCurrentUser.ts';
 import { useCustomers } from '@/portals/code-review/hooks/useReferenceData.ts';
 import admin from '@/content/admin.json';
 import common from '@/content/common.json';
@@ -56,6 +59,7 @@ const statusColumn = helper.accessor('isActive', {
 });
 
 export function AdminCustomersPage() {
+  const { data: actor } = useCurrentUser();
   const { data: customers, isPending, isFetching, error, refetch } = useCustomers();
   const { mutate: mutateCustomer, isPending: isUpdating } = useUpdateCustomer();
   const deleteCustomer = useDeleteCustomer();
@@ -65,6 +69,9 @@ export function AdminCustomersPage() {
   const [isFormOpen, setFormOpen] = useState(false);
   const [deactivating, setDeactivating] = useState<Customer | null>(null);
   const [deleting, setDeleting] = useState<Customer | null>(null);
+  const [deleteReason, setDeleteReason] = useState('');
+  const [deleteReasonError, setDeleteReasonError] = useState<string | undefined>();
+  const canPurge = hasCapability(actor?.roles ?? [], 'records.purge');
 
   const visible = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -115,9 +122,7 @@ export function AdminCustomersPage() {
           return (
             <div className="flex items-center justify-end gap-0.5">
               <IconButton
-                label={interpolate(admin.customers.actions.edit, {
-                  name: customer.name,
-                })}
+                label={interpolate(admin.customers.actions.edit, { name: customer.name })}
                 icon={<Pencil className="size-4" />}
                 size="sm"
                 onClick={() => {
@@ -140,23 +145,25 @@ export function AdminCustomersPage() {
                   else setActive(customer, true);
                 }}
               />
-              <IconButton
-                label={interpolate(admin.customers.actions.delete, {
-                  name: customer.name,
-                })}
-                icon={<Trash2 className="size-4" />}
-                tone="danger"
-                size="sm"
-                onClick={() => {
-                  setDeleting(customer);
-                }}
-              />
+              {canPurge ? (
+                <IconButton
+                  label={interpolate(admin.customers.actions.delete, { name: customer.name })}
+                  icon={<Trash2 className="size-4" />}
+                  tone="danger"
+                  size="sm"
+                  onClick={() => {
+                    setDeleteReason('');
+                    setDeleteReasonError(undefined);
+                    setDeleting(customer);
+                  }}
+                />
+              ) : null}
             </div>
           );
         },
       }),
     ],
-    [setActive],
+    [canPurge, setActive],
   );
 
   return (
@@ -180,6 +187,7 @@ export function AdminCustomersPage() {
           void refetch();
         }}
         pageSize={15}
+        alwaysShowPagination
         toolbar={
           <div className="flex w-full flex-wrap items-end gap-3">
             <div className="min-w-56 flex-1">
@@ -191,6 +199,7 @@ export function AdminCustomersPage() {
               />
             </div>
             <Button
+              variant="adminPrimary"
               onClick={() => {
                 setEditing(null);
                 setFormOpen(true);
@@ -253,23 +262,39 @@ export function AdminCustomersPage() {
         isPending={deleteCustomer.isPending}
         onConfirm={() => {
           if (deleting === null) return;
+          if (deleteReason.trim() === '') {
+            setDeleteReasonError(admin.customers.delete.reasonLabel);
+            return;
+          }
           const customer = deleting;
 
-          deleteCustomer.mutate(customer.id, {
-            onSuccess: () => {
-              toast.success(
-                interpolate(admin.customers.delete.success, {
-                  name: customer.name,
-                }),
-              );
-              setDeleting(null);
+          deleteCustomer.mutate(
+            { customerId: customer.id, reason: deleteReason.trim() },
+            {
+              onSuccess: () => {
+                toast.success(interpolate(admin.customers.delete.success, { name: customer.name }));
+                setDeleting(null);
+                setDeleteReason('');
+              },
+              onError: (cause) => {
+                toast.error(cause instanceof ApiError ? cause.message : common.errors.generic);
+              },
             },
-            onError: (cause) => {
-              toast.error(cause instanceof ApiError ? cause.message : common.errors.generic);
-            },
-          });
+          );
         }}
-      />
+      >
+        <Field label={admin.customers.delete.reasonLabel} required error={deleteReasonError}>
+          <Textarea
+            value={deleteReason}
+            onChange={(event) => {
+              setDeleteReason(event.target.value);
+              setDeleteReasonError(undefined);
+            }}
+            rows={3}
+            placeholder={admin.customers.delete.reasonPlaceholder}
+          />
+        </Field>
+      </ConfirmDialog>
     </section>
   );
 }

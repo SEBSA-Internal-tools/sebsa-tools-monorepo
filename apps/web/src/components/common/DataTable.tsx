@@ -87,8 +87,11 @@ export interface DataTableProps<TRow extends object> {
   globalFilter?: string | undefined;
   columnFilters?: ColumnFiltersState | undefined;
   initialSorting?: SortingState | undefined;
+  onSortingChange?: ((sorting: SortingState) => void) | undefined;
 
   pageSize?: number | undefined;
+  initialPageIndex?: number | undefined;
+  onPaginationChange?: ((pageIndex: number, pageSize: number) => void) | undefined;
 
   /**
    * Whether the footer offers the "Rows per page" control.
@@ -104,6 +107,13 @@ export interface DataTableProps<TRow extends object> {
 
   /** Choices offered by the "Rows per page" control. */
   pageSizeOptions?: readonly number[] | undefined;
+
+  /**
+   * Keep page status and disabled previous/next controls visible for a
+   * single-page or empty result. Paginated dashboard grids use this for a
+   * stable footer.
+   */
+  alwaysShowPagination?: boolean | undefined;
 
   /**
    * Plural noun for the "Showing 1 to 15 of 51 tasks" line.
@@ -195,6 +205,10 @@ export interface DataTableProps<TRow extends object> {
   /** Accessible name for the `<table>`. */
   caption: string;
   className?: string | undefined;
+  /** Optional trigger to reset page index to 0 when filters change. */
+  resetPageIndexTrigger?: unknown;
+  /** Custom empty state when data is filtered down to 0 items but totalCount > 0. */
+  filteredEmptyState?: ReactNode | undefined;
 }
 
 const EMPTY_FILTERS: ColumnFiltersState = [];
@@ -216,9 +230,13 @@ export function DataTable<TRow extends object>({
   globalFilter = '',
   columnFilters = EMPTY_FILTERS,
   initialSorting = EMPTY_SORTING,
+  onSortingChange,
   pageSize = 10,
+  initialPageIndex = 0,
+  onPaginationChange,
   rowCountSelector = true,
   pageSizeOptions = DEFAULT_PAGE_SIZE_OPTIONS,
+  alwaysShowPagination = false,
   countNoun,
   totalCount,
   isLoading = false,
@@ -231,11 +249,13 @@ export function DataTable<TRow extends object>({
   reorder,
   caption,
   className,
+  resetPageIndexTrigger,
+  filteredEmptyState,
 }: DataTableProps<TRow>) {
   const rows = (data ?? NO_ROWS) as TRow[];
 
   const initialState = useMemo(
-    () => ({ sorting: initialSorting, pagination: { pageIndex: 0, pageSize } }),
+    () => ({ sorting: initialSorting, pagination: { pageIndex: initialPageIndex, pageSize } }),
     // `initialState` is read once by the table; recomputing it on every filter
     // change would be wasted work and, worse, would reset the page.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -275,6 +295,48 @@ export function DataTable<TRow extends object>({
       table.setPageIndex(0);
     }
   }, [table, filtered]);
+
+  const lastResetTrigger = useRef(resetPageIndexTrigger);
+  useEffect(() => {
+    if (lastResetTrigger.current !== resetPageIndexTrigger) {
+      lastResetTrigger.current = resetPageIndexTrigger;
+      table.setPageIndex(0);
+    }
+  }, [resetPageIndexTrigger, table]);
+
+  const lastInitialPage = useRef(initialPageIndex);
+  useEffect(() => {
+    if (lastInitialPage.current !== initialPageIndex) {
+      lastInitialPage.current = initialPageIndex;
+      table.setPageIndex(initialPageIndex ?? 0);
+    }
+  }, [initialPageIndex, table]);
+
+  const lastReportedPage = useRef<number | null>(null);
+  const lastReportedSize = useRef<number | null>(null);
+  const onPaginationChangeRef = useRef(onPaginationChange);
+  useEffect(() => {
+    onPaginationChangeRef.current = onPaginationChange;
+  }, [onPaginationChange]);
+  const lastReportedSorting = useRef('');
+
+  useEffect(() => {
+    const pIndex = table.state.pagination.pageIndex;
+    const pSize = table.state.pagination.pageSize;
+    if (lastReportedPage.current !== pIndex || lastReportedSize.current !== pSize) {
+      lastReportedPage.current = pIndex;
+      lastReportedSize.current = pSize;
+      onPaginationChangeRef.current?.(pIndex, pSize);
+    }
+  }, [table.state.pagination.pageIndex, table.state.pagination.pageSize]);
+
+  useEffect(() => {
+    const serialized = JSON.stringify(table.state.sorting);
+    if (lastReportedSorting.current !== serialized) {
+      lastReportedSorting.current = serialized;
+      onSortingChange?.(table.state.sorting);
+    }
+  }, [onSortingChange, table.state.sorting]);
 
   const hasError = error !== undefined && error !== null;
   const total = totalCount ?? rows.length;
@@ -338,12 +400,15 @@ export function DataTable<TRow extends object>({
   const rangeFrom = filtered === 0 ? 0 : pageIndex * currentPageSize + 1;
   const rangeTo = Math.min((pageIndex + 1) * currentPageSize, filtered);
 
-  const countLine = interpolate(common.table.showingRange, {
-    from: rangeFrom,
-    to: rangeTo,
-    total: filtered,
-    noun: countNoun,
-  });
+  const countLine =
+    filtered === 0 && alwaysShowPagination
+      ? interpolate(common.table.showingEmpty, { noun: countNoun })
+      : interpolate(common.table.showingRange, {
+          from: rangeFrom,
+          to: rangeTo,
+          total: filtered,
+          noun: countNoun,
+        });
 
   /*
    * Identity of the visible row set, used to key `<tbody>` so a page change, a
@@ -372,6 +437,9 @@ export function DataTable<TRow extends object>({
   const sizeChoices = [...new Set([...pageSizeOptions, currentPageSize])].sort((a, b) => a - b);
 
   const showPageSize = rowCountSelector && !isLoading && sizeChoices.length > 1;
+  const displayedPageCount = Math.max(1, pageCount);
+  const displayedPageIndex = Math.min(pageIndex, displayedPageCount - 1);
+  const showPagination = alwaysShowPagination || pageCount > 1;
 
   /*
    * Unconditional once there is anything to describe.
@@ -383,6 +451,24 @@ export function DataTable<TRow extends object>({
    * is the only thing telling you how much you are looking at.
    */
   const showFooter = !isLoading;
+  const paginationFooter = showFooter ? (
+    <TablePaginationFooter
+      countLine={countLine}
+      showPageSize={showPageSize}
+      pageSize={currentPageSize}
+      pageSizeOptions={sizeChoices}
+      onPageSizeChange={(size) => {
+        table.setPageSize(size);
+      }}
+      showPagination={showPagination}
+      page={displayedPageIndex + 1}
+      totalPages={displayedPageCount}
+      canGoPrevious={showPagination && table.getCanPreviousPage()}
+      canGoNext={showPagination && table.getCanNextPage()}
+      onPrevious={() => table.previousPage()}
+      onNext={() => table.nextPage()}
+    />
+  ) : null;
 
   /*
    * An error only REPLACES the grid when there is nothing else to show.
@@ -410,6 +496,7 @@ export function DataTable<TRow extends object>({
     return (
       <TableShell className={className} heading={heading} toolbar={toolbar}>
         {emptyState ?? <EmptyState title={common.table.empty} />}
+        {alwaysShowPagination ? paginationFooter : null}
       </TableShell>
     );
   }
@@ -461,7 +548,7 @@ export function DataTable<TRow extends object>({
       ) : null}
 
       <div
-        className="overflow-x-auto"
+        className="max-w-full min-w-0 overflow-x-auto"
         aria-busy={isLoading || isFetching}
         {...(isLoading ? { role: 'status' as const, 'aria-live': 'polite' as const } : {})}
       >
@@ -580,9 +667,11 @@ export function DataTable<TRow extends object>({
         </table>
       </div>
 
-      {!isLoading && filtered === 0 ? (
-        <EmptyState title={common.table.noResults} hint={common.table.noResultsHint} />
-      ) : null}
+      {!isLoading && filtered === 0
+        ? (filteredEmptyState ?? (
+            <EmptyState title={common.table.noResults} hint={common.table.noResultsHint} />
+          ))
+        : null}
 
       {/*
         The footer bar, identical on every grid in the product: the range on the
@@ -590,57 +679,7 @@ export function DataTable<TRow extends object>({
         Admin grids are the reference the Developer and Reviewer grids were
         brought into line with.
       */}
-      {showFooter ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line bg-surface px-5 py-3.5">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-            {/*
-              The one live region for the row count.
-
-              Changing the page, the page size or a filter changes this line and
-              nothing else a screen reader would notice, so it announces itself.
-              It must stay the ONLY element carrying the text: a second, `sr-only`
-              copy was once added and immediately broke `e2e/developer.spec.ts`,
-              which asserts on the count and found two.
-            */}
-            <p aria-live="polite" className="text-xs text-ink-500 tabular-nums">
-              {countLine}
-            </p>
-
-            {showPageSize ? (
-              <TablePageSize
-                value={currentPageSize}
-                options={sizeChoices}
-                onChange={(size) => {
-                  table.setPageSize(size);
-                }}
-              />
-            ) : null}
-          </div>
-
-          {pageCount > 1 ? (
-            <div className="flex items-center gap-2">
-              <PageButton
-                label={common.table.previousPage}
-                icon={<ChevronLeft className="size-4" aria-hidden="true" />}
-                disabled={!table.getCanPreviousPage()}
-                onClick={() => table.previousPage()}
-              />
-              <span className="text-xs text-ink-500 tabular-nums">
-                {interpolate(common.table.page, {
-                  page: pageIndex + 1,
-                  pages: pageCount,
-                })}
-              </span>
-              <PageButton
-                label={common.table.nextPage}
-                icon={<ChevronRight className="size-4" aria-hidden="true" />}
-                disabled={!table.getCanNextPage()}
-                onClick={() => table.nextPage()}
-              />
-            </div>
-          ) : null}
-        </div>
-      ) : null}
+      {paginationFooter}
     </TableShell>
   );
 }
@@ -828,11 +867,7 @@ function dropEdgeClass(edge: Edge | null): string {
  */
 const ReorderHandle = forwardRef<
   HTMLButtonElement,
-  {
-    label: string;
-    isDragging: boolean;
-    onNudge: (direction: 'up' | 'down') => void;
-  }
+  { label: string; isDragging: boolean; onNudge: (direction: 'up' | 'down') => void }
 >(function ReorderHandle({ label, isDragging, onNudge }, ref) {
   return (
     <button
@@ -876,7 +911,7 @@ function TableShell({
   return (
     <div
       className={cn(
-        'overflow-hidden rounded-2xl border border-line bg-surface shadow-card',
+        'max-w-full min-w-0 overflow-hidden rounded-2xl border border-line bg-surface shadow-card',
         className,
       )}
     >
@@ -904,6 +939,76 @@ function SortIcon({ direction }: { direction: false | 'asc' | 'desc' }) {
   if (direction === 'desc')
     return <ChevronDown className="ml-1 size-3.5 text-brand-blue-600" aria-hidden="true" />;
   return <ArrowUpDown className="ml-1 size-3.5 opacity-40" aria-hidden="true" />;
+}
+
+function TablePaginationFooter({
+  countLine,
+  showPageSize,
+  pageSize,
+  pageSizeOptions,
+  onPageSizeChange,
+  showPagination,
+  page,
+  totalPages,
+  canGoPrevious,
+  canGoNext,
+  onPrevious,
+  onNext,
+}: {
+  countLine: string;
+  showPageSize: boolean;
+  pageSize: number;
+  pageSizeOptions: readonly number[];
+  onPageSizeChange: (size: number) => void;
+  showPagination: boolean;
+  page: number;
+  totalPages: number;
+  canGoPrevious: boolean;
+  canGoNext: boolean;
+  onPrevious: () => void;
+  onNext: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line bg-surface px-5 py-3.5">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        {/*
+          The one live region for the row count.
+          Changing the page, the page size or a filter changes this line and
+          nothing else a screen reader would notice, so it announces itself.
+          It must stay the ONLY element carrying the text: a second, `sr-only`
+          copy was once added and immediately broke `e2e/developer.spec.ts`,
+          which asserts on the count and found two.
+        */}
+        <p aria-live="polite" className="text-xs text-ink-500 tabular-nums">
+          {countLine}
+        </p>
+
+        {showPageSize ? (
+          <TablePageSize value={pageSize} options={pageSizeOptions} onChange={onPageSizeChange} />
+        ) : null}
+      </div>
+
+      {showPagination ? (
+        <div className="flex items-center gap-2">
+          <PageButton
+            label={common.table.previousPage}
+            icon={<ChevronLeft className="size-4" aria-hidden="true" />}
+            disabled={!canGoPrevious}
+            onClick={onPrevious}
+          />
+          <span className="text-xs text-ink-500 tabular-nums">
+            {interpolate(common.table.page, { page, pages: totalPages })}
+          </span>
+          <PageButton
+            label={common.table.nextPage}
+            icon={<ChevronRight className="size-4" aria-hidden="true" />}
+            disabled={!canGoNext}
+            onClick={onNext}
+          />
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function PageButton({

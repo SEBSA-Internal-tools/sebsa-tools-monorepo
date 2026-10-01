@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { ROLES, createUserInputSchema, type Role, type User } from '@sdp/contracts';
 import { Button } from '@/components/ui/Button.tsx';
-import { Checkbox } from '@/components/ui/controls.tsx';
+import { Checkbox, Textarea } from '@/components/ui/controls.tsx';
 import { Dialog } from '@/components/ui/Dialog.tsx';
 import { Field, Input } from '@/components/ui/Field.tsx';
 import { ApiError } from '@/lib/apiClient.ts';
@@ -27,9 +27,11 @@ interface FormState {
   name: string;
   email: string;
   roles: Role[];
+  reason: string;
 }
 
-const EMPTY: FormState = { name: '', email: '', roles: [] };
+const EMPTY: FormState = { name: '', email: '', roles: [], reason: '' };
+const PRIVILEGED_ROLES: readonly Role[] = ['Admin', 'SuperAdmin'];
 
 /**
  * Mounted only while open, and keyed on the subject by the caller.
@@ -41,29 +43,46 @@ const EMPTY: FormState = { name: '', email: '', roles: [] };
  */
 export function UserFormDialog({
   user,
+  canManagePrivileged,
   onClose,
 }: {
   /** `null` creates; a user edits that user. */
   user: User | null;
+  canManagePrivileged: boolean;
   onClose: () => void;
 }) {
   const createUser = useCreateUser();
   const updateUser = useUpdateUser();
 
   const [form, setForm] = useState<FormState>(() =>
-    user === null ? EMPTY : { name: user.name, email: user.email, roles: [...user.roles] },
+    user === null
+      ? EMPTY
+      : { name: user.name, email: user.email, roles: [...user.roles], reason: '' },
   );
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
 
   const isPending = createUser.isPending || updateUser.isPending;
+  const availableRoles = canManagePrivileged
+    ? ROLES
+    : ROLES.filter((role) => role === 'Developer' || role === 'Reviewer');
+  const privilegedChange =
+    user === null
+      ? form.roles.some((role) => PRIVILEGED_ROLES.includes(role))
+      : PRIVILEGED_ROLES.some((role) => user.roles.includes(role) !== form.roles.includes(role));
 
   function submit() {
+    if (privilegedChange && form.reason.trim() === '') {
+      setErrors((current) => ({ ...current, reason: admin.users.privileged.reasonRequired }));
+      return;
+    }
     const parsed = createUserInputSchema.safeParse(form);
     if (!parsed.success) {
       const next: Partial<Record<keyof FormState, string>> = {};
       for (const issue of parsed.error.issues) {
         const key = issue.path[0];
-        if (key === 'name' || key === 'email' || key === 'roles') next[key] ??= issue.message;
+        if (key === 'name' || key === 'email' || key === 'roles' || key === 'reason') {
+          next[key] ??= issue.message;
+        }
       }
       setErrors(next);
       return;
@@ -108,7 +127,7 @@ export function UserFormDialog({
           <Button variant="secondary" onClick={onClose}>
             {common.actions.cancel}
           </Button>
-          <Button onClick={submit} isLoading={isPending}>
+          <Button variant="adminPrimary" onClick={submit} isLoading={isPending}>
             {user === null
               ? isPending
                 ? admin.users.creating
@@ -147,7 +166,7 @@ export function UserFormDialog({
             {admin.users.rolesLabel}
           </legend>
           <div className="flex flex-wrap gap-4">
-            {ROLES.map((role) => (
+            {availableRoles.map((role) => (
               <Checkbox
                 key={role}
                 label={common.role[role]}
@@ -156,8 +175,17 @@ export function UserFormDialog({
                   setForm({
                     ...form,
                     roles: checked
-                      ? [...form.roles, role]
-                      : form.roles.filter((current) => current !== role),
+                      ? [
+                          ...form.roles,
+                          ...(role === 'SuperAdmin' && !form.roles.includes('Admin')
+                            ? (['Admin'] as Role[])
+                            : []),
+                          role,
+                        ]
+                      : form.roles.filter(
+                          (current) =>
+                            current !== role && !(role === 'Admin' && current === 'SuperAdmin'),
+                        ),
                   });
                 }}
               />
@@ -169,6 +197,23 @@ export function UserFormDialog({
             </p>
           )}
         </fieldset>
+
+        {privilegedChange ? (
+          <Field label={admin.users.privileged.reasonLabel} required error={errors.reason}>
+            <Textarea
+              value={form.reason}
+              onChange={(event) => {
+                setForm({ ...form, reason: event.target.value });
+                setErrors((current) => {
+                  const { reason: _reason, ...remaining } = current;
+                  return remaining;
+                });
+              }}
+              rows={3}
+              placeholder={admin.users.privileged.reasonPlaceholder}
+            />
+          </Field>
+        ) : null}
       </div>
     </Dialog>
   );

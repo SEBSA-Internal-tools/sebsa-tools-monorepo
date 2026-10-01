@@ -116,7 +116,7 @@ export function StatCard({
   const activeStyle = ACTIVE_TONE_STYLES[tone];
 
   const shell = cn(
-    'group relative flex h-full flex-col justify-between rounded-card border text-left transition-all duration-200',
+    'group relative flex h-full flex-col justify-between rounded-2xl border text-left transition-all duration-200',
     compact ? 'p-4' : 'p-5',
     onSelect
       ? 'cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600'
@@ -130,15 +130,96 @@ export function StatCard({
   const trendText = typeof trend === 'object' ? trend.value : trend;
   const isPositive = typeof trend === 'object' ? trend.positive : trendPositive;
 
-  const body = (
+  const body = compact ? (
+    <>
+      <div className="flex items-start justify-between gap-2">
+        {icon ? (
+          <span
+            className={cn(
+              'grid size-8.5 shrink-0 place-items-center rounded-xl transition-all duration-300',
+              isActive ? activeStyle.iconTile : TILE_TONES[tone],
+            )}
+            aria-hidden="true"
+          >
+            {icon}
+          </span>
+        ) : null}
+
+        {isActive ? (
+          <span
+            className={cn(
+              'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-bold shadow-2xs transition-all duration-200',
+              activeStyle.badge,
+            )}
+          >
+            <span
+              className={cn('size-1.5 animate-pulse rounded-full', activeStyle.dot)}
+              aria-hidden="true"
+            />
+            Active
+          </span>
+        ) : null}
+      </div>
+
+      <div className="mt-3 flex-1">
+        <p
+          className={cn(
+            'line-clamp-1 text-xs font-semibold tracking-tight transition-colors duration-200',
+            isActive ? 'text-ink-950 font-bold' : 'text-ink-700',
+          )}
+          title={label}
+        >
+          {label}
+        </p>
+        <p
+          className={cn(
+            'mt-1 font-display text-2xl font-extrabold tracking-tight transition-colors duration-200 lg:text-3xl',
+            isActive ? 'text-ink-950' : 'text-ink-900',
+          )}
+        >
+          {value}
+        </p>
+      </div>
+
+      {subtitle !== undefined ? (
+        <p
+          className={cn(
+            'mt-2 line-clamp-2 text-[11px] leading-tight font-medium transition-colors duration-200',
+            isActive ? 'font-semibold text-ink-700' : 'text-ink-500',
+          )}
+        >
+          {subtitle}
+        </p>
+      ) : trendText ? (
+        <p
+          className={cn(
+            'mt-2 flex items-center gap-1 text-[11px] font-medium transition-colors duration-200',
+            isPositive
+              ? 'font-semibold text-emerald-600'
+              : trendText.includes('No change') || trendText.startsWith('—')
+                ? isActive
+                  ? 'text-ink-500'
+                  : 'text-ink-400'
+                : 'text-ink-500',
+          )}
+        >
+          {isPositive ? (
+            <span className="font-bold text-emerald-600" aria-hidden="true">
+              ↗
+            </span>
+          ) : null}
+          {trendText}
+        </p>
+      ) : null}
+    </>
+  ) : (
     <>
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           {icon ? (
             <span
               className={cn(
-                'grid shrink-0 place-items-center rounded-full transition-all duration-300',
-                compact ? 'size-8' : 'size-10',
+                'grid size-10 shrink-0 place-items-center rounded-full transition-all duration-300',
                 isActive ? activeStyle.iconTile : TILE_TONES[tone],
               )}
               aria-hidden="true"
@@ -148,8 +229,7 @@ export function StatCard({
           ) : null}
           <p
             className={cn(
-              'truncate font-semibold transition-colors duration-200',
-              compact ? 'text-xs' : 'text-sm',
+              'truncate text-sm font-semibold transition-colors duration-200',
               isActive ? 'text-ink-950 font-bold' : 'text-ink-700',
             )}
           >
@@ -176,8 +256,7 @@ export function StatCard({
       <div className="mt-3">
         <p
           className={cn(
-            'font-display font-extrabold tracking-tight transition-colors duration-200',
-            compact ? 'text-2xl' : 'text-3xl sm:text-4xl',
+            'font-display text-3xl font-extrabold tracking-tight transition-colors duration-200 sm:text-4xl',
             isActive ? 'text-ink-950' : 'text-ink-900',
           )}
         >

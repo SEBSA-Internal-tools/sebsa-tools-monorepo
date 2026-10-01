@@ -37,9 +37,7 @@ const taskCodeColumn = helper.accessor('taskCode', {
 
 const titleColumn = helper.accessor('title', {
   header: labels.title,
-  cell: (context) => (
-    <TitleCell title={context.getValue()} version={context.row.original.version} />
-  ),
+  cell: (context) => <TitleCell title={context.getValue()} />,
 });
 
 const crimIdColumn = helper.accessor('crimId', {
@@ -141,12 +139,19 @@ export function buildTaskColumns(options: TaskColumnOptions = {}): ColumnList<Ta
   return columns;
 }
 
-/** The trailing arrow used by My Tasks and the reviewer queues. */
-export function taskArrowAction(task: TaskListItem, onOpen: () => void) {
+/** The trailing view action used by My Tasks and the reviewer queues. */
+export function taskArrowAction(
+  task: TaskListItem,
+  onOpen: () => void,
+  text: string = tasks.list.viewTask,
+) {
   return (
     <RowArrowAction
       label={interpolate(tasks.list.openTask, { taskCode: task.taskCode })}
       onClick={onOpen}
+      text={text}
     />
   );
 }
+
+export const taskViewAction = taskArrowAction;

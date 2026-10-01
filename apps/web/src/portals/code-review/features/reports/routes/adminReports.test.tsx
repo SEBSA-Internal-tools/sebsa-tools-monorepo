@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -47,21 +47,21 @@ function renderReports() {
   };
 }
 
-const countOf = (status: string, tasks = db.tasks) =>
+/** What an admin can see: drafts are private developer work and never reach Reports. */
+const adminTasks = () => db.tasks.filter((task) => task.status !== 'Draft');
+
+const countOf = (status: string, tasks = adminTasks()) =>
   tasks.filter((task) => task.status === status).length;
 
 /** Every figure the cards claim, counted straight off the seed. */
 function expected() {
-  // "Approved" folds Delivered in — delivery is what happens to approved work
-  // next, not a rival verdict.
-  const approved = countOf('Approved') + countOf('Delivered');
-  // Tasks that actually reached review: total, less drafts, less cancellations.
-  const reviewed = db.tasks.length - countOf('Draft') - countOf('Cancelled');
+  const approved = countOf('Approved');
+  // Tasks that actually reached review: every admin-visible task, less cancellations.
+  const reviewed = adminTasks().length - countOf('Cancelled');
 
   return {
-    total: db.tasks.length,
+    total: adminTasks().length,
     approved,
-    delivered: countOf('Delivered'),
     changesRequested: countOf('ChangesRequested'),
     cancelled: countOf('Cancelled'),
     approvalRate: Math.round((approved / reviewed) * 1000) / 10,
@@ -102,6 +102,12 @@ async function statusLegend() {
   return within(chart as HTMLElement).getAllByRole('button');
 }
 
+// The route is a lazy module pulling in Recharts; its first cold transform can outlast a
+// `findBy` budget, so load it once up front instead of inside the first test.
+beforeAll(async () => {
+  await import('./AdminReportsPage.tsx');
+}, 60_000);
+
 beforeEach(() => {
   signInForTest(ADMIN);
 });
@@ -129,26 +135,6 @@ describe('Admin Reports', () => {
     expect(
       within(await card(/^Tasks cancelled$/)).getByText(String(want.cancelled)),
     ).toBeInTheDocument();
-  });
-
-  /**
-   * FS 2.19 lists a Delivered card among the Key Metrics. The page had none —
-   * the figure existed only as a slice of the status donut.
-   */
-  it('reports Delivered as its own card', async () => {
-    const want = expected();
-    // Else the assertion below would pass against an empty page.
-    expect(want.delivered).toBeGreaterThan(0);
-
-    renderReports();
-
-    expect(
-      within(await card(/^Of which delivered$/)).getByText(String(want.delivered)),
-    ).toBeInTheDocument();
-
-    // And not at Approved's expense: a delivered task is still approved work, so
-    // it is counted by both cards and summing the row is the mistake.
-    expect(want.approved).toBeGreaterThan(want.delivered);
   });
 
   it('computes the approval rate over tasks that reached review', async () => {
@@ -202,7 +188,7 @@ describe('Admin Reports', () => {
 
     // One row per status present, and none for a status with no tasks — an
     // always-rendered zero slice would flatter the chart against the cards.
-    const present = new Set(db.tasks.map((task) => task.status));
+    const present = new Set(adminTasks().map((task) => task.status));
     expect(rows).toHaveLength(present.size);
 
     // The three statuses that also have a card of their own must report the same
@@ -213,7 +199,7 @@ describe('Admin Reports', () => {
           new RegExp(`^Changes Requested${String(want.changesRequested)}\\d+%$`),
         ),
         expect.stringMatching(new RegExp(`^Cancelled${String(want.cancelled)}\\d+%$`)),
-        expect.stringMatching(new RegExp(`^Delivered${String(want.delivered)}\\d+%$`)),
+        expect.stringMatching(new RegExp(`^Approved${String(want.approved)}\\d+%$`)),
       ]),
     );
   });
@@ -224,10 +210,10 @@ describe('Admin Reports', () => {
     const before = (await card(/^All review tasks$/)).textContent;
 
     const customer = db.customers.find((entry) =>
-      db.tasks.some((task) => task.customerId === entry.id),
+      adminTasks().some((task) => task.customerId === entry.id),
     );
     if (!customer) throw new Error('seed has no customer with tasks');
-    const theirs = db.tasks.filter((task) => task.customerId === customer.id);
+    const theirs = adminTasks().filter((task) => task.customerId === customer.id);
 
     await user.click(screen.getByRole('combobox', { name: 'Customer' }));
     await user.click(await screen.findByRole('option', { name: customer.name }));

@@ -192,11 +192,7 @@ describe('DataTable', () => {
       const line = screen.getByText(/^Showing /).textContent ?? '';
       const match = /Showing (\d+) to (\d+) of (\d+)/.exec(line);
       if (!match) throw new Error(`count line does not parse: "${line}"`);
-      return {
-        from: Number(match[1]),
-        to: Number(match[2]),
-        total: Number(match[3]),
-      };
+      return { from: Number(match[1]), to: Number(match[2]), total: Number(match[3]) };
     }
 
     /**
@@ -207,11 +203,7 @@ describe('DataTable', () => {
      */
     function claimVsDom() {
       const range = shownRange();
-      return {
-        ...range,
-        span: range.to - range.from + 1,
-        rendered: bodyRows().length,
-      };
+      return { ...range, span: range.to - range.from + 1, rendered: bodyRows().length };
     }
 
     it('walks first, middle and the short final page', async () => {
@@ -228,44 +220,20 @@ describe('DataTable', () => {
         />,
       );
 
-      expect(claimVsDom()).toEqual({
-        from: 1,
-        to: 15,
-        total: 47,
-        span: 15,
-        rendered: 15,
-      });
+      expect(claimVsDom()).toEqual({ from: 1, to: 15, total: 47, span: 15, rendered: 15 });
 
       await user.click(screen.getByRole('button', { name: /next page/i }));
       // The range MOVED. A bare count would read identically here to page 1,
       // which is the whole reason this is a range.
-      expect(claimVsDom()).toEqual({
-        from: 16,
-        to: 30,
-        total: 47,
-        span: 15,
-        rendered: 15,
-      });
+      expect(claimVsDom()).toEqual({ from: 16, to: 30, total: 47, span: 15, rendered: 15 });
       expect(screen.getByText('Page 2 of 4')).toBeInTheDocument();
 
       await user.click(screen.getByRole('button', { name: /next page/i }));
-      expect(claimVsDom()).toEqual({
-        from: 31,
-        to: 45,
-        total: 47,
-        span: 15,
-        rendered: 15,
-      });
+      expect(claimVsDom()).toEqual({ from: 31, to: 45, total: 47, span: 15, rendered: 15 });
 
       await user.click(screen.getByRole('button', { name: /next page/i }));
       // Clamped: 46 to 47, not 46 to 60. And `to` never exceeds the total.
-      expect(claimVsDom()).toEqual({
-        from: 46,
-        to: 47,
-        total: 47,
-        span: 2,
-        rendered: 2,
-      });
+      expect(claimVsDom()).toEqual({ from: 46, to: 47, total: 47, span: 2, rendered: 2 });
     });
 
     it('never runs past the end when fewer rows exist than the page size', () => {
@@ -280,15 +248,27 @@ describe('DataTable', () => {
         />,
       );
 
-      expect(claimVsDom()).toEqual({
-        from: 1,
-        to: 9,
-        total: 9,
-        span: 9,
-        rendered: 9,
-      });
+      expect(claimVsDom()).toEqual({ from: 1, to: 9, total: 9, span: 9, rendered: 9 });
       expect(screen.getByText('Showing 1 to 9 of 9 rows')).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /next page/i })).not.toBeInTheDocument();
+    });
+
+    it('keeps task-table pagination visible and disabled for a single page', () => {
+      render(
+        <DataTable
+          data={makeRows(9)}
+          columns={columns}
+          pageSize={15}
+          alwaysShowPagination
+          countNoun="tasks"
+          caption="Tasks"
+        />,
+      );
+
+      expect(screen.getByText('Showing 1 to 9 of 9 tasks')).toBeInTheDocument();
+      expect(screen.getByText('Page 1 of 1')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /previous page/i })).toBeDisabled();
+      expect(screen.getByRole('button', { name: /next page/i })).toBeDisabled();
     });
 
     it('disables previous on the first page and next on the last', async () => {
@@ -328,26 +308,36 @@ describe('DataTable', () => {
       );
 
       await user.click(screen.getByRole('button', { name: /next page/i }));
-      expect(claimVsDom()).toEqual({
-        from: 11,
-        to: 20,
-        total: 30,
-        span: 10,
-        rendered: 10,
-      });
+      expect(claimVsDom()).toEqual({ from: 11, to: 20, total: 30, span: 10, rendered: 10 });
 
       await user.click(screen.getByRole('combobox', { name: /rows per page/i }));
       await user.click(screen.getByRole('option', { name: '50' }));
 
       // One page now. The snap-back to page 1 has to reach the count as well —
       // this is the assertion that fails if the line is read off a stale page.
-      expect(claimVsDom()).toEqual({
-        from: 1,
-        to: 30,
-        total: 30,
-        span: 30,
-        rendered: 30,
-      });
+      expect(claimVsDom()).toEqual({ from: 1, to: 30, total: 30, span: 30, rendered: 30 });
+    });
+
+    it('recalculates the visible task page status when the page size changes', async () => {
+      const user = userEvent.setup({ delay: null });
+      render(
+        <DataTable
+          data={makeRows(30)}
+          columns={columns}
+          pageSize={10}
+          alwaysShowPagination
+          countNoun="tasks"
+          caption="Tasks"
+        />,
+      );
+
+      expect(screen.getByText('Page 1 of 3')).toBeInTheDocument();
+      await user.click(screen.getByRole('combobox', { name: /rows per page/i }));
+      await user.click(screen.getByRole('option', { name: '50' }));
+
+      expect(screen.getByText('Page 1 of 1')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /previous page/i })).toBeDisabled();
+      expect(screen.getByRole('button', { name: /next page/i })).toBeDisabled();
     });
 
     it('reads 1 to 1 for a single row and 0 to 0 when a filter matches nothing', () => {
@@ -369,6 +359,23 @@ describe('DataTable', () => {
       // Not "Showing 1 to 0 of 0", which is what an unguarded start prints on an
       // empty set. One template covers both, so they cannot drift apart.
       expect(screen.getByText('Showing 0 to 0 of 0 rows')).toBeInTheDocument();
+    });
+
+    it('keeps an empty task-table footer stable with one disabled page', () => {
+      render(
+        <DataTable
+          data={[]}
+          columns={columns}
+          alwaysShowPagination
+          countNoun="tasks"
+          caption="Tasks"
+        />,
+      );
+
+      expect(screen.getByText('Showing 0 tasks')).toBeInTheDocument();
+      expect(screen.getByText('Page 1 of 1')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /previous page/i })).toBeDisabled();
+      expect(screen.getByRole('button', { name: /next page/i })).toBeDisabled();
     });
 
     it('follows a search, moving both numbers together', async () => {
@@ -403,13 +410,7 @@ describe('DataTable', () => {
       // MATCHES rather than the 47 behind them. A total that ignored the filter
       // would leave the line saying "of 47" next to a pager that had dropped to
       // a single page.
-      expect(claimVsDom()).toEqual({
-        from: 1,
-        to: 10,
-        total: 10,
-        span: 10,
-        rendered: 10,
-      });
+      expect(claimVsDom()).toEqual({ from: 1, to: 10, total: 10, span: 10, rendered: 10 });
     });
 
     it('sits in the footer beside the pager on a grid with a heading', () => {

@@ -51,6 +51,7 @@ function seedFeedback() {
     reviewCycle: 1,
     reviewerId: REVIEWER,
     reviewerName: 'Pinsara Chandika',
+    comments: [],
     generalCheck: [],
     findings: {
       incorrectCode: 'The cursor selects against a table instead of a view.',
@@ -82,14 +83,9 @@ function seedFeedback() {
 
 function renderTask(taskId: string) {
   const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false, gcTime: 0 },
-      mutations: { retry: false },
-    },
+    defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } },
   });
-  const router = createMemoryRouter(routes, {
-    initialEntries: [`/crp/developer/tasks/${taskId}`],
-  });
+  const router = createMemoryRouter(routes, { initialEntries: [`/crp/developer/tasks/${taskId}`] });
 
   return {
     ...render(
@@ -116,7 +112,7 @@ describe('responding to review feedback', () => {
     expect(await screen.findByText('Review Feedback')).toBeInTheDocument();
     // One issue per screenshot, plus one for the written findings.
     expect(await screen.findByText(/this query is the problem/i)).toBeInTheDocument();
-    expect(screen.getByText(/cursor selects against a table/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/cursor selects against a table/i).length).toBeGreaterThan(0);
     // The summary appears twice by design: once in the panel being answered, and
     // again in the cycle history below it.
     expect(screen.getAllByText(/two things to fix/i).length).toBeGreaterThan(0);
@@ -126,9 +122,7 @@ describe('responding to review feedback', () => {
     const task = seedFeedback();
     const { user } = renderTask(task.id);
 
-    const resubmit = await screen.findByRole('button', {
-      name: /resubmit for review/i,
-    });
+    const resubmit = await screen.findByRole('button', { name: /resubmit for review/i });
     expect(resubmit).toBeDisabled();
     expect(screen.getByText(/2 findings still need a response/i)).toBeInTheDocument();
 
@@ -151,7 +145,7 @@ describe('responding to review feedback', () => {
     expect(
       await screen.findByText(/provide a reason when rejecting a review finding/i),
     ).toBeInTheDocument();
-    expect(db.issueResponses).toHaveLength(0);
+    expect(db.issueResponses.filter((r) => r.taskId === task.id)).toHaveLength(0);
   });
 
   it('records a justified rejection and then allows resubmission', async () => {
@@ -170,7 +164,8 @@ describe('responding to review feedback', () => {
 
     // Resolve the written findings.
     await waitFor(() => {
-      expect(db.issueResponses).toHaveLength(1);
+      expect(db.issueResponses.filter((r) => r.taskId === task.id)).toHaveLength(1);
+      expect(screen.getAllByRole('button', { name: /^resolve$/i })[1]).toBeEnabled();
     });
     await user.click(screen.getAllByRole('button', { name: /^resolve$/i })[1]!);
 
@@ -215,6 +210,7 @@ describe('responding to review feedback', () => {
     expect(await screen.findByRole('button', { name: /resubmit for review/i })).toBeDisabled();
 
     expect(screen.queryByRole('button', { name: HEADER_SUBMIT })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /continue editing/i })).not.toBeInTheDocument();
   });
 
   /**
@@ -250,5 +246,170 @@ describe('responding to review feedback', () => {
 
     expect(response.status).toBe(422);
     expect(db.tasks.find((t) => t.id === task.id)?.status).toBe('ChangesRequested');
+  });
+
+  it('Scenario 1: RESOLVED -> click Reject -> Cancel -> returns to RESOLVED unchanged', async () => {
+    const task = seedFeedback();
+    const { user } = renderTask(task.id);
+
+    await screen.findByRole('button', { name: /resubmit for review/i });
+
+    // 1. Mark first finding as Resolved
+    await user.click(screen.getAllByRole('button', { name: /^resolve$/i })[0]!);
+    await waitFor(() => {
+      expect(screen.getByText('Resolved')).toBeInTheDocument();
+      expect(db.issueResponses.find((r) => r.screenshotId === 'shot-1')?.kind).toBe('Resolved');
+      expect(screen.getAllByRole('button', { name: /^reject$/i })[0]).toBeEnabled();
+    });
+
+    // 2. Click Reject on the resolved finding -> enters local REJECTING draft
+    await user.click(screen.getAllByRole('button', { name: /^reject$/i })[0]!);
+
+    // Rejection form is visible with Cancel and Save rejection
+    expect(screen.getByLabelText(/why are you rejecting/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /save rejection/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^cancel$/i })).toBeInTheDocument();
+
+    // Persisted state in db is STILL Resolved (not mutated by opening draft)
+    expect(db.issueResponses.find((r) => r.screenshotId === 'shot-1')?.kind).toBe('Resolved');
+
+    // 3. Click Cancel -> discards local draft, cleanly restores RESOLVED
+    await user.click(screen.getByRole('button', { name: /^cancel$/i }));
+
+    // Editor is gone
+    expect(screen.queryByLabelText(/why are you rejecting/i)).not.toBeInTheDocument();
+    // Badge and persisted state remain Resolved
+    expect(screen.getByText('Resolved')).toBeInTheDocument();
+    expect(db.issueResponses.find((r) => r.screenshotId === 'shot-1')?.kind).toBe('Resolved');
+  });
+
+  it('Scenario 2: REJECTED ("reason A") -> Change response -> edit locally -> Cancel -> returns to REJECTED with "reason A" unchanged', async () => {
+    const task = seedFeedback();
+    const { user } = renderTask(task.id);
+
+    await screen.findByRole('button', { name: /resubmit for review/i });
+
+    // 1. Reject first finding with "reason A"
+    await user.click(screen.getAllByRole('button', { name: /^reject$/i })[0]!);
+    await user.type(screen.getByLabelText(/why are you rejecting/i), 'reason A');
+    await user.click(screen.getByRole('button', { name: /save rejection/i }));
+
+    // Collapsed summary displays "reason A"
+    await waitFor(() => {
+      expect(screen.getByText('reason A')).toBeInTheDocument();
+      expect(screen.getByText('Developer Response')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /save rejection/i })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /change response/i })).toBeEnabled();
+    });
+    expect(db.issueResponses.find((r) => r.screenshotId === 'shot-1')?.rejectionReason).toBe(
+      'reason A',
+    );
+
+    // 2. Click "Change response" -> opens editor prefilled with "reason A"
+    await user.click(screen.getByRole('button', { name: /change response/i }));
+    const textarea = screen.getByLabelText(/why are you rejecting/i);
+    expect(textarea).toHaveValue('reason A');
+
+    // 3. Edit text locally to "reason B"
+    await user.clear(textarea);
+    await user.type(textarea, 'reason B');
+    expect(textarea).toHaveValue('reason B');
+
+    // DB remains "reason A"
+    expect(db.issueResponses.find((r) => r.screenshotId === 'shot-1')?.rejectionReason).toBe(
+      'reason A',
+    );
+
+    // 4. Click Cancel -> restores collapsed card with original "reason A"
+    await user.click(screen.getByRole('button', { name: /^cancel$/i }));
+    expect(screen.queryByLabelText(/why are you rejecting/i)).not.toBeInTheDocument();
+    expect(screen.getByText('reason A')).toBeInTheDocument();
+    expect(screen.queryByText('reason B')).not.toBeInTheDocument();
+    expect(db.issueResponses.find((r) => r.screenshotId === 'shot-1')?.rejectionReason).toBe(
+      'reason A',
+    );
+  });
+
+  it('allows deselecting Resolve to return finding to Pending Response', async () => {
+    const task = seedFeedback();
+    const { user } = renderTask(task.id);
+
+    await screen.findByRole('button', { name: /resubmit for review/i });
+
+    // Resolve first finding
+    await user.click(screen.getAllByRole('button', { name: /^resolve$/i })[0]!);
+    await waitFor(() => {
+      expect(screen.getByText('Resolved')).toBeInTheDocument();
+      expect(db.issueResponses.filter((r) => r.taskId === task.id)).toHaveLength(1);
+      expect(screen.getAllByRole('button', { name: /^resolve$/i })[0]).toBeEnabled();
+    });
+
+    // Click Resolve again to deselect
+    await user.click(screen.getAllByRole('button', { name: /^resolve$/i })[0]!);
+
+    // Reverts to Pending Response and removes from DB
+    await waitFor(() => {
+      expect(screen.getAllByText(/pending response/i).length).toBeGreaterThanOrEqual(1);
+      expect(db.issueResponses.filter((r) => r.taskId === task.id)).toHaveLength(0);
+    });
+  });
+
+  it('allows removing a saved rejection to return finding to Pending Response', async () => {
+    const task = seedFeedback();
+    const { user } = renderTask(task.id);
+
+    await screen.findByRole('button', { name: /resubmit for review/i });
+
+    // Save a rejection
+    await user.click(screen.getAllByRole('button', { name: /^reject$/i })[0]!);
+    await user.type(screen.getByLabelText(/why are you rejecting/i), 'Temporary rejection');
+    await user.click(screen.getByRole('button', { name: /save rejection/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Temporary rejection')).toBeInTheDocument();
+      expect(db.issueResponses.filter((r) => r.taskId === task.id)).toHaveLength(1);
+      expect(screen.getByRole('button', { name: /remove response/i })).toBeEnabled();
+    });
+
+    // Click Remove response
+    await user.click(screen.getByRole('button', { name: /remove response/i }));
+
+    // Reverts to Pending Response and deletes record from DB
+    await waitFor(() => {
+      expect(screen.queryByText('Temporary rejection')).not.toBeInTheDocument();
+      expect(screen.getAllByText(/pending response/i).length).toBeGreaterThanOrEqual(1);
+      expect(db.issueResponses.filter((r) => r.taskId === task.id)).toHaveLength(0);
+    });
+  });
+
+  it('blocks resubmission while a rejection draft is active even if all other issues are addressed', async () => {
+    const task = seedFeedback();
+    const { user } = renderTask(task.id);
+
+    const resubmit = await screen.findByRole('button', { name: /resubmit for review/i });
+
+    // Resolve both issues
+    await user.click(screen.getAllByRole('button', { name: /^resolve$/i })[0]!);
+    await waitFor(() => {
+      expect(db.issueResponses.filter((r) => r.taskId === task.id)).toHaveLength(1);
+      expect(screen.getAllByRole('button', { name: /^resolve$/i })[1]).toBeEnabled();
+    });
+    await user.click(screen.getAllByRole('button', { name: /^resolve$/i })[1]!);
+
+    await waitFor(() => {
+      expect(resubmit).toBeEnabled();
+      expect(screen.getAllByRole('button', { name: /^reject$/i })[0]).toBeEnabled();
+    });
+
+    // Now start drafting a rejection on issue 1
+    await user.click(screen.getAllByRole('button', { name: /^reject$/i })[0]!);
+
+    // Resubmit must immediately be blocked due to unsaved draft
+    expect(resubmit).toBeDisabled();
+    expect(screen.getByText(/you have an unsaved rejection draft/i)).toBeInTheDocument();
+
+    // Cancel draft -> resubmit is enabled again
+    await user.click(screen.getByRole('button', { name: /^cancel$/i }));
+    expect(resubmit).toBeEnabled();
   });
 });

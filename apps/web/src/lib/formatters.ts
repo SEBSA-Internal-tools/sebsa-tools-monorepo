@@ -77,6 +77,11 @@ export function interpolate(template: string, values: Record<string, string | nu
   );
 }
 
+/** `value`, or `fallback` when it is missing or empty — the `||` idiom for display strings. */
+export function textOr(value: string | null | undefined, fallback: string): string {
+  return value === undefined || value === null || value === '' ? fallback : value;
+}
+
 /** Notification badge caps at "9+" to match the wireframe header. */
 export function formatBadgeCount(count: number, max = 9): string {
   return count > max ? `${max}+` : String(count);

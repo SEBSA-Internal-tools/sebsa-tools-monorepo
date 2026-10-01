@@ -47,10 +47,10 @@ export function DeveloperLayout() {
     countByStatus(items, 'ReSubmitted') +
     countByStatus(items, 'InReview');
   const changesCount = countByStatus(items, 'ChangesRequested');
-  const approvedCount = countByStatus(items, 'Approved') + countByStatus(items, 'Delivered');
+  const approvedCount = countByStatus(items, 'Approved');
 
   return (
-    <div className="relative">
+    <div className="relative min-w-0">
       {/*
         Wrapper clips the decorative glow so its -right-10 offset doesn't add to
         document scrollWidth (caused a 40px horizontal overflow on this route).
@@ -66,9 +66,7 @@ export function DeveloperLayout() {
       <PageContainer className="relative space-y-6">
         <PageHeader
           title={tasks.workspace.title}
-          subtitle={interpolate(tasks.workspace.subtitle, {
-            name: user?.name ?? '',
-          })}
+          subtitle={interpolate(tasks.workspace.subtitle, { name: user?.name ?? '' })}
           icon={<Code2 className="size-6 text-white" />}
           tone="developer"
           actions={
@@ -93,9 +91,9 @@ export function DeveloperLayout() {
               <StatCard
                 label={tasks.kpis.draft}
                 value={draftCount}
-                tone="blue"
+                tone="neutral"
                 icon={<FileText className="size-4" />}
-                trend={draftCount > 0 ? 'Work in progress' : 'No active drafts'}
+                subtitle={tasks.kpis.draftSubtitle}
                 isActive={bucket.isActive('draft', grid)}
                 onSelect={() => {
                   bucket.select('draft', grid);
@@ -106,7 +104,7 @@ export function DeveloperLayout() {
                 value={submittedCount}
                 tone="blue"
                 icon={<Send className="size-4" />}
-                trend={submittedCount > 0 ? 'In review queue' : 'No active submissions'}
+                subtitle={tasks.kpis.submittedSubtitle}
                 isActive={bucket.isActive('awaitingReview', grid)}
                 onSelect={() => {
                   bucket.select('awaitingReview', grid);
@@ -117,7 +115,7 @@ export function DeveloperLayout() {
                 value={changesCount}
                 tone="amber"
                 icon={<MessageSquare className="size-4" />}
-                trend={changesCount > 0 ? 'Action required' : 'No action needed'}
+                subtitle={tasks.kpis.changesRequestedSubtitle}
                 isActive={bucket.isActive('changesRequested', grid)}
                 onSelect={() => {
                   bucket.select('changesRequested', grid);
@@ -128,7 +126,7 @@ export function DeveloperLayout() {
                 value={approvedCount}
                 tone="green"
                 icon={<CheckCircle2 className="size-4" />}
-                trend={approvedCount > 0 ? 'Ready for delivery' : 'None yet'}
+                subtitle={tasks.kpis.approvedSubtitle}
                 isActive={bucket.isActive('approved', grid)}
                 onSelect={() => {
                   bucket.select('approved', grid);

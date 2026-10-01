@@ -14,10 +14,7 @@ const DEVELOPER_NAME = 'Hiruni Wijethilaka';
 
 function renderTaskDetail(path: string) {
   const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false, gcTime: 0 },
-      mutations: { retry: false },
-    },
+    defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } },
   });
   const router = createMemoryRouter(routes, { initialEntries: [path] });
 
@@ -76,9 +73,7 @@ describe('Developer Task Details QA Audit Suite', () => {
       renderTaskDetail(`/crp/developer/tasks/${task.id}`);
 
       expect(await screen.findAllByText('Draft')).not.toHaveLength(0);
-      const editLinks = screen.getAllByRole('link', {
-        name: /continue editing/i,
-      });
+      const editLinks = screen.getAllByRole('link', { name: /continue editing/i });
       expect(editLinks).toHaveLength(1);
       expect(screen.getByRole('button', { name: /^submit for review$/i })).toBeInTheDocument();
     });
@@ -96,15 +91,47 @@ describe('Developer Task Details QA Audit Suite', () => {
       ).not.toBeInTheDocument();
     });
 
-    it('renders ChangesRequested status with feedback response alert', async () => {
-      const task = findTask('t-blom-007');
-      if (!task) throw new Error('Task t-blom-007 not found');
+    it('renders ChangesRequested status with feedback response alert and no Continue Editing action', async () => {
+      const task = findTask('t-aasl-007');
+      if (!task) throw new Error('Task t-aasl-007 not found');
 
-      task.status = 'ChangesRequested';
       renderTaskDetail(`/crp/developer/tasks/${task.id}`);
 
       expect(await screen.findAllByText('Changes Requested')).not.toHaveLength(0);
       expect(screen.getByText(/the reviewer has requested changes/i)).toBeInTheDocument();
+
+      // "Continue editing" must NOT be shown for ChangesRequested tasks
+      expect(screen.queryByRole('link', { name: /continue editing/i })).not.toBeInTheDocument();
+      // Generic header "Submit for review" must NOT be shown
+      expect(
+        screen.queryByRole('button', { name: /^submit for review$/i }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('retains Review Feedback workflow and controls on ChangesRequested task for owning developer', async () => {
+      const task = findTask('t-semco-017');
+      if (!task) throw new Error('Task t-semco-017 not found');
+
+      signInForTest(task.developerId);
+      renderTaskDetail(`/crp/developer/tasks/${task.id}`);
+
+      expect(await screen.findAllByText('Changes Requested')).not.toHaveLength(0);
+
+      // "Continue editing" and header "Submit for review" must NOT be shown
+      expect(screen.queryByRole('link', { name: /continue editing/i })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: /^submit for review$/i }),
+      ).not.toBeInTheDocument();
+
+      // Review Feedback panel and findings controls remain available
+      expect(
+        await screen.findByRole('heading', { name: /^review feedback$/i }),
+      ).toBeInTheDocument();
+      expect(screen.getAllByRole('button', { name: /^resolve$/i }).length).toBeGreaterThan(0);
+      expect(screen.getAllByRole('button', { name: /^reject$/i }).length).toBeGreaterThan(0);
+
+      // Resubmit for Review is the only resubmission action (inside panel)
+      expect(screen.getByRole('button', { name: /resubmit for review/i })).toBeInTheDocument();
     });
   });
 
@@ -169,10 +196,9 @@ describe('Developer Task Details QA Audit Suite', () => {
       if (!task) throw new Error('Task t-blom-009 not found');
 
       const { user } = renderTaskDetail(`/crp/developer/tasks/${task.id}`);
+      await user.click(await screen.findByRole('button', { name: /quality checklist/i }));
 
-      const allBtn = await screen.findByRole('button', {
-        name: /^all questions/i,
-      });
+      const allBtn = await screen.findByRole('button', { name: /^all questions/i });
       const filterGroup = allBtn.closest('div');
       expect(filterGroup).not.toBeNull();
       const needsAttentionBtn = within(filterGroup!).getByRole('button', {
@@ -196,18 +222,15 @@ describe('Developer Task Details QA Audit Suite', () => {
       if (!task) throw new Error('Task t-blom-009 not found');
 
       const { user } = renderTaskDetail(`/crp/developer/tasks/${task.id}`);
+      await user.click(await screen.findByRole('button', { name: /quality checklist/i }));
 
-      const toggleBtn = await screen.findByRole('button', {
-        name: /collapse all|expand all/i,
-      });
+      const toggleBtn = await screen.findByRole('button', { name: /collapse all|expand all/i });
       expect(toggleBtn).toBeInTheDocument();
 
       const initialText = toggleBtn.textContent;
       await user.click(toggleBtn);
 
-      const nextBtn = screen.getByRole('button', {
-        name: /collapse all|expand all/i,
-      });
+      const nextBtn = screen.getByRole('button', { name: /collapse all|expand all/i });
       expect(nextBtn.textContent).not.toBe(initialText);
     });
   });
@@ -238,9 +261,7 @@ describe('Developer Task Details QA Audit Suite', () => {
 
       const { router, user } = renderTaskDetail(`/crp/developer/tasks/${task.id}`);
 
-      const editBtn = await screen.findByRole('link', {
-        name: /continue editing/i,
-      });
+      const editBtn = await screen.findByRole('link', { name: /continue editing/i });
       await user.click(editBtn);
 
       await waitFor(() => {
@@ -252,10 +273,8 @@ describe('Developer Task Details QA Audit Suite', () => {
       // Wizard displays Edit Review Task header
       expect(await screen.findByRole('heading', { name: /edit review task/i })).toBeInTheDocument();
 
-      // Top Back button returns to Task Details
-      const backBtn = screen.getByRole('button', {
-        name: /back to task details/i,
-      });
+      // Top Back button returns to Task Overview
+      const backBtn = screen.getByRole('button', { name: /back to task overview/i });
       await user.click(backBtn);
 
       await waitFor(() => {
@@ -269,9 +288,7 @@ describe('Developer Task Details QA Audit Suite', () => {
 
       const { router, user } = renderTaskDetail(`/crp/developer/tasks/${task.id}`);
 
-      const backLink = await screen.findByRole('link', {
-        name: /back to my tasks/i,
-      });
+      const backLink = await screen.findByRole('link', { name: /back to my tasks/i });
       await user.click(backLink);
 
       await waitFor(() => {
@@ -290,9 +307,7 @@ describe('Developer Task Details QA Audit Suite', () => {
 
       renderTaskDetail(`/crp/developer/tasks/${task.id}`);
 
-      const submitBtn = await screen.findByRole('button', {
-        name: /^submit for review$/i,
-      });
+      const submitBtn = await screen.findByRole('button', { name: /^submit for review$/i });
       expect(submitBtn).toBeDisabled();
       expect(
         screen.getByText(/complete the quality checklist before submitting/i),
@@ -304,16 +319,19 @@ describe('Developer Task Details QA Audit Suite', () => {
   /* 8. Screenshot Feedback Attachments                                         */
   /* -------------------------------------------------------------------------- */
   describe('8. Screenshot Feedback Attachments', () => {
-    it('renders empty state when no attachments exist', async () => {
+    it('does not render obsolete screenshot feedback card', async () => {
       const task = findTask('t-aasl-014');
       if (!task) throw new Error('Task t-aasl-014 not found');
 
       renderTaskDetail(`/crp/developer/tasks/${task.id}`);
 
+      await screen.findByRole('heading', { name: task.title });
       expect(
-        await screen.findByRole('heading', { name: /screenshot feedback/i }),
-      ).toBeInTheDocument();
-      expect(screen.getByText(/no screenshot feedback has been attached/i)).toBeInTheDocument();
+        screen.queryByRole('heading', { name: /screenshot feedback/i }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText(/no screenshot feedback has been attached/i),
+      ).not.toBeInTheDocument();
     });
   });
 
@@ -322,13 +340,9 @@ describe('Developer Task Details QA Audit Suite', () => {
   /* -------------------------------------------------------------------------- */
   describe('9. Permissions & Access Control', () => {
     it('does not allow other developers to edit or submit another developer’s task', () => {
-      const otherActor = { userId: 'u-kavidu', roles: ['Developer'] } as const;
-      const ownActor = { userId: DEVELOPER, roles: ['Developer'] } as const;
-      const draftSubject = {
-        status: 'Draft' as const,
-        developerId: DEVELOPER,
-        reviewerId: null,
-      };
+      const otherActor = { userId: 'u-kavidu', roles: ['Developer'] as const };
+      const ownActor = { userId: DEVELOPER, roles: ['Developer'] as const };
+      const draftSubject = { status: 'Draft' as const, developerId: DEVELOPER, reviewerId: null };
       const changesSubject = {
         status: 'ChangesRequested' as const,
         developerId: DEVELOPER,
@@ -344,6 +358,59 @@ describe('Developer Task Details QA Audit Suite', () => {
       expect(canEditTask(otherActor, draftSubject)).toBe(false);
       expect(canSubmitForReview(otherActor, draftSubject)).toBe(false);
       expect(canRespondToFindings(otherActor, changesSubject)).toBe(false);
+    });
+  });
+
+  /* -------------------------------------------------------------------------- */
+  /* 10. Task History & Reviewer-Developer Parity                               */
+  /* -------------------------------------------------------------------------- */
+  describe('10. Task History & Reviewer-Developer Parity', () => {
+    it('renders ChangesRequested event for pre-seeded tasks in ChangesRequested status', async () => {
+      const task = findTask('t-semco-017');
+      if (!task) throw new Error('Task t-semco-017 not found');
+
+      signInForTest('u-pinsara');
+      renderTaskDetail(`/crp/developer/tasks/${task.id}`);
+
+      expect(await screen.findByRole('heading', { name: /task history/i })).toBeInTheDocument();
+      expect(await screen.findByText('Changes requested')).toBeInTheDocument();
+      expect(screen.getByText('Submitted for review')).toBeInTheDocument();
+      expect(screen.getByText('Task created')).toBeInTheDocument();
+    });
+
+    it('ensures exact parity of Task History events between Developer and Reviewer views', async () => {
+      const task = findTask('t-semco-017');
+      if (!task) throw new Error('Task t-semco-017 not found');
+
+      // 1. Developer view
+      signInForTest('u-pinsara');
+      const devRender = renderTaskDetail(`/crp/developer/tasks/${task.id}`);
+      const devHeading = await screen.findByRole('heading', { name: /task history/i });
+      const devCard = devHeading.closest<HTMLElement>('div[class*="rounded"]')!;
+      const devEvents = within(devCard).getAllByText(
+        /^(Task created|Submitted for review|Picked up for review|Changes requested)$/i,
+      );
+      const devEventTexts = devEvents.map((el) => el.textContent?.trim());
+      devRender.unmount();
+
+      // 2. Reviewer view (Hiruni as reviewer)
+      signInForTest('u-hiruni');
+      const revRender = renderTaskDetail(`/crp/reviewer/tasks/${task.id}`);
+      const revHeading = await screen.findByRole('heading', { name: /task history/i });
+      const revCard = revHeading.closest<HTMLElement>('div[class*="rounded"]')!;
+      const revEvents = within(revCard).getAllByText(
+        /^(Task created|Submitted for review|Picked up for review|Changes requested)$/i,
+      );
+      const revEventTexts = revEvents.map((el) => el.textContent?.trim());
+      revRender.unmount();
+
+      expect(devEventTexts).toEqual(revEventTexts);
+      expect(devEventTexts).toEqual([
+        'Task created',
+        'Submitted for review',
+        'Picked up for review',
+        'Changes requested',
+      ]);
     });
   });
 });

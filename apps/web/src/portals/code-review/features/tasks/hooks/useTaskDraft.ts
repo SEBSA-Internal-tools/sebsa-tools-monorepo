@@ -51,7 +51,7 @@ export interface TaskDraftState {
   noteToReviewer: string;
 
   setDetails: (
-    details: Partial<Pick<TaskDraftState, 'customerId' | 'crimId' | 'version' | 'priority'>>,
+    details: Partial<Pick<TaskDraftState, 'customerId' | 'crimId' | 'priority'>>,
   ) => void;
   setTaskId: (
     taskId: string,
@@ -135,10 +135,7 @@ function normaliseAnswers(value: unknown): DraftAnswer[] {
       byQuestion.set(questionId, answer as ChecklistAnswer);
     }
   }
-  return [...byQuestion].map(([questionId, answer]) => ({
-    questionId,
-    answer,
-  }));
+  return [...byQuestion].map(([questionId, answer]) => ({ questionId, answer }));
 }
 
 /**

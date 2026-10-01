@@ -50,11 +50,7 @@ export function CustomerFormDialog({
   const [form, setForm] = useState<FormState>(() =>
     customer === null
       ? EMPTY
-      : {
-          name: customer.name,
-          description: customer.description,
-          color: customer.color,
-        },
+      : { name: customer.name, description: customer.description, color: customer.color },
   );
   const [errors, setErrors] = useState<Partial<Record<'name' | 'color', string>>>({});
 
@@ -63,10 +59,7 @@ export function CustomerFormDialog({
   const previewName = form.name.trim() === '' ? admin.customers.preview : form.name;
 
   function submit() {
-    const parsed = createCustomerInputSchema.safeParse({
-      ...form,
-      color: resolvedColor,
-    });
+    const parsed = createCustomerInputSchema.safeParse({ ...form, color: resolvedColor });
     if (!parsed.success) {
       const next: Partial<Record<'name' | 'color', string>> = {};
       for (const issue of parsed.error.issues) {
@@ -116,7 +109,7 @@ export function CustomerFormDialog({
           <Button variant="secondary" onClick={onClose}>
             {common.actions.cancel}
           </Button>
-          <Button onClick={submit} isLoading={isPending}>
+          <Button variant="adminPrimary" onClick={submit} isLoading={isPending}>
             {customer === null
               ? isPending
                 ? admin.customers.creating
@@ -168,9 +161,7 @@ export function CustomerFormDialog({
                   type="button"
                   // The swatch carries the colour NAME, not the hex: a screen
                   // reader announcing "#7c3aed" tells the listener nothing.
-                  aria-label={interpolate(admin.customers.colorSwatch, {
-                    name: color.name,
-                  })}
+                  aria-label={interpolate(admin.customers.colorSwatch, { name: color.name })}
                   aria-pressed={isSelected}
                   onClick={() => {
                     setForm({ ...form, color: color.hex });

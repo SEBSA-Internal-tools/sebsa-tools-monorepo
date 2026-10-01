@@ -1,4 +1,11 @@
-import type { IssueResponseKind, Review, ReviewScreenshot } from '@sdp/contracts';
+import type {
+  IssueResponseKind,
+  IssueResponseRecord,
+  Review,
+  ReviewComment,
+  ReviewHistoryEntry,
+  ReviewScreenshot,
+} from '@sdp/contracts';
 
 /**
  * The developer's reply to a reviewer's findings (spec §1.5 p.11, FL 2.11.2.3-01).
@@ -9,61 +16,165 @@ import type { IssueResponseKind, Review, ReviewScreenshot } from '@sdp/contracts
  * handler, because "the Resubmit button was disabled" is not a control.
  */
 
-/** One thing the developer has to respond to. */
+/** One thing the developer has to respond to (a ReviewComment). */
 export interface Issue {
-  /** Null when the finding is the review as a whole rather than one screenshot. */
+  /** Comment ID connecting to ReviewComment (authoritative source of truth). */
+  commentId: string;
+  /** Null when the finding is not linked to a screenshot. */
   screenshotId: string | null;
   label: string;
   detail: string;
+  screenshots: ReviewScreenshot[];
+  /** Whether this issue is carried forward from an earlier cycle due to a negative reviewer verdict */
+  isFollowUp?: boolean;
+  /** Reviewer's explanation from the negative adjudication */
+  reviewerExplanation?: string | null;
+  /** Prior developer response kind */
+  previousResponseKind?: IssueResponseKind | null;
+  /** Prior developer rejection reason if any */
+  previousRejectionReason?: string | null;
+  /** The cycle in which the comment was originally authored */
+  originCycle?: number;
 }
 
 /**
- * The findings a developer must answer, derived from the reviewer's last cycle.
+ * The findings a developer must answer, derived from the reviewer's last cycle
+ * and any unresolved carry-forward findings from prior cycles.
  *
- * Screenshots come first and each is its own issue, because each carries its own
- * annotation and the developer answers them one at a time. The three written
- * findings are then folded into a single "overall" issue: they are one argument
- * about the same submission, and splitting them would ask the developer to
- * accept the formatting complaint while rejecting the performance one, which is
- * not a distinction the spec draws.
+ * Each Review Comment is an independent actionable item that the developer
+ * responds to (Resolve or Reject with mandatory reason).
  */
-export function issuesFromReview(review: Review | null): Issue[] {
+export function issuesFromReview(
+  review: Review | null,
+  allReviews?: readonly (Review | ReviewHistoryEntry)[] | null,
+  responses?: readonly IssueResponseRecord[] | null,
+): Issue[] {
   if (review?.decision !== 'ChangesRequested') return [];
 
-  const issues: Issue[] = review.screenshots.map((shot: ReviewScreenshot) => ({
-    screenshotId: shot.id,
-    label: shot.fileName,
-    detail: shot.comment,
-  }));
+  const issues: Issue[] = [];
+  const processedCommentIds = new Set<string>();
 
-  const written = [
-    review.findings.incorrectCode,
-    review.findings.incompleteImplementation,
-    review.findings.sourceFormatting,
-  ]
-    .map((text) => text.trim())
-    .filter((text) => text !== '');
+  // 1. Active workflow: Derives directly from Review Comments in the deciding review session
+  if (review.comments && review.comments.length > 0) {
+    const activeSessionId = review.currentReviewSessionId;
+    const actionableComments = activeSessionId
+      ? review.comments.filter((c) => c.reviewSessionId === activeSessionId)
+      : review.comments.filter(
+          (c) => !c.reviewerId || (review.reviewerId ? c.reviewerId === review.reviewerId : true),
+        );
 
-  if (written.length > 0) {
-    issues.push({
-      screenshotId: null,
-      label: 'findings',
-      detail: written.join('\n\n'),
+    actionableComments.forEach((comment, index) => {
+      processedCommentIds.add(comment.id);
+      issues.push({
+        commentId: comment.id,
+        screenshotId: comment.screenshots[0]?.id ?? null,
+        label: `Review Comment #${index + 1}`,
+        detail: comment.text,
+        screenshots: comment.screenshots ?? [],
+        originCycle: review.reviewCycle,
+      });
     });
   }
 
-  return issues;
+  // 2. Carry-forward workflow: Unresolved findings from prior cycles where reviewer marked Not Resolved / Do Not Accept
+  if (allReviews && allReviews.length > 0) {
+    // Collect all unique comments across prior completed cycles (sorted by cycle ascending)
+    const priorReviews = [...allReviews]
+      .filter((r) => r.reviewCycle < review.reviewCycle)
+      .sort((a, b) => a.reviewCycle - b.reviewCycle);
+
+    const allPriorComments = new Map<string, { comment: ReviewComment; cycle: number }>();
+    for (const pr of priorReviews) {
+      for (const c of pr.comments ?? []) {
+        if (!allPriorComments.has(c.id)) {
+          allPriorComments.set(c.id, { comment: c, cycle: pr.reviewCycle });
+        }
+      }
+    }
+
+    // Pool all known responses across history entries and passed responses
+    const historyResponses = priorReviews.flatMap((r) =>
+      'responses' in r && Array.isArray(r.responses) ? r.responses : [],
+    );
+    const allKnownResponses: IssueResponseRecord[] = [...historyResponses, ...(responses ?? [])];
+
+    for (const [commentId, { comment, cycle }] of allPriorComments.entries()) {
+      // Skip if this comment was re-authored in the latest review
+      if (processedCommentIds.has(commentId)) continue;
+
+      // Find all completed reviewer verdicts for this comment across past cycles
+      const adjudicatedResponses = allKnownResponses
+        .filter(
+          (r) =>
+            r.commentId === commentId && (r.verdict === 'Accepted' || r.verdict === 'Overruled'),
+        )
+        .sort(
+          (a, b) =>
+            b.reviewCycle - a.reviewCycle ||
+            (b.respondedAt ?? '').localeCompare(a.respondedAt ?? ''),
+        );
+
+      const latestAdjudicatedResponse = adjudicatedResponses[0];
+      // An issue carries forward if and only if the latest completed reviewer verdict was negative (Overruled)
+      if (latestAdjudicatedResponse?.verdict === 'Overruled') {
+        processedCommentIds.add(commentId);
+        issues.push({
+          commentId: comment.id,
+          screenshotId: comment.screenshots[0]?.id ?? null,
+          label: `Review Comment #${issues.length + 1} (Follow-Up)`,
+          detail: comment.text,
+          screenshots: comment.screenshots ?? [],
+          isFollowUp: true,
+          reviewerExplanation: latestAdjudicatedResponse.reviewerComment ?? null,
+          previousResponseKind: latestAdjudicatedResponse.kind,
+          previousRejectionReason: latestAdjudicatedResponse.rejectionReason ?? null,
+          originCycle: cycle,
+        });
+      }
+    }
+  }
+
+  // If we collected any active comment-based issues, return them
+  if (issues.length > 0) {
+    return issues;
+  }
+
+  // Legacy backwards compatibility for historical fixture cycles without review comments
+  const legacyIssues: Issue[] = (review.screenshots ?? []).map((shot: ReviewScreenshot) => ({
+    commentId: shot.id,
+    screenshotId: shot.id,
+    label: shot.fileName,
+    detail: shot.comment,
+    screenshots: [shot],
+  }));
+
+  const written = [
+    review.findings?.incorrectCode,
+    review.findings?.incompleteImplementation,
+    review.findings?.sourceFormatting,
+  ]
+    .map((text) => text?.trim() ?? '')
+    .filter((text) => text !== '');
+
+  if (written.length > 0) {
+    legacyIssues.push({
+      commentId: 'legacy-findings',
+      screenshotId: null,
+      label: 'findings',
+      detail: written.join('\n\n'),
+      screenshots: [],
+    });
+  }
+
+  return legacyIssues;
 }
 
 /**
  * The shape both a draft response and a stored one satisfy.
- *
- * Written structurally rather than as `IssueResponseDraft` so the same rule can
- * be applied to a record read back from the store, where `rejectionReason` is
- * `null` rather than absent. One rule, both directions.
  */
 export interface ResponseLike {
-  screenshotId: string | null;
+  commentId?: string | null | undefined;
+  screenshotId?: string | null | undefined;
   kind: IssueResponseKind;
   rejectionReason?: string | null | undefined;
 }
@@ -84,22 +195,22 @@ export interface ResubmitReadiness {
 
 /**
  * Whether the developer may resubmit.
- *
- * Counts the two failure modes separately so the UI can say which one is in the
- * way — "you have not answered 2 findings" and "you rejected a finding without
- * saying why" are different mistakes and deserve different prompts.
  */
 export function resubmitReadiness(
   issues: readonly Issue[],
   responses: readonly ResponseLike[],
 ): ResubmitReadiness {
-  const byScreenshot = new Map(responses.map((response) => [response.screenshotId, response]));
-
   let unanswered = 0;
   let unjustified = 0;
 
   for (const issue of issues) {
-    const response = byScreenshot.get(issue.screenshotId);
+    const response = responses.find(
+      (r) =>
+        (r.commentId != null && r.commentId === issue.commentId) ||
+        (issue.commentId === 'legacy-findings' && r.screenshotId === null) ||
+        (issue.screenshotId != null && r.screenshotId === issue.screenshotId),
+    );
+
     if (response === undefined) {
       unanswered += 1;
       continue;
@@ -110,10 +221,6 @@ export function resubmitReadiness(
   return {
     unanswered,
     unjustified,
-    // An empty issue list means there is nothing to respond to, which cannot
-    // happen for a ChangesRequested task — the rank gate guarantees at least
-    // one finding. Treating it as "ready" would let a developer resubmit
-    // without engaging with feedback at all.
     canResubmit: issues.length > 0 && unanswered === 0 && unjustified === 0,
   };
 }

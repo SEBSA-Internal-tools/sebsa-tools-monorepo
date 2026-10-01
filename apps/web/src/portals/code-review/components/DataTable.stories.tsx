@@ -33,9 +33,7 @@ const columns = helper.columns([
   }),
   helper.accessor('title', {
     header: 'Title',
-    cell: (context) => (
-      <TitleCell title={context.getValue()} version={context.row.original.version} />
-    ),
+    cell: (context) => <TitleCell title={context.getValue()} />,
   }),
   helper.accessor('crimId', {
     header: 'CRIM ID',

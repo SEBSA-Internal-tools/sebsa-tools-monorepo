@@ -33,7 +33,6 @@
     "ChangesRequested": "Changes Requested",
     "ReSubmitted": "Re-Submitted",
     "Approved": "Approved",
-    "Delivered": "Delivered",
     "Cancelled": "Cancelled"
   },
   "priority": {
@@ -55,7 +54,8 @@
   "role": {
     "Developer": "Developer",
     "Reviewer": "Reviewer",
-    "Admin": "Admin"
+    "Admin": "Admin",
+    "SuperAdmin": "Super Admin"
   },
   "badges": {
     "cycle": "Cycle",
@@ -95,6 +95,7 @@
   },
   "table": {
     "showingRange": "Showing {from} to {to} of {total} {noun}",
+    "showingEmpty": "Showing 0 {noun}",
     "reorderColumn": "Reorder",
     "searchPlaceholder": "Search…",
     "noResults": "No matching records",

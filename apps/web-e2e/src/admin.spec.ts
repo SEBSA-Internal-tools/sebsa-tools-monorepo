@@ -25,9 +25,6 @@ const VIEWPORTS = [
 
 const BLOCKING_IMPACTS = ['critical', 'serious'];
 
-/** Where the checklist screen keeps what the admin has arranged but not saved. */
-const VIEW_KEY = 'sdp.checklistAdminView';
-
 async function signIn(page: Page) {
   await page.goto('/login');
   await page.getByLabel(/work email/i).fill(EMAIL);
@@ -53,6 +50,43 @@ async function waitForToastsToClear(page: Page) {
   await expect(page.locator('[data-sonner-toast]')).toHaveCount(0, {
     timeout: 15_000,
   });
+}
+
+/* ------------------------------------------- the unified checklist editor */
+
+/** A category card; `last()` is the innermost section holding its own handle. */
+function categoryCard(page: Page, name: string) {
+  return page
+    .locator('section')
+    .filter({ has: page.getByRole('button', { name: `Reorder category: ${name}`, exact: true }) })
+    .last();
+}
+
+async function openCategory(page: Page, name: string) {
+  await page.getByRole('button', { name: `Reorder category: ${name}`, exact: true }).waitFor();
+  const expand = page.getByRole('button', { name: `Expand ${name}`, exact: true });
+  if ((await expand.count()) > 0) await expand.click();
+  await expect(page.getByRole('button', { name: `Collapse ${name}`, exact: true })).toBeVisible();
+}
+
+function questionHandles(page: Page, category: string) {
+  return categoryCard(page, category).getByRole('button', { name: /^Reorder question \d+: / });
+}
+
+/** Question texts in rendered order, read from the handles' labels. */
+async function questionOrder(page: Page, category: string): Promise<string[]> {
+  const labels = await questionHandles(page, category).evaluateAll((nodes) =>
+    nodes.map((node) => node.getAttribute('aria-label') ?? ''),
+  );
+  return labels.map((label) => label.replace(/^Reorder question \d+: /, ''));
+}
+
+/** Category names in rendered order. */
+async function categoryOrder(page: Page): Promise<string[]> {
+  const labels = await page
+    .getByRole('button', { name: /^Reorder category: / })
+    .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('aria-label') ?? ''));
+  return labels.map((label) => label.replace(/^Reorder category: /, ''));
 }
 
 async function scan(page: Page) {
@@ -127,15 +161,16 @@ test.describe('admin workspace', () => {
     await expect(row.getByText('In Review')).toBeVisible();
   });
 
-  test('offers Delete on a draft but not on a task under review', async ({ page }) => {
+  test('keeps drafts private and never offers Delete on a task under review', async ({ page }) => {
     await signIn(page);
     await page.goto('/crp/admin');
 
-    const draft = await taskRow(page, 'AASL-014');
-    await expect(draft.getByRole('button', { name: /delete AASL-014/i })).toBeVisible();
+    // Drafts are the developer's private work and are not in the admin grid.
+    await taskRow(page, 'AASL-014');
+    await expect(page.getByText(/no matching records/i)).toBeVisible();
 
-    // The control. A task in review carries cycles and findings that Reports
-    // counts, so it may be cancelled but never destroyed.
+    // A task in review carries cycles and findings that Reports counts, so it
+    // may be cancelled but never destroyed.
     const inReview = await taskRow(page, 'BLOM-010');
     await expect(inReview.getByRole('button', { name: /cancel BLOM-010/i })).toBeVisible();
     await expect(inReview.getByRole('button', { name: /delete BLOM-010/i })).toHaveCount(0);
@@ -186,89 +221,42 @@ test.describe('admin workspace', () => {
     });
 
     await page.goto('/crp/admin/checklist');
-    await page.getByRole('searchbox', { name: /search questions/i }).fill('Reservation');
-    await page.getByRole('table').waitFor();
+    await openCategory(page, 'Reservation');
 
-    const questionCells = page.getByRole('table').locator('tbody tr td:nth-child(2)');
-    await expect(questionCells).toHaveCount(3);
-    const before = await questionCells.allTextContents();
-
-    const handles = page.getByRole('button', { name: /reorder question/i });
+    const handles = questionHandles(page, 'Reservation');
     await expect(handles).toHaveCount(3);
+    const before = await questionOrder(page, 'Reservation');
 
     /*
-     * Let the filtered rows settle before measuring them.
-     *
-     * `<tbody>` is keyed on the visible row set, so typing in the search box
-     * remounts it and re-runs the fade. A `boundingBox()` taken while that is in
-     * flight is a position the row is about to leave, and `mouse.down` then
-     * lands beside the handle rather than on it — which looks exactly like a
-     * drag that silently did nothing.
-     */
-    await page.waitForTimeout(500);
-
-    /*
-     * Both ends scrolled into view BEFORE measuring.
-     *
-     *  reports viewport coordinates and does not scroll to get
-     * them, so on a short window the third row's box is a position off the
-     * bottom of the screen —  then goes somewhere the row is not,
-     * the press lands on nothing, and the whole drag silently no-ops. It looks
-     * identical to a broken feature, and it cost an afternoon to tell apart.
+     * Native drag-and-drop: scroll both ends into view before measuring, move in
+     * steps so `dragover` resolves an edge, and sleep before the drop because
+     * Chromium runs a nested message loop while a native drag is in flight and
+     * no auto-retrying assertion can run until it ends.
      */
     await handles.nth(2).scrollIntoViewIfNeeded();
-    await page.getByRole('table').locator('tbody tr').first().scrollIntoViewIfNeeded();
-
-    // Drag the last row onto the top edge of the first.
+    await handles.nth(0).scrollIntoViewIfNeeded();
+    await page.waitForTimeout(300);
     const source = await handles.nth(2).boundingBox();
-    const target = await page.getByRole('table').locator('tbody tr').first().boundingBox();
+    const target = await handles.nth(0).boundingBox();
     if (!source || !target) throw new Error('could not measure the drag');
 
     await page.mouse.move(source.x + source.width / 2, source.y + source.height / 2);
     await page.mouse.down();
-
-    /*
-     * `steps` is load-bearing, and 25 is not decoration.
-     *
-     * NATIVE drag-and-drop starts on movement, not on the button press: a single
-     * jump from `mouse.down` to the target is delivered as a click and nothing
-     * moves at all. The intermediate positions are also what produce the
-     * `dragover` events that decide which edge of the target is closest — with
-     * one jump the drop can arrive with no edge resolved.
-     */
-    await page.mouse.move(target.x + target.width / 2, target.y + 4, {
-      steps: 25,
-    });
-
-    /*
-     * A real sleep, and the one place in this suite that earns one.
-     *
-     * Chromium enters a nested message loop while a native drag is in flight, so
-     * JS evaluation over CDP does not run — every auto-retrying assertion
-     * (`toHaveClass`, `toBeVisible`) hangs until it times out, no matter what the
-     * DOM says. `waitForTimeout` is driven by Playwright rather than the page, so
-     * it is the only wait available between the last `dragover` and the drop.
-     *
-     * The drag FEEDBACK is therefore asserted after the fact, from the outcome,
-     * and covered visually in the component tests instead.
-     */
+    await page.mouse.move(target.x + target.width / 2, target.y + 2, { steps: 25 });
     await page.waitForTimeout(300);
     await page.mouse.up();
 
-    await expect(questionCells.first()).toHaveText(before[2] ?? '');
+    await expect
+      .poll(() => questionOrder(page, 'Reservation'))
+      .toEqual([before[2], before[0], before[1]]);
 
-    /*
-     * Nothing has been written yet, and that is the whole design: the admin
-     * arranges the final state first and persists it once. A request here would
-     * mean a write per drop.
-     */
+    // Nothing is written until the admin saves: arrange first, persist once.
     expect(saves).toHaveLength(0);
-    await expect(page.getByText(/unsaved order/i)).toBeVisible();
+    const banner = page.getByRole('complementary', { name: /unsaved ordering changes/i });
+    await expect(banner).toBeVisible();
 
-    await page.getByRole('button', { name: /save order/i }).click();
-    await expect(page.getByText(/unsaved order/i)).toBeHidden({
-      timeout: 15_000,
-    });
+    await banner.getByRole('button', { name: 'Save Changes' }).click();
+    await expect(banner).toBeHidden({ timeout: 15_000 });
 
     // One request, carrying the whole category in its final sequence.
     expect(saves).toHaveLength(1);
@@ -276,36 +264,20 @@ test.describe('admin workspace', () => {
       ids: ['q-reservation-3', 'q-reservation-1', 'q-reservation-2'],
     });
 
-    /*
-     * The saved order survives leaving the tab and coming back.
-     *
-     * In-app navigation, never `page.goto` — a reload rebuilds the MSW store
-     * from seed, so a refresh-and-assert here would compare against a fresh
-     * database and pass while proving nothing. `docs/testing.md` records that
-     * trap; durable-across-reload persistence is a Phase 2 property.
-     */
-    await page.getByRole('tab', { name: /categories/i }).click();
-    await page.getByRole('tab', { name: /^questions$/i }).click();
-    await page.getByRole('searchbox', { name: /search questions/i }).fill('Reservation');
-
-    await expect(questionCells.first()).toHaveText(before[2] ?? '');
-    // Still a dense 1…n sequence after the move, not a gapped or duplicated one.
-    await expect(page.getByRole('table').locator('tbody tr td:nth-child(5)')).toHaveText([
-      '1',
-      '2',
-      '3',
-    ]);
+    // The saved order survives leaving the screen and coming back in-app.
+    await page.getByRole('link', { name: 'Users' }).click();
+    await page.waitForURL(/\/admin\/users$/);
+    await page.getByRole('link', { name: 'Quality Checklist' }).click();
+    await openCategory(page, 'Reservation');
+    await expect
+      .poll(() => questionOrder(page, 'Reservation'))
+      .toEqual([before[2], before[0], before[1]]);
   });
 
   /**
-   * The same drag on the second consumer of the prop.
-   *
-   * Categories is a flat list with no `canDrop`, where the question bank is
-   * grouped and refuses a cross-category drop — so this is the case the optional
-   * refusal callback leaves alone, and the one that would break first if
-   * `DataTable` ever started assuming grouping. Every mechanical note about the
-   * drag itself lives on the question test above; only the differences are
-   * commented here.
+   * The same drag on the category list, which moves whole cards and is saved by
+   * a separate endpoint. The mechanical notes on the drag live on the question
+   * test above.
    */
   test('reorders the categories by dragging, and saves the whole list once', async ({ page }) => {
     await signIn(page);
@@ -318,63 +290,50 @@ test.describe('admin workspace', () => {
     });
 
     await page.goto('/crp/admin/checklist');
-    await page.getByRole('tab', { name: /categories/i }).click();
-    await page.getByRole('table').waitFor();
+    const handles = page.getByRole('button', { name: /^Reorder category: / });
+    await handles.first().waitFor();
+    const before = await categoryOrder(page);
+    expect(before.length).toBeGreaterThanOrEqual(3);
 
-    // Column 1 is the drag handle, so the name is the second cell and the order
-    // number the fourth.
-    const names = page.getByRole('table').locator('tbody tr td:nth-child(2)');
-    const orders = page.getByRole('table').locator('tbody tr td:nth-child(4)');
-    await expect(names).toHaveCount(9);
-    const before = await names.allTextContents();
-
-    const handles = page.getByRole('button', { name: /reorder category/i });
-    await expect(handles).toHaveCount(9);
-
-    await page.waitForTimeout(500);
+    // The first category opens on arrival; collapsed cards keep both ends of
+    // the drag on screen at once.
+    await page.getByRole('button', { name: 'Collapse All' }).click();
     await handles.nth(2).scrollIntoViewIfNeeded();
-    await page.getByRole('table').locator('tbody tr').first().scrollIntoViewIfNeeded();
-
+    await handles.nth(0).scrollIntoViewIfNeeded();
+    await page.waitForTimeout(300);
     const source = await handles.nth(2).boundingBox();
-    const target = await page.getByRole('table').locator('tbody tr').first().boundingBox();
+    const target = await handles.nth(0).boundingBox();
     if (!source || !target) throw new Error('could not measure the drag');
 
     await page.mouse.move(source.x + source.width / 2, source.y + source.height / 2);
     await page.mouse.down();
-    await page.mouse.move(target.x + target.width / 2, target.y + 4, {
-      steps: 25,
-    });
+    await page.mouse.move(target.x + target.width / 2, target.y + 2, { steps: 25 });
     await page.waitForTimeout(300);
     await page.mouse.up();
 
-    await expect(names.first()).toHaveText(before[2] ?? '');
+    const arranged = [before[2], before[0], before[1], ...before.slice(3)];
+    await expect.poll(() => categoryOrder(page)).toEqual(arranged);
     expect(saves).toHaveLength(0);
-    await expect(page.getByText(/unsaved order/i)).toBeVisible();
 
-    await page.getByRole('button', { name: /save order/i }).click();
-    await expect(page.getByText(/unsaved order/i)).toBeHidden({
-      timeout: 15_000,
-    });
+    const banner = page.getByRole('complementary', { name: /unsaved ordering changes/i });
+    await banner.getByRole('button', { name: 'Save Changes' }).click();
+    await expect(banner).toBeHidden({ timeout: 15_000 });
 
     /*
-     * One request carrying ALL NINE ids — not the three that moved, and not the
-     * page. The server derives every order value from array position, so a
-     * payload that covered part of the list would renumber a subset and leave
-     * the rest on their old values.
+     * One request carrying EVERY id — not the three that moved. The server
+     * derives every order value from array position, so a partial payload would
+     * renumber a subset and leave the rest on their old values.
      */
     expect(saves).toHaveLength(1);
     const body = JSON.parse(saves[0] ?? '{}') as { ids: string[] };
-    expect(body.ids).toHaveLength(9);
+    expect(body.ids).toHaveLength(before.length);
 
-    // Dense 1…9 afterwards: no gap, no duplicate, and no page starting again
-    // at 1.
-    await expect(orders).toHaveText(['1', '2', '3', '4', '5', '6', '7', '8', '9']);
-
-    // And it survives leaving the tab — in-app, never `page.goto`, which would
-    // rebuild the mock store from seed and prove nothing.
-    await page.getByRole('tab', { name: /^questions$/i }).click();
-    await page.getByRole('tab', { name: /categories/i }).click();
-    await expect(names.first()).toHaveText(before[2] ?? '');
+    // And it survives leaving the screen in-app.
+    await page.getByRole('link', { name: 'Users' }).click();
+    await page.waitForURL(/\/admin\/users$/);
+    await page.getByRole('link', { name: 'Quality Checklist' }).click();
+    await handles.first().waitFor();
+    await expect.poll(() => categoryOrder(page)).toEqual(arranged);
   });
 
   /**
@@ -389,10 +348,10 @@ test.describe('admin workspace', () => {
   test('says why a category holding questions cannot be deleted', async ({ page }) => {
     await signIn(page);
     await page.goto('/crp/admin/checklist');
-    await page.getByRole('tab', { name: /categories/i }).click();
 
-    const row = page.getByRole('row').filter({ hasText: 'Completion' }).first();
-    await row.getByRole('button', { name: /delete category: completion/i }).click();
+    await categoryCard(page, 'Completion')
+      .getByRole('button', { name: /delete category: completion/i })
+      .click();
 
     const dialog = page.getByRole('dialog');
     await dialog.getByRole('button', { name: /^delete category$/i }).click();
@@ -410,21 +369,12 @@ test.describe('admin workspace', () => {
      */
     await dialog.getByRole('button', { name: /^cancel$/i }).click();
     await expect(dialog).toBeHidden();
-    await expect(page.getByRole('table').getByText('Completion', { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Reorder category: Completion', exact: true }),
+    ).toBeVisible();
   });
 
-  /**
-   * An unsaved arrangement outliving the tab strip, the route and a reload.
-   *
-   * A real browser is the only place the reload half can be tested: the jsdom
-   * suite can remount a route, but only Chromium can throw the whole document
-   * away and prove the arrangement came back from `sessionStorage`.
-   *
-   * A reload also rebuilds the MSW store from seed, so the SAVED order is gone
-   * afterwards — which is precisely why the assertion here is about the draft
-   * and the banner, not about anything persisted server-side.
-   */
-  test('keeps an unsaved order across tabs, navigation and a reload', async ({ page }) => {
+  test('guards an unsaved order instead of persisting it', async ({ page }) => {
     await signIn(page);
 
     const saves: string[] = [];
@@ -433,82 +383,85 @@ test.describe('admin workspace', () => {
     });
 
     await page.goto('/crp/admin/checklist');
-    await page.getByRole('tab', { name: /categories/i }).click();
-    await page.getByRole('table').waitFor();
-
-    const names = page.getByRole('table').locator('tbody tr td:nth-child(2)');
-    await expect(names).toHaveCount(9);
-    const seeded = await names.allTextContents();
+    const handles = page.getByRole('button', { name: /^Reorder category: / });
+    await handles.first().waitFor();
+    await page.getByRole('button', { name: 'Collapse All' }).click();
+    const seeded = await categoryOrder(page);
 
     // Arrow keys rather than a drag: this test is about what happens AFTER the
     // move, and the pointer path has its own test above.
-    await page
-      .getByRole('button', { name: /reorder category/i })
-      .nth(2)
-      .focus();
+    await handles.nth(2).focus();
     await page.keyboard.press('ArrowUp');
-
-    const arranged = await names.allTextContents();
+    const arranged = await categoryOrder(page);
     expect(arranged).not.toEqual(seeded);
-    await expect(page.getByText(/unsaved order/i)).toBeVisible();
+    const banner = page.getByRole('complementary', { name: /unsaved ordering changes/i });
+    await expect(banner).toBeVisible();
 
-    // 1 — another tab, which unmounts the panel.
-    await page.getByRole('tab', { name: /^questions$/i }).click();
-    await page.getByRole('table').waitFor();
-    await page.getByRole('tab', { name: /categories/i }).click();
-    await expect(page.getByText(/unsaved order/i)).toBeVisible();
-    await expect(names).toHaveText(arranged);
+    // 1 — leaving in-app is intercepted, and staying keeps the arrangement.
+    await page.getByRole('link', { name: 'Users' }).click();
+    const blocker = page.getByRole('dialog', { name: /discard unsaved changes/i });
+    await blocker.getByRole('button', { name: 'Stay on Page' }).click();
+    await expect(blocker).toBeHidden();
+    await expect(page).toHaveURL(/\/admin\/checklist$/);
+    await expect(banner).toBeVisible();
+    expect(await categoryOrder(page)).toEqual(arranged);
 
-    // 2 — another screen entirely, which unmounts the route.
-    await page.getByRole('link', { name: /users/i }).first().click();
-    await page.waitForURL(/\/admin\/users$/);
-    await page.goto('/crp/admin/checklist');
-    await expect(page.getByText(/unsaved order/i)).toBeVisible();
-    await expect(names).toHaveText(arranged);
+    // 2 — leaving the document (reload, close) raises the browser's own prompt.
+    const prompt = new Promise<string>((resolve) => {
+      page.once('dialog', (dialog) => {
+        resolve(dialog.type());
+        void dialog.dismiss();
+      });
+    });
+    await page.close({ runBeforeUnload: true });
+    expect(await prompt).toBe('beforeunload');
 
-    // 3 — a reload, which is the only one `sessionStorage` is needed for. The
-    // tab comes back too: a restored arrangement behind an unopened tab hides
-    // the banner that says it exists.
-    await page.reload();
-    await expect(page.getByRole('tab', { name: /categories/i })).toHaveAttribute(
-      'data-state',
-      'active',
-    );
-    await expect(page.getByText(/unsaved order/i)).toBeVisible();
-    await expect(names).toHaveText(arranged);
-
-    // Through all of that, not one write. The batch save is still the only one.
+    // Through all of that, not one write. Saving is the only way to persist.
     expect(saves).toHaveLength(0);
   });
 
   test('drops the unsaved order when the session ends', async ({ page }) => {
-    /*
-     * Sign-out clears the live store AND its written copy — `reset()` alone goes
-     * through `persist`, which writes the emptied state straight back and
-     * re-creates the key `clearUserStorage()` had just removed. Asserted here
-     * because the next person to sign in on a shared browser must not inherit a
-     * stranger's half-finished reordering.
-     */
     await signIn(page);
-    await page.goto('/crp/admin/checklist');
-    await page.getByRole('tab', { name: /categories/i }).click();
-    await page.getByRole('table').waitFor();
 
-    await page
-      .getByRole('button', { name: /reorder category/i })
-      .nth(1)
-      .focus();
+    const saves: string[] = [];
+    page.on('request', (request) => {
+      if (request.method() === 'PATCH') saves.push(request.url());
+    });
+
+    await page.goto('/crp/admin/checklist');
+    const handles = page.getByRole('button', { name: /^Reorder category: / });
+    await handles.first().waitFor();
+    await page.getByRole('button', { name: 'Collapse All' }).click();
+    const seeded = await categoryOrder(page);
+
+    await handles.nth(1).focus();
     await page.keyboard.press('ArrowUp');
-    await expect(page.getByText(/unsaved order/i)).toBeVisible();
-    await expect
-      .poll(() => page.evaluate((key) => window.sessionStorage.getItem(key), VIEW_KEY))
-      .not.toBeNull();
+    await expect(
+      page.getByRole('complementary', { name: /unsaved ordering changes/i }),
+    ).toBeVisible();
 
     await page.getByRole('button', { name: /account menu/i }).click();
+    // Ending the session is not a navigation the editor can hold back.
     await page.getByRole('button', { name: /sign out/i }).click();
-    await page.waitForURL(/\/login$/);
+    await page.waitForURL(/\/login/);
 
-    expect(await page.evaluate((key) => window.sessionStorage.getItem(key), VIEW_KEY)).toBeNull();
+    // Signing back in shows the saved order; the arrangement went with the session.
+    await page.getByLabel(/work email/i).fill(EMAIL);
+    await page.getByLabel(/^password/i).fill(PASSWORD);
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+    await page.waitForURL((url) => !url.pathname.endsWith('/login'));
+    await page.getByRole('link', { name: /go to home/i }).click();
+    await page.getByRole('link', { name: /admin/i }).first().click();
+    await page
+      .getByRole('navigation', { name: 'Admin Dashboard' })
+      .getByRole('link', { name: 'Quality Checklist' })
+      .click();
+    await handles.first().waitFor();
+    await expect.poll(() => categoryOrder(page)).toEqual(seeded);
+    await expect(
+      page.getByRole('complementary', { name: /unsaved ordering changes/i }),
+    ).toHaveCount(0);
+    expect(saves).toHaveLength(0);
   });
 
   test('offers no reorder handle on a grid that has not opted in', async ({ page }) => {
@@ -527,27 +480,25 @@ test.describe('admin workspace', () => {
   test('administers the quality checklist', async ({ page }) => {
     await signIn(page);
     await page.goto('/crp/admin/checklist');
-    await page.getByRole('table').waitFor();
 
-    await expect(page.getByText(/have you used views instead/i)).toBeVisible();
+    // Searching opens the categories that hold a match.
+    await page.getByLabel('Search categories or questions').fill('views instead');
+    await expect(page.getByText(/have you used views instead/i).first()).toBeVisible();
 
-    await page.getByRole('tab', { name: /task types/i }).click();
-    await expect(page.getByRole('cell', { name: 'Customization', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: /manage task types/i }).click();
+    const manager = page.getByRole('dialog', { name: 'Manage Task Types' });
+    await expect(manager.getByText('Customization', { exact: true })).toBeVisible();
 
-    // Deleting a task type that tasks already carry is refused; the row stays.
-    const row = page.getByRole('row').filter({ hasText: 'Customization' });
-    await row.getByRole('button', { name: /delete task type: customization/i }).click();
-    await page.getByRole('button', { name: /^delete task type$/i }).click();
-    await expect(page.getByText(/deactivate it instead/i)).toBeVisible();
+    // Deleting a task type that tasks already carry is refused, in the dialog.
+    await manager.getByRole('button', { name: /delete task type: customization/i }).click();
+    const confirm = page.getByRole('dialog', { name: /delete this task type/i });
+    await confirm.getByRole('button', { name: /^delete task type$/i }).click();
+    await expect(confirm.getByText(/deactivate it instead/i)).toBeVisible();
 
-    // The dialog stays open on failure and Radix marks the rest of the page
-    // aria-hidden, so the grid has to be reachable again before asserting the
-    // row survived — that assertion is the point of the test.
-    await page
-      .getByRole('dialog')
-      .getByRole('button', { name: /^cancel$/i })
-      .click();
-    await expect(page.getByRole('cell', { name: 'Customization', exact: true })).toBeVisible();
+    // And the task type survives once the refusal is dismissed.
+    await confirm.getByRole('button', { name: /^cancel$/i }).click();
+    await expect(confirm).toBeHidden();
+    await expect(manager.getByText('Customization', { exact: true })).toBeVisible();
   });
 
   test('handover: reviewer hands back, admin reassigns', async ({ page }) => {
@@ -579,7 +530,7 @@ test.describe('admin workspace', () => {
      * right, exactly over the last row — intercepted the click that followed.
      */
     await expect(page).toHaveURL(/\/reviewer\/tasks\/[^/]+$/);
-    await page.getByRole('link', { name: /^back$/i }).click();
+    await page.getByRole('link', { name: /^back to /i }).click();
 
     await page.getByRole('link', { name: /my review tasks/i }).click();
     await waitForToastsToClear(page);
@@ -589,11 +540,13 @@ test.describe('admin workspace', () => {
     await page.getByRole('button', { name: /hand over/i }).click();
     const dialog = page.getByRole('dialog');
     await dialog.getByRole('textbox', { name: /^reason/i }).fill('Handing back for the e2e run.');
-    await dialog.getByRole('button', { name: /^hand over$/i }).click();
-    await expect(dialog).toBeHidden();
+    await dialog.getByRole('button', { name: /^hand over review$/i }).click();
+    await expect(dialog.getByText('Review Handed Over')).toBeVisible();
 
-    // It is now in the admin queue, and NOT back in the open Available list.
-    await page.getByRole('link', { name: /^back$/i }).click();
+    // It is now in the admin queue, and NOT back in the open Available list,
+    // which the page returns to on its own once the handover lands.
+    await page.waitForURL(/\/crp\/reviewer$/);
+    await expect(dialog).toBeHidden();
     await page.getByRole('table').waitFor();
     await expect(page.getByText('SEMCO-013')).toHaveCount(0);
 

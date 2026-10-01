@@ -26,10 +26,7 @@ const DEVELOPER_ONLY = 'u-dheliya';
 
 function renderApp(path: string) {
   const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false, gcTime: 0 },
-      mutations: { retry: false },
-    },
+    defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } },
   });
   const router = createMemoryRouter(routes, { initialEntries: [path] });
 
@@ -71,9 +68,7 @@ describe('the reviews scope', () => {
      * tab is a convenience, not a control (§13).
      */
     await expect(
-      api.get('/reviews', z.array(reviewSchema), {
-        searchParams: { scope: 'reviewer' },
-      }),
+      api.get('/reviews', z.array(reviewSchema), { searchParams: { scope: 'reviewer' } }),
     ).rejects.toThrow(ApiError);
   });
 
@@ -95,6 +90,7 @@ describe('Reviewer Analytics', () => {
 
     await user.click(await screen.findByRole('link', { name: /analytics/i }));
 
+    // Lazy route modules resolve asynchronously, so the location updates after the chunk loads.
     await waitFor(() => expect(router.state.location.pathname).toBe('/crp/reviewer/analytics'));
   });
 

@@ -1,5 +1,6 @@
 import { setupWorker } from 'msw/browser';
 import { handlers } from './handlers.ts';
+import { MOCK_DATABASE_KEY, persistDatabase, restoreDatabase } from './persistence.ts';
 
 export const worker = setupWorker(...handlers);
 
@@ -13,6 +14,15 @@ export const worker = setupWorker(...handlers);
  * (plan section 2.2).
  */
 export async function startMockApi(): Promise<void> {
+  restoreDatabase(localStorage);
+  worker.events.on('response:mocked', ({ request, response }) => {
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method) && response.ok) {
+      persistDatabase(localStorage);
+    }
+  });
+  window.addEventListener('storage', (event) => {
+    if (event.key === MOCK_DATABASE_KEY) restoreDatabase(localStorage);
+  });
   await worker.start({
     // A request the handlers do not cover is a gap we want to hear about, but
     // it must not break Vite's own asset and HMR traffic.

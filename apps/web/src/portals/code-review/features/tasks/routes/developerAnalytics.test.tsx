@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
@@ -27,14 +27,9 @@ const DEVELOPER = 'u-hiruni';
 
 function renderAnalytics() {
   const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false, gcTime: 0 },
-      mutations: { retry: false },
-    },
+    defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } },
   });
-  const router = createMemoryRouter(routes, {
-    initialEntries: ['/crp/developer/analytics'],
-  });
+  const router = createMemoryRouter(routes, { initialEntries: ['/crp/developer/analytics'] });
 
   return {
     ...render(
@@ -47,14 +42,7 @@ function renderAnalytics() {
 }
 
 /** The statuses that count as having reached review, per FL 2.4.3. */
-const SUBMITTED = [
-  'Submitted',
-  'InReview',
-  'ChangesRequested',
-  'ReSubmitted',
-  'Approved',
-  'Delivered',
-];
+const SUBMITTED = ['Submitted', 'InReview', 'ChangesRequested', 'ReSubmitted', 'Approved'];
 
 function expected(userId = DEVELOPER) {
   const own = db.tasks.filter((task) => task.developerId === userId);
@@ -63,9 +51,7 @@ function expected(userId = DEVELOPER) {
   // from "submitted" but still appears in the status donut.
   const analysed = own.filter((task) => task.status !== 'Draft');
   const submitted = analysed.filter((task) => SUBMITTED.includes(task.status));
-  const approved = analysed.filter(
-    (task) => task.status === 'Approved' || task.status === 'Delivered',
-  );
+  const approved = analysed.filter((task) => task.status === 'Approved');
 
   return {
     analysed: analysed.length,
@@ -89,6 +75,12 @@ async function card(caption: RegExp) {
   if (root === null) throw new Error(`No KPI card for ${String(caption)}`);
   return root;
 }
+
+// The route is a lazy module pulling in Recharts; its first cold transform can outlast a
+// `findBy` budget, so load it once up front instead of inside the first test.
+beforeAll(async () => {
+  await import('./AnalyticsPage.tsx');
+}, 60_000);
 
 beforeEach(() => {
   signInForTest(DEVELOPER);
@@ -200,9 +192,7 @@ describe('Developer Analytics', () => {
 
     renderAnalytics();
 
-    const heading = await screen.findByRole('heading', {
-      name: 'My Tasks by Status',
-    });
+    const heading = await screen.findByRole('heading', { name: 'My Tasks by Status' });
     const chart = heading.closest('div.rounded-card');
     if (chart === null) throw new Error('status chart has no card');
 

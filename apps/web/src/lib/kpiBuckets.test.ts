@@ -33,12 +33,8 @@ describe('KPI_BUCKETS', () => {
     expect(KPI_BUCKETS.awaitingReview).toEqual(['Submitted', 'ReSubmitted', 'InReview']);
   });
 
-  it('counts a delivered task as approved', () => {
-    // Delivery happens AFTER approval (spec p.12), so an approved task that has
-    // shipped has not stopped being approved — dropping it would make the
-    // Approved counter fall as work succeeded.
-    expect(KPI_BUCKETS.approved).toContain('Approved');
-    expect(KPI_BUCKETS.approved).toContain('Delivered');
+  it('maps the approved bucket to Approved', () => {
+    expect(KPI_BUCKETS.approved).toEqual(['Approved']);
   });
 
   it('never claims a task is in two buckets that sit side by side on one dashboard', () => {

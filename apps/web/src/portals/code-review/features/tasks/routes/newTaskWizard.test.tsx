@@ -22,10 +22,7 @@ const DEVELOPER = 'u-hiruni';
 
 function renderWizard(path = '/crp/developer/tasks/new') {
   const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false, gcTime: 0 },
-      mutations: { retry: false },
-    },
+    defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } },
   });
 
   const router = createMemoryRouter(routes, { initialEntries: [path] });
@@ -86,9 +83,7 @@ describe('New Review Task wizard', () => {
     expect(await screen.findByText(/before you can continue/i)).toBeInTheDocument();
     expect(screen.getAllByText(/select a customer/i).length).toBeGreaterThan(0);
 
-    const next = await screen.findByRole('button', {
-      name: /next: quality checklist/i,
-    });
+    const next = await screen.findByRole('button', { name: /next: quality checklist/i });
     // `aria-disabled`, not `disabled`: the button stays focusable and clickable
     // so that pressing it can EXPLAIN the block. A natively disabled button
     // swallows the click and tells a keyboard user nothing.
@@ -135,10 +130,13 @@ describe('New Review Task wizard', () => {
     const { user } = renderWizard();
 
     await chooseCustomer(user, 'AASL');
-    await user.type(await screen.findByLabelText(/crim id/i), 'CRIM-848');
-    await user.type(await screen.findByLabelText(/version/i), 'V2');
+    await user.type(await screen.findByLabelText(/crim id/i), 'CRIM-NEW-AUTO');
 
-    expect(await screen.findByDisplayValue('AASL - CRIM-848 V2')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByLabelText(/^version$/i)).toHaveTextContent('0');
+    });
+    expect(await screen.findByDisplayValue('AASL-CRIM-NEW-AUTO-0')).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: /^version$/i })).not.toBeInTheDocument();
   });
 
   it('advances to the checklist once step 1 is complete, and creates the task', async () => {
@@ -146,6 +144,12 @@ describe('New Review Task wizard', () => {
 
     await chooseCustomer(user, 'AASL');
     await user.type(await screen.findByLabelText(/crim id/i), 'CRIM-999');
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /next: quality checklist/i })).toHaveAttribute(
+        'aria-disabled',
+        'false',
+      );
+    });
     await user.click(screen.getByRole('button', { name: /next/i }));
 
     await waitFor(() => {
@@ -162,6 +166,10 @@ describe('New Review Task wizard', () => {
 
     expect(await screen.findByText(/select at least one task type to load/i)).toBeInTheDocument();
 
+    // Footer status accurately reflects task type requirement, not "required fields remaining"
+    expect(screen.getAllByText(/select at least one task type/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/required field(s)? remaining/i)).not.toBeInTheDocument();
+
     await user.click(await screen.findByRole('checkbox', { name: /quick report/i }));
 
     // Quick Reports is one of the type-specific sections, so it appears only now.
@@ -173,9 +181,7 @@ describe('New Review Task wizard', () => {
 
     await user.click(await screen.findByRole('checkbox', { name: /quick report/i }));
 
-    const next = await screen.findByRole('button', {
-      name: /next: review & submit/i,
-    });
+    const next = await screen.findByRole('button', { name: /next: review & submit/i });
     expect(next).toHaveAttribute('aria-disabled', 'true');
 
     await user.click(next);
@@ -184,7 +190,7 @@ describe('New Review Task wizard', () => {
     // The Section progress panel names which sections are short, so the user
     // knows where to look in a 30-question form.
     expect(await screen.findByText(/quick reports — 0 of 2 answered/i)).toBeInTheDocument();
-    expect(screen.getByText(/questions still unanswered/i)).toBeInTheDocument();
+    expect(screen.getByText(/questions (still unanswered|need answers)/i)).toBeInTheDocument();
   });
 
   it('records an answer against the question it was given for', async () => {
@@ -192,9 +198,7 @@ describe('New Review Task wizard', () => {
 
     await user.click(await screen.findByRole('checkbox', { name: /quick report/i }));
 
-    const group = await screen.findByRole('radiogroup', {
-      name: /have you used views instead/i,
-    });
+    const group = await screen.findByRole('radiogroup', { name: /have you used views instead/i });
     await user.click(within(group).getByRole('radio', { name: 'Yes' }));
 
     expect(within(group).getByRole('radio', { name: 'Yes' })).toHaveAttribute(
@@ -211,9 +215,7 @@ describe('New Review Task wizard', () => {
     const { user } = renderPersistedChecklist();
 
     await user.click(await screen.findByRole('checkbox', { name: /quick report/i }));
-    const group = await screen.findByRole('radiogroup', {
-      name: /have you used views instead/i,
-    });
+    const group = await screen.findByRole('radiogroup', { name: /have you used views instead/i });
     await user.click(within(group).getByRole('radio', { name: 'Yes' }));
     await user.type(screen.getByLabelText(/additional remarks/i), 'Some notes');
 
@@ -273,9 +275,7 @@ describe('New Review Task wizard', () => {
      * it has to survive middle-click, copy-link and Back. A `button` role here
      * would mean the affordance had regressed to an onClick handler.
      */
-    const resume = await screen.findByRole('link', {
-      name: /continue editing/i,
-    });
+    const resume = await screen.findByRole('link', { name: /continue editing/i });
     await user.click(resume);
 
     await waitFor(() => {
@@ -335,5 +335,23 @@ describe('New Review Task wizard', () => {
     // save handler strips it. Asserting the store here documents that split.
     useTaskDraft.getState().toggleTaskType('tt-quick-report');
     expect(useTaskDraft.getState().taskTypeIds).toEqual([]);
+  });
+
+  it('shows a generated read-only Version instead of accepting manual input', async () => {
+    const { user } = renderWizard();
+
+    await chooseCustomer(user, 'AASL');
+    await user.type(await screen.findByLabelText(/crim id/i), 'CRIM-SYSTEM-VERSION');
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/^version$/i)).toHaveTextContent('0');
+    });
+    expect(screen.queryByRole('textbox', { name: /^version$/i })).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /next: quality checklist/i })).toHaveAttribute(
+        'aria-disabled',
+        'false',
+      );
+    });
   });
 });

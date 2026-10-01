@@ -35,14 +35,33 @@ async function pickFirstTask(page: Page) {
   await page.waitForURL(/\/reviewer\/tasks\//);
 }
 
-async function answerAllGeneralCheck(page: Page, answer: string) {
-  const groups = page.locator('[role="radiogroup"]').filter({ hasText: 'Partially OK' });
-  // `toHaveCount` auto-retries; `locator.count()` is a one-shot snapshot and
-  // races the fetch that loads the questions.
-  await expect(groups).toHaveCount(13);
-  for (let i = 0; i < 13; i += 1) {
-    await groups.nth(i).getByRole('radio', { name: answer, exact: true }).click();
-  }
+/** Picks a specific clean, cycle-1 task, so decisions are not blocked by earlier cycles. */
+async function pickTask(page: Page, code = 'AIM-004') {
+  await page.goto('/crp/reviewer');
+  await page.getByRole('table').waitFor();
+  await page.getByRole('searchbox', { name: /search/i }).fill(code);
+  await page
+    .getByRole('row')
+    .filter({ hasText: code })
+    .getByRole('button', { name: /pick .* for review/i })
+    .click();
+  await page.waitForURL(/\/reviewer\/tasks\//);
+}
+
+/** Waits for the assessment form, which loads after the task itself. */
+async function assessmentReady(page: Page) {
+  await page.getByRole('heading', { name: /reviewer assessment/i }).waitFor();
+}
+
+/** Adds one review comment; `text` may be empty to leave it unwritten. */
+async function addComment(page: Page, text: string) {
+  await page
+    .getByRole('button', { name: /add comment/i })
+    .first()
+    .click();
+  const input = page.getByPlaceholder(/describe the actionable issue/i).last();
+  if (text !== '') await input.fill(text);
+  return input;
 }
 
 test.describe('reviewer queues', () => {
@@ -118,68 +137,76 @@ test.describe('reviewer workspace navigation', () => {
 });
 
 test.describe('the code review form', () => {
-  test('renders all 13 General Check questions and the developer checklist', async ({ page }) => {
+  test('renders the reviewer assessment and the developer checklist', async ({ page }) => {
     await signIn(page);
-    await pickFirstTask(page);
+    await pickTask(page);
+    await assessmentReady(page);
 
-    await expect(page.getByText(/3\.1 general check/i)).toBeVisible();
-    await expect(page.getByText('Answered 0/13')).toBeVisible();
-    await expect(page.getByText(/developer quality checklist/i)).toBeVisible();
+    for (const rank of [/rank 1/i, /rank 2/i, /rank 3/i]) {
+      await expect(page.getByRole('radio', { name: rank })).toBeVisible();
+    }
+    await expect(page.getByRole('button', { name: /add comment/i }).first()).toBeVisible();
+    await expect(page.getByText(/developer quality checklist/i).first()).toBeVisible();
   });
 
   test('BLOCKS Approve at Rank 2 even when everything else is complete', async ({ page }) => {
     await signIn(page);
-    await pickFirstTask(page);
-
-    await answerAllGeneralCheck(page, 'OK');
-    await page.getByLabel(/incorrect code and performance/i).fill('A real problem was found.');
+    await pickTask(page);
+    await assessmentReady(page);
 
     // Rank 1 first: Approve is available.
     await page.getByRole('radio', { name: /rank 1/i }).click();
     await expect(page.getByRole('button', { name: /approve task/i })).toBeEnabled();
 
-    // Switching to Rank 2 must take Approve away, and say why in words —
-    // a silently disabled button reads as a bug.
+    // Switching to Rank 2 must take Approve away.
     await page.getByRole('radio', { name: /rank 2/i }).click();
     await expect(page.getByRole('button', { name: /approve task/i })).toBeDisabled();
-    await expect(page.getByText(/approve is not available at rank 2 or rank 3/i)).toBeVisible();
 
-    // And Request Changes still wants a screenshot at a defect rank.
-    await expect(page.getByRole('button', { name: /request changes/i })).toBeDisabled();
-    await expect(page.getByText(/attach at least one screenshot/i)).toBeVisible();
+    // And Request Changes wants a written review comment at a defect rank,
+    // said in words — a silently disabled button reads as a bug.
+    const requestChanges = page.getByRole('button', { name: /request changes/i });
+    await expect(requestChanges).toBeDisabled();
+    await expect(page.getByText(/review comments required/i)).toBeVisible();
+
+    await addComment(page, 'A real problem was found.');
+    await expect(requestChanges).toBeEnabled();
+    await expect(page.getByRole('button', { name: /approve task/i })).toBeDisabled();
   });
 
-  test('approves a clean review and returns to the queue', async ({ page }) => {
+  test('approves a clean review and records it in history', async ({ page }) => {
     await signIn(page);
-    await pickFirstTask(page);
+    await pickTask(page);
+    await assessmentReady(page);
 
-    await answerAllGeneralCheck(page, 'OK');
     await page.getByRole('radio', { name: /rank 1/i }).click();
-    await page.getByLabel(/summary comments/i).fill('No issues found.');
-
     await page.getByRole('button', { name: /approve task/i }).click();
 
-    await expect(page).toHaveURL(/\/reviewer$/);
-    await page.goto('/crp/reviewer/history');
-    await page.getByRole('table').waitFor();
-    await expect(page.getByRole('table')).toContainText('Approved');
+    // Nothing is decided until the confirmation is answered.
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('button', { name: /approve task/i }).click();
+    await expect(dialog.getByText('Task Approved', { exact: true })).toBeVisible();
+
+    // The success state moves to Review History on its own (850ms); clicking its
+    // button races that redirect, so wait for the destination instead.
+    await page.waitForURL(/\/reviewer\/history/);
+    await expect(page.getByRole('row').filter({ hasText: 'AIM-004' })).toContainText('Approved');
   });
 
-  test('a defect answer demands written findings before either decision', async ({ page }) => {
+  test('a defect rank demands a written comment before either decision', async ({ page }) => {
     await signIn(page);
-    await pickFirstTask(page);
+    await pickTask(page);
+    await assessmentReady(page);
 
-    await answerAllGeneralCheck(page, 'OK');
-    // Flip one to Not OK — FL 2.9.2.4-02 now requires findings.
-    const groups = page.locator('[role="radiogroup"]').filter({ hasText: 'Partially OK' });
-    await groups.first().getByRole('radio', { name: 'Not OK', exact: true }).click();
-    await page.getByRole('radio', { name: /rank 1/i }).click();
+    await page.getByRole('radio', { name: /rank 2/i }).click();
+    const requestChanges = page.getByRole('button', { name: /request changes/i });
 
-    await expect(page.getByText(/describe the issues in detailed review findings/i)).toBeVisible();
+    // An added but unwritten comment is not evidence.
+    const comment = await addComment(page, '');
+    await expect(requestChanges).toBeDisabled();
     await expect(page.getByRole('button', { name: /approve task/i })).toBeDisabled();
 
-    await page.getByLabel(/incorrect code and performance/i).fill('Cursor selects the wrong view.');
-    await expect(page.getByRole('button', { name: /approve task/i })).toBeEnabled();
+    await comment.fill('Cursor selects the wrong view.');
+    await expect(requestChanges).toBeEnabled();
   });
 });
 
@@ -266,9 +293,12 @@ test.describe('reviewer accessibility and layout', () => {
      * nothing about the ring. That gap shipped and axe caught it; this is the
      * cheaper, more specific guard on the same rule.
      */
-    const tabIndexes = await page
-      .locator('[aria-hidden="true"] [tabindex]')
-      .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('tabindex')));
+    // The charts are lazy-loaded after the heading paints; read once they exist.
+    const hiddenFocusables = page.locator('[aria-hidden="true"] [tabindex]');
+    await hiddenFocusables.first().waitFor({ state: 'attached' });
+    const tabIndexes = await hiddenFocusables.evaluateAll((nodes) =>
+      nodes.map((node) => node.getAttribute('tabindex')),
+    );
 
     expect(tabIndexes.length).toBeGreaterThan(0);
     expect(tabIndexes.every((value) => value === '-1')).toBe(true);
