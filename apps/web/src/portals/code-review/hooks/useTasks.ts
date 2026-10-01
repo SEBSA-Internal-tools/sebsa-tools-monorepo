@@ -29,7 +29,8 @@ export const taskKeys = {
   customers: () => ['customers'] as const,
   nextTaskId: (customerId: string) =>
     [...taskKeys.customers(), customerId, 'next-task-id'] as const,
-  nextTaskVersion: (crimId: string) => [...taskKeys.all, 'next-version', crimId] as const,
+  nextTaskVersion: (customerId: string, crimId: string) =>
+    [...taskKeys.all, 'next-version', customerId, crimId] as const,
 };
 
 /**

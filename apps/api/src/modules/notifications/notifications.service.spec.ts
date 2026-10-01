@@ -42,6 +42,23 @@ describe('NotificationsService', () => {
     });
   });
 
+  it('identifies a newly submitted task notification', async () => {
+    const findMany = vi.fn().mockResolvedValue([
+      row({
+        notificationType: NotificationType.TASK_SUBMITTED,
+        title: 'Payment validation submitted for review',
+      }),
+    ]);
+    const service = new NotificationsService({ notification: { findMany } } as never);
+
+    await expect(service.findAll(recipientId)).resolves.toEqual([
+      expect.objectContaining({
+        kind: 'TaskSubmitted',
+        title: 'Payment validation submitted for review',
+      }),
+    ]);
+  });
+
   it('does not reveal or mutate another user notification', async () => {
     const findFirst = vi.fn().mockResolvedValue(null);
     const update = vi.fn();

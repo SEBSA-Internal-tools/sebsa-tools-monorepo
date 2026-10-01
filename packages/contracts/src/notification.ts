@@ -10,6 +10,7 @@ export const NOTIFICATION_KINDS = [
   'TaskApproved',
   'ChangesRequested',
   'TaskResubmitted',
+  'TaskSubmitted',
   'TaskAssigned',
   'TaskReassigned',
   'TaskHandedOver',

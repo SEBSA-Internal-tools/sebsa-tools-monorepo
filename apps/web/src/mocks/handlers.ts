@@ -144,9 +144,10 @@ function deriveTitle(customerName: string, crimId: string, version: string | nul
   return version === null || version === '' ? base : `${base} – ${version}`;
 }
 
-function nextTaskVersion(crimId: string): number {
+function nextTaskVersion(customerId: string, crimId: string): number {
   const normalizedCrimId = crimId.trim().toLowerCase();
   const highestVersion = db.tasks.reduce((highest, task) => {
+    if (task.customerId !== customerId) return highest;
     if (task.crimId.trim().toLowerCase() !== normalizedCrimId) return highest;
     const value = task.version?.trim().replace(/^V/i, '') ?? '';
     return /^\d+$/.test(value) ? Math.max(highest, Number(value)) : highest;
@@ -559,9 +560,12 @@ export const handlers: HttpHandler[] = [
     await delay(LATENCY_MS);
     const user = currentUser(request);
     if (!user) return errorResponse(401, 'NOT_AUTHENTICATED', 'Not authenticated.');
-    const crimId = new URL(request.url).searchParams.get('crimId')?.trim() ?? '';
+    const searchParams = new URL(request.url).searchParams;
+    const customerId = searchParams.get('customerId')?.trim() ?? '';
+    const crimId = searchParams.get('crimId')?.trim() ?? '';
+    if (customerId === '') return errorResponse(422, 'VALIDATION_FAILED', 'Select a customer.');
     if (crimId === '') return errorResponse(422, 'VALIDATION_FAILED', 'Enter the CRIM ID.');
-    return HttpResponse.json({ version: nextTaskVersion(crimId) });
+    return HttpResponse.json({ version: nextTaskVersion(customerId, crimId) });
   }),
 
   /**
@@ -630,7 +634,7 @@ export const handlers: HttpHandler[] = [
 
     const now = new Date().toISOString();
     const crimId = parsed.data.crimId.trim();
-    const version = String(nextTaskVersion(crimId));
+    const version = String(nextTaskVersion(customer.id, crimId));
 
     const task: Task = {
       id: `t-${String(Date.now())}`,
@@ -983,6 +987,23 @@ export const handlers: HttpHandler[] = [
             : 'Respond to every review finding before resubmitting.',
         );
       }
+    } else {
+      for (const recipient of db.users.filter(
+        (candidate) =>
+          candidate.isActive &&
+          candidate.roles.some(
+            (role) => role === 'Reviewer' || role === 'Admin' || role === 'Super Admin',
+          ),
+      )) {
+        createNotification({
+          userId: recipient.id,
+          kind: 'TaskSubmitted',
+          title: `${task.title} submitted for review`,
+          body: `${user.name} submitted a new review task.`,
+          href: `/crp/reviewer/tasks/${task.id}`,
+          taskId: task.id,
+        });
+      }
     }
 
     const now = new Date().toISOString();
@@ -1095,15 +1116,40 @@ export const handlers: HttpHandler[] = [
       pendingHandover.resolvedAt = now;
     }
     createNotification({
-      userId: user.id,
-      kind: pendingHandover ? 'TaskReassigned' : 'TaskAssigned',
-      title: `${task.title} ${pendingHandover ? 'reassigned' : 'assigned'} to you`,
-      body: pendingHandover
-        ? `${user.name} accepted the handed-over review task.`
-        : `${user.name} picked up this review task.`,
-      href: `/crp/reviewer/tasks/${task.id}`,
+      userId: task.developerId,
+      kind: 'TaskAssigned',
+      title: `${task.title} picked for review`,
+      body: `${user.name} picked up your review task.`,
+      href: `/crp/developer/tasks/${task.id}`,
       taskId: task.id,
     });
+    if (pendingHandover && pendingHandover.fromReviewerId !== user.id) {
+      createNotification({
+        userId: pendingHandover.fromReviewerId,
+        kind: 'TaskHandedOver',
+        title: `${task.title} handover picked up`,
+        body: `${user.name} picked up the review task you handed over.`,
+        href: '/crp/admin/handovers',
+        taskId: task.id,
+      });
+      for (const administrator of db.users.filter(
+        (candidate) =>
+          candidate.isActive &&
+          candidate.id !== user.id &&
+          candidate.id !== task.developerId &&
+          candidate.id !== pendingHandover.fromReviewerId &&
+          (candidate.roles.includes('Admin') || candidate.roles.includes('Super Admin')),
+      )) {
+        createNotification({
+          userId: administrator.id,
+          kind: 'TaskHandedOver',
+          title: `${task.title} handover picked up`,
+          body: `${user.name} picked up the handed-over review task.`,
+          href: '/crp/admin/handovers',
+          taskId: task.id,
+        });
+      }
+    }
 
     recordEvent({
       taskId: task.id,
@@ -1462,6 +1508,22 @@ export const handlers: HttpHandler[] = [
       href: `/crp/developer/tasks/${task.id}`,
       taskId: task.id,
     });
+    if (decision === 'Approved') {
+      for (const administrator of db.users.filter(
+        (candidate) =>
+          candidate.isActive &&
+          (candidate.roles.includes('Admin') || candidate.roles.includes('Super Admin')),
+      )) {
+        createNotification({
+          userId: administrator.id,
+          kind: 'TaskApproved',
+          title: `${task.title} approved`,
+          body: `${user.name} approved the code review task.`,
+          href: `/crp/admin/tasks/${task.id}`,
+          taskId: task.id,
+        });
+      }
+    }
 
     return HttpResponse.json(toListItem(task));
   }),
@@ -2832,9 +2894,20 @@ export const handlers: HttpHandler[] = [
       oldValue: { reviewerId: user.id, reviewerName: user.name },
       newValue: handover,
     });
+    createNotification({
+      userId: task.developerId,
+      kind: 'TaskHandedOver',
+      title: `${task.title} handed over`,
+      body: `${user.name} handed over your review task for reassignment.`,
+      href: '/crp/admin/handovers',
+      taskId: task.id,
+    });
     for (const administrator of db.users.filter(
       (candidate) =>
         candidate.isActive &&
+        candidate.id !== task.developerId &&
+        candidate.id !== user.id &&
+        !candidate.roles.includes('Reviewer') &&
         (candidate.roles.includes('Admin') || candidate.roles.includes('Super Admin')),
     )) {
       createNotification({
@@ -2843,6 +2916,22 @@ export const handlers: HttpHandler[] = [
         title: `${task.title} handed over`,
         body: `${user.name} handed over this review task for reassignment.`,
         href: '/crp/admin/handovers',
+        taskId: task.id,
+      });
+    }
+    for (const reviewer of db.users.filter(
+      (candidate) =>
+        candidate.isActive &&
+        candidate.id !== task.developerId &&
+        candidate.id !== user.id &&
+        candidate.roles.includes('Reviewer'),
+    )) {
+      createNotification({
+        userId: reviewer.id,
+        kind: 'TaskHandedOver',
+        title: `${task.title} available to pick`,
+        body: `${user.name} handed over this review task. It is now available to pick.`,
+        href: `/crp/reviewer/tasks/${task.id}`,
         taskId: task.id,
       });
     }
@@ -2933,7 +3022,7 @@ export const handlers: HttpHandler[] = [
     });
     createNotification({
       userId: reviewer.id,
-      kind: 'TaskReassigned',
+      kind: 'TaskAssigned',
       title: `${task.title} reassigned to you`,
       body: `${actor.name} reassigned this review task to ${reviewer.name}.`,
       href: `/crp/reviewer/tasks/${task.id}`,

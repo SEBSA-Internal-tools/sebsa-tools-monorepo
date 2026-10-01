@@ -1,9 +1,10 @@
+import { useState } from 'react';
 import * as Popover from '@radix-ui/react-popover';
 import { Bell, BellOff } from 'lucide-react';
-import { Link } from 'react-router-dom';
 import type { Notification, NotificationKind } from '@sdp/contracts';
 import { cn } from '@/components/ui';
 import { EmptyState, ErrorState, LoadingState } from '@/components/common/states.tsx';
+import { Dialog } from '@/components/ui/Dialog.tsx';
 import { formatBadgeCount, formatRelative, interpolate } from '@/lib/formatters.ts';
 import content from '@/content/notifications.json';
 import {
@@ -17,6 +18,7 @@ const KIND_CLASSES: Record<NotificationKind, string> = {
   TaskApproved: 'bg-status-approved-surface text-status-approved',
   ChangesRequested: 'bg-status-changes-requested-surface text-status-changes-requested',
   TaskResubmitted: 'bg-status-re-submitted-surface text-status-re-submitted',
+  TaskSubmitted: 'bg-status-re-submitted-surface text-status-re-submitted',
   TaskAssigned: 'bg-status-in-review-surface text-status-in-review',
   TaskReassigned: 'bg-status-in-review-surface text-status-in-review',
   TaskHandedOver: 'bg-status-handover-surface text-status-handover',
@@ -28,14 +30,14 @@ function NotificationRow({
   onOpen,
 }: {
   notification: Notification;
-  onOpen: (id: string) => void;
+  onOpen: (notification: Notification) => void;
 }) {
   return (
-    <Link
-      to={notification.href}
-      onClick={() => onOpen(notification.id)}
+    <button
+      type="button"
+      onClick={() => onOpen(notification)}
       className={cn(
-        'block rounded-lg px-3 py-2.5 transition-colors hover:bg-canvas',
+        'block w-full rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-canvas',
         !notification.isRead && 'bg-brand-blue-50/60',
       )}
     >
@@ -74,7 +76,7 @@ function NotificationRow({
           <span className="mt-0.5 block text-[0.7rem] text-ink-500">{notification.body}</span>
         </span>
       </div>
-    </Link>
+    </button>
   );
 }
 
@@ -89,79 +91,109 @@ export function NotificationBell() {
   const notifications = useNotifications();
   const markRead = useMarkNotificationRead();
   const markAllRead = useMarkAllNotificationsRead();
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [preview, setPreview] = useState<Notification | null>(null);
 
   const items = notifications.data ?? [];
   const unread = items.filter((n) => !n.isRead).length;
 
   return (
-    <Popover.Root>
-      <Popover.Trigger
-        className="relative grid size-10 place-items-center rounded-full transition-colors hover:bg-canvas"
-        aria-label={
-          unread > 0
-            ? interpolate(content.trigger.labelWithCount, { count: unread })
-            : content.trigger.label
-        }
-      >
-        <Bell className="size-5 text-ink-700" aria-hidden="true" />
-        {unread > 0 ? (
-          <span
-            className="absolute top-0.5 right-0.5 grid min-w-4 place-items-center rounded-full bg-danger px-1 text-[0.6rem] font-bold text-white"
-            aria-hidden="true"
-          >
-            {formatBadgeCount(unread)}
-          </span>
-        ) : null}
-      </Popover.Trigger>
-
-      <Popover.Portal>
-        <Popover.Content
-          align="end"
-          sideOffset={8}
-          className="z-50 w-88 rounded-card border border-line bg-surface p-2 shadow-popover"
+    <>
+      <Popover.Root open={panelOpen} onOpenChange={setPanelOpen}>
+        <Popover.Trigger
+          className="relative grid size-10 place-items-center rounded-full transition-colors hover:bg-canvas"
+          aria-label={
+            unread > 0
+              ? interpolate(content.trigger.labelWithCount, { count: unread })
+              : content.trigger.label
+          }
         >
-          <div className="flex items-center justify-between px-2 py-1.5">
-            <p className="text-sm font-semibold text-ink-900">{content.panel.title}</p>
-            {unread > 0 ? (
-              <button
-                type="button"
-                onClick={() => markAllRead.mutate()}
-                disabled={markAllRead.isPending}
-                className="text-xs font-semibold text-brand-blue-600 hover:text-brand-blue-500 disabled:opacity-50"
+          <Bell className="size-5 text-ink-700" aria-hidden="true" />
+          {unread > 0 ? (
+            <span
+              className="absolute top-0.5 right-0.5 grid min-w-4 place-items-center rounded-full bg-danger px-1 text-[0.6rem] font-bold text-white"
+              aria-hidden="true"
+            >
+              {formatBadgeCount(unread)}
+            </span>
+          ) : null}
+        </Popover.Trigger>
+
+        <Popover.Portal>
+          <Popover.Content
+            align="end"
+            sideOffset={8}
+            className="z-50 w-88 rounded-card border border-line bg-surface p-2 shadow-popover"
+          >
+            <div className="flex items-center justify-between px-2 py-1.5">
+              <p className="text-sm font-semibold text-ink-900">{content.panel.title}</p>
+              {unread > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => markAllRead.mutate()}
+                  disabled={markAllRead.isPending}
+                  className="text-xs font-semibold text-brand-blue-600 hover:text-brand-blue-500 disabled:opacity-50"
+                >
+                  {content.panel.markAllRead}
+                </button>
+              ) : null}
+            </div>
+
+            <div className="mt-1 max-h-96 space-y-0.5 overflow-y-auto">
+              {notifications.isPending ? <LoadingState className="py-8" /> : null}
+
+              {notifications.isError ? (
+                <ErrorState className="py-8" onRetry={() => void notifications.refetch()} />
+              ) : null}
+
+              {notifications.isSuccess && items.length === 0 ? (
+                <EmptyState
+                  className="py-8"
+                  icon={<BellOff className="size-5" />}
+                  title={content.panel.empty}
+                  hint={content.panel.emptyHint}
+                />
+              ) : null}
+
+              {items.map((notification) => (
+                <NotificationRow
+                  key={notification.id}
+                  notification={notification}
+                  onOpen={(selected) => {
+                    setPanelOpen(false);
+                    setPreview(selected);
+                    if (!notification.isRead) markRead.mutate(selected.id);
+                  }}
+                />
+              ))}
+            </div>
+          </Popover.Content>
+        </Popover.Portal>
+      </Popover.Root>
+      <Dialog
+        open={preview !== null}
+        onOpenChange={(open) => {
+          if (!open) setPreview(null);
+        }}
+        title={preview?.title ?? content.panel.title}
+      >
+        {preview ? (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <span
+                className={cn(
+                  'rounded-badge px-1.5 py-0.5 text-[0.65rem] font-semibold',
+                  KIND_CLASSES[preview.kind],
+                )}
               >
-                {content.panel.markAllRead}
-              </button>
-            ) : null}
+                {content.kind[preview.kind]}
+              </span>
+              <span className="text-xs text-ink-400">{formatRelative(preview.createdAt)}</span>
+            </div>
+            <p className="text-sm leading-6 text-ink-700">{preview.body}</p>
           </div>
-
-          <div className="mt-1 max-h-96 space-y-0.5 overflow-y-auto">
-            {notifications.isPending ? <LoadingState className="py-8" /> : null}
-
-            {notifications.isError ? (
-              <ErrorState className="py-8" onRetry={() => void notifications.refetch()} />
-            ) : null}
-
-            {notifications.isSuccess && items.length === 0 ? (
-              <EmptyState
-                className="py-8"
-                icon={<BellOff className="size-5" />}
-                title={content.panel.empty}
-                hint={content.panel.emptyHint}
-              />
-            ) : null}
-
-            {items.map((notification) => (
-              <NotificationRow
-                key={notification.id}
-                notification={notification}
-                onOpen={(id) => {
-                  if (!notification.isRead) markRead.mutate(id);
-                }}
-              />
-            ))}
-          </div>
-        </Popover.Content>
-      </Popover.Portal>
-    </Popover.Root>
+        ) : null}
+      </Dialog>
+    </>
   );
 }

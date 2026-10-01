@@ -14,7 +14,7 @@ import {
   TaskStatus,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
-import { rethrowPrismaConflict } from '../../common/prisma-errors.js';
+import { rethrowPrismaConflict, retryPrismaTransaction } from '../../common/prisma-errors.js';
 import type { ChecklistAnswerDto, CreateReviewTaskDto } from './dto/create-review-task.dto.js';
 import type { UpdateReviewTaskDto } from './dto/update-review-task.dto.js';
 import type { AuthenticatedUser } from '../auth/auth.types.js';
@@ -98,8 +98,8 @@ export class ReviewTasksService {
     return this.toResponse(task);
   }
 
-  async nextVersion(crimId: string) {
-    return { version: await this.nextTaskVersion(this.prisma, crimId.trim()) };
+  async nextVersion(customerId: string, crimId: string) {
+    return { version: await this.nextTaskVersion(this.prisma, customerId, crimId.trim()) };
   }
 
   async findChecklist(id: string, user: AuthenticatedUser) {
@@ -166,7 +166,7 @@ export class ReviewTasksService {
             });
             const sequence = (aggregate._max.customerSequenceNo ?? 0) + 1;
             const crimId = dto.crimId.trim();
-            const version = await this.nextTaskVersion(tx, crimId);
+            const version = await this.nextTaskVersion(tx, dto.customerId, crimId);
             const created = await tx.task.create({
               data: {
                 taskCode: formatTaskCode(customer.name, sequence),
@@ -453,164 +453,228 @@ export class ReviewTasksService {
         oldValue: { status: task.status },
         newValue: { status: nextStatus },
       });
-      // The database status trigger creates TASK_RESUBMITTED in this same
-      // transaction. Initial SUBMITTED deliberately produces no notification.
+      if (!isResubmission) {
+        const recipients = await tx.user.findMany({
+          where: {
+            status: 'ACTIVE',
+            deletedAt: null,
+            userRoles: {
+              some: {
+                role: {
+                  code: { in: ['REVIEWER', 'ADMIN', 'SUPER_ADMIN'] },
+                  deletedAt: null,
+                },
+              },
+            },
+          },
+          select: { id: true },
+        });
+        await this.notifications.createMany(
+          tx,
+          recipients.map(({ id: recipientId }) => ({
+            taskId: id,
+            recipientId,
+            type: NotificationType.TASK_SUBMITTED,
+            title: `${task.title} submitted for review`,
+            message: `${user.name} submitted a new review task.`,
+          })),
+        );
+      }
+      // The database status trigger creates the assigned-reviewer notification
+      // for a resubmission in this same transaction.
       return updated;
     });
     return this.toResponse(submitted);
   }
 
   async pick(id: string, user: AuthenticatedUser) {
-    return this.prisma.$transaction(async (tx) => {
-      const candidate = await tx.task.findUnique({
-        where: { id },
-        select: {
-          developerId: true,
-          currentReviewerId: true,
-          status: true,
-          title: true,
-          currentReviewer: { select: { fullName: true } },
-          handovers: {
-            where: { status: HandoverStatus.PENDING },
-            select: {
-              id: true,
-              reason: true,
-              fromReviewerId: true,
-              fromReviewer: { select: { fullName: true } },
+    return retryPrismaTransaction(() =>
+      this.prisma.$transaction(async (tx) => {
+        const candidate = await tx.task.findUnique({
+          where: { id },
+          select: {
+            developerId: true,
+            currentReviewerId: true,
+            status: true,
+            title: true,
+            currentReviewer: { select: { fullName: true } },
+            handovers: {
+              where: { status: HandoverStatus.PENDING },
+              orderBy: { requestedAt: 'desc' },
+              take: 1,
+              select: {
+                id: true,
+                reason: true,
+                fromReviewerId: true,
+                fromReviewer: { select: { fullName: true } },
+              },
             },
           },
-        },
-      });
-      if (!candidate) throw new NotFoundException(`Review task ${id} was not found`);
-      if (candidate.developerId === user.id) {
-        throw new ForbiddenException('You cannot review your own task');
-      }
-      if (candidate.currentReviewerId !== null) {
-        throw new ConflictException(
-          candidate.currentReviewer?.fullName
-            ? `${candidate.currentReviewer.fullName} has already picked up this task`
-            : 'Another reviewer has already picked up this task',
-        );
-      }
-      if (
-        candidate.status !== TaskStatus.SUBMITTED &&
-        candidate.status !== TaskStatus.RESUBMITTED
-      ) {
-        throw new ConflictException('This task is not available to pick');
-      }
-
-      // The conditional update is the concurrency control. If two reviewers
-      // pick simultaneously, only the first request can match this predicate.
-      const claimed = await tx.task.updateMany({
-        where: {
-          id,
-          developerId: { not: user.id },
-          currentReviewerId: null,
-          status: { in: [TaskStatus.SUBMITTED, TaskStatus.RESUBMITTED] },
-        },
-        data: {
-          currentReviewerId: user.id,
-          status: TaskStatus.IN_REVIEW,
-        },
-      });
-
-      if (claimed.count !== 1) {
-        const winner = await tx.task.findUnique({
-          where: { id },
-          select: { currentReviewer: { select: { fullName: true } } },
         });
-        throw new ConflictException(
-          winner?.currentReviewer?.fullName
-            ? `${winner.currentReviewer.fullName} has already picked up this task`
-            : 'This task was picked up or changed by another reviewer',
-        );
-      }
-
-      const now = new Date();
-      await tx.taskReviewerAssignment.updateMany({
-        where: { taskId: id, isCurrent: true },
-        data: { isCurrent: false, unassignedAt: now },
-      });
-      const pendingHandover = candidate.handovers[0];
-      if (pendingHandover) {
-        const resolved = await tx.handoverTask.updateMany({
-          where: { id: pendingHandover.id, status: HandoverStatus.PENDING },
-          data: {
-            status: HandoverStatus.REASSIGNED,
-            toReviewerId: user.id,
-            reassignedBy: user.id,
-            reassignedAt: now,
-          },
-        });
-        if (resolved.count !== 1) {
-          throw new ConflictException('This handover was already reassigned');
+        if (!candidate) throw new NotFoundException(`Review task ${id} was not found`);
+        if (candidate.developerId === user.id) {
+          throw new ForbiddenException('You cannot review your own task');
         }
-      }
-      await tx.taskReviewerAssignment.create({
-        data: {
-          taskId: id,
-          reviewerId: user.id,
-          assignedBy: user.id,
-          assignmentType: pendingHandover
-            ? ReviewerAssignmentType.HANDOVER_REASSIGNED
-            : ReviewerAssignmentType.SELF_PICKED,
-        },
-      });
-      await tx.taskStatusHistory.create({
-        data: {
-          taskId: id,
-          oldStatus: candidate.status,
-          newStatus: TaskStatus.IN_REVIEW,
-          changedBy: user.id,
-          remarks: 'Task picked up for review',
-        },
-      });
-      await this.audit.record(tx, user, {
-        actionType: 'TASK_PICKED',
-        entityType: 'TASK',
-        entityId: id,
-        taskId: id,
-        description: `${user.name} picked task '${candidate.title}' for review`,
-        oldValue: { status: candidate.status, reviewerId: null },
-        newValue: { status: TaskStatus.IN_REVIEW, reviewerId: user.id },
-      });
-      await this.notifications.create(tx, {
-        taskId: id,
-        recipientId: user.id,
-        type: pendingHandover ? TASK_REASSIGNED_NOTIFICATION : NotificationType.TASK_ASSIGNED,
-        title: `${candidate.title} ${pendingHandover ? 'reassigned' : 'assigned'} to you`,
-        message: pendingHandover
-          ? `${user.name} accepted the handed-over review task.`
-          : `${user.name} picked up this review task.`,
-      });
-      if (pendingHandover) {
-        await this.audit.record(tx, user, {
-          actionType: 'HANDOVER_REASSIGNED',
-          entityType: 'HANDOVER',
-          entityId: pendingHandover.id,
-          taskId: id,
-          targetUserId: user.id,
-          description: `${user.name} picked handed-over task '${candidate.title}' from ${pendingHandover.fromReviewer.fullName}. Handover reason: ${pendingHandover.reason ?? 'Not provided'}`,
-          oldValue: {
-            reviewerId: pendingHandover.fromReviewerId,
-            reviewerName: pendingHandover.fromReviewer.fullName,
-            reason: pendingHandover.reason,
-          },
-          newValue: { reviewerId: user.id, reviewerName: user.name },
-        });
-      }
-      await this.audit.record(tx, user, {
-        actionType: 'REVIEW_STARTED',
-        entityType: 'REVIEW',
-        entityId: id,
-        taskId: id,
-        description: `${user.name} started reviewing task '${candidate.title}'`,
-      });
+        if (candidate.currentReviewerId !== null) {
+          throw new ConflictException(
+            candidate.currentReviewer?.fullName
+              ? `${candidate.currentReviewer.fullName} has already picked up this task`
+              : 'Another reviewer has already picked up this task',
+          );
+        }
+        if (
+          candidate.status !== TaskStatus.SUBMITTED &&
+          candidate.status !== TaskStatus.RESUBMITTED
+        ) {
+          throw new ConflictException('This task is not available to pick');
+        }
 
-      const task = await tx.task.findUnique({ where: { id }, include: taskInclude });
-      if (!task) throw new NotFoundException(`Review task ${id} was not found`);
-      return this.toResponse(task);
-    });
+        // The conditional update is the concurrency control. If two reviewers
+        // pick simultaneously, only the first request can match this predicate.
+        const claimed = await tx.task.updateMany({
+          where: {
+            id,
+            developerId: { not: user.id },
+            currentReviewerId: null,
+            status: { in: [TaskStatus.SUBMITTED, TaskStatus.RESUBMITTED] },
+          },
+          data: {
+            currentReviewerId: user.id,
+            status: TaskStatus.IN_REVIEW,
+          },
+        });
+
+        if (claimed.count !== 1) {
+          const winner = await tx.task.findUnique({
+            where: { id },
+            select: { currentReviewer: { select: { fullName: true } } },
+          });
+          throw new ConflictException(
+            winner?.currentReviewer?.fullName
+              ? `${winner.currentReviewer.fullName} has already picked up this task`
+              : 'This task was picked up or changed by another reviewer',
+          );
+        }
+
+        const now = new Date();
+        await tx.taskReviewerAssignment.updateMany({
+          where: { taskId: id, isCurrent: true },
+          data: { isCurrent: false, unassignedAt: now },
+        });
+        const pendingHandover = candidate.handovers[0];
+        if (pendingHandover) {
+          const resolved = await tx.handoverTask.updateMany({
+            where: { taskId: id, status: HandoverStatus.PENDING },
+            data: {
+              status: HandoverStatus.REASSIGNED,
+              toReviewerId: user.id,
+              reassignedBy: user.id,
+              reassignedAt: now,
+            },
+          });
+          if (resolved.count < 1) {
+            throw new ConflictException('This handover was already reassigned');
+          }
+        }
+        await tx.taskReviewerAssignment.create({
+          data: {
+            taskId: id,
+            reviewerId: user.id,
+            assignedBy: user.id,
+            assignmentType: pendingHandover
+              ? ReviewerAssignmentType.HANDOVER_REASSIGNED
+              : ReviewerAssignmentType.SELF_PICKED,
+          },
+        });
+        await tx.taskStatusHistory.create({
+          data: {
+            taskId: id,
+            oldStatus: candidate.status,
+            newStatus: TaskStatus.IN_REVIEW,
+            changedBy: user.id,
+            remarks: 'Task picked up for review',
+          },
+        });
+        await this.audit.record(tx, user, {
+          actionType: 'TASK_PICKED',
+          entityType: 'TASK',
+          entityId: id,
+          taskId: id,
+          description: `${user.name} picked task '${candidate.title}' for review`,
+          oldValue: { status: candidate.status, reviewerId: null },
+          newValue: { status: TaskStatus.IN_REVIEW, reviewerId: user.id },
+        });
+        await this.notifications.create(tx, {
+          taskId: id,
+          recipientId: candidate.developerId,
+          type: NotificationType.TASK_ASSIGNED,
+          title: `${candidate.title} picked for review`,
+          message: `${user.name} picked up your review task.`,
+        });
+        if (pendingHandover) {
+          if (pendingHandover.fromReviewerId !== user.id) {
+            const administrators = await tx.user.findMany({
+              where: {
+                status: 'ACTIVE',
+                deletedAt: null,
+                userRoles: {
+                  some: { role: { code: { in: ['ADMIN', 'SUPER_ADMIN'] }, deletedAt: null } },
+                },
+              },
+              select: { id: true },
+            });
+            await this.notifications.createMany(tx, [
+              {
+                taskId: id,
+                recipientId: pendingHandover.fromReviewerId,
+                type: NotificationType.TASK_HANDOVER,
+                title: `${candidate.title} handover picked up`,
+                message: `${user.name} picked up the review task you handed over.`,
+              },
+              ...administrators
+                .filter(
+                  ({ id: administratorId }) =>
+                    administratorId !== user.id &&
+                    administratorId !== candidate.developerId &&
+                    administratorId !== pendingHandover.fromReviewerId,
+                )
+                .map(({ id: recipientId }) => ({
+                  taskId: id,
+                  recipientId,
+                  type: NotificationType.TASK_HANDOVER,
+                  title: `${candidate.title} handover picked up`,
+                  message: `${user.name} picked up the handed-over review task.`,
+                })),
+            ]);
+          }
+          await this.audit.record(tx, user, {
+            actionType: 'HANDOVER_REASSIGNED',
+            entityType: 'HANDOVER',
+            entityId: pendingHandover.id,
+            taskId: id,
+            targetUserId: user.id,
+            description: `${user.name} picked handed-over task '${candidate.title}' from ${pendingHandover.fromReviewer.fullName}. Handover reason: ${pendingHandover.reason ?? 'Not provided'}`,
+            oldValue: {
+              reviewerId: pendingHandover.fromReviewerId,
+              reviewerName: pendingHandover.fromReviewer.fullName,
+              reason: pendingHandover.reason,
+            },
+            newValue: { reviewerId: user.id, reviewerName: user.name },
+          });
+        }
+        await this.audit.record(tx, user, {
+          actionType: 'REVIEW_STARTED',
+          entityType: 'REVIEW',
+          entityId: id,
+          taskId: id,
+          description: `${user.name} started reviewing task '${candidate.title}'`,
+        });
+
+        const task = await tx.task.findUnique({ where: { id }, include: taskInclude });
+        if (!task) throw new NotFoundException(`Review task ${id} was not found`);
+        return this.toResponse(task);
+      }),
+    );
   }
 
   async assign(id: string, reviewerId: string, actor: AuthenticatedUser) {
@@ -705,106 +769,141 @@ export class ReviewTasksService {
   }
 
   async handover(id: string, dto: CreateHandoverDto, actor: AuthenticatedUser) {
-    return this.prisma.$transaction(async (tx) => {
-      const task = await tx.task.findUnique({
-        where: { id },
-        select: {
-          id: true,
-          title: true,
-          status: true,
-          currentReviewCycle: true,
-          currentReviewerId: true,
-          currentReviewer: { select: { fullName: true } },
-          handovers: { where: { status: HandoverStatus.PENDING }, select: { id: true } },
-        },
-      });
-      if (!task) throw new NotFoundException(`Review task ${id} was not found`);
-      if (task.currentReviewerId !== actor.id) {
-        throw new ForbiddenException('Only the assigned reviewer can hand over this task');
-      }
-      if (task.status !== TaskStatus.IN_REVIEW) {
-        throw new ConflictException('Only a task currently in review can be handed over');
-      }
-      if (task.handovers.length > 0) {
-        throw new ConflictException('This task already has a pending handover');
-      }
-
-      const waitingStatus =
-        task.currentReviewCycle > 1 ? TaskStatus.RESUBMITTED : TaskStatus.SUBMITTED;
-      const released = await tx.task.updateMany({
-        where: { id, currentReviewerId: actor.id, status: TaskStatus.IN_REVIEW },
-        data: { currentReviewerId: null, status: waitingStatus },
-      });
-      if (released.count !== 1) {
-        throw new ConflictException('This task was already handed over or reassigned');
-      }
-
-      const now = new Date();
-      const handover = await tx.handoverTask.create({
-        data: {
-          taskId: id,
-          fromReviewerId: actor.id,
-          reason: dto.reason.trim(),
-          status: HandoverStatus.PENDING,
-        },
-      });
-      await tx.taskReviewerAssignment.updateMany({
-        where: { taskId: id, reviewerId: actor.id, isCurrent: true },
-        data: { isCurrent: false, unassignedAt: now },
-      });
-      await tx.taskStatusHistory.create({
-        data: {
-          taskId: id,
-          oldStatus: TaskStatus.IN_REVIEW,
-          newStatus: waitingStatus,
-          changedBy: actor.id,
-          remarks: `Review handed over: ${dto.reason.trim()}`,
-        },
-      });
-      await this.audit.record(tx, actor, {
-        actionType: 'TASK_HANDOVER',
-        entityType: 'HANDOVER',
-        entityId: handover.id,
-        taskId: id,
-        targetUserId: actor.id,
-        description: `${actor.name} handed over task '${task.title}': ${dto.reason.trim()}`,
-        oldValue: {
-          status: TaskStatus.IN_REVIEW,
-          reviewerId: actor.id,
-          reviewerName: task.currentReviewer?.fullName ?? actor.name,
-        },
-        newValue: {
-          status: waitingStatus,
-          reviewerId: null,
-          reason: dto.reason.trim(),
-        },
-      });
-
-      const administrators = await tx.user.findMany({
-        where: {
-          status: 'ACTIVE',
-          deletedAt: null,
-          userRoles: {
-            some: { role: { code: { in: ['ADMIN', 'SUPER_ADMIN'] }, deletedAt: null } },
+    return retryPrismaTransaction(() =>
+      this.prisma.$transaction(async (tx) => {
+        const task = await tx.task.findUnique({
+          where: { id },
+          select: {
+            id: true,
+            title: true,
+            status: true,
+            currentReviewCycle: true,
+            developerId: true,
+            currentReviewerId: true,
+            currentReviewer: { select: { fullName: true } },
+            handovers: { where: { status: HandoverStatus.PENDING }, select: { id: true } },
           },
-        },
-        select: { id: true },
-      });
-      await this.notifications.createMany(
-        tx,
-        administrators.map(({ id: recipientId }) => ({
-          taskId: id,
-          recipientId,
-          type: NotificationType.TASK_HANDOVER,
-          title: `${task.title} handed over`,
-          message: `${actor.name} handed over this review task for reassignment.`,
-        })),
-      );
+        });
+        if (!task) throw new NotFoundException(`Review task ${id} was not found`);
+        if (task.currentReviewerId !== actor.id) {
+          throw new ForbiddenException('Only the assigned reviewer can hand over this task');
+        }
+        if (task.status !== TaskStatus.IN_REVIEW) {
+          throw new ConflictException('Only a task currently in review can be handed over');
+        }
+        if (task.handovers.length > 0) {
+          throw new ConflictException('This task already has a pending handover');
+        }
 
-      const updated = await tx.task.findUnique({ where: { id }, include: taskInclude });
-      if (!updated) throw new NotFoundException(`Review task ${id} was not found`);
-      return this.toResponse(updated);
-    });
+        const waitingStatus =
+          task.currentReviewCycle > 1 ? TaskStatus.RESUBMITTED : TaskStatus.SUBMITTED;
+        const released = await tx.task.updateMany({
+          where: { id, currentReviewerId: actor.id, status: TaskStatus.IN_REVIEW },
+          data: { currentReviewerId: null, status: waitingStatus },
+        });
+        if (released.count !== 1) {
+          throw new ConflictException('This task was already handed over or reassigned');
+        }
+
+        const now = new Date();
+        const handover = await tx.handoverTask.create({
+          data: {
+            taskId: id,
+            fromReviewerId: actor.id,
+            reason: dto.reason.trim(),
+            status: HandoverStatus.PENDING,
+          },
+        });
+        await tx.taskReviewerAssignment.updateMany({
+          where: { taskId: id, reviewerId: actor.id, isCurrent: true },
+          data: { isCurrent: false, unassignedAt: now },
+        });
+        await tx.taskStatusHistory.create({
+          data: {
+            taskId: id,
+            oldStatus: TaskStatus.IN_REVIEW,
+            newStatus: waitingStatus,
+            changedBy: actor.id,
+            remarks: `Review handed over: ${dto.reason.trim()}`,
+          },
+        });
+        await this.audit.record(tx, actor, {
+          actionType: 'TASK_HANDOVER',
+          entityType: 'HANDOVER',
+          entityId: handover.id,
+          taskId: id,
+          targetUserId: actor.id,
+          description: `${actor.name} handed over task '${task.title}': ${dto.reason.trim()}`,
+          oldValue: {
+            status: TaskStatus.IN_REVIEW,
+            reviewerId: actor.id,
+            reviewerName: task.currentReviewer?.fullName ?? actor.name,
+          },
+          newValue: {
+            status: waitingStatus,
+            reviewerId: null,
+            reason: dto.reason.trim(),
+          },
+        });
+
+        const administrators = await tx.user.findMany({
+          where: {
+            status: 'ACTIVE',
+            deletedAt: null,
+            userRoles: {
+              some: { role: { code: { in: ['ADMIN', 'SUPER_ADMIN'] }, deletedAt: null } },
+            },
+          },
+          select: { id: true },
+        });
+        const eligibleReviewers = await tx.user.findMany({
+          where: {
+            id: { notIn: [actor.id, task.developerId] },
+            status: 'ACTIVE',
+            deletedAt: null,
+            userRoles: { some: { role: { code: 'REVIEWER', deletedAt: null } } },
+          },
+          select: { id: true },
+        });
+        const eligibleReviewerIds = new Set(
+          eligibleReviewers.map(({ id: reviewerId }) => reviewerId),
+        );
+        await this.notifications.createMany(tx, [
+          {
+            taskId: id,
+            recipientId: task.developerId,
+            type: NotificationType.TASK_HANDOVER,
+            title: `${task.title} handed over`,
+            message: `${actor.name} handed over your review task for reassignment.`,
+          },
+          ...eligibleReviewers.map(({ id: recipientId }) => ({
+            taskId: id,
+            recipientId,
+            type: NotificationType.TASK_HANDOVER,
+            title: `${task.title} available to pick`,
+            message: `${actor.name} handed over this review task. It is now available to pick.`,
+          })),
+          ...administrators
+            .filter(
+              ({ id: administratorId }) =>
+                administratorId !== task.developerId &&
+                administratorId !== actor.id &&
+                !eligibleReviewerIds.has(administratorId),
+            )
+            .map(({ id: recipientId }) => ({
+              taskId: id,
+              recipientId,
+              type: NotificationType.TASK_HANDOVER,
+              title: `${task.title} handed over`,
+              message: `${actor.name} handed over this review task for reassignment.`,
+            })),
+        ]);
+
+        const updated = await tx.task.findUnique({ where: { id }, include: taskInclude });
+        if (!updated) throw new NotFoundException(`Review task ${id} was not found`);
+        return this.toResponse(updated);
+      }),
+    );
   }
 
   private listWhere(user: AuthenticatedUser, scope: ReviewTaskScope): Prisma.TaskWhereInput {
@@ -869,9 +968,13 @@ export class ReviewTasksService {
     return `${customerName.trim()} – ${crimId.trim()}${suffix ? ` – ${suffix}` : ''}`;
   }
 
-  private async nextTaskVersion(client: TaskVersionReader, crimId: string): Promise<number> {
+  private async nextTaskVersion(
+    client: TaskVersionReader,
+    customerId: string,
+    crimId: string,
+  ): Promise<number> {
     const tasks = await client.task.findMany({
-      where: { crimId: { equals: crimId, mode: 'insensitive' } },
+      where: { customerId, crimId: { equals: crimId, mode: 'insensitive' } },
       select: { version: true },
     });
     const highestVersion = tasks.reduce((highest, task) => {

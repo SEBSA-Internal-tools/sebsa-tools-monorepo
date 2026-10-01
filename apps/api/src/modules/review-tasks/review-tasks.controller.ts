@@ -37,7 +37,7 @@ export class ReviewTasksController {
   @Get('next-version') @Roles('DEVELOPER', 'ADMIN') @ApiOkResponse() nextVersion(
     @Query() query: NextTaskVersionQueryDto,
   ) {
-    return this.tasks.nextVersion(query.crimId);
+    return this.tasks.nextVersion(query.customerId, query.crimId);
   }
   @Get(':id/checklist') @ApiOkResponse() @ApiNoContentResponse() async findChecklist(
     @Param('id', ParseUUIDPipe) id: string,

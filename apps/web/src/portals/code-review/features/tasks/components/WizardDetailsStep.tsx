@@ -40,7 +40,10 @@ export function WizardDetailsStep({ showErrors }: { showErrors: boolean }) {
   const { data: customers } = useCustomers();
   const { taskId, version, setDetails } = draft;
   const crimId = draft.crimId.trim();
-  const nextVersion = useNextTaskVersion(taskId === null ? crimId : '');
+  const nextVersion = useNextTaskVersion(
+    taskId === null ? draft.customerId : '',
+    taskId === null ? crimId : '',
+  );
   const displayedVersion = taskId === null ? (nextVersion.data?.version.toString() ?? '') : version;
 
   useEffect(() => {

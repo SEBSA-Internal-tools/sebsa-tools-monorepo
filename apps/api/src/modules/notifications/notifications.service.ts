@@ -81,7 +81,7 @@ export class NotificationsService {
       TASK_REASSIGNED: 'TaskReassigned',
       TASK_HANDOVER: 'TaskHandedOver',
       TASK_CANCELLED: 'TaskCancelled',
-      TASK_SUBMITTED: 'TaskAssigned',
+      TASK_SUBMITTED: 'TaskSubmitted',
       TASK_DELIVERED: 'TaskApproved',
     }[row.notificationType];
 

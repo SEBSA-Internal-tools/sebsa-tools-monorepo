@@ -26,17 +26,18 @@ function actor(roles: RoleCode[]): AuthenticatedUser {
 }
 
 describe('ReviewTasksService task versions', () => {
-  it('returns 1 when a CRIM ID has no tasks and increments its highest version', async () => {
+  it('increments versions within the matching Customer and CRIM ID only', async () => {
+    const customerId = '00000000-0000-0000-0000-000000000020';
     const findMany = vi
       .fn()
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ version: '1' }, { version: 'V5' }, { version: 'legacy' }]);
     const service = serviceWith({ task: { findMany } });
 
-    await expect(service.nextVersion(' CRIM-1001 ')).resolves.toEqual({ version: 1 });
-    await expect(service.nextVersion('CRIM-1001')).resolves.toEqual({ version: 6 });
+    await expect(service.nextVersion(customerId, ' CRIM-1001 ')).resolves.toEqual({ version: 1 });
+    await expect(service.nextVersion(customerId, 'CRIM-1001')).resolves.toEqual({ version: 6 });
     expect(findMany).toHaveBeenCalledWith({
-      where: { crimId: { equals: 'CRIM-1001', mode: 'insensitive' } },
+      where: { customerId, crimId: { equals: 'CRIM-1001', mode: 'insensitive' } },
       select: { version: true },
     });
   });
@@ -282,6 +283,14 @@ describe('ReviewTasksService task picking', () => {
       reviewerId: user.id,
       reviewerName: user.name,
     });
+    expect(notifications.create).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        recipientId: candidate.developerId,
+        type: 'TASK_ASSIGNED',
+        title: 'Test task picked for review',
+      }),
+    );
   });
 
   it('rejects a concurrent pick that lost the claim race', async () => {
@@ -402,7 +411,7 @@ describe('ReviewTasksService task picking', () => {
       handedOverByName: user.name,
     });
     expect(tx.handoverTask.updateMany).toHaveBeenCalledWith({
-      where: { id: handoverId, status: HandoverStatus.PENDING },
+      where: { taskId, status: HandoverStatus.PENDING },
       data: {
         status: HandoverStatus.REASSIGNED,
         toReviewerId: user.id,
@@ -417,6 +426,107 @@ describe('ReviewTasksService task picking', () => {
         assignmentType: ReviewerAssignmentType.HANDOVER_REASSIGNED,
       }),
     });
+    expect(notifications.create).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        recipientId: candidate.developerId,
+        type: 'TASK_ASSIGNED',
+      }),
+    );
+  });
+
+  it('notifies the previous Reviewer and Admins when another Reviewer picks a handover', async () => {
+    const user = actor(['REVIEWER']);
+    const taskId = '00000000-0000-0000-0000-000000000010';
+    const developerId = '00000000-0000-0000-0000-000000000099';
+    const previousReviewerId = '00000000-0000-0000-0000-000000000098';
+    const adminId = '00000000-0000-0000-0000-000000000097';
+    const candidate = {
+      developerId,
+      currentReviewerId: null,
+      currentReviewer: null,
+      status: TaskStatus.SUBMITTED,
+      title: 'Handed-over task',
+      handovers: [
+        {
+          id: '00000000-0000-0000-0000-000000000030',
+          reason: 'Temporary workload conflict',
+          fromReviewerId: previousReviewerId,
+          fromReviewer: { fullName: 'Previous Reviewer' },
+        },
+      ],
+    };
+    const picked = {
+      id: taskId,
+      taskCode: 'TEST-01',
+      title: candidate.title,
+      crimId: 'CRIM-1',
+      version: null,
+      customerId: '00000000-0000-0000-0000-000000000020',
+      priority: 'MEDIUM',
+      status: TaskStatus.IN_REVIEW,
+      currentReviewCycle: 1,
+      developerId,
+      currentReviewerId: user.id,
+      checklistCompleted: true,
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-01-02T00:00:00.000Z'),
+      submittedAt: new Date('2026-01-01T01:00:00.000Z'),
+      customer: { name: 'Test', code: 'TEST', color: '#123456' },
+      developer: { fullName: 'Developer' },
+      currentReviewer: { fullName: user.name },
+      taskTypes: [],
+      developerChecklist: null,
+      codeReviewForms: [],
+      handovers: [
+        {
+          status: HandoverStatus.REASSIGNED,
+          fromReviewer: { fullName: 'Previous Reviewer' },
+        },
+      ],
+    };
+    const tx = {
+      task: {
+        findUnique: vi.fn().mockResolvedValueOnce(candidate).mockResolvedValueOnce(picked),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+      handoverTask: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+      taskReviewerAssignment: {
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        create: vi.fn().mockResolvedValue({}),
+      },
+      taskStatusHistory: { create: vi.fn().mockResolvedValue({}) },
+      user: {
+        findMany: vi
+          .fn()
+          .mockResolvedValue([
+            { id: adminId },
+            { id: user.id },
+            { id: developerId },
+            { id: previousReviewerId },
+          ]),
+      },
+    };
+    const service = serviceWith({
+      $transaction: vi.fn((operation: (client: typeof tx) => Promise<unknown>) => operation(tx)),
+    });
+
+    await service.pick(taskId, user);
+
+    expect(notifications.create).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({ recipientId: developerId }),
+    );
+    expect(notifications.createMany).toHaveBeenCalledWith(tx, [
+      expect.objectContaining({
+        recipientId: previousReviewerId,
+        message: `${user.name} picked up the review task you handed over.`,
+      }),
+      expect.objectContaining({
+        recipientId: adminId,
+        message: `${user.name} picked up the handed-over review task.`,
+      }),
+    ]);
   });
 });
 
@@ -425,9 +535,11 @@ describe('ReviewTasksService handover', () => {
     const reviewer = actor(['REVIEWER']);
     const taskId = '00000000-0000-0000-0000-000000000010';
     const adminId = '00000000-0000-0000-0000-000000000011';
+    const eligibleReviewerId = '00000000-0000-0000-0000-000000000012';
     const candidate = {
       id: taskId,
       title: 'Test task',
+      developerId: '00000000-0000-0000-0000-000000000099',
       status: TaskStatus.IN_REVIEW,
       currentReviewCycle: 1,
       currentReviewerId: reviewer.id,
@@ -444,7 +556,7 @@ describe('ReviewTasksService handover', () => {
       priority: 'MEDIUM',
       status: TaskStatus.SUBMITTED,
       currentReviewCycle: 1,
-      developerId: '00000000-0000-0000-0000-000000000099',
+      developerId: candidate.developerId,
       currentReviewerId: null,
       checklistCompleted: true,
       createdAt: new Date('2026-01-01T00:00:00.000Z'),
@@ -473,7 +585,12 @@ describe('ReviewTasksService handover', () => {
       },
       taskReviewerAssignment: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
       taskStatusHistory: { create: vi.fn().mockResolvedValue({}) },
-      user: { findMany: vi.fn().mockResolvedValue([{ id: adminId }]) },
+      user: {
+        findMany: vi
+          .fn()
+          .mockResolvedValueOnce([{ id: adminId }])
+          .mockResolvedValueOnce([{ id: eligibleReviewerId }]),
+      },
     };
     const service = serviceWith({
       $transaction: vi.fn((operation: (client: typeof tx) => Promise<unknown>) => operation(tx)),
@@ -508,6 +625,16 @@ describe('ReviewTasksService handover', () => {
       }),
     );
     expect(notifications.createMany).toHaveBeenCalledWith(tx, [
+      expect.objectContaining({
+        recipientId: updated.developerId,
+        title: 'Test task handed over',
+        message: `${reviewer.name} handed over your review task for reassignment.`,
+      }),
+      expect.objectContaining({
+        recipientId: eligibleReviewerId,
+        title: 'Test task available to pick',
+        message: `${reviewer.name} handed over this review task. It is now available to pick.`,
+      }),
       expect.objectContaining({
         recipientId: adminId,
         title: 'Test task handed over',

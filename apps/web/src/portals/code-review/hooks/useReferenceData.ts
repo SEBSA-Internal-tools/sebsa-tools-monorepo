@@ -43,15 +43,15 @@ export function useNextTaskId(customerId: string) {
   });
 }
 
-export function useNextTaskVersion(crimId: string) {
+export function useNextTaskVersion(customerId: string, crimId: string) {
   return useQuery({
-    queryKey: taskKeys.nextTaskVersion(crimId),
+    queryKey: taskKeys.nextTaskVersion(customerId, crimId),
     queryFn: ({ signal }) =>
       api.get('/tasks/next-version', nextTaskVersionSchema, {
         signal,
-        searchParams: { crimId },
+        searchParams: { customerId, crimId },
       }),
-    enabled: crimId !== '',
+    enabled: customerId !== '' && crimId !== '',
     staleTime: 0,
   });
 }
