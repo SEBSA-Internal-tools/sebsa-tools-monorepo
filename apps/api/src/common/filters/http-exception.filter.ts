@@ -6,22 +6,12 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import type { Response } from 'express';
-import { apiErrorSchema } from '@sdp/contracts';
+import { ApiException, type ApiErrorResponse } from '../api-error.js';
 
 /**
- * Every error response is shaped as `@sdp/contracts`' `ApiError` - the exact
- * envelope `apiClient.ts` already parses on the frontend
- * (`apiErrorSchema.safeParse(payload)` in `toApiError()`), matching what the
- * MSW handlers this server replaces already produce. One shared schema is
- * what keeps error handling unchanged in the UI once requests hit a real
- * server instead of the mock worker.
- *
- * Parses through `apiErrorSchema` rather than just typing the payload as
- * `ApiError`: a type annotation is erased at compile time and proves
- * nothing at runtime, but `@sdp/contracts` ships raw TypeScript with no
- * build step (see the package's `package.json`), so this filter is the
- * concrete proof that apps/api's bundled build actually resolves and
- * inlines it correctly, not just typechecks against it.
+ * Converts every thrown value into the public API error envelope. Unknown
+ * errors deliberately lose their original message so database, driver, and
+ * stack-trace details can never cross the HTTP boundary.
  */
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
@@ -29,25 +19,67 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
 
-    const status =
-      exception instanceof HttpException
-        ? exception.getStatus()
-        : HttpStatus.INTERNAL_SERVER_ERROR;
-
-    const body = exception instanceof HttpException ? exception.getResponse() : undefined;
-    const message =
-      typeof body === 'string'
-        ? body
-        : typeof body === 'object' && body !== null && 'message' in body
-          ? String(body.message)
-          : 'Internal server error';
-
-    const payload = apiErrorSchema.parse({
-      statusCode: status,
-      code: exception instanceof HttpException ? exception.name : 'INTERNAL_ERROR',
+    const { status, code, message, details } = this.toPublicError(exception);
+    const payload: ApiErrorResponse = {
+      code,
       message,
-    });
+      details,
+      timestamp: new Date().toISOString(),
+    };
 
     response.status(status).json(payload);
+  }
+
+  private toPublicError(exception: unknown): {
+    status: number;
+    code: string;
+    message: string;
+    details: unknown[];
+  } {
+    if (exception instanceof ApiException) {
+      return {
+        status: exception.getStatus(),
+        code: exception.code,
+        message: exception.message,
+        details: exception.details,
+      };
+    }
+
+    if (!(exception instanceof HttpException)) {
+      return {
+        status: HttpStatus.INTERNAL_SERVER_ERROR,
+        code: 'INTERNAL_ERROR',
+        message: 'An unexpected server error occurred',
+        details: [],
+      };
+    }
+
+    const status = exception.getStatus();
+    const body = exception.getResponse();
+    const rawMessage =
+      typeof body === 'object' && body !== null && 'message' in body ? body.message : body;
+    const validationDetails = Array.isArray(rawMessage) ? rawMessage.map(String) : [];
+    const message =
+      validationDetails.length > 0
+        ? 'Validation failed'
+        : typeof rawMessage === 'string'
+          ? rawMessage
+          : 'Request failed';
+
+    const codeByStatus: Partial<Record<number, string>> = {
+      [HttpStatus.BAD_REQUEST]: 'VALIDATION_FAILED',
+      [HttpStatus.UNAUTHORIZED]: 'AUTH_REQUIRED',
+      [HttpStatus.FORBIDDEN]: 'RESOURCE_FORBIDDEN',
+      [HttpStatus.NOT_FOUND]: 'RESOURCE_NOT_FOUND',
+      [HttpStatus.CONFLICT]: 'VERSION_CONFLICT',
+    };
+    const isServerError = status >= Number(HttpStatus.INTERNAL_SERVER_ERROR);
+
+    return {
+      status: isServerError ? HttpStatus.INTERNAL_SERVER_ERROR : status,
+      code: codeByStatus[status] ?? 'INTERNAL_ERROR',
+      message: isServerError ? 'An unexpected server error occurred' : message,
+      details: validationDetails,
+    };
   }
 }

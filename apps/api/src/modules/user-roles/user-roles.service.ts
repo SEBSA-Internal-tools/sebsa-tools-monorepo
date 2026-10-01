@@ -1,5 +1,6 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { ApiException } from '../../common/api-error.js';
 import { rethrowPrismaConflict } from '../../common/prisma-errors.js';
 import type { CreateUserRoleDto } from './dto/create-user-role.dto.js';
 import type { UpdateUserRoleDto } from './dto/update-user-role.dto.js';
@@ -78,7 +79,10 @@ export class UserRolesService {
           where: { status: 'ACTIVE', userRoles: { some: { role: { code: 'ADMIN' } } } },
         });
         if (activeAdmins <= 1) {
-          throw new ConflictException('The last active administrator cannot be demoted');
+          throw new ApiException(
+            'INVALID_STATE_TRANSITION',
+            'The last active administrator cannot be demoted',
+          );
         }
       }
       await tx.userRole.delete({ where: { userId_roleId: { userId, roleId } } });
@@ -108,7 +112,10 @@ export class UserRolesService {
           where: { status: 'ACTIVE', userRoles: { some: { role: { code: 'ADMIN' } } } },
         });
         if (activeAdmins <= 1) {
-          throw new ConflictException('The last active administrator cannot be demoted');
+          throw new ApiException(
+            'INVALID_STATE_TRANSITION',
+            'The last active administrator cannot be demoted',
+          );
         }
       }
 
