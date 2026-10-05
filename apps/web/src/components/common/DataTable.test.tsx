@@ -699,6 +699,22 @@ describe('DataTable', () => {
     expect(cells[0]?.className).not.toMatch(/border-l-/);
   });
 
+  it('pins the actions column to the right edge and leaves the others scrollable', () => {
+    const withActions = helper.columns([
+      helper.accessor('name', { header: 'Name' }),
+      helper.display({ id: 'actions', header: '', cell: () => <button>Open</button> }),
+    ]);
+    render(<DataTable data={makeRows(1)} columns={withActions} countNoun="rows" caption="Rows" />);
+
+    const headers = screen.getAllByRole('columnheader');
+    expect(headers[0]?.className).not.toMatch(/sticky/);
+    expect(headers[1]?.className).toMatch(/sticky.*right-0/);
+
+    const cells = within(bodyRows()[0]!).getAllByRole('cell');
+    expect(cells[0]?.className).not.toMatch(/sticky/);
+    expect(cells[1]?.className).toMatch(/sticky.*right-0/);
+  });
+
   /**
    * Optional row reordering.
    *
