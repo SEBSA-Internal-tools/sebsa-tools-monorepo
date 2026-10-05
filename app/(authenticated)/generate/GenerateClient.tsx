@@ -265,7 +265,7 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
       await exportToPdf(
         anonymous ? 'anonymous-generated-cv-preview-root' : 'cv-preview-root',
         anonymous
-          ? 'ABC_Philip_Anonymous_CV'
+          ? `${anonymizeTailoredCv(tailoredCv).name}_Anonymous_CV`
           : `${(tailoredCv.name ?? 'CV').replace(/\s+/g, '_')}_Tailored_CV`
       );
       await recordCvDownloadAction(selectedEmployee.rowId, { anonymous, customized: true });

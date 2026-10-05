@@ -118,7 +118,7 @@ export default function DownloadCvClient({ employee, isOwnProfile }: DownloadCvC
     try {
       await exportToPdf(
         anonymous ? 'anonymous-cv-preview-root' : 'cv-preview-root',
-        anonymous ? 'ABC_Philip_Anonymous_CV' : `${employee.name.replace(/\s+/g, '_')}_CV`
+        anonymous ? `${anonymousPreviewCv.name}_Anonymous_CV` : `${employee.name.replace(/\s+/g, '_')}_CV`
       );
       await recordCvDownloadAction(employee.rowId, { anonymous, customized: false });
     } catch (err) {

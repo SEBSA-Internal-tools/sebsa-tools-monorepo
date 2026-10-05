@@ -94,9 +94,16 @@ export function buildTailoredCvFromSelection(
 
 /** Creates an export-only anonymous copy. The source object and persisted CV/profile stay intact. */
 export function anonymizeTailoredCv(cv: TailoredCv): TailoredCv {
+  const initials = cv.name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((namePart) => namePart.charAt(0).toUpperCase())
+    .join('');
+
   return {
     ...cv,
-    name: 'ABC Philip',
+    name: initials,
     avatar: null,
   };
 }
