@@ -338,6 +338,28 @@ export function DataTable<TRow extends object>({
     }
   }, [onSortingChange, table.state.sorting]);
 
+  // The pinned actions column shows a soft edge shadow only while there is more
+  // grid hidden behind it. The attribute is set on the DOM directly: a scroll
+  // handler that set state would re-render the whole grid on every frame.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const box = scrollRef.current;
+    if (!box) return;
+    const update = () => {
+      const hasMore = box.scrollWidth - box.clientWidth - box.scrollLeft > 1;
+      box.toggleAttribute('data-more', hasMore);
+    };
+    update();
+    box.addEventListener('scroll', update, { passive: true });
+    const observer = new ResizeObserver(update);
+    observer.observe(box);
+    if (box.firstElementChild) observer.observe(box.firstElementChild);
+    return () => {
+      box.removeEventListener('scroll', update);
+      observer.disconnect();
+    };
+  }, []);
+
   const hasError = error !== undefined && error !== null;
   const total = totalCount ?? rows.length;
   const pageRows = table.getRowModel().rows;
@@ -548,7 +570,8 @@ export function DataTable<TRow extends object>({
       ) : null}
 
       <div
-        className="max-w-full min-w-0 overflow-x-auto"
+        ref={scrollRef}
+        className="group/scroll max-w-full min-w-0 overflow-x-auto"
         aria-busy={isLoading || isFetching}
         {...(isLoading ? { role: 'status' as const, 'aria-live': 'polite' as const } : {})}
       >
@@ -588,7 +611,10 @@ export function DataTable<TRow extends object>({
                             ? 'descending'
                             : undefined
                       }
-                      className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-ink-500 uppercase"
+                      className={cn(
+                        'px-4 py-3 text-left text-xs font-semibold tracking-wide text-ink-500 uppercase',
+                        isPinnedColumn(header.column.id) && PINNED_HEAD_CLASS,
+                      )}
                     >
                       {header.isPlaceholder ? null : sortable ? (
                         <button
@@ -644,6 +670,7 @@ export function DataTable<TRow extends object>({
                   cells={row.getAllCells().map((cell) => ({
                     id: cell.id,
                     content: <table.FlexRender cell={cell} />,
+                    pinned: isPinnedColumn(cell.column.id),
                   }))}
                   accent={getRowAccent?.(row.original)}
                   {...(onRowClick ? { onActivate: () => onRowClick(row.original) } : {})}
@@ -684,6 +711,26 @@ export function DataTable<TRow extends object>({
   );
 }
 
+/**
+ * The row-actions column stays pinned to the right edge of the scroll box, so
+ * View / Pick / Assign / Cancel are reachable on a laptop-width screen without
+ * scrolling the grid sideways first. Every page names that column `actions`.
+ *
+ * A sticky cell must be opaque (else the scrolled cells show through), so it
+ * takes the surface colour and follows the row's hover tint via `group`. The
+ * soft edge shadow is a pseudo-element (`dropEdgeClass` already owns
+ * `box-shadow`), shown only while the grid has more to scroll to the right.
+ */
+const PINNED_COLUMN_ID = 'actions';
+const PINNED_EDGE_CLASS =
+  'sticky right-0 z-10 whitespace-nowrap bg-surface before:pointer-events-none before:absolute before:inset-y-0 before:-left-2.5 before:w-2.5 before:bg-gradient-to-l before:from-ink-900/[0.06] before:to-transparent before:opacity-0 before:transition-opacity group-data-[more]/scroll:before:opacity-100';
+const PINNED_HEAD_CLASS = PINNED_EDGE_CLASS;
+const PINNED_CELL_CLASS = `${PINNED_EDGE_CLASS} group-hover:bg-canvas`;
+
+function isPinnedColumn(columnId: string): boolean {
+  return columnId === PINNED_COLUMN_ID;
+}
+
 /** What one row needs to know about being draggable. Absent = it is not. */
 interface RowReorder {
   rowId: string;
@@ -708,7 +755,7 @@ function DataRow({
   onActivate,
   reorder,
 }: {
-  cells: readonly { id: string; content: ReactNode }[];
+  cells: readonly { id: string; content: ReactNode; pinned: boolean }[];
   accent?: string | undefined;
   onActivate?: (() => void) | undefined;
   reorder?: RowReorder | undefined;
@@ -793,7 +840,7 @@ function DataRow({
         // Every row gets the hover tint, not only the clickable ones: on a wide
         // grid it is what ties a value at the far right back to the ID at the
         // far left.
-        'border-b border-line transition-colors last:border-b-0 hover:bg-canvas',
+        'group border-b border-line transition-colors last:border-b-0 hover:bg-canvas',
         onActivate && 'cursor-pointer',
         isDragging && 'opacity-40',
       )}
@@ -823,6 +870,7 @@ function DataRow({
             // with a transparent fallback, which left a 3px gutter down every
             // grid and misaligned the first column against its own header.
             index === 0 && accent !== undefined && 'border-l-[3px]',
+            cell.pinned && PINNED_CELL_CLASS,
             // The drop line, for the same reason: `border-collapse` swallows a
             // border on the row, so the indicator is an inset shadow drawn
             // across every cell. It reads as one continuous line.
