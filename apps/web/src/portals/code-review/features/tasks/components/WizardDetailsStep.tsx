@@ -1,8 +1,22 @@
-import { useEffect } from 'react';
-import { CalendarDays, FileText, Hash, Info, RefreshCw, User as UserIcon } from 'lucide-react';
+import {
+  CalendarDays,
+  CheckCircle2,
+  Copy,
+  FilePlus2,
+  FileText,
+  Hash,
+  Info,
+  ListChecks,
+  Loader2,
+  RefreshCw,
+  Sparkles,
+  User as UserIcon,
+} from 'lucide-react';
 import { PRIORITIES, type Priority } from '@sdp/contracts';
 import { cn } from '@/components/ui';
+import { toast } from 'sonner';
 import { StatusBadge } from '@/portals/code-review/components/badges.tsx';
+import { RequirementList, type Requirement } from '@/components/common/Stepper.tsx';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card.tsx';
 import { Field, Input } from '@/components/ui/Field.tsx';
 import { SegmentedOptions, type SegmentedOption } from '@/components/ui/SegmentedOptions.tsx';
@@ -11,16 +25,16 @@ import { formatDate } from '@/lib/formatters.ts';
 import { useCurrentUser } from '@/hooks/useCurrentUser.ts';
 import common from '@/content/common.json';
 import tasks from '@/content/tasks.json';
-import { useCustomers, useNextTaskId, useNextTaskVersion } from '../api/queries.ts';
+import { useCustomers } from '../api/queries.ts';
 import { deriveTitle } from '../domain/taskRules.ts';
 import { useTaskDraft } from '../hooks/useTaskDraft.ts';
 
 /**
  * Wizard step 1 (screen 22) — task identity.
  *
- * The System Information panel is screen 15's; the single-page create form was
- * dropped and its one unique element moved here, so nothing from that design was
- * lost when the flow was consolidated.
+ * Section A: Primary editable inputs (Customer, CRIM ID)
+ * Section B: System-generated task identity preview (Version, Title)
+ * Section C: Required settings (Priority)
  */
 
 const PRIORITY_DOT: Record<Priority, string> = {
@@ -35,26 +49,25 @@ const PRIORITY_OPTIONS: SegmentedOption<Priority>[] = PRIORITIES.map((priority) 
   dotClassName: PRIORITY_DOT[priority],
 }));
 
-export function WizardDetailsStep({ showErrors }: { showErrors: boolean }) {
+export function WizardDetailsStep({
+  className,
+  showErrors,
+  version,
+  versionPending,
+  versionError,
+  identityLocked,
+  title,
+}: {
+  className?: string;
+  showErrors: boolean;
+  version: string;
+  versionPending: boolean;
+  versionError: boolean;
+  identityLocked: boolean;
+  title?: string | undefined;
+}) {
   const draft = useTaskDraft();
   const { data: customers } = useCustomers();
-  const { taskId, version, setDetails } = draft;
-  const crimId = draft.crimId.trim();
-  const nextVersion = useNextTaskVersion(
-    taskId === null ? draft.customerId : '',
-    taskId === null ? crimId : '',
-  );
-  const displayedVersion = taskId === null ? (nextVersion.data?.version.toString() ?? '') : version;
-
-  useEffect(() => {
-    if (
-      taskId === null &&
-      nextVersion.data !== undefined &&
-      version !== String(nextVersion.data.version)
-    ) {
-      setDetails({ version: String(nextVersion.data.version) });
-    }
-  }, [taskId, version, setDetails, nextVersion.data]);
 
   const customerOptions: SelectOption[] = (customers ?? [])
     .filter((customer) => customer.isActive)
@@ -70,143 +83,277 @@ export function WizardDetailsStep({ showErrors }: { showErrors: boolean }) {
       ),
     }));
 
-  const customerName = customers?.find((c) => c.id === draft.customerId)?.name ?? '';
+  const customerCode = customers?.find((c) => c.id === draft.customerId)?.code ?? '';
+  const hasIdentityInputs = draft.customerId !== '' && draft.crimId.trim() !== '';
+
   const previewTitle =
-    draft.customerId === '' || draft.crimId.trim() === ''
+    title ??
+    (!hasIdentityInputs
       ? ''
-      : deriveTitle(customerName, draft.crimId, displayedVersion);
+      : version === ''
+        ? ''
+        : deriveTitle(customerCode, draft.crimId, version));
+
+  const handleCopyTitle = () => {
+    if (!previewTitle) return;
+    void navigator.clipboard.writeText(previewTitle);
+    toast.success('Generated title copied to clipboard');
+  };
 
   return (
-    <Card className="flex h-full flex-col">
+    <Card className={cn('flex flex-col', className)}>
       <CardHeader
         title={tasks.wizard.details.title}
-        description="Enter the core customer and task identity details to begin the review request"
+        description="Specify customer and ticket identity to prepare your code review request."
+        icon={<FilePlus2 className="size-5 text-violet-600" />}
       />
-      <CardBody className="space-y-6 pt-6 pb-6">
-        <div className="grid gap-5 sm:grid-cols-2">
-          <Field
-            label={tasks.wizard.details.customer}
-            required
-            error={
-              showErrors && draft.customerId === '' ? tasks.wizard.requirements.customer : undefined
-            }
-          >
-            <Select
-              value={draft.customerId}
-              onValueChange={(customerId) => {
-                draft.setDetails({ customerId });
-              }}
-              options={customerOptions}
-              placeholder={tasks.wizard.details.customerPlaceholder}
-            />
-          </Field>
+      <CardBody className="flex-1 space-y-5 p-6">
+        {/* SECTION A — Primary Editable Identity Inputs */}
+        <section aria-labelledby="section-editable-identity" className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3
+              id="section-editable-identity"
+              className="text-xs font-semibold tracking-wider text-ink-500 uppercase"
+            >
+              Primary Identity Details
+            </h3>
+            <span className="text-xs leading-5 font-normal text-ink-500">Required</span>
+          </div>
 
-          <Field
-            label={tasks.wizard.details.crimId}
-            required
-            error={
-              showErrors && draft.crimId.trim() === ''
-                ? tasks.wizard.requirements.crimId
-                : undefined
-            }
-          >
-            <Input
-              value={draft.crimId}
-              onChange={(event) => {
-                draft.setDetails({ crimId: event.target.value });
-              }}
-              placeholder={tasks.wizard.details.crimIdPlaceholder}
-            />
-          </Field>
-        </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              label={tasks.wizard.details.customer}
+              required
+              error={
+                showErrors && draft.customerId === ''
+                  ? tasks.wizard.requirements.customer
+                  : undefined
+              }
+            >
+              <Select
+                value={draft.customerId}
+                onValueChange={(customerId) => {
+                  draft.setDetails({ customerId });
+                }}
+                options={customerOptions}
+                placeholder={tasks.wizard.details.customerPlaceholder}
+                disabled={identityLocked}
+              />
+            </Field>
 
-        <Field
-          label={
-            <>
-              {tasks.wizard.details.version}{' '}
-              <span className="font-normal text-ink-500">{tasks.wizard.details.autoGenerated}</span>
-            </>
-          }
-          hint={tasks.wizard.details.versionHint}
-        >
-          <Input
-            value={displayedVersion}
-            readOnly
-            aria-busy={nextVersion.isFetching}
-            placeholder={
-              crimId === ''
-                ? tasks.wizard.details.versionPlaceholder
-                : tasks.wizard.details.autoGenerated
-            }
-            className="text-ink-800 bg-canvas/70 font-medium"
+            <Field
+              label={tasks.wizard.details.crimId}
+              required
+              error={
+                showErrors && draft.crimId.trim() === ''
+                  ? tasks.wizard.requirements.crimId
+                  : undefined
+              }
+            >
+              <Input
+                value={draft.crimId}
+                onChange={(event) => {
+                  draft.setDetails({ crimId: event.target.value });
+                }}
+                placeholder={tasks.wizard.details.crimIdPlaceholder}
+                readOnly={identityLocked}
+              />
+            </Field>
+          </div>
+        </section>
+
+        {/* Subtle divider */}
+        <hr className="border-line/60" />
+
+        {/* SECTION B — System-Generated Task Identity (Flatter, integrated presentation) */}
+        <section aria-labelledby="section-generated-identity" className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3
+                id="section-generated-identity"
+                className="text-xs font-semibold tracking-wider text-ink-500 uppercase"
+              >
+                Generated Task Identity
+              </h3>
+              <p className="mt-0.5 text-xs leading-5 font-normal text-ink-500">
+                System-derived from Customer, CRIM ID, and previous tasks
+              </p>
+            </div>
+
+            <div>
+              {versionPending ? (
+                <span className="inline-flex animate-pulse items-center gap-1.5 rounded-full border border-violet-200/50 bg-violet-50 px-2.5 py-0.5 text-[11px] font-medium text-violet-700">
+                  <Loader2 className="size-3 animate-spin text-violet-600" />
+                  Checking version…
+                </span>
+              ) : hasIdentityInputs && version !== '' ? (
+                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200/50 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700">
+                  <CheckCircle2 className="size-3" />
+                  System Generated
+                </span>
+              ) : versionError ? (
+                <span className="inline-flex items-center gap-1 rounded-full border border-rose-200/50 bg-rose-50 px-2.5 py-0.5 text-[11px] font-medium text-rose-700">
+                  Unavailable
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 rounded-full border border-line/60 bg-canvas px-2.5 py-0.5 text-[11px] font-medium text-ink-500">
+                  Awaiting inputs
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Simple flat two-column layout */}
+          <div className="grid gap-4 sm:grid-cols-3">
+            {/* Version (1 col) */}
+            <div className="space-y-1.5 sm:col-span-1">
+              <span className="text-ink-800 text-sm font-medium">
+                {tasks.wizard.details.version}
+              </span>
+
+              <div
+                aria-label="Version"
+                className="flex h-9 items-center rounded-lg border border-line/50 bg-canvas/40 px-3"
+              >
+                {versionError ? (
+                  <span className="text-xs font-semibold text-danger">Unavailable</span>
+                ) : versionPending ? (
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-violet-700">
+                    <Loader2 className="size-3.5 animate-spin text-violet-600" />
+                    <span>Checking…</span>
+                  </div>
+                ) : version !== '' ? (
+                  <span
+                    data-testid="version-badge"
+                    className="font-mono text-sm font-semibold text-violet-900"
+                  >
+                    {version}
+                  </span>
+                ) : (
+                  <span className="text-xs font-medium text-ink-400">Pending</span>
+                )}
+              </div>
+
+              <p className="text-xs leading-5 font-normal text-ink-500">
+                {versionError
+                  ? 'Unable to determine version.'
+                  : versionPending
+                    ? 'Checking next available version...'
+                    : hasIdentityInputs && version !== ''
+                      ? 'Automatically assigned from previous tasks.'
+                      : 'Assigned automatically.'}
+              </p>
+            </div>
+
+            {/* Generated Title (2 cols) */}
+            <div className="space-y-1.5 sm:col-span-2">
+              <span className="text-ink-800 text-sm font-medium">Generated Title</span>
+
+              <div className="flex h-9 items-center justify-between rounded-lg border border-line/50 bg-canvas/40 px-3">
+                <input
+                  id="generated-title-input"
+                  value={previewTitle}
+                  placeholder={tasks.wizard.details.titlePlaceholder}
+                  readOnly
+                  aria-label="Generated Title"
+                  className="w-full cursor-default border-0 bg-transparent p-0 font-mono text-sm font-semibold text-ink-900 select-all placeholder:font-sans placeholder:text-xs placeholder:font-normal placeholder:text-ink-400 focus-visible:outline-none"
+                />
+                {previewTitle ? (
+                  <button
+                    type="button"
+                    onClick={handleCopyTitle}
+                    title="Copy generated title"
+                    className="ml-2 grid size-6 shrink-0 cursor-pointer place-items-center rounded text-ink-400 transition-colors hover:bg-canvas hover:text-ink-700"
+                  >
+                    <Copy className="size-3.5" aria-hidden="true" />
+                    <span className="sr-only">Copy title</span>
+                  </button>
+                ) : null}
+              </div>
+
+              <p className="text-xs leading-5 font-normal text-ink-500">
+                {previewTitle
+                  ? 'This title is generated automatically from Customer, CRIM ID, and Version.'
+                  : versionPending
+                    ? 'Generating title once next version is resolved...'
+                    : 'Generated automatically from the task identity details.'}
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* Subtle divider */}
+        <hr className="border-line/60" />
+
+        {/* SECTION C — Required Settings (Priority) — clean, single visible label */}
+        <section aria-labelledby="section-priority-settings" className="space-y-2">
+          <div className="flex items-center justify-between">
+            <h3
+              id="section-priority-settings"
+              className="text-xs font-semibold tracking-wider text-ink-500 uppercase"
+            >
+              Task Priority{' '}
+              <span className="text-danger" aria-hidden="true">
+                *
+              </span>
+            </h3>
+            <span className="text-xs leading-5 font-normal text-ink-500">
+              Review triage priority
+            </span>
+          </div>
+
+          <SegmentedOptions
+            value={draft.priority}
+            onValueChange={(priority) => {
+              draft.setDetails({ priority });
+            }}
+            options={PRIORITY_OPTIONS}
+            size="sm"
+            className="[&_button]:text-sm"
+            label={<span className="sr-only">Priority</span>}
+            labelClassName="sr-only"
           />
-        </Field>
-
-        <SegmentedOptions
-          value={draft.priority}
-          onValueChange={(priority) => {
-            draft.setDetails({ priority });
-          }}
-          options={PRIORITY_OPTIONS}
-          label={tasks.wizard.details.priority}
-          required
-        />
-
-        {/*
-          The title is shown as a disabled input rather than as plain text: it
-          occupies a field's place in the form, and looking like one makes it
-          obvious the value belongs to the record even though it cannot be typed.
-          The rule behind it is `deriveTitle` (FL 2.5-01), previewed live so the
-          user sees it form rather than discovering it after saving.
-        */}
-        <Field
-          label={
-            <>
-              {tasks.wizard.details.derivedTitle}{' '}
-              <span className="font-normal text-ink-500">{tasks.wizard.details.autoGenerated}</span>
-            </>
-          }
-        >
-          <Input
-            value={previewTitle}
-            placeholder={tasks.wizard.details.titlePlaceholder}
-            readOnly
-            disabled
-            className="text-ink-800 bg-canvas/70 font-medium"
-          />
-        </Field>
+        </section>
       </CardBody>
     </Card>
   );
 }
 
-/** The System Information panel, rendered by the wizard shell's right column. */
-export function SystemInformationPanel({ className }: { className?: string } = {}) {
+/** The unified Task Summary card, rendered in the wizard details step's sidebar. */
+export function TaskSummaryCard({
+  className,
+  requirements,
+  version,
+  versionPending,
+  title,
+}: {
+  className?: string;
+  requirements: readonly Requirement[];
+  version: string;
+  versionPending: boolean;
+  title?: string | undefined;
+}) {
   const draft = useTaskDraft();
   const { data: user } = useCurrentUser();
   const { data: customers } = useCustomers();
-  const nextTaskId = useNextTaskId(draft.taskId === null ? draft.customerId : '');
 
-  const customerName = customers?.find((c) => c.id === draft.customerId)?.name ?? '';
+  const customerCode = customers?.find((c) => c.id === draft.customerId)?.code ?? '';
   const derivedTitle =
-    draft.customerId === '' || draft.crimId.trim() === ''
+    title ??
+    (draft.customerId === '' || draft.crimId.trim() === ''
       ? null
-      : deriveTitle(customerName, draft.crimId, draft.version);
+      : version === ''
+        ? null
+        : deriveTitle(customerCode, draft.crimId, version));
 
   const rows = [
     {
       id: 'taskId',
-      icon: <Hash className="size-4 text-violet-600" />,
+      icon: <Hash className="size-3.5 text-ink-400" />,
       label: tasks.detail.fields.taskId,
       value:
-        draft.taskId === null && nextTaskId.data ? (
-          <span className="text-ink-800 rounded-md border border-line bg-canvas px-2 py-0.5 font-mono text-xs font-semibold">
-            {nextTaskId.data.taskCode}
-          </span>
-        ) : draft.taskId === null ? (
-          <span className="text-xs font-medium text-ink-400">
-            {tasks.wizard.details.taskIdPending}
-          </span>
+        draft.taskId === null ? (
+          <span className="text-sm text-ink-400">{tasks.wizard.details.taskIdPending}</span>
         ) : (
           <span className="text-ink-800 rounded-md border border-line bg-canvas px-2 py-0.5 font-mono text-xs font-semibold">
             {draft.taskCode ?? draft.taskId}
@@ -215,30 +362,46 @@ export function SystemInformationPanel({ className }: { className?: string } = {
     },
     {
       id: 'title',
-      icon: <FileText className="size-4 text-violet-600" />,
+      icon: <FileText className="size-3.5 text-ink-400" />,
       label: tasks.detail.fields.title,
       value: derivedTitle ? (
         <span
-          className="max-w-[190px] truncate text-right text-xs font-semibold text-ink-900"
+          className="max-w-[180px] truncate text-right text-sm font-medium text-ink-900"
           title={derivedTitle}
         >
           {derivedTitle}
         </span>
       ) : (
-        <span className="text-xs font-medium text-ink-400">
-          {tasks.wizard.details.autoGenerated}
+        <span className="text-sm text-ink-400">{tasks.wizard.details.autoGenerated}</span>
+      ),
+    },
+    {
+      id: 'version',
+      icon: <Sparkles className="size-3.5 text-ink-400" />,
+      label: tasks.detail.fields.version,
+      value: (
+        <span className="text-ink-800 font-mono text-sm font-semibold">
+          {versionPending ? (
+            <span className="animate-pulse text-sm font-medium text-violet-600">Checking…</span>
+          ) : version !== '' ? (
+            <span className="rounded-md border border-violet-200/80 bg-violet-50 px-2.5 py-0.5 font-mono text-xs font-bold text-violet-800">
+              {version}
+            </span>
+          ) : (
+            <span className="text-sm text-ink-400">Pending</span>
+          )}
         </span>
       ),
     },
     {
       id: 'status',
-      icon: <Info className="size-4 text-violet-600" />,
+      icon: <Info className="size-3.5 text-ink-400" />,
       label: tasks.detail.fields.status,
       value: <StatusBadge status="Draft" />,
     },
     {
       id: 'cycle',
-      icon: <RefreshCw className="size-4 text-violet-600" />,
+      icon: <RefreshCw className="size-3.5 text-ink-400" />,
       label: tasks.detail.fields.cycle,
       value: (
         <span className="text-ink-800 rounded-md border border-line bg-canvas px-2 py-0.5 font-mono text-xs font-semibold">
@@ -248,54 +411,83 @@ export function SystemInformationPanel({ className }: { className?: string } = {
     },
     {
       id: 'developer',
-      icon: <UserIcon className="size-4 text-violet-600" />,
+      icon: <UserIcon className="size-3.5 text-ink-400" />,
       label: tasks.detail.fields.developer,
-      value: <span className="font-medium text-ink-900">{user?.name ?? '—'}</span>,
+      value: (
+        <span className="max-w-[170px] truncate text-sm font-medium text-ink-900">
+          {user?.name ?? '—'}
+        </span>
+      ),
     },
     {
       id: 'created',
-      icon: <CalendarDays className="size-4 text-violet-600" />,
+      icon: <CalendarDays className="size-3.5 text-ink-400" />,
       label: tasks.detail.fields.created,
       value: (
-        <span className="text-ink-800 text-xs font-semibold">
+        <span className="text-ink-800 text-sm">
           {draft.createdAt ? formatDate(draft.createdAt) : formatDate(new Date().toISOString())}
         </span>
       ),
     },
     {
       id: 'submitted',
-      icon: <CalendarDays className="size-4 text-violet-600" />,
+      icon: <CalendarDays className="size-3.5 text-ink-400" />,
       label: tasks.detail.fields.submitted,
       value: draft.submittedAt ? (
         <span className="text-ink-800 text-xs font-semibold">{formatDate(draft.submittedAt)}</span>
       ) : (
-        <span className="text-xs font-medium text-ink-400">—</span>
+        <span className="text-sm text-ink-400">—</span>
       ),
     },
   ];
 
   return (
     <Card className={cn('flex flex-col', className)}>
-      <CardHeader
-        title={tasks.wizard.details.systemInfoTitle}
-        icon={<Info className="size-4 text-violet-600" />}
-      />
-      <CardBody className="flex flex-1 flex-col justify-between pt-3">
-        <dl className="divide-y divide-line">
-          {rows.map((row) => (
-            <div
-              key={row.id}
-              className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0"
+      <CardHeader title="Task Summary" icon={<ListChecks className="size-4 text-violet-600" />} />
+      <CardBody className="flex-1 space-y-4 pt-3 pb-5">
+        {/* Section 1: Ready to continue */}
+        <section aria-labelledby="sidebar-ready-to-continue" className="space-y-2">
+          <div className="flex items-center justify-between">
+            <h3
+              id="sidebar-ready-to-continue"
+              className="text-xs font-semibold tracking-wider text-ink-500 uppercase"
             >
-              <dt className="flex items-center gap-2 text-sm font-medium text-ink-500">
-                <span aria-hidden="true">{row.icon}</span>
-                {row.label}
-              </dt>
-              <dd className="flex items-center justify-end text-sm">{row.value}</dd>
-            </div>
-          ))}
-        </dl>
+              Ready to continue
+            </h3>
+            <span className="sr-only">Before you can continue</span>
+          </div>
+          <RequirementList requirements={requirements} />
+        </section>
+
+        <hr className="border-line/60" />
+
+        {/* Section 2: System Information */}
+        <section aria-labelledby="sidebar-system-information" className="space-y-2">
+          <h3
+            id="sidebar-system-information"
+            className="text-xs font-semibold tracking-wider text-ink-500 uppercase"
+          >
+            System Information
+          </h3>
+          <dl className="divide-y divide-line/60">
+            {rows.map((row) => (
+              <div
+                key={row.id}
+                className="flex items-center justify-between gap-3 py-2.5 first:pt-1 last:pb-1"
+              >
+                <dt className="flex items-center gap-2 text-sm text-ink-500">
+                  <span aria-hidden="true">{row.icon}</span>
+                  {row.label}
+                </dt>
+                <dd className="flex items-center justify-end text-sm">{row.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
       </CardBody>
     </Card>
   );
 }
+
+/** Legacy alias if imported elsewhere */
+export const SystemInformationPanel = TaskSummaryCard;

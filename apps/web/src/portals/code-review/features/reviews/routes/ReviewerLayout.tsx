@@ -16,8 +16,6 @@ import { ROUTES } from '@/config/routes.ts';
 import { interpolate } from '@/lib/formatters.ts';
 import { useCurrentUser } from '@/hooks/useCurrentUser.ts';
 import { useBucketSelection } from '@/portals/code-review/hooks/useKpiBucket.ts';
-import { useReviewsGiven } from '@/portals/code-review/hooks/useReviews.ts';
-import { decidedReviews } from '@/lib/reviewStats.ts';
 import reviews from '@/content/reviews.json';
 import { useTasks } from '@/portals/code-review/hooks/useTasks.ts';
 import { PageContainer } from '@/components/common/PageContainer.tsx';
@@ -58,20 +56,20 @@ export function ReviewerLayout() {
   const { data: user } = useCurrentUser();
   const { data: available, isPending: availablePending } = useTasks('available');
   const { data: assigned, isPending: assignedPending } = useTasks('assigned');
-  const { data: given, isPending: givenPending } = useReviewsGiven();
+  const { data: history, isPending: historyPending } = useTasks('history');
   const bucket = useBucketSelection();
 
-  const isPending = availablePending || assignedPending || givenPending;
+  const isPending = availablePending || assignedPending || historyPending;
 
-  const decided = decidedReviews(given ?? []);
+  const changesRequestedCount =
+    history?.filter((task) => task.status === 'ChangesRequested').length ?? 0;
+  const approvedCount = history?.filter((task) => task.status === 'Approved').length ?? 0;
 
   return (
     <PageContainer className="space-y-6">
       <PageHeader
         title={reviews.workspace.title}
-        subtitle={interpolate(reviews.workspace.subtitle, {
-          name: user?.name ?? '',
-        })}
+        subtitle={interpolate(reviews.workspace.subtitle, { name: user?.name ?? '' })}
         icon={<ClipboardCheck className="size-5" />}
         tone="reviewer"
       />
@@ -87,6 +85,7 @@ export function ReviewerLayout() {
               value={available?.length ?? 0}
               tone="blue"
               icon={<Inbox className="size-4" />}
+              subtitle={reviews.kpis.availableSubtitle}
               // The Available queue is a scope, not a status slice, so this card
               // only opens its tab — there is no bucket to apply.
               isActive={bucket.isUnfiltered(ROUTES.reviewer.root)}
@@ -99,23 +98,33 @@ export function ReviewerLayout() {
               value={assigned?.length ?? 0}
               tone="violet"
               icon={<ScanSearch className="size-4" />}
+              subtitle={reviews.kpis.inReviewSubtitle}
               isActive={bucket.isUnfiltered(ROUTES.reviewer.myTasks)}
               onSelect={() => {
                 bucket.clear(ROUTES.reviewer.myTasks);
               }}
             />
-            {/* Decided reviews, not tasks — see the note above the component. */}
             <StatCard
               label={reviews.kpis.changesRequested}
-              value={decided.filter((review) => review.decision === 'ChangesRequested').length}
+              value={changesRequestedCount}
               tone="amber"
               icon={<AlertCircle className="size-4" />}
+              subtitle={reviews.kpis.changesRequestedSubtitle}
+              isActive={bucket.isActive('changesRequested', ROUTES.reviewer.history)}
+              onSelect={() => {
+                bucket.select('changesRequested', ROUTES.reviewer.history);
+              }}
             />
             <StatCard
               label={reviews.kpis.approved}
-              value={decided.filter((review) => review.decision === 'Approved').length}
+              value={approvedCount}
               tone="green"
               icon={<CheckCircle2 className="size-4" />}
+              subtitle={reviews.kpis.approvedSubtitle}
+              isActive={bucket.isActive('approved', ROUTES.reviewer.history)}
+              onSelect={() => {
+                bucket.select('approved', ROUTES.reviewer.history);
+              }}
             />
           </>
         )}

@@ -41,7 +41,7 @@ export interface TaskDraftState {
   customerId: string;
   crimId: string;
   version: string;
-  priority: Priority | '';
+  priority: Priority;
 
   taskTypeIds: TaskTypeId[];
   /** Draft answers carry ids only; the server snapshots the wording on save. */
@@ -91,7 +91,7 @@ const EMPTY: DraftData = {
   customerId: '',
   crimId: '',
   version: '',
-  priority: '',
+  priority: 'Medium',
   taskTypeIds: [],
   answers: [],
   remarks: '',
@@ -135,10 +135,7 @@ function normaliseAnswers(value: unknown): DraftAnswer[] {
       byQuestion.set(questionId, answer as ChecklistAnswer);
     }
   }
-  return [...byQuestion].map(([questionId, answer]) => ({
-    questionId,
-    answer,
-  }));
+  return [...byQuestion].map(([questionId, answer]) => ({ questionId, answer }));
 }
 
 /**

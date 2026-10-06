@@ -156,9 +156,11 @@ describe('admin handover queue', () => {
     signInForTest(ADMIN);
     renderAt('/crp/admin/handovers');
 
-    expect(await screen.findByText('BLOM-010')).toBeInTheDocument();
-    expect(screen.getByText(/needs someone with lobby experience/i)).toBeInTheDocument();
-    expect(screen.getByText('Awaiting action')).toBeInTheDocument();
+    const taskCell = await screen.findByText('BLOM-010');
+    const row = taskCell.closest('tr');
+    if (row === null) throw new Error('No BLOM-010 handover row');
+    expect(within(row).getByText(/needs someone with lobby experience/i)).toBeInTheDocument();
+    expect(within(row).getByText('Awaiting action')).toBeInTheDocument();
   });
 
   it('keeps the previous-reviewer label after admin reassignment', async () => {

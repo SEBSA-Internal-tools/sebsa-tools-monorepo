@@ -206,10 +206,10 @@ async function request<TSchema extends z.ZodTypeAny>(
 
   /*
    * Phase 1 only. When the browser stops the MSW service worker, it bypasses
-   * requests to the real network; Vite has no `/api` route, so the reply is an
-   * HTML 404. That is indistinguishable from a genuine 404 by status alone,
-   * so the content type is what tells them apart — the mock API always answers
-   * JSON, including for its errors.
+   * requests to the real network; the reply is an HTML 404, or a plain-text 502
+   * from the dev proxy when no backend is running. That is indistinguishable
+   * from a genuine error by status alone, so the content type is what tells
+   * them apart — the mock API always answers JSON, including for its errors.
    *
    * Recover in place rather than surfacing the failure. Re-attaching the worker
    * takes a postMessage round trip, and the request that noticed the problem is
@@ -278,7 +278,7 @@ function readCookie(name: string): string | undefined {
  */
 function isMockDetached(response: Response): boolean {
   if (!USE_MOCK_API) return false;
-  if (response.status !== 404) return false;
+  if (response.status !== 404 && response.status !== 502) return false;
 
   const contentType = response.headers.get('content-type') ?? '';
   return !contentType.includes('json');
@@ -336,6 +336,6 @@ export const api = {
   delete: <TSchema extends z.ZodTypeAny>(
     path: string,
     schema: TSchema,
-    options?: Omit<RequestOptions, 'method' | 'body'>,
+    options?: Omit<RequestOptions, 'method'>,
   ) => request(path, schema, { ...options, method: 'DELETE' }),
 };

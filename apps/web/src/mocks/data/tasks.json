@@ -834,7 +834,7 @@
     "version": "V1",
     "customerId": "c-semco",
     "priority": "Medium",
-    "status": "Delivered",
+    "status": "Approved",
     "reviewCycle": 2,
     "developerId": "u-udari",
     "reviewerId": "u-charith",
@@ -916,5 +916,24 @@
     "submittedAt": "2026-08-20T11:35:00.000Z",
     "noteToReviewer": null,
     "taskTypeIds": ["tt-configuration"]
+  },
+  {
+    "id": "t-semco-017",
+    "taskCode": "SEMCO-017",
+    "crimId": "CRIM-920",
+    "version": "v1.2",
+    "customerId": "c-semco",
+    "priority": "High",
+    "status": "ChangesRequested",
+    "reviewCycle": 2,
+    "historicalCycle": 2,
+    "developerId": "u-pinsara",
+    "reviewerId": "u-hiruni",
+    "isChecklistComplete": true,
+    "isHandedOver": false,
+    "createdAt": "2026-08-05T08:30:00.000Z",
+    "submittedAt": "2026-08-05T09:15:00.000Z",
+    "noteToReviewer": "Please review the updated batch processing handlers and rollback logic.",
+    "taskTypeIds": ["tt-customization"]
   }
 ]

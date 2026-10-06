@@ -11,6 +11,7 @@ import { z } from 'zod';
 
 /* -------------------------------------------------------------------------- */
 /* Roles — additive. A user holds a SET of these, never a single value.        */
+/* Wireframes show one user as "Developer • Reviewer • Admin" simultaneously.  */
 /* -------------------------------------------------------------------------- */
 export const ROLES = ['Developer', 'Reviewer', 'Admin', 'Super Admin'] as const;
 export const roleSchema = z.enum(ROLES);
@@ -21,7 +22,7 @@ export const portalIdSchema = z.enum(PORTAL_IDS);
 export type PortalId = z.infer<typeof portalIdSchema>;
 
 /* -------------------------------------------------------------------------- */
-/* Task status — spec §1.5 (Admin/Task Tab, p.13) + Delivered (p.12).          */
+/* Task status — spec §1.5 (Admin/Task Tab, p.13).                            */
 /* -------------------------------------------------------------------------- */
 export const TASK_STATUSES = [
   'Draft',
@@ -30,7 +31,6 @@ export const TASK_STATUSES = [
   'ChangesRequested',
   'ReSubmitted',
   'Approved',
-  'Delivered',
   'Cancelled',
 ] as const;
 export const taskStatusSchema = z.enum(TASK_STATUSES);
@@ -49,13 +49,12 @@ export const TASK_STATUS_TRANSITIONS: Readonly<Record<TaskStatus, readonly TaskS
   InReview: ['Approved', 'ChangesRequested', 'Cancelled'],
   ChangesRequested: ['ReSubmitted', 'Cancelled'],
   ReSubmitted: ['InReview', 'Cancelled'],
-  Approved: ['Delivered'],
-  Delivered: [],
+  Approved: [],
   Cancelled: [],
 } as const;
 
 /** Statuses in which no further workflow action is possible. */
-export const TERMINAL_TASK_STATUSES = ['Delivered', 'Cancelled'] as const;
+export const TERMINAL_TASK_STATUSES = ['Approved', 'Cancelled'] as const;
 
 /* -------------------------------------------------------------------------- */
 /* Priority — spec §2.2.3 seq 6.                                              */
@@ -157,7 +156,7 @@ export type RejectionVerdict = z.infer<typeof rejectionVerdictSchema>;
 /* -------------------------------------------------------------------------- */
 /* Handover — spec §1.5 p.12. No Figma screen exists; designed by us.          */
 /* -------------------------------------------------------------------------- */
-export const HANDOVER_STATUSES = ['Pending', 'Reassigned', 'Cancelled'] as const;
+export const HANDOVER_STATUSES = ['Pending', 'Reassigned', 'Cancelled', 'ReturnedToQueue'] as const;
 export const handoverStatusSchema = z.enum(HANDOVER_STATUSES);
 export type HandoverStatus = z.infer<typeof handoverStatusSchema>;
 

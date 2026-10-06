@@ -23,10 +23,7 @@ const REVIEWER = 'u-hiruni';
 
 function renderApp(path: string) {
   const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false, gcTime: 0 },
-      mutations: { retry: false },
-    },
+    defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } },
   });
   const router = createMemoryRouter(routes, { initialEntries: [path] });
 
@@ -78,6 +75,14 @@ beforeEach(() => {
 });
 
 describe('Available Tasks', () => {
+  it('shows stored titles without a duplicate version tag or column', async () => {
+    renderApp('/crp/reviewer');
+    await findLoadedTable();
+
+    expect(screen.queryByRole('columnheader', { name: /^version$/i })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('version-tag')).not.toBeInTheDocument();
+  });
+
   it('never lists a task the signed-in reviewer submitted', async () => {
     renderApp('/crp/reviewer');
     await findLoadedTable();
@@ -204,12 +209,9 @@ describe('Review History', () => {
       reviewCycle: 1,
       reviewerId: REVIEWER,
       reviewerName: 'Reviewer',
+      comments: [],
       generalCheck: [],
-      findings: {
-        incorrectCode: 'x',
-        incompleteImplementation: '',
-        sourceFormatting: '',
-      },
+      findings: { incorrectCode: 'x', incompleteImplementation: '', sourceFormatting: '' },
       otherRemarks: '',
       feedbackSummary: '',
       rank: 2,
@@ -244,12 +246,9 @@ describe('Review History', () => {
       reviewCycle: 1,
       reviewerId: REVIEWER,
       reviewerName: 'Reviewer',
+      comments: [],
       generalCheck: [],
-      findings: {
-        incorrectCode: 'x',
-        incompleteImplementation: '',
-        sourceFormatting: '',
-      },
+      findings: { incorrectCode: 'x', incompleteImplementation: '', sourceFormatting: '' },
       otherRemarks: '',
       feedbackSummary: '',
       rank: 2,

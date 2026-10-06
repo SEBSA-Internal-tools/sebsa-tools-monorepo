@@ -9,6 +9,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Query,
   Res,
 } from '@nestjs/common';
@@ -47,6 +48,53 @@ export class ReviewTasksController {
     const checklist = await this.tasks.findChecklist(id, user);
     if (checklist === null) response.status(HttpStatus.NO_CONTENT);
     return checklist ?? undefined;
+  }
+  @Put(':id/checklist') @Roles('DEVELOPER') @ApiOkResponse() saveChecklist(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: unknown,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.tasks.saveChecklist(id, body, user);
+  }
+  @Get(':id/checklist-submissions') @ApiOkResponse() findChecklistSubmissions(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.tasks.findChecklistSubmissions(id, user);
+  }
+  @Get(':id/events') @ApiOkResponse() findEvents(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.tasks.findEvents(id, user);
+  }
+  @Get(':id/attachments') @ApiOkResponse() findAttachments(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.tasks.findAttachments(id, user);
+  }
+  @Post(':id/attachments') @Roles('DEVELOPER') @ApiOkResponse() addAttachment(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: unknown,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.tasks.addAttachment(id, body, user);
+  }
+  @Patch(':id/attachments/:attachmentId') @Roles('DEVELOPER') @ApiOkResponse() captionAttachment(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('attachmentId', ParseUUIDPipe) attachmentId: string,
+    @Body() body: unknown,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.tasks.captionAttachment(id, attachmentId, body, user);
+  }
+  @Delete(':id/attachments/:attachmentId') @Roles('DEVELOPER') @ApiOkResponse() removeAttachment(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('attachmentId', ParseUUIDPipe) attachmentId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.tasks.removeAttachment(id, attachmentId, user);
   }
   @Get(':id') @ApiOkResponse() findOne(
     @Param('id', ParseUUIDPipe) id: string,
@@ -87,10 +135,23 @@ export class ReviewTasksController {
     return this.tasks.assign(id, dto.reviewerId, user);
   }
   @Delete(':id')
-  @Roles('ADMIN')
+  @Roles('DEVELOPER', 'ADMIN')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiNoContentResponse()
   async remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
     await this.tasks.remove(id, user);
+  }
+}
+
+@ApiTags('Task Identities')
+@Controller('task-identities')
+export class TaskIdentitiesController {
+  constructor(private readonly tasks: ReviewTasksService) {}
+
+  @Get('next-version')
+  @Roles('DEVELOPER', 'ADMIN')
+  @ApiOkResponse()
+  nextVersion(@Query() query: NextTaskVersionQueryDto) {
+    return this.tasks.nextVersion(query.customerId, query.crimId);
   }
 }

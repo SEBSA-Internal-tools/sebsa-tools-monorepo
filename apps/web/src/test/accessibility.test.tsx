@@ -72,7 +72,10 @@ describe('accessibility', () => {
   }, 20_000);
 
   it('portal home has no critical or serious violations', async () => {
-    const { container } = renderWithProviders(<HomePage user={makeUser(['Admin'])} />);
+    // Every role, so the scan covers all three workspace cards.
+    const { container } = renderWithProviders(
+      <HomePage user={makeUser(['Developer', 'Reviewer', 'Admin'])} />,
+    );
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Developer' })).toBeInTheDocument();

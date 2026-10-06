@@ -163,7 +163,6 @@ export interface ReportSummary {
   total: number;
   approved: number;
   changesRequested: number;
-  delivered: number;
   cancelled: number;
   /** Percent of tasks that reached review and were approved. */
   approvalRate: number;
@@ -209,15 +208,6 @@ export function summarise(
     total: tasks.length,
     approved: approved.length,
     changesRequested: tasks.filter((task) => task.status === 'ChangesRequested').length,
-    /*
-     * Delivered is reported BOTH here and inside `approved`, and that is not
-     * double-counting — the two cards answer different questions. FS 2.19 asks
-     * for "number of delivered tasks" alongside "number and percentage of
-     * approved tasks", and delivery is what happens to an approved task next,
-     * not a competing verdict (see `approvedTasks`). Summing the row would be
-     * the mistake; each figure is a count of the tasks its own label describes.
-     */
-    delivered: tasks.filter((task) => task.status === 'Delivered').length,
     cancelled: tasks.filter((task) => task.status === 'Cancelled').length,
     approvalRate,
     isApprovalOnTarget: approvalRate >= APPROVAL_RATE_TARGET,
@@ -386,9 +376,7 @@ export function customerOverview(
 /* -------------------------------------------------------------------------- */
 
 function approvedTasks(tasks: readonly TaskListItem[]): TaskListItem[] {
-  // Delivered counts as approved: it is what happens to an approved task next,
-  // not a different verdict.
-  return tasks.filter((task) => task.status === 'Approved' || task.status === 'Delivered');
+  return tasks.filter((task) => task.status === 'Approved');
 }
 
 /*

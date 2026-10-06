@@ -33,6 +33,7 @@ export function ConfirmDialog({
   onConfirm,
   isPending = false,
   tone = 'danger',
+  confirmDisabled = false,
   children,
 }: {
   open: boolean;
@@ -45,6 +46,7 @@ export function ConfirmDialog({
   onConfirm: () => void;
   isPending?: boolean | undefined;
   tone?: 'danger' | 'primary' | undefined;
+  confirmDisabled?: boolean | undefined;
   /** Optional extra input — the cancellation reason, for instance. */
   children?: ReactNode | undefined;
 }) {
@@ -69,6 +71,7 @@ export function ConfirmDialog({
             variant={tone === 'danger' ? 'danger' : 'primary'}
             onClick={onConfirm}
             isLoading={isPending}
+            disabled={confirmDisabled}
           >
             {confirmLabel}
           </Button>

@@ -10,7 +10,6 @@ import {
   Filter,
   Gauge,
   Repeat,
-  Truck,
   Users as UsersIcon,
   XCircle,
 } from 'lucide-react';
@@ -245,11 +244,9 @@ export function AdminReportsPage() {
       </div>
 
       {/*
-        Five cards, FS 2.19. `xl:grid-cols-5` rather than 4 so Delivered joins the
-        row it belongs to instead of wrapping alone under it — the counts row and
-        the rates row below stay two visually distinct blocks.
+        Four status count cards: Total, Approved, Changes Requested, Cancelled.
       */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard
           label={labels.kpis.total}
           value={summary.total}
@@ -272,21 +269,6 @@ export function AdminReportsPage() {
           caption={labels.kpis.changesRequestedCaption}
           icon={<AlertTriangle className="size-4" />}
           tone="amber"
-        />
-        {/*
-          FS 2.19: "Delivered — number of delivered tasks."
-
-          Its caption says "of which delivered" because a delivered task is also
-          counted by Approved two cards to the left — delivery is the next thing
-          that happens to approved work, not a rival verdict. Without that the
-          row invites being added up.
-        */}
-        <KpiCard
-          label={labels.kpis.delivered}
-          value={summary.delivered}
-          caption={labels.kpis.deliveredCaption}
-          icon={<Truck className="size-4" />}
-          tone="blue"
         />
         <KpiCard
           label={labels.kpis.cancelled}

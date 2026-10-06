@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { argon2id, hash, verify } from 'argon2';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { ApiException } from '../../common/api-error.js';
 import { authSecret, authSettings } from './auth.config.js';
 import { ROLE_LABELS, type RoleCode } from './auth.constants.js';
 import type { JwtPayload } from './auth.types.js';
@@ -54,7 +55,7 @@ export class AuthService {
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('An account with this email already exists');
+        throw new ApiException('VALIDATION_FAILED', 'An account with this email already exists');
       }
       throw error;
     }

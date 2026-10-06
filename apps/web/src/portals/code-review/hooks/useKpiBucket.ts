@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { BUCKET_PARAM, BUCKET_TO_STATUS, isKpiBucket, type KpiBucket } from '@/lib/kpiBuckets.ts';
+import { ROUTES } from '@/config/routes.ts';
 
 /**
  * Reading and toggling the dashboard-counter filter, which lives in the URL.
@@ -21,9 +22,10 @@ export function useActiveBucket(): KpiBucket | null {
   const [searchParams] = useSearchParams();
   const value = searchParams.get(BUCKET_PARAM);
   if (isKpiBucket(value)) return value;
-  const status = searchParams.get('status');
+  const status = searchParams.get('status') ?? searchParams.get('decision');
   if (status === 'Draft') return 'draft';
   if (status === 'Submitted') return 'awaitingReview';
+  if (status === 'InReview') return 'inReview';
   if (status === 'ChangesRequested') return 'changesRequested';
   if (status === 'Approved') return 'approved';
   return null;
@@ -53,7 +55,7 @@ export function useBucketSelection(): BucketSelection {
   const [searchParams] = useSearchParams();
 
   const current = searchParams.get(BUCKET_PARAM);
-  const currentStatus = searchParams.get('status');
+  const currentStatus = searchParams.get('status') ?? searchParams.get('decision');
 
   const isActive = useCallback(
     (bucket: KpiBucket, path: string) => {
@@ -62,6 +64,7 @@ export function useBucketSelection(): BucketSelection {
       if (bucket === 'draft' && currentStatus === 'Draft') return true;
       if ((bucket === 'awaitingReview' || bucket === 'submitted') && currentStatus === 'Submitted')
         return true;
+      if (bucket === 'inReview' && currentStatus === 'InReview') return true;
       if (bucket === 'changesRequested' && currentStatus === 'ChangesRequested') return true;
       if (bucket === 'approved' && currentStatus === 'Approved') return true;
       return false;
@@ -73,16 +76,22 @@ export function useBucketSelection(): BucketSelection {
     (bucket: KpiBucket, path: string) => {
       const active = isActive(bucket, path);
       const nextParams = new URLSearchParams(searchParams);
+      // Reset page on bucket selection change
+      nextParams.delete('page');
       // `replace`, so a run of card clicks does not stack up history entries the
       // user then has to Back through one at a time to leave the dashboard.
       if (active) {
         nextParams.delete(BUCKET_PARAM);
         nextParams.delete('status');
+        nextParams.delete('decision');
       } else {
         nextParams.set(BUCKET_PARAM, bucket);
         const mappedStatus = BUCKET_TO_STATUS[bucket];
         if (mappedStatus) {
           nextParams.set('status', mappedStatus);
+          if (path === ROUTES.reviewer.history) {
+            nextParams.set('decision', mappedStatus);
+          }
         }
       }
       const qs = nextParams.toString();
@@ -92,7 +101,10 @@ export function useBucketSelection(): BucketSelection {
   );
 
   const isUnfiltered = useCallback(
-    (path: string) => location.pathname === path && !isKpiBucket(current) && !currentStatus,
+    (path: string) =>
+      location.pathname === path &&
+      !isKpiBucket(current) &&
+      (!currentStatus || currentStatus === 'All'),
     [location.pathname, current, currentStatus],
   );
 
@@ -101,6 +113,8 @@ export function useBucketSelection(): BucketSelection {
       const nextParams = new URLSearchParams(searchParams);
       nextParams.delete(BUCKET_PARAM);
       nextParams.delete('status');
+      nextParams.delete('decision');
+      nextParams.delete('page');
       const qs = nextParams.toString();
       void navigate(qs ? `${path}?${qs}` : path, { replace: true });
     },

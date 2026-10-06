@@ -13,3 +13,4 @@
 
 export { cn } from './lib/cn';
 export { SebsaLogo } from './brand/SebsaLogo';
+export { InfoTooltip, Tooltip } from './Tooltip';

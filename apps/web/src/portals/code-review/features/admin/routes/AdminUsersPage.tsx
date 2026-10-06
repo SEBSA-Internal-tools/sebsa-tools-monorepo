@@ -1,7 +1,16 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Pencil, Power, ShieldCheck, Trash2, UserPlus, Users as UsersIcon } from 'lucide-react';
+import {
+  Filter,
+  Lock,
+  Pencil,
+  Power,
+  ShieldCheck,
+  Trash2,
+  UserPlus,
+  Users as UsersIcon,
+} from 'lucide-react';
 import { toast } from 'sonner';
-import { ROLES, type Role, type User } from '@sdp/contracts';
+import { type Role, type User } from '@sdp/contracts';
 import { ActiveBadge, RoleBadges } from '@/portals/code-review/components/badges.tsx';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog.tsx';
 import { DataTable } from '@/components/common/DataTable.tsx';
@@ -10,6 +19,8 @@ import { EmptyState } from '@/components/common/states.tsx';
 import { Button } from '@/components/ui/Button.tsx';
 import { IconButton, SearchField } from '@/components/ui/controls.tsx';
 import { Select, type SelectOption } from '@/components/ui/Select.tsx';
+import { Tooltip } from '@/components/ui/Tooltip.tsx';
+import { FilterResetButton } from '@/portals/code-review/components/TaskFilterBar.tsx';
 import { ALL } from '@/portals/code-review/components/taskFilters.ts';
 import { ApiError } from '@/lib/apiClient.ts';
 import { interpolate } from '@/lib/formatters.ts';
@@ -19,6 +30,7 @@ import { useDeleteUser, useTransferSuperAdmin, useUpdateUser, useUsers } from '.
 import { UserFormDialog } from '../components/UserFormDialog.tsx';
 import { EmptyIllustration } from '@/components/common/EmptyIllustration.tsx';
 import { useCurrentUser } from '@/hooks/useCurrentUser.ts';
+import { RoleMultiSelect } from '../components/RoleMultiSelect.tsx';
 
 /**
  * Admin — Users (screen 02).
@@ -31,11 +43,6 @@ import { useCurrentUser } from '@/hooks/useCurrentUser.ts';
 
 const helper = columnHelper<User>();
 const labels = admin.users.columns;
-
-const ROLE_OPTIONS: SelectOption[] = [
-  { value: ALL, label: admin.users.roleAll },
-  ...ROLES.map((role) => ({ value: role, label: common.role[role] })),
-];
 
 const STATUS_OPTIONS: SelectOption[] = [
   { value: ALL, label: admin.users.statusAll },
@@ -53,12 +60,14 @@ const STATUS_OPTIONS: SelectOption[] = [
 
 const nameColumn = helper.accessor('name', {
   header: labels.name,
-  cell: (context) => <span className="text-sm font-bold text-ink-900">{context.getValue()}</span>,
+  cell: (context) => (
+    <span className="text-sm font-semibold text-ink-900">{context.getValue()}</span>
+  ),
 });
 
 const emailColumn = helper.accessor('email', {
   header: labels.email,
-  cell: (context) => <span className="text-sm text-brand-blue-600">{context.getValue()}</span>,
+  cell: (context) => <span className="text-ink-600 text-sm font-normal">{context.getValue()}</span>,
 });
 
 const rolesColumn = helper.accessor('roles', {
@@ -92,7 +101,7 @@ export function AdminUsersPage({
     (isSuperAdmin ? ['Developer', 'Reviewer', 'Admin'] : ['Developer', 'Reviewer']);
 
   const [search, setSearch] = useState('');
-  const [role, setRole] = useState(ALL);
+  const [selectedRoles, setSelectedRoles] = useState<Role[]>([]);
   const [status, setStatus] = useState(ALL);
 
   const [editing, setEditing] = useState<User | null>(null);
@@ -112,13 +121,24 @@ export function AdminUsersPage({
     const needle = search.trim().toLowerCase();
 
     return (users ?? []).filter((user) => {
-      if (role !== ALL && !user.roles.includes(role as (typeof ROLES)[number])) return false;
+      if (selectedRoles.length > 0 && !selectedRoles.every((role) => user.roles.includes(role))) {
+        return false;
+      }
       if (status === 'active' && !user.isActive) return false;
       if (status === 'inactive' && user.isActive) return false;
       if (needle === '') return true;
       return user.name.toLowerCase().includes(needle) || user.email.toLowerCase().includes(needle);
     });
-  }, [users, search, role, status]);
+  }, [users, search, selectedRoles, status]);
+
+  const handleClearFilters = useCallback(() => {
+    setSearch('');
+    setSelectedRoles([]);
+    setStatus(ALL);
+  }, []);
+
+  const isFiltered = search.trim() !== '' || selectedRoles.length > 0 || status !== ALL;
+  const resetPageTrigger = `${search}:${selectedRoles.slice().sort().join(',')}:${status}`;
 
   const setActive = useCallback(
     (user: User, isActive: boolean) => {
@@ -154,36 +174,47 @@ export function AdminUsersPage({
         header: '',
         cell: (context) => {
           const user = context.row.original;
+          const mayManage = canManage(user);
           return (
-            <div className="flex items-center justify-end gap-0.5">
-              <IconButton
-                label={interpolate(admin.users.actions.edit, {
-                  name: user.name,
-                })}
-                icon={<Pencil className="size-4" />}
-                size="sm"
-                disabled={!canManage(user)}
-                onClick={() => {
-                  setEditing(user);
-                  setFormOpen(true);
-                }}
-              />
-              <IconButton
-                label={interpolate(
-                  user.isActive ? admin.users.actions.deactivate : admin.users.actions.activate,
-                  { name: user.name },
-                )}
-                icon={<Power className="size-4" />}
-                tone={user.isActive ? 'danger' : 'success'}
-                size="sm"
-                disabled={!canManage(user)}
-                onClick={() => {
-                  // Activating is harmless and immediate; deactivating locks
-                  // someone out, so only that direction asks.
-                  if (user.isActive) setDeactivating(user);
-                  else setActive(user, true);
-                }}
-              />
+            <div className="flex items-center justify-end gap-1.5">
+              {!mayManage ? (
+                <Tooltip content="This account can only be managed by a Super Admin.">
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs font-medium text-ink-500 select-none"
+                    aria-label="Protected: this account can only be managed by a Super Admin"
+                  >
+                    <Lock className="size-3 text-ink-400" aria-hidden="true" />
+                    <span>Protected</span>
+                  </button>
+                </Tooltip>
+              ) : null}
+              {mayManage ? (
+                <IconButton
+                  label={interpolate(admin.users.actions.edit, { name: user.name })}
+                  icon={<Pencil className="size-4" />}
+                  size="sm"
+                  onClick={() => {
+                    setEditing(user);
+                    setFormOpen(true);
+                  }}
+                />
+              ) : null}
+              {mayManage ? (
+                <IconButton
+                  label={interpolate(
+                    user.isActive ? admin.users.actions.deactivate : admin.users.actions.activate,
+                    { name: user.name },
+                  )}
+                  icon={<Power className="size-4" />}
+                  tone={user.isActive ? 'danger' : 'success'}
+                  size="sm"
+                  onClick={() => {
+                    if (user.isActive) setDeactivating(user);
+                    else setActive(user, true);
+                  }}
+                />
+              ) : null}
               {isSuperAdmin &&
               user.isActive &&
               user.id !== actor?.id &&
@@ -200,7 +231,7 @@ export function AdminUsersPage({
                   }}
                 />
               ) : null}
-              {isSuperAdmin ? (
+              {isSuperAdmin && mayManage ? (
                 <IconButton
                   label={interpolate(admin.users.actions.delete, {
                     name: user.name,
@@ -242,42 +273,85 @@ export function AdminUsersPage({
           void refetch();
         }}
         pageSize={15}
+        alwaysShowPagination
+        resetPageIndexTrigger={resetPageTrigger}
         toolbar={
-          <div className="flex w-full flex-wrap items-end gap-3">
-            <div className="min-w-56 flex-1">
-              <SearchField
-                value={search}
-                onValueChange={setSearch}
-                label={admin.users.searchLabel}
-                placeholder={admin.users.searchPlaceholder}
+          <div className="flex w-full flex-col gap-3.5">
+            <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="min-w-0 flex-1">
+                <SearchField
+                  value={search}
+                  onValueChange={setSearch}
+                  label={admin.users.searchLabel}
+                  placeholder={admin.users.searchPlaceholder}
+                />
+              </div>
+              <Button
+                variant="adminPrimary"
+                onClick={() => {
+                  setEditing(null);
+                  setFormOpen(true);
+                }}
+                className="w-full shrink-0 sm:w-auto"
+              >
+                <UserPlus className="size-4" aria-hidden="true" />
+                {admin.users.add}
+              </Button>
+            </div>
+
+            <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(18rem,24rem)_minmax(13rem,16rem)_auto]">
+              <div className="min-w-0">
+                <RoleMultiSelect
+                  selectedRoles={selectedRoles}
+                  onSelectedRolesChange={setSelectedRoles}
+                />
+              </div>
+              <div className="min-w-0">
+                <Select
+                  value={status}
+                  onValueChange={setStatus}
+                  options={STATUS_OPTIONS}
+                  label="Status"
+                  icon={<Filter className="size-4" />}
+                  variant="stacked"
+                  aria-label={admin.users.statusAll}
+                />
+              </div>
+              <FilterResetButton
+                isFiltered={isFiltered}
+                onReset={handleClearFilters}
+                className="w-full lg:w-auto"
               />
             </div>
-            <div className="w-44">
-              <Select
-                value={role}
-                onValueChange={setRole}
-                options={ROLE_OPTIONS}
-                aria-label={admin.users.roleAll}
-              />
+
+            <div className="flex min-h-5 items-center gap-1.5 text-xs font-medium text-ink-500 select-none">
+              <span>
+                Showing {visible.length} of {users?.length ?? 0} users
+              </span>
+              {isFiltered ? (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span className="text-violet-700">Filtered</span>
+                </>
+              ) : null}
             </div>
-            <div className="w-44">
-              <Select
-                value={status}
-                onValueChange={setStatus}
-                options={STATUS_OPTIONS}
-                aria-label={admin.users.statusAll}
-              />
-            </div>
-            <Button
-              onClick={() => {
-                setEditing(null);
-                setFormOpen(true);
-              }}
-            >
-              <UserPlus className="size-4" aria-hidden="true" />
-              {admin.users.add}
-            </Button>
           </div>
+        }
+        filteredEmptyState={
+          <EmptyState
+            icon={
+              <EmptyIllustration>
+                <UsersIcon />
+              </EmptyIllustration>
+            }
+            title={admin.users.emptyFilteredTitle}
+            hint={admin.users.emptyFilteredHint}
+            action={
+              <Button variant="secondary" onClick={handleClearFilters}>
+                {admin.users.clearFilters}
+              </Button>
+            }
+          />
         }
         emptyState={
           <EmptyState

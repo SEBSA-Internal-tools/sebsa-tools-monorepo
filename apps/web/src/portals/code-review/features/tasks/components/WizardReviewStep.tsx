@@ -30,7 +30,7 @@ import { useCurrentUser } from '@/hooks/useCurrentUser.ts';
 import common from '@/content/common.json';
 import tasks from '@/content/tasks.json';
 import { checklistProgress, visibleCategories } from '../domain/checklistRules.ts';
-import { useChecklistTemplate, useCustomers, useTaskTypes } from '../api/queries.ts';
+import { useChecklistTemplate, useCustomers, useTask, useTaskTypes } from '../api/queries.ts';
 import { deriveTitle } from '../domain/taskRules.ts';
 import { findAnswer, useTaskDraft } from '../hooks/useTaskDraft.ts';
 
@@ -48,10 +48,12 @@ export function WizardReviewStep() {
   const { data: template } = useChecklistTemplate();
   const { data: user } = useCurrentUser();
   const { data: taskTypes } = useTaskTypes();
+  const { data: persistedTask } = useTask(paramTaskId ?? draft.taskId ?? undefined);
 
   const customer = customers?.find((c) => c.id === draft.customerId);
   const categories = visibleCategories(template ?? [], draft.taskTypeIds);
-  const derivedTitle = deriveTitle(customer?.name ?? '', draft.crimId, draft.version);
+  const derivedTitle =
+    persistedTask?.title ?? deriveTitle(customer?.code ?? '', draft.crimId, draft.version);
 
   const taskDetailRows = [
     {
@@ -122,25 +124,22 @@ export function WizardReviewStep() {
       id: 'priority',
       icon: <Flag className="size-4 text-violet-600" />,
       label: tasks.detail.fields.priority,
-      value:
-        draft.priority === '' ? (
-          <span className="text-ink-400">&mdash;</span>
-        ) : (
-          <span className="inline-flex items-center gap-1.5 font-semibold text-ink-900">
-            <span
-              className={cn(
-                'size-2 rounded-full',
-                draft.priority === 'High'
-                  ? 'bg-danger'
-                  : draft.priority === 'Medium'
-                    ? 'bg-status-draft'
-                    : 'bg-priority-low',
-              )}
-              aria-hidden="true"
-            />
-            {common.priority[draft.priority]}
-          </span>
-        ),
+      value: (
+        <span className="inline-flex items-center gap-1.5 font-semibold text-ink-900">
+          <span
+            className={cn(
+              'size-2 rounded-full',
+              draft.priority === 'High'
+                ? 'bg-danger'
+                : draft.priority === 'Medium'
+                  ? 'bg-status-draft'
+                  : 'bg-priority-low',
+            )}
+            aria-hidden="true"
+          />
+          {common.priority[draft.priority]}
+        </span>
+      ),
     },
     {
       id: 'status',

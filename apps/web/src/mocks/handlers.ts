@@ -2,15 +2,18 @@ import { delay, http, HttpResponse, type HttpHandler } from 'msw';
 import { z } from 'zod';
 import {
   checklistDraftSchema,
+  checklistSubmissionSchema,
   createChecklistCategoryInputSchema,
   createHandoverInputSchema,
   createChecklistQuestionInputSchema,
   createCustomerInputSchema,
   createTaskTypeInputSchema,
   createUserInputSchema,
+  deriveTaskTitle,
   issueResponseDraftSchema,
   reviewDraftSchema,
   reviewScopeSchema,
+  systemAuditEventSchema,
   reassignHandoverInputSchema,
   taskDraftSchema,
   reorderInputSchema,
@@ -28,29 +31,39 @@ import {
   type Task,
   type IssueResponseRecord,
   type Review,
+  type ReviewComment,
   type Role,
   type TaskChecklist,
+  type ChecklistSubmission,
+  type ChecklistDraft,
   type TaskTypeRecord,
   type User,
 } from '@sdp/contracts';
 import {
   db,
+  checklistSubmissionsForTask,
   eventsForTask,
   attachmentsForTask,
   findChecklist,
   findReview,
-  responsesForCycle,
   reviewsForTask,
   findCustomer,
   findTask,
   findUser,
   issueTaskCode,
+  issueTaskVersion,
+  peekNextTaskVersion,
+  taskIdentityKey,
   recordEvent,
+  recordSystemAuditEvent,
   toListItem,
 } from './db.ts';
 import { recordMockAudit } from './audit.ts';
 import {
+  createCycleResponseId,
+  nextHistoricalReviewCycle,
   nextReviewCycle,
+  resolveActiveReviewCycle,
   reviewBlockers,
 } from '@/portals/code-review/features/reviews/domain/reviewRules.ts';
 import {
@@ -61,11 +74,15 @@ import {
 import {
   canAssignReviewer,
   canCancelTask,
-  canDeleteTask,
-  canEditTask,
-  canHandOver,
+  canHandover as canHandOver,
+  canPurgeTask,
+  canReassignReviewer,
   canRespondToFindings,
-} from '@/lib/statusMachine.ts';
+  canViewTask,
+  isTerminalTask,
+  type PurgeEvidenceFlags,
+} from '@/lib/taskPolicy.ts';
+import { canEditTask } from '@/lib/statusMachine.ts';
 import { rejectAttachment } from '@/lib/attachments.ts';
 import {
   nextQuestionOrder,
@@ -75,6 +92,8 @@ import {
   shiftOrdersFrom,
 } from '@/lib/checklistOrdering.ts';
 import credentials from './data/credentials.json';
+import { generateHandoverId } from './handoverId.ts';
+import { canAccessWorkspace, hasCapability, type Capability } from '@/lib/permissions.ts';
 
 /** Phase 1 demo credentials. See `data/credentials.json`. */
 export const DEMO_PASSWORD = credentials.password;
@@ -117,42 +136,24 @@ function errorResponse(status: number, code: string, message: string) {
  */
 function currentUser(request: Request) {
   const userId = request.headers.get('X-Mock-User-Id');
-  if (userId === null || db.deletedUserIds.has(userId)) return undefined;
-  return findUser(userId);
+  if (userId === null) return undefined;
+  const user = findUser(userId);
+  return user?.isActive === true ? user : undefined;
 }
 
 function toWireNotification(n: Notification & { userId: string }): Notification {
-  const { userId, ...rest } = n;
-  void userId;
+  const { userId: _userId, ...rest } = n;
   return rest;
 }
 
-function createNotification(
-  input: Omit<Notification, 'id' | 'isRead' | 'createdAt'> & { userId: string },
-) {
-  db.notifications.push({
-    ...input,
-    id: `notification-${String(Date.now())}-${String(db.notifications.length + 1)}`,
-    isRead: false,
-    createdAt: new Date().toISOString(),
-  });
-}
-
-/** FL 2.5-01, applied server-side so the stored title cannot be spoofed. */
-function deriveTitle(customerName: string, crimId: string, version: string | null): string {
-  const base = `${customerName.trim()} – ${crimId.trim()}`;
-  return version === null || version === '' ? base : `${base} – ${version}`;
-}
-
-function nextTaskVersion(customerId: string, crimId: string): number {
-  const normalizedCrimId = crimId.trim().toLowerCase();
-  const highestVersion = db.tasks.reduce((highest, task) => {
-    if (task.customerId !== customerId) return highest;
-    if (task.crimId.trim().toLowerCase() !== normalizedCrimId) return highest;
-    const value = task.version?.trim().replace(/^V/i, '') ?? '';
-    return /^\d+$/.test(value) ? Math.max(highest, Number(value)) : highest;
-  }, 0);
-  return highestVersion + 1;
+/**
+ * The review row for a task's current cycle, created empty on first use.
+ *
+ * Screenshots can be attached before the reviewer has answered anything, so the
+ * row has to exist before the decision does.
+ */
+export function createReviewSessionId(taskId: string, reviewCycle: number): string {
+  return `rs-${taskId}-${reviewCycle}-${crypto.randomUUID()}`;
 }
 
 /**
@@ -162,25 +163,50 @@ function nextTaskVersion(customerId: string, crimId: string): number {
  * row has to exist before the decision does.
  */
 function ensureReview(task: Task, reviewerId: string, reviewerName: string): Review {
-  const existing = findReview(task.id, task.reviewCycle);
-  if (existing) return existing;
+  const currentHistoricalCycle = task.historicalCycle ?? task.reviewCycle;
+  const existing = findReview(task.id, currentHistoricalCycle);
+  if (existing) {
+    if (
+      existing.decision === null &&
+      existing.reviewerId !== reviewerId &&
+      task.reviewerId === reviewerId
+    ) {
+      existing.reviewerId = reviewerId;
+      existing.reviewerName = reviewerName;
+      existing.updatedAt = new Date().toISOString();
+    }
+    if (!existing.currentReviewSessionId && task.currentReviewSessionId) {
+      existing.currentReviewSessionId = task.currentReviewSessionId;
+    } else if (
+      !existing.currentReviewSessionId &&
+      !task.currentReviewSessionId &&
+      task.status === 'InReview'
+    ) {
+      const newSessionId = createReviewSessionId(task.id, currentHistoricalCycle);
+      task.currentReviewSessionId = newSessionId;
+      existing.currentReviewSessionId = newSessionId;
+    }
+    return existing;
+  }
 
   const now = new Date().toISOString();
+  if (!task.currentReviewSessionId && task.status === 'InReview') {
+    task.currentReviewSessionId = createReviewSessionId(task.id, currentHistoricalCycle);
+  }
   const review: Review = {
-    id: `rev-${task.id}-${String(task.reviewCycle)}`,
+    id: `rev-${task.id}-${String(currentHistoricalCycle)}`,
     taskId: task.id,
-    reviewCycle: task.reviewCycle,
+    reviewCycle: currentHistoricalCycle,
     reviewerId,
     reviewerName,
+    currentReviewSessionId: task.currentReviewSessionId ?? null,
+    comments: [],
     generalCheck: [],
-    findings: {
-      incorrectCode: '',
-      incompleteImplementation: '',
-      sourceFormatting: '',
-    },
+    findings: { incorrectCode: '', incompleteImplementation: '', sourceFormatting: '' },
     otherRemarks: '',
     feedbackSummary: '',
     rank: null,
+    previousFeedbackReviewNote: null,
     screenshots: [],
     decision: null,
     decidedAt: null,
@@ -195,34 +221,27 @@ function touch(task: Task): void {
   task.updatedAt = new Date().toISOString();
 }
 
-const taskPersistenceDraftSchema = taskDraftSchema.extend({
-  taskTypeIds: checklistDraftSchema.shape.taskTypeIds.optional(),
-  checklistAnswers: checklistDraftSchema.shape.answers.optional(),
-  additionalRemarks: checklistDraftSchema.shape.remarks.optional(),
-});
-
-function persistCombinedChecklist(
+function persistTaskChecklist(
   task: Task,
   developerId: string,
-  draft: {
-    taskTypeIds: string[];
-    checklistAnswers: { questionId: string; answer: 'Yes' | 'No' | 'NA' }[];
-    additionalRemarks?: string | undefined;
-  },
+  draft: ChecklistDraft,
 ): TaskChecklist {
-  const answered = new Map(draft.checklistAnswers.map((entry) => [entry.questionId, entry.answer]));
   const applicable = db.checklistTemplate
-    .filter((category) => category.isActive)
+    .filter(
+      (category) =>
+        category.isActive &&
+        category.applicableTaskTypeIds.some((id) => draft.taskTypeIds.includes(id)),
+    )
+    .sort((a, b) => a.order - b.order)
     .flatMap((category) =>
       category.questions
-        .filter(
-          (question) =>
-            question.isActive && question.appliesTo.some((id) => draft.taskTypeIds.includes(id)),
-        )
+        .filter((question) => question.isActive)
+        .sort((a, b) => a.order - b.order)
         .map((question) => ({ question, categoryName: category.name })),
     );
-  const now = new Date().toISOString();
-  const checklist: TaskChecklist = {
+
+  const answered = new Map(draft.answers.map((entry) => [entry.questionId, entry.answer]));
+  const stored: TaskChecklist = {
     id: findChecklist(task.id)?.id ?? `cl-${task.id}`,
     taskId: task.id,
     taskTypeIds: draft.taskTypeIds,
@@ -235,19 +254,97 @@ function persistCombinedChecklist(
         categoryName,
         order: index,
       })),
-    remarks: draft.additionalRemarks ?? '',
+    remarks: draft.remarks,
     isComplete:
       applicable.length > 0 && applicable.every(({ question }) => answered.has(question.id)),
-    checkedDate: now,
+    checkedDate: new Date().toISOString(),
     developerId,
   };
-  const index = db.checklists.findIndex((candidate) => candidate.taskId === task.id);
-  if (index === -1) db.checklists.push(checklist);
-  else db.checklists[index] = checklist;
+
+  const index = db.checklists.findIndex((checklist) => checklist.taskId === task.id);
+  if (index === -1) db.checklists.push(stored);
+  else db.checklists[index] = stored;
+
   task.taskTypeIds = draft.taskTypeIds;
-  task.isChecklistComplete = checklist.isComplete;
+  task.isChecklistComplete = stored.isComplete;
   touch(task);
-  return checklist;
+  return stored;
+}
+
+/**
+ * Validates that an incoming set of comments does not delete or modify comments
+ * authored in a previous review session (or by another reviewer).
+ */
+function validateCommentAuthorship(
+  existingComments: readonly ReviewComment[],
+  incomingComments: readonly ReviewComment[],
+  currentUserId: string,
+  currentReviewSessionId?: string | null,
+): string | null {
+  const previousComments = existingComments.filter((c) =>
+    currentReviewSessionId
+      ? c.reviewSessionId !== currentReviewSessionId
+      : Boolean(c.reviewerId && c.reviewerId !== currentUserId),
+  );
+
+  for (const prev of previousComments) {
+    const incoming = incomingComments.find((c) => c.id === prev.id);
+    if (!incoming) {
+      return 'You cannot delete comments authored by another reviewer or from a previous review session.';
+    }
+    if (incoming.text.trim() !== prev.text.trim()) {
+      return 'You cannot modify comments authored by another reviewer or from a previous review session.';
+    }
+    if (incoming.reviewerId !== prev.reviewerId) {
+      return 'You cannot modify comment authorship.';
+    }
+    if (
+      incoming.reviewSessionId &&
+      prev.reviewSessionId &&
+      incoming.reviewSessionId !== prev.reviewSessionId
+    ) {
+      return 'You cannot modify comment session ownership.';
+    }
+    if (prev.reviewerName && incoming.reviewerName && incoming.reviewerName !== prev.reviewerName) {
+      return 'You cannot modify comment authorship.';
+    }
+    const prevShots = prev.screenshots ?? [];
+    const incomingShots = incoming.screenshots ?? [];
+    if (prevShots.length !== incomingShots.length) {
+      return 'You cannot modify attachments on comments authored by another reviewer or from a previous review session.';
+    }
+    for (const ps of prevShots) {
+      const is = incomingShots.find((s) => s.id === ps.id);
+      if (!is) {
+        return 'You cannot modify attachments on comments authored by another reviewer or from a previous review session.';
+      }
+      if (
+        is.fileName !== ps.fileName ||
+        (is.comment ?? '') !== (ps.comment ?? '') ||
+        (is.storageRef && ps.storageRef && is.storageRef !== ps.storageRef)
+      ) {
+        return 'You cannot modify attachments on comments authored by another reviewer or from a previous review session.';
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Derives whether the task's pre-review queue status was Submitted or ReSubmitted
+ * based on the most recent submission lifecycle event, WITHOUT relying on reviewCycle.
+ */
+function getOriginStatus(taskId: string): 'Submitted' | 'ReSubmitted' {
+  const events = db.events
+    .filter((e) => e.taskId === taskId)
+    .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
+
+  for (const e of events) {
+    if (e.kind === 'Resubmitted') return 'ReSubmitted';
+    if (e.kind === 'Submitted') return 'Submitted';
+  }
+  return 'Submitted';
 }
 
 /** The first Zod message, which is what the user needs — not the whole tree. */
@@ -263,12 +360,7 @@ function firstIssue(error: z.ZodError): string {
  * impossible to write as a no-op by forgetting to negate.
  */
 function requireAdmin(request: Request) {
-  const user = currentUser(request);
-  if (!user) return errorResponse(401, 'NOT_AUTHENTICATED', 'Not authenticated.');
-  if (!user.roles.some((role) => role === 'Admin' || role === 'Super Admin')) {
-    return errorResponse(403, 'FORBIDDEN', 'You do not have access to this workspace.');
-  }
-  return undefined;
+  return requireCapability(request, 'admin.access');
 }
 
 const ROLE_LABEL_BY_CODE = {
@@ -294,6 +386,19 @@ function mayAssignRoles(actor: User, roles: readonly Role[]): boolean {
     ? ['Developer', 'Reviewer', 'Admin']
     : ['Developer', 'Reviewer'];
   return roles.every((role) => allowed.includes(role));
+}
+
+function requireCapability(request: Request, capability: Capability) {
+  const user = currentUser(request);
+  if (!user) return errorResponse(401, 'NOT_AUTHENTICATED', 'Not authenticated.');
+  if (!hasCapability(user.roles, capability)) {
+    return errorResponse(403, 'FORBIDDEN', 'You do not have access to this workspace.');
+  }
+  return undefined;
+}
+
+function requiredReason(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() !== '' ? value.trim() : null;
 }
 
 /** Id-safe fragment of a name, so generated ids stay readable in the store. */
@@ -322,16 +427,14 @@ function sortedTemplate(categories: readonly ChecklistCategory[]): ChecklistCate
   return categories
     .map((category) => ({
       ...category,
-      questions: category.questions.slice().sort((a, b) => a.order - b.order),
+      questions: category.questions
+        .slice()
+        .sort((a, b) => (a.order !== b.order ? a.order - b.order : a.id.localeCompare(b.id))),
     }))
-    .sort((a, b) => a.order - b.order);
+    .sort((a, b) => (a.order !== b.order ? a.order - b.order : a.id.localeCompare(b.id)));
 }
 
 /** Every question in the bank, flattened — the admin grid is question-first. */
-function allQuestions(): ChecklistQuestion[] {
-  return db.checklistTemplate.flatMap((category) => category.questions);
-}
-
 /**
  * True when a stored checklist already carries an answer to this question.
  *
@@ -341,8 +444,15 @@ function allQuestions(): ChecklistQuestion[] {
  * about not losing the question from the bank, not about the answers.
  */
 function questionIsUsed(questionId: string): boolean {
-  return db.checklists.some((checklist) =>
-    checklist.answers.some((answer) => answer.questionId === questionId),
+  return (
+    db.checklists.some((checklist) =>
+      checklist.answers.some((answer) => answer.questionId === questionId),
+    ) ||
+    db.checklistSubmissions.some((submission) =>
+      submission.categories.some((category) =>
+        category.questions.some((question) => question.questionId === questionId),
+      ),
+    )
   );
 }
 
@@ -378,10 +488,7 @@ export const handlers: HttpHandler[] = [
   http.post('/api/auth/login', async ({ request }) => {
     await delay(LATENCY_MS * 2);
 
-    const body = (await request.json()) as {
-      email?: unknown;
-      password?: unknown;
-    };
+    const body = (await request.json()) as { email?: unknown; password?: unknown };
     const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
     const password = typeof body.password === 'string' ? body.password : '';
 
@@ -446,20 +553,30 @@ export const handlers: HttpHandler[] = [
       .trim()
       .toUpperCase()
       .replace(/[^A-Z0-9]+/g, '');
-    const prefix = normalized === '' ? 'TASK' : normalized;
     return HttpResponse.json({
-      taskCode: `${prefix}-${String(sequence).padStart(2, '0')}`,
+      taskCode: `${normalized === '' ? 'TASK' : normalized}-${String(sequence).padStart(2, '0')}`,
       sequence,
     });
+  }),
+
+  http.get('/api/tasks/next-version', async ({ request }) => {
+    await delay(LATENCY_MS);
+    const user = currentUser(request);
+    if (!user) return errorResponse(401, 'NOT_AUTHENTICATED', 'Not authenticated.');
+    const searchParams = new URL(request.url).searchParams;
+    const customerId = searchParams.get('customerId')?.trim() ?? '';
+    const crimId = searchParams.get('crimId')?.trim() ?? '';
+    if (customerId === '') return errorResponse(422, 'VALIDATION_FAILED', 'Select a customer.');
+    if (crimId === '') return errorResponse(422, 'VALIDATION_FAILED', 'Enter the CRIM ID.');
+    return HttpResponse.json({ version: peekNextTaskVersion(customerId, crimId) });
   }),
 
   /* ----------------------------------------------------------------- tasks */
 
   /**
    * Scoped by the caller's relationship to the task. `scope=mine` is a
-   * developer's own tasks; `scope=all` is the admin view of submitted tasks.
-   * Enforced here so a Developer cannot widen their view by editing a query
-   * string and so drafts never leave their developer's workspace.
+   * developer's own submissions; `scope=all` is the admin view. Enforced here
+   * so a Developer cannot widen their view by editing a query string.
    */
   http.get('/api/tasks', async ({ request }) => {
     await delay(LATENCY_MS);
@@ -472,14 +589,18 @@ export const handlers: HttpHandler[] = [
     let tasks = db.tasks;
 
     if (scope === 'mine') {
-      tasks = tasks.filter((t) => t.developerId === user.id);
-    } else if (scope === 'all') {
-      if (!user.roles.some((role) => role === 'Admin' || role === 'Super Admin')) {
+      if (!canAccessWorkspace(user.roles, 'developer')) {
         return errorResponse(403, 'FORBIDDEN', 'You do not have access to this workspace.');
       }
-      tasks = tasks.filter((task) => task.status !== 'Draft' && task.submittedAt !== null);
+      tasks = tasks.filter((t) => t.developerId === user.id);
+    } else if (scope === 'all') {
+      if (!canAccessWorkspace(user.roles, 'admin')) {
+        return errorResponse(403, 'FORBIDDEN', 'You do not have access to this workspace.');
+      }
+      // Draft tasks are private developer work and are excluded from normal Admin tasks
+      tasks = tasks.filter((t) => t.status !== 'Draft');
     } else if (scope === 'available' || scope === 'assigned' || scope === 'history') {
-      if (!user.roles.includes('Reviewer')) {
+      if (!canAccessWorkspace(user.roles, 'reviewer')) {
         return errorResponse(403, 'FORBIDDEN', 'You do not have access to this workspace.');
       }
 
@@ -516,15 +637,24 @@ export const handlers: HttpHandler[] = [
          * Tasks currently back with this reviewer are excluded: those belong to
          * `assigned`, and listing them in both tabs would double-count the queue.
          */
-        const decidedByMe = new Set(
-          db.reviews
-            .filter((review) => review.reviewerId === user.id && review.decision !== null)
-            .map((review) => review.taskId),
+        const myDecidedReviews = db.reviews.filter(
+          (review) => review.reviewerId === user.id && review.decision !== null,
         );
+        const decidedByMe = new Set(myDecidedReviews.map((review) => review.taskId));
 
-        tasks = tasks.filter(
-          (t) => decidedByMe.has(t.id) && !(t.reviewerId === user.id && t.status === 'InReview'),
-        );
+        tasks = tasks.filter((t) => {
+          if (!decidedByMe.has(t.id)) return false;
+          if (t.reviewerId === user.id && t.status === 'InReview') return false;
+          // For ChangesRequested and Approved states, the reviewer must be the one who issued that decision
+          if (t.status === 'ChangesRequested' || t.status === 'Approved') {
+            const taskReviews = db.reviews
+              .filter((r) => r.taskId === t.id && r.decision !== null)
+              .sort((a, b) => b.reviewCycle - a.reviewCycle);
+            const latest = taskReviews[0];
+            return latest ? latest.reviewerId === user.id : false;
+          }
+          return true;
+        });
       }
     }
 
@@ -548,24 +678,16 @@ export const handlers: HttpHandler[] = [
     const user = currentUser(request);
     if (!user) return errorResponse(401, 'NOT_AUTHENTICATED', 'Not authenticated.');
 
-    const isAdmin = user.roles.some((role) => role === 'Admin' || role === 'Super Admin');
+    const isAdmin = canAccessWorkspace(user.roles, 'admin');
     const visible = isAdmin
-      ? db.tasks
-      : db.tasks.filter((t) => t.developerId === user.id || t.reviewerId === user.id);
+      ? db.tasks.filter((t) => t.status !== 'Draft')
+      : db.tasks.filter(
+          (t) =>
+            (t.developerId === user.id || t.reviewerId === user.id) &&
+            (t.developerId === user.id || t.status !== 'Draft'),
+        );
 
     return HttpResponse.json({ total: visible.length });
-  }),
-
-  http.get('/api/tasks/next-version', async ({ request }) => {
-    await delay(LATENCY_MS);
-    const user = currentUser(request);
-    if (!user) return errorResponse(401, 'NOT_AUTHENTICATED', 'Not authenticated.');
-    const searchParams = new URL(request.url).searchParams;
-    const customerId = searchParams.get('customerId')?.trim() ?? '';
-    const crimId = searchParams.get('crimId')?.trim() ?? '';
-    if (customerId === '') return errorResponse(422, 'VALIDATION_FAILED', 'Select a customer.');
-    if (crimId === '') return errorResponse(422, 'VALIDATION_FAILED', 'Enter the CRIM ID.');
-    return HttpResponse.json({ version: nextTaskVersion(customerId, crimId) });
   }),
 
   /**
@@ -584,15 +706,17 @@ export const handlers: HttpHandler[] = [
     const task = findTask(String(params['taskId']));
     if (!task) return errorResponse(404, 'NOT_FOUND', 'Task not found.');
 
-    const isAdmin = user.roles.some((role) => role === 'Admin' || role === 'Super Admin');
-    const isReviewer = user.roles.includes('Reviewer');
-    const mayView =
-      isAdmin ||
-      task.developerId === user.id ||
-      task.reviewerId === user.id ||
-      (isReviewer && task.reviewerId === null && task.status !== 'Draft');
+    const hasHistoricalReview = db.reviews.some(
+      (r) => r.taskId === task.id && r.reviewerId === user.id && r.decision !== null,
+    );
+    if (!canViewTask({ userId: user.id, roles: user.roles }, task, { hasHistoricalReview })) {
+      return errorResponse(404, 'NOT_FOUND', 'Task not found.');
+    }
 
-    if (!mayView) return errorResponse(404, 'NOT_FOUND', 'Task not found.');
+    if (task.status === 'InReview' && !task.currentReviewSessionId) {
+      const currentHistoricalCycle = task.historicalCycle ?? task.reviewCycle;
+      task.currentReviewSessionId = createReviewSessionId(task.id, currentHistoricalCycle);
+    }
 
     return HttpResponse.json(toListItem(task));
   }),
@@ -605,7 +729,41 @@ export const handlers: HttpHandler[] = [
     const task = findTask(String(params['taskId']));
     if (!task) return errorResponse(404, 'NOT_FOUND', 'Task not found.');
 
+    const hasHistoricalReview = db.reviews.some(
+      (r) => r.taskId === task.id && r.reviewerId === user.id && r.decision !== null,
+    );
+    if (!canViewTask({ userId: user.id, roles: user.roles }, task, { hasHistoricalReview })) {
+      return errorResponse(404, 'NOT_FOUND', 'Task not found.');
+    }
+
     return HttpResponse.json(eventsForTask(task.id));
+  }),
+
+  /**
+   * Preview the next version for a new identity. This is advisory: POST repeats
+   * the calculation and owns the assignment.
+   */
+  http.get('/api/task-identities/next-version', async ({ request }) => {
+    await delay(LATENCY_MS);
+    const user = currentUser(request);
+    if (!user) return errorResponse(401, 'NOT_AUTHENTICATED', 'Not authenticated.');
+    if (!canAccessWorkspace(user.roles, 'developer')) {
+      return errorResponse(403, 'FORBIDDEN', 'You do not have access to this workspace.');
+    }
+
+    const url = new URL(request.url);
+    const customerId = url.searchParams.get('customerId')?.trim() ?? '';
+    const crimId = url.searchParams.get('crimId')?.trim() ?? '';
+    const customer = findCustomer(customerId);
+    if (!customer || crimId === '') {
+      return errorResponse(422, 'VALIDATION_FAILED', 'Select a customer and enter the CRIM ID.');
+    }
+
+    const version = peekNextTaskVersion(customer.id, crimId);
+    return HttpResponse.json({
+      version,
+      title: deriveTaskTitle(customer.code, crimId, version),
+    });
   }),
 
   /**
@@ -620,32 +778,63 @@ export const handlers: HttpHandler[] = [
     await delay(LATENCY_MS);
     const user = currentUser(request);
     if (!user) return errorResponse(401, 'NOT_AUTHENTICATED', 'Not authenticated.');
-    if (!user.roles.includes('Developer')) {
+    if (!canAccessWorkspace(user.roles, 'developer')) {
       return errorResponse(403, 'FORBIDDEN', 'You do not have access to this workspace.');
     }
 
-    const parsed = taskPersistenceDraftSchema.safeParse(await request.json());
+    const body: unknown = await request.json();
+    const parsed = taskDraftSchema.safeParse(body);
     if (!parsed.success) {
       return errorResponse(422, 'VALIDATION_FAILED', 'Check the highlighted fields.');
+    }
+
+    const embeddedChecklist =
+      typeof body === 'object' && body !== null
+        ? checklistDraftSchema.safeParse({
+            taskTypeIds: Reflect.get(body, 'taskTypeIds') as unknown,
+            answers: Reflect.get(body, 'checklistAnswers') as unknown,
+            remarks: (Reflect.get(body, 'additionalRemarks') as unknown) ?? '',
+          })
+        : null;
+    const hasEmbeddedChecklist =
+      typeof body === 'object' &&
+      body !== null &&
+      ('taskTypeIds' in body || 'checklistAnswers' in body);
+    if (hasEmbeddedChecklist && !embeddedChecklist?.success) {
+      return errorResponse(422, 'VALIDATION_FAILED', 'Check the checklist data and try again.');
     }
 
     const customer = findCustomer(parsed.data.customerId);
     if (!customer) return errorResponse(422, 'VALIDATION_FAILED', 'Unknown customer.');
 
     const now = new Date().toISOString();
-    const crimId = parsed.data.crimId.trim();
-    const version = String(nextTaskVersion(customer.id, crimId));
+    // Assignment and insertion are synchronous in the in-memory mock. The real
+    // database must lock this identity (plus a unique constraint) in one transaction.
+    const version = issueTaskVersion(customer.id, parsed.data.crimId);
+    const storedVersion = String(version);
+
+    if (
+      db.tasks.some(
+        (existing) =>
+          taskIdentityKey(existing.customerId, existing.crimId) ===
+            taskIdentityKey(customer.id, parsed.data.crimId) && existing.version === storedVersion,
+      )
+    ) {
+      return errorResponse(409, 'VERSION_CONFLICT', 'A task with this version already exists.');
+    }
 
     const task: Task = {
-      id: `t-${String(Date.now())}`,
+      id: `t-${crypto.randomUUID()}`,
       taskCode: issueTaskCode(customer.id),
-      title: deriveTitle(customer.name, crimId, version),
-      crimId,
-      version,
+      title: deriveTaskTitle(customer.code, parsed.data.crimId, storedVersion),
+      crimId: parsed.data.crimId.trim(),
+      version: storedVersion,
       customerId: customer.id,
       priority: parsed.data.priority,
       status: 'Draft',
       reviewCycle: 1,
+      historicalCycle: 1,
+      adjustedCycles: [],
       developerId: user.id,
       reviewerId: null,
       taskTypeIds: [],
@@ -658,29 +847,8 @@ export const handlers: HttpHandler[] = [
     };
 
     db.tasks.push(task);
-    recordMockAudit(user, {
-      actionType: 'TASK_CREATED',
-      entityType: 'TASK',
-      entityId: task.id,
-      taskId: task.id,
-      description: `${user.name} created task '${task.title}'`,
-      newValue: { taskCode: task.taskCode, status: task.status, version: task.version },
-    });
-    if (parsed.data.taskTypeIds !== undefined && parsed.data.checklistAnswers !== undefined) {
-      const checklist = persistCombinedChecklist(task, user.id, {
-        taskTypeIds: parsed.data.taskTypeIds,
-        checklistAnswers: parsed.data.checklistAnswers,
-        additionalRemarks: parsed.data.additionalRemarks,
-      });
-      if (checklist.isComplete) {
-        recordMockAudit(user, {
-          actionType: 'CHECKLIST_COMPLETED',
-          entityType: 'CHECKLIST',
-          entityId: checklist.id,
-          taskId: task.id,
-          description: `${user.name} completed the checklist for task '${task.title}'`,
-        });
-      }
+    if (embeddedChecklist?.success) {
+      persistTaskChecklist(task, user.id, embeddedChecklist.data);
     }
     recordEvent({
       taskId: task.id,
@@ -710,44 +878,51 @@ export const handlers: HttpHandler[] = [
       return errorResponse(409, 'INVALID_STATE', 'This task can no longer be edited.');
     }
 
-    const parsed = taskPersistenceDraftSchema.partial().safeParse(await request.json());
+    const body: unknown = await request.json();
+    const parsed = taskDraftSchema.partial().safeParse(body);
     if (!parsed.success) {
       return errorResponse(422, 'VALIDATION_FAILED', 'Check the highlighted fields.');
     }
 
-    if (parsed.data.customerId !== undefined) task.customerId = parsed.data.customerId;
-    if (parsed.data.crimId !== undefined) task.crimId = parsed.data.crimId.trim();
+    const embeddedChecklist =
+      typeof body === 'object' && body !== null
+        ? checklistDraftSchema.safeParse({
+            taskTypeIds: Reflect.get(body, 'taskTypeIds') as unknown,
+            answers: Reflect.get(body, 'checklistAnswers') as unknown,
+            remarks: (Reflect.get(body, 'additionalRemarks') as unknown) ?? '',
+          })
+        : null;
+    const hasEmbeddedChecklist =
+      typeof body === 'object' &&
+      body !== null &&
+      ('taskTypeIds' in body || 'checklistAnswers' in body);
+    if (hasEmbeddedChecklist && !embeddedChecklist?.success) {
+      return errorResponse(422, 'VALIDATION_FAILED', 'Check the checklist data and try again.');
+    }
+
+    if (
+      (parsed.data.customerId !== undefined && parsed.data.customerId !== task.customerId) ||
+      (parsed.data.crimId !== undefined &&
+        taskIdentityKey(task.customerId, parsed.data.crimId) !==
+          taskIdentityKey(task.customerId, task.crimId))
+    ) {
+      return errorResponse(
+        409,
+        'IMMUTABLE_TASK_IDENTITY',
+        'Customer and CRIM ID cannot be changed after the draft is created.',
+      );
+    }
     if (parsed.data.priority !== undefined) task.priority = parsed.data.priority;
     if (parsed.data.noteToReviewer !== undefined) {
       const note = parsed.data.noteToReviewer.trim();
       task.noteToReviewer = note === '' ? null : note;
     }
-    // The title follows its inputs rather than being stored independently, so a
-    // customer change cannot leave a stale name in the grid.
-    task.title = deriveTitle(
-      findCustomer(task.customerId)?.name ?? 'Unknown',
-      task.crimId,
-      task.version,
-    );
-    touch(task);
-
-    if (parsed.data.taskTypeIds !== undefined && parsed.data.checklistAnswers !== undefined) {
-      const wasComplete = task.isChecklistComplete;
-      const checklist = persistCombinedChecklist(task, user.id, {
-        taskTypeIds: parsed.data.taskTypeIds,
-        checklistAnswers: parsed.data.checklistAnswers,
-        additionalRemarks: parsed.data.additionalRemarks,
-      });
-      if (!wasComplete && checklist.isComplete) {
-        recordMockAudit(user, {
-          actionType: 'CHECKLIST_COMPLETED',
-          entityType: 'CHECKLIST',
-          entityId: checklist.id,
-          taskId: task.id,
-          description: `${user.name} completed the checklist for task '${task.title}'`,
-        });
-      }
+    if (embeddedChecklist?.success) {
+      persistTaskChecklist(task, user.id, embeddedChecklist.data);
     }
+    const customer = findCustomer(task.customerId);
+    if (customer) task.title = deriveTaskTitle(customer.code, task.crimId, task.version);
+    touch(task);
 
     return HttpResponse.json(toListItem(task));
   }),
@@ -825,6 +1000,13 @@ export const handlers: HttpHandler[] = [
     const task = findTask(String(params['taskId']));
     if (!task) return errorResponse(404, 'NOT_FOUND', 'Task not found.');
 
+    const hasHistoricalReview = db.reviews.some(
+      (r) => r.taskId === task.id && r.reviewerId === user.id && r.decision !== null,
+    );
+    if (!canViewTask({ userId: user.id, roles: user.roles }, task, { hasHistoricalReview })) {
+      return errorResponse(404, 'NOT_FOUND', 'Task not found.');
+    }
+
     const checklist = findChecklist(task.id);
     if (!checklist) {
       // 204 rather than 404: the task exists and simply has no checklist yet,
@@ -835,6 +1017,25 @@ export const handlers: HttpHandler[] = [
     return HttpResponse.json(checklist);
   }),
 
+  http.get('/api/tasks/:taskId/checklist-submissions', async ({ request, params }) => {
+    await delay(LATENCY_MS);
+    const user = currentUser(request);
+    if (!user) return errorResponse(401, 'NOT_AUTHENTICATED', 'Not authenticated.');
+    const task = findTask(String(params['taskId']));
+    if (!task) return errorResponse(404, 'NOT_FOUND', 'Task not found.');
+
+    const hasHistoricalReview = db.reviews.some(
+      (r) => r.taskId === task.id && r.reviewerId === user.id && r.decision !== null,
+    );
+    if (!canViewTask({ userId: user.id, roles: user.roles }, task, { hasHistoricalReview })) {
+      return errorResponse(404, 'NOT_FOUND', 'Task not found.');
+    }
+
+    return HttpResponse.json(
+      checklistSubmissionSchema.array().parse(checklistSubmissionsForTask(task.id)),
+    );
+  }),
+
   http.put('/api/tasks/:taskId/checklist', async ({ request, params }) => {
     await delay(LATENCY_MS);
     const user = currentUser(request);
@@ -842,6 +1043,9 @@ export const handlers: HttpHandler[] = [
 
     const task = findTask(String(params['taskId']));
     if (!task) return errorResponse(404, 'NOT_FOUND', 'Task not found.');
+    if (isTerminalTask(task.status)) {
+      return errorResponse(409, 'INVALID_STATE', 'This task is terminal and cannot be modified.');
+    }
     if (task.developerId !== user.id) {
       return errorResponse(403, 'FORBIDDEN', 'Only the owning developer may edit this checklist.');
     }
@@ -865,73 +1069,7 @@ export const handlers: HttpHandler[] = [
       );
     }
 
-    // The applicable set is recomputed from the template rather than trusted
-    // from the client — it gates submission, so a client-sent `isComplete` would
-    // be a way to bypass FL 2.2-03 entirely. The filter is on QUESTIONS, since
-    // that is where task-type applicability lives.
-    const applicable = db.checklistTemplate
-      .filter((category) => category.isActive)
-      .flatMap((category) =>
-        category.questions
-          .filter(
-            (question) =>
-              question.isActive &&
-              question.appliesTo.some((id) => parsed.data.taskTypeIds.includes(id)),
-          )
-          .map((question) => ({ question, categoryName: category.name })),
-      );
-
-    const answered = new Map(parsed.data.answers.map((entry) => [entry.questionId, entry.answer]));
-    const isComplete =
-      applicable.length > 0 && applicable.every(({ question }) => answered.has(question.id));
-
-    const now = new Date().toISOString();
-    const stored: TaskChecklist = {
-      id: findChecklist(task.id)?.id ?? `cl-${task.id}`,
-      taskId: task.id,
-      taskTypeIds: parsed.data.taskTypeIds,
-      /*
-       * Built from the APPLICABLE set, not from what the client sent. That does
-       * two jobs at once: answers to questions the selected types no longer
-       * render are dropped, and the stored wording is the server's copy of the
-       * question rather than the client's — a developer cannot record having
-       * answered a different question from the one they were shown.
-       */
-      answers: applicable
-        .filter(({ question }) => answered.has(question.id))
-        .map(({ question, categoryName }, index) => ({
-          questionId: question.id,
-          answer: answered.get(question.id) ?? 'NA',
-          questionText: question.text,
-          categoryName,
-          order: index,
-        })),
-      remarks: parsed.data.remarks,
-      isComplete,
-      checkedDate: now,
-      developerId: user.id,
-    };
-
-    const index = db.checklists.findIndex((c) => c.taskId === task.id);
-    if (index === -1) db.checklists.push(stored);
-    else db.checklists[index] = stored;
-
-    const wasComplete = task.isChecklistComplete;
-    task.taskTypeIds = parsed.data.taskTypeIds;
-    task.isChecklistComplete = isComplete;
-    touch(task);
-
-    if (!wasComplete && isComplete) {
-      recordMockAudit(user, {
-        actionType: 'CHECKLIST_COMPLETED',
-        entityType: 'CHECKLIST',
-        entityId: stored.id,
-        taskId: task.id,
-        description: `${user.name} completed the checklist for task '${task.title}'`,
-      });
-    }
-
-    return HttpResponse.json(stored);
+    return HttpResponse.json(persistTaskChecklist(task, user.id, parsed.data));
   }),
 
   /**
@@ -947,6 +1085,9 @@ export const handlers: HttpHandler[] = [
 
     const task = findTask(String(params['taskId']));
     if (!task) return errorResponse(404, 'NOT_FOUND', 'Task not found.');
+    if (isTerminalTask(task.status)) {
+      return errorResponse(409, 'INVALID_STATE', 'Terminal tasks cannot be submitted.');
+    }
     if (task.developerId !== user.id) {
       return errorResponse(403, 'FORBIDDEN', 'Only the owning developer may submit this task.');
     }
@@ -963,6 +1104,15 @@ export const handlers: HttpHandler[] = [
       );
     }
 
+    const checklist = findChecklist(task.id);
+    if (!checklist) {
+      return errorResponse(
+        422,
+        'CHECKLIST_INCOMPLETE',
+        'Complete the quality checklist before submitting for review.',
+      );
+    }
+
     /*
      * A RESUBMISSION carries an extra gate: every finding from the last cycle
      * must have been answered, and every rejection justified (FL 2.11.2.3-01).
@@ -970,12 +1120,16 @@ export const handlers: HttpHandler[] = [
      * feedback is exactly the failure this rule exists to prevent.
      */
     if (isResubmission) {
-      const lastReview = reviewsForTask(task.id).find(
+      const allTaskReviews = reviewsForTask(task.id);
+      const activeCycle = resolveActiveReviewCycle(task, allTaskReviews);
+      const lastReview = allTaskReviews.find(
         (candidate) => candidate.decision === 'ChangesRequested',
       );
+      const allTaskResponses = db.issueResponses.filter((r) => r.taskId === task.id);
+      const currentCycleResponses = allTaskResponses.filter((r) => r.reviewCycle === activeCycle);
       const readiness = resubmitReadiness(
-        issuesFromReview(lastReview ?? null),
-        responsesForCycle(task.id, task.reviewCycle),
+        issuesFromReview(lastReview ?? null, allTaskReviews, allTaskResponses),
+        currentCycleResponses,
       );
 
       if (!readiness.canResubmit) {
@@ -987,28 +1141,97 @@ export const handlers: HttpHandler[] = [
             : 'Respond to every review finding before resubmitting.',
         );
       }
-    } else {
-      for (const recipient of db.users.filter(
-        (candidate) =>
-          candidate.isActive &&
-          candidate.roles.some(
-            (role) => role === 'Reviewer' || role === 'Admin' || role === 'Super Admin',
-          ),
-      )) {
-        createNotification({
-          userId: recipient.id,
-          kind: 'TaskSubmitted',
-          title: `${task.title} submitted for review`,
-          body: `${user.name} submitted a new review task.`,
-          href: `/crp/reviewer/tasks/${task.id}`,
-          taskId: task.id,
-        });
-      }
     }
 
     const now = new Date().toISOString();
+    const answers = new Map(checklist.answers.map((entry) => [entry.questionId, entry.answer]));
+    const snapshotCategories: ChecklistSubmission['categories'] = db.checklistTemplate
+      .filter(
+        (category) =>
+          category.isActive &&
+          category.applicableTaskTypeIds.some((id) => checklist.taskTypeIds.includes(id)),
+      )
+      .sort((a, b) => (a.order !== b.order ? a.order - b.order : a.id.localeCompare(b.id)))
+      .map((category) => ({
+        categoryId: category.id,
+        categoryName: category.name,
+        categoryOrder: category.order,
+        questions: category.questions
+          .filter((question) => question.isActive && answers.has(question.id))
+          .sort((a, b) => (a.order !== b.order ? a.order - b.order : a.id.localeCompare(b.id)))
+          .map((question) => ({
+            questionId: question.id,
+            questionText: question.text,
+            questionOrder: question.order,
+            answer: answers.get(question.id) ?? 'NA',
+          })),
+      }))
+      .filter((category) => category.questions.length > 0);
+    const version = checklistSubmissionsForTask(task.id).length + 1;
+    db.checklistSubmissions.push({
+      id: `cls-${task.id}-${String(version)}`,
+      taskId: task.id,
+      version,
+      submittedAt: now,
+      developerId: user.id,
+      taskTypes: checklist.taskTypeIds.map((id) => ({
+        id,
+        name: db.taskTypes.find((entry) => entry.id === id)?.name ?? id,
+      })),
+      categories: snapshotCategories,
+      remarks: checklist.remarks,
+    });
     task.status = isResubmission ? 'ReSubmitted' : 'Submitted';
     task.submittedAt = now;
+
+    if (isResubmission) {
+      const allTaskReviews = reviewsForTask(task.id);
+      const activeCycle = resolveActiveReviewCycle(task, allTaskReviews);
+      task.reviewCycle = activeCycle;
+      if (task.historicalCycle !== undefined && task.historicalCycle !== null) {
+        task.historicalCycle = activeCycle;
+      }
+
+      // Ensure active cycle review record exists in db.reviews, preventing duplicate review cycles
+      const existingReview = findReview(task.id, activeCycle);
+      if (!existingReview) {
+        db.reviews.push({
+          id: `rev-${task.id}-${String(activeCycle)}`,
+          taskId: task.id,
+          reviewCycle: activeCycle,
+          reviewerId: null,
+          reviewerName: null,
+          currentReviewSessionId: null,
+          comments: [],
+          generalCheck: [],
+          findings: { incorrectCode: '', incompleteImplementation: '', sourceFormatting: '' },
+          otherRemarks: '',
+          feedbackSummary: '',
+          rank: null,
+          previousFeedbackReviewNote: null,
+          screenshots: [],
+          decision: null,
+          decidedAt: null,
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+
+      const lastReview = allTaskReviews.find((review) => review.decision !== null);
+      if (lastReview?.reviewerId) {
+        db.notifications.push({
+          id: `n-${String(Date.now())}-${String(db.notifications.length + 1)}`,
+          userId: lastReview.reviewerId,
+          kind: 'TaskResubmitted',
+          title: `${task.taskCode} resubmitted for review`,
+          body: `${user.name} responded to review findings and resubmitted (Cycle ${task.reviewCycle}).`,
+          href: `/reviewer/tasks/${task.id}`,
+          taskId: task.id,
+          isRead: false,
+          createdAt: now,
+        });
+      }
+    }
     touch(task);
 
     recordEvent({
@@ -1019,30 +1242,6 @@ export const handlers: HttpHandler[] = [
       note: null,
       occurredAt: now,
     });
-    recordMockAudit(user, {
-      actionType: isResubmission ? 'TASK_RESUBMITTED' : 'TASK_SUBMITTED',
-      entityType: 'TASK',
-      entityId: task.id,
-      taskId: task.id,
-      description: `${user.name} ${isResubmission ? 'resubmitted' : 'submitted'} task '${task.title}'`,
-      oldValue: { status: isResubmission ? 'ChangesRequested' : 'Draft' },
-      newValue: { status: task.status },
-    });
-    if (isResubmission) {
-      const previousReview = reviewsForTask(task.id).find(
-        (review) => review.decision === 'ChangesRequested',
-      );
-      if (previousReview) {
-        createNotification({
-          userId: previousReview.reviewerId,
-          kind: 'TaskResubmitted',
-          title: `${task.title} resubmitted for review`,
-          body: `${user.name} resubmitted the task for your review.`,
-          href: `/crp/reviewer/tasks/${task.id}`,
-          taskId: task.id,
-        });
-      }
-    }
 
     return HttpResponse.json(toListItem(task));
   }),
@@ -1072,12 +1271,16 @@ export const handlers: HttpHandler[] = [
     await delay(LATENCY_MS);
     const user = currentUser(request);
     if (!user) return errorResponse(401, 'NOT_AUTHENTICATED', 'Not authenticated.');
-    if (!user.roles.includes('Reviewer')) {
+    if (!canAccessWorkspace(user.roles, 'reviewer')) {
       return errorResponse(403, 'FORBIDDEN', 'You do not have access to this workspace.');
     }
 
     const task = findTask(String(params['taskId']));
     if (!task) return errorResponse(404, 'NOT_FOUND', 'Task not found.');
+
+    if (isTerminalTask(task.status)) {
+      return errorResponse(409, 'INVALID_STATE', 'Terminal tasks cannot be picked.');
+    }
 
     // Server-side self-review bar. A reviewer must never review their own work,
     // whatever the queue happened to show them.
@@ -1100,55 +1303,34 @@ export const handlers: HttpHandler[] = [
     }
 
     const now = new Date().toISOString();
-    const pendingHandover = db.handovers.find(
+    const pendingHandovers = db.handovers.filter(
       (handover) => handover.taskId === task.id && handover.status === 'Pending',
     );
+    const latestHandover = pendingHandovers.at(-1);
+    const currentHistoricalCycle = task.historicalCycle ?? task.reviewCycle;
+    const newSessionId = createReviewSessionId(task.id, currentHistoricalCycle);
     task.reviewerId = user.id;
     task.status = 'InReview';
     task.isHandedOver = false;
+    task.currentReviewSessionId = newSessionId;
     touch(task);
 
-    if (pendingHandover) {
-      pendingHandover.status = 'Reassigned';
-      pendingHandover.reassignedToId = user.id;
-      pendingHandover.reassignedToName = user.name;
-      pendingHandover.reassignedById = user.id;
-      pendingHandover.resolvedAt = now;
+    for (const handover of pendingHandovers) {
+      handover.status = 'Reassigned';
+      handover.reassignedToId = user.id;
+      handover.reassignedToName = user.name;
+      handover.reassignedById = user.id;
+      handover.resolvedAt = now;
     }
-    createNotification({
-      userId: task.developerId,
-      kind: 'TaskAssigned',
-      title: `${task.title} picked for review`,
-      body: `${user.name} picked up your review task.`,
-      href: `/crp/developer/tasks/${task.id}`,
-      taskId: task.id,
-    });
-    if (pendingHandover && pendingHandover.fromReviewerId !== user.id) {
-      createNotification({
-        userId: pendingHandover.fromReviewerId,
-        kind: 'TaskHandedOver',
-        title: `${task.title} handover picked up`,
-        body: `${user.name} picked up the review task you handed over.`,
-        href: '/crp/admin/handovers',
-        taskId: task.id,
-      });
-      for (const administrator of db.users.filter(
-        (candidate) =>
-          candidate.isActive &&
-          candidate.id !== user.id &&
-          candidate.id !== task.developerId &&
-          candidate.id !== pendingHandover.fromReviewerId &&
-          (candidate.roles.includes('Admin') || candidate.roles.includes('Super Admin')),
-      )) {
-        createNotification({
-          userId: administrator.id,
-          kind: 'TaskHandedOver',
-          title: `${task.title} handover picked up`,
-          body: `${user.name} picked up the handed-over review task.`,
-          href: '/crp/admin/handovers',
-          taskId: task.id,
-        });
-      }
+
+    const activeDraft = findReview(task.id, currentHistoricalCycle);
+    if (activeDraft?.decision === null) {
+      activeDraft.reviewerId = user.id;
+      activeDraft.reviewerName = user.name;
+      activeDraft.currentReviewSessionId = newSessionId;
+      activeDraft.rank = null;
+      activeDraft.previousFeedbackReviewNote = null;
+      activeDraft.updatedAt = now;
     }
 
     recordEvent({
@@ -1159,38 +1341,44 @@ export const handlers: HttpHandler[] = [
       note: null,
       occurredAt: now,
     });
-    recordMockAudit(user, {
-      actionType: 'TASK_PICKED',
-      entityType: 'TASK',
-      entityId: task.id,
+
+    db.notifications.push({
+      id: `n-${String(Date.now())}-${String(db.notifications.length + 1)}`,
+      userId: task.developerId,
+      kind: 'TaskAssigned',
+      title: `${task.taskCode} picked for review`,
+      body: `${user.name} picked up your review task.`,
+      href: `/developer/tasks/${task.id}`,
       taskId: task.id,
-      description: `${user.name} picked task '${task.title}'`,
-      oldValue: { reviewerId: null },
-      newValue: { reviewerId: user.id, status: task.status },
+      isRead: false,
+      createdAt: now,
     });
-    if (pendingHandover) {
-      recordMockAudit(user, {
-        actionType: 'HANDOVER_REASSIGNED',
-        entityType: 'HANDOVER',
-        entityId: pendingHandover.id,
-        taskId: task.id,
-        targetUserId: user.id,
-        description: `${user.name} picked handed-over task '${task.title}' from ${pendingHandover.fromReviewerName}. Handover reason: ${pendingHandover.reason}`,
-        oldValue: {
-          reviewerId: pendingHandover.fromReviewerId,
-          reviewerName: pendingHandover.fromReviewerName,
-          reason: pendingHandover.reason,
-        },
-        newValue: { reviewerId: user.id, reviewerName: user.name },
-      });
+
+    if (latestHandover && latestHandover.fromReviewerId !== user.id) {
+      const recipients = db.users.filter(
+        (candidate) =>
+          candidate.isActive &&
+          (candidate.id === latestHandover.fromReviewerId ||
+            candidate.roles.includes('Admin') ||
+            candidate.roles.includes('Super Admin')) &&
+          candidate.id !== user.id &&
+          candidate.id !== task.developerId,
+      );
+      for (const recipient of recipients) {
+        db.notifications.push({
+          id: `n-${String(Date.now())}-${String(db.notifications.length + 1)}`,
+          userId: recipient.id,
+          kind: 'TaskHandedOver',
+          title: `${task.taskCode} handover picked up`,
+          body: `${user.name} picked up the handed-over review task.`,
+          href: '/admin/handovers',
+          taskId: task.id,
+          isRead: false,
+          createdAt: now,
+        });
+      }
     }
-    recordMockAudit(user, {
-      actionType: 'REVIEW_STARTED',
-      entityType: 'REVIEW',
-      entityId: task.id,
-      taskId: task.id,
-      description: `${user.name} started reviewing task '${task.title}'`,
-    });
+
     return HttpResponse.json(toListItem(task));
   }),
 
@@ -1203,8 +1391,26 @@ export const handlers: HttpHandler[] = [
     const task = findTask(String(params['taskId']));
     if (!task) return errorResponse(404, 'NOT_FOUND', 'Task not found.');
 
-    const review = findReview(task.id, task.reviewCycle);
+    const hasHistoricalReview = db.reviews.some(
+      (r) => r.taskId === task.id && r.reviewerId === user.id && r.decision !== null,
+    );
+    if (!canViewTask({ userId: user.id, roles: user.roles }, task, { hasHistoricalReview })) {
+      return errorResponse(404, 'NOT_FOUND', 'Task not found.');
+    }
+
+    const currentHistoricalCycle = task.historicalCycle ?? task.reviewCycle;
+    const review = findReview(task.id, currentHistoricalCycle);
     if (!review) return new HttpResponse(null, { status: 204 });
+
+    // Defensive fallback: if task was reassigned but review record ownership wasn't updated,
+    // project effective ownership in memory without mutating persisted db.reviews.
+    if (review.decision === null && task.reviewerId === user.id && review.reviewerId !== user.id) {
+      return HttpResponse.json({
+        ...review,
+        reviewerId: user.id,
+        reviewerName: user.name,
+      });
+    }
     return HttpResponse.json(review);
   }),
 
@@ -1217,9 +1423,51 @@ export const handlers: HttpHandler[] = [
     const task = findTask(String(params['taskId']));
     if (!task) return errorResponse(404, 'NOT_FOUND', 'Task not found.');
 
-    return HttpResponse.json(
-      reviewsForTask(task.id).map((review) => ({ ...review, responses: [] })),
+    const hasHistoricalReview = db.reviews.some(
+      (r) => r.taskId === task.id && r.reviewerId === user.id && r.decision !== null,
     );
+    if (!canViewTask({ userId: user.id, roles: user.roles }, task, { hasHistoricalReview })) {
+      return errorResponse(404, 'NOT_FOUND', 'Task not found.');
+    }
+
+    const reviews = reviewsForTask(task.id);
+    const activeCycle = resolveActiveReviewCycle(task, reviews);
+    const hasActiveReview = reviews.some((r) => r.reviewCycle === activeCycle);
+    const activeCycleResponses = db.issueResponses.filter(
+      (r) => r.taskId === task.id && r.reviewCycle === activeCycle,
+    );
+
+    const allReviewsList = [...reviews];
+    if (!hasActiveReview && (task.status === 'ReSubmitted' || activeCycleResponses.length > 0)) {
+      allReviewsList.unshift({
+        id: `rev-${task.id}-${String(activeCycle)}`,
+        taskId: task.id,
+        reviewCycle: activeCycle,
+        reviewerId: task.reviewerId,
+        reviewerName: task.reviewerId ? (findUser(task.reviewerId)?.name ?? null) : null,
+        currentReviewSessionId: task.currentReviewSessionId ?? null,
+        comments: [],
+        generalCheck: [],
+        findings: { incorrectCode: '', incompleteImplementation: '', sourceFormatting: '' },
+        otherRemarks: '',
+        feedbackSummary: '',
+        rank: null,
+        previousFeedbackReviewNote: null,
+        screenshots: [],
+        decision: null,
+        decidedAt: null,
+        createdAt: task.submittedAt ?? new Date().toISOString(),
+        updatedAt: task.updatedAt ?? new Date().toISOString(),
+      });
+    }
+
+    const withResponses = allReviewsList.map((review) => ({
+      ...review,
+      responses: db.issueResponses.filter(
+        (r) => r.taskId === task.id && r.reviewCycle === review.reviewCycle,
+      ),
+    }));
+    return HttpResponse.json(withResponses);
   }),
 
   /**
@@ -1288,7 +1536,7 @@ export const handlers: HttpHandler[] = [
       return errorResponse(403, 'FORBIDDEN', 'Only the assigned reviewer may edit screenshots.');
     }
 
-    const review = findReview(task.id, task.reviewCycle);
+    const review = findReview(task.id, task.historicalCycle ?? task.reviewCycle);
     const shot = review?.screenshots.find((s) => s.id === String(params['screenshotId']));
     if (!review || !shot) return errorResponse(404, 'NOT_FOUND', 'Screenshot not found.');
 
@@ -1316,7 +1564,7 @@ export const handlers: HttpHandler[] = [
         );
       }
 
-      const review = findReview(task.id, task.reviewCycle);
+      const review = findReview(task.id, task.historicalCycle ?? task.reviewCycle);
       if (!review) return errorResponse(404, 'NOT_FOUND', 'Review not found.');
 
       review.screenshots = review.screenshots.filter(
@@ -1361,17 +1609,72 @@ export const handlers: HttpHandler[] = [
 
     const parsed = reviewDraftSchema.safeParse(await request.json());
     if (!parsed.success) {
-      return errorResponse(422, 'VALIDATION_FAILED', 'Check the highlighted fields.');
+      return errorResponse(
+        422,
+        'VALIDATION_FAILED',
+        parsed.error.issues[0]?.message ?? 'Check the highlighted fields.',
+      );
     }
 
-    // `ensureReview` so screenshots attached before any answer keep their row.
+    // `ensureReview` so screenshots attached before any answer keep their row and session is allocated.
     const review = ensureReview(task, user.id, user.name);
+    const existingComments = [...(review.comments ?? [])];
+    const incomingComments = parsed.data.comments ?? [];
+    const currentSessionId =
+      task.currentReviewSessionId ?? review.currentReviewSessionId ?? undefined;
+    const authorshipError = validateCommentAuthorship(
+      existingComments,
+      incomingComments,
+      user.id,
+      currentSessionId,
+    );
+    if (authorshipError) {
+      return errorResponse(403, 'FORBIDDEN', authorshipError);
+    }
+
+    review.reviewerId = user.id;
+    review.reviewerName = user.name;
+    review.currentReviewSessionId = currentSessionId ?? review.currentReviewSessionId ?? null;
+    review.comments = incomingComments.map((c) => {
+      const prev = existingComments.find(
+        (p) =>
+          p.id === c.id &&
+          (currentSessionId
+            ? p.reviewSessionId !== currentSessionId
+            : Boolean(p.reviewerId && p.reviewerId !== user.id)),
+      );
+      if (prev) {
+        return { ...prev };
+      }
+      return {
+        ...c,
+        reviewerId: user.id,
+        reviewerName: user.name,
+        reviewSessionId: c.reviewSessionId ?? currentSessionId,
+      };
+    });
     review.generalCheck = parsed.data.generalCheck;
     review.findings = parsed.data.findings;
     review.otherRemarks = parsed.data.otherRemarks;
     review.feedbackSummary = parsed.data.feedbackSummary;
     review.rank = parsed.data.rank;
+    review.previousFeedbackReviewNote = parsed.data.previousFeedbackReviewNote ?? null;
+    review.previousFeedbackAcknowledged = parsed.data.previousFeedbackAcknowledged ?? false;
     review.updatedAt = new Date().toISOString();
+
+    const url = new URL(request.url);
+    const isManualSave = url.searchParams.get('source') === 'manual';
+
+    if (isManualSave) {
+      recordEvent({
+        taskId: task.id,
+        kind: 'ReviewDraftSaved',
+        reviewCycle: task.reviewCycle,
+        actorId: user.id,
+        note: 'Review draft saved',
+        occurredAt: new Date().toISOString(),
+      });
+    }
 
     return HttpResponse.json(review);
   }),
@@ -1400,24 +1703,93 @@ export const handlers: HttpHandler[] = [
       return errorResponse(409, 'INVALID_STATE', 'This review has already been decided.');
     }
 
-    const body = (await request.json()) as {
-      decision?: unknown;
-      draft?: unknown;
-    };
+    const body = (await request.json()) as { decision?: unknown; draft?: unknown };
     const decision = body.decision === 'Approved' ? 'Approved' : 'ChangesRequested';
     const parsed = reviewDraftSchema.safeParse(body.draft);
     if (!parsed.success) {
       return errorResponse(422, 'VALIDATION_FAILED', 'Check the highlighted fields.');
     }
 
-    const existing = findReview(task.id, task.reviewCycle);
-    const screenshots = existing?.screenshots ?? [];
+    const currentHistoricalCycle = task.historicalCycle ?? task.reviewCycle;
+    const existingReview = ensureReview(task, user.id, user.name);
+    const existingComments = [...(existingReview.comments ?? [])];
+    const incomingComments = parsed.data.comments ?? [];
+    const currentSessionId =
+      task.currentReviewSessionId ?? existingReview.currentReviewSessionId ?? undefined;
+
+    const authorshipError = validateCommentAuthorship(
+      existingComments,
+      incomingComments,
+      user.id,
+      currentSessionId,
+    );
+    if (authorshipError) {
+      return errorResponse(403, 'FORBIDDEN', authorshipError);
+    }
+
+    const screenshots = existingReview.screenshots ?? [];
+
+    // Check developer responses for the previous cycle (if any)
+    const lastChangesReview = reviewsForTask(task.id).find(
+      (r) => r.decision === 'ChangesRequested',
+    );
+    const qualifyingCycle = lastChangesReview?.reviewCycle;
+
+    let hasPendingAdjudication = false;
+    let hasUnresolvedIssues = false;
+    let allRejectionsAccepted = false;
+
+    if (qualifyingCycle !== undefined) {
+      const qualifyingResponses = db.issueResponses.filter(
+        (r) => r.taskId === task.id && r.reviewCycle === qualifyingCycle,
+      );
+      hasPendingAdjudication = qualifyingResponses.some(
+        (r) => !r.verdict || r.verdict === 'Pending',
+      );
+      hasUnresolvedIssues = qualifyingResponses.some((r) => r.verdict === 'Overruled');
+
+      // Qualifying for cycle decrement:
+      // All comments from qualifying cycle were Rejected by developer,
+      // all rejections were Accepted by reviewer, and zero were Resolved (no developer fix required)
+      const hasOnlyRejections =
+        qualifyingResponses.length > 0 && qualifyingResponses.every((r) => r.kind === 'Rejected');
+      const allAccepted =
+        hasOnlyRejections && qualifyingResponses.every((r) => r.verdict === 'Accepted');
+      const noneResolved = !qualifyingResponses.some((r) => r.kind === 'Resolved');
+      allRejectionsAccepted = allAccepted && noneResolved;
+    }
+
+    const normalizedComments = incomingComments.map((c) => {
+      const prev = existingComments.find(
+        (p) =>
+          p.id === c.id &&
+          (currentSessionId
+            ? p.reviewSessionId !== currentSessionId
+            : Boolean(p.reviewerId && p.reviewerId !== user.id)),
+      );
+      if (prev) {
+        return { ...prev };
+      }
+      return {
+        ...c,
+        reviewerId: user.id,
+        reviewerName: user.name,
+        reviewSessionId: c.reviewSessionId ?? currentSessionId,
+      };
+    });
 
     const blockers = reviewBlockers(
       {
-        draft: parsed.data,
+        draft: {
+          ...parsed.data,
+          comments: normalizedComments,
+        },
         questions: db.generalCheck,
         screenshotCount: screenshots.length,
+        hasPendingAdjudication,
+        hasUnresolvedIssues,
+        currentUserId: user.id,
+        currentReviewSessionId: currentSessionId,
       },
       decision,
     );
@@ -1425,29 +1797,50 @@ export const handlers: HttpHandler[] = [
     if (blockers.length > 0) {
       return errorResponse(
         422,
-        blockers[0] === 'approveBlockedByRank' ? 'APPROVE_BLOCKED' : 'REVIEW_INCOMPLETE',
+        blockers[0] === 'approveBlockedByRank'
+          ? 'APPROVE_BLOCKED'
+          : blockers[0] === 'unresolvedResponsesBlockApproval'
+            ? 'UNRESOLVED_RESPONSES'
+            : 'REVIEW_INCOMPLETE',
         blockers[0] === 'approveBlockedByRank'
           ? 'A Rank 2 or Rank 3 review cannot be approved. Request changes instead.'
-          : 'Complete the review before submitting it.',
+          : blockers[0] === 'unresolvedResponsesBlockApproval'
+            ? 'Cannot approve while findings remain unresolved or rejections are not accepted. Request changes instead.'
+            : blockers[0] === 'pendingAdjudication' ||
+                blockers[0] === 'pendingRejectionAdjudication'
+              ? 'Adjudicate all developer responses before submitting the review.'
+              : blockers[0] === 'previousFeedbackReviewNoteRequired'
+                ? 'Briefly explain why the previous reviewer feedback does not require further changes before approving.'
+                : blockers[0] === 'previousFeedbackAcknowledgementRequired'
+                  ? 'Please acknowledge previous reviewer feedback before approving this task.'
+                  : blockers[0] === 'commentsRequired'
+                    ? 'Add at least one review comment before requesting changes.'
+                    : blockers[0] === 'emptyComment'
+                      ? 'Comments cannot be empty.'
+                      : 'Complete the review before submitting it.',
       );
     }
 
     const now = new Date().toISOString();
     const review: Review = {
-      id: existing?.id ?? `rev-${task.id}-${String(task.reviewCycle)}`,
+      id: existingReview.id,
       taskId: task.id,
-      reviewCycle: task.reviewCycle,
+      reviewCycle: currentHistoricalCycle,
       reviewerId: user.id,
       reviewerName: user.name,
+      currentReviewSessionId: currentSessionId ?? null,
+      comments: normalizedComments,
       generalCheck: parsed.data.generalCheck,
       findings: parsed.data.findings,
       otherRemarks: parsed.data.otherRemarks,
       feedbackSummary: parsed.data.feedbackSummary,
       rank: parsed.data.rank,
+      previousFeedbackReviewNote: parsed.data.previousFeedbackReviewNote ?? null,
+      previousFeedbackAcknowledged: parsed.data.previousFeedbackAcknowledged ?? false,
       screenshots,
       decision,
       decidedAt: now,
-      createdAt: existing?.createdAt ?? now,
+      createdAt: existingReview.createdAt ?? now,
       updatedAt: now,
     };
 
@@ -1457,14 +1850,67 @@ export const handlers: HttpHandler[] = [
 
     if (decision === 'Approved') {
       task.status = 'Approved';
+      task.currentReviewSessionId = null;
+      // Safe, idempotent cycle decrement:
+      if (allRejectionsAccepted && qualifyingCycle !== undefined) {
+        if (!task.adjustedCycles) {
+          task.adjustedCycles = [];
+        }
+        if (!task.adjustedCycles.includes(qualifyingCycle)) {
+          const previousCountedCycle = task.reviewCycle;
+          const newCountedCycle = Math.max(1, task.reviewCycle - 1);
+          if (newCountedCycle < previousCountedCycle) {
+            task.reviewCycle = newCountedCycle;
+            task.adjustedCycles.push(qualifyingCycle);
+
+            const adjustmentTime = new Date(new Date(now).getTime() - 1000).toISOString();
+            recordEvent({
+              taskId: task.id,
+              kind: 'CountedCycleAdjusted',
+              reviewCycle: currentHistoricalCycle,
+              actorId: user.id,
+              qualifyingReviewRound: qualifyingCycle,
+              previousCountedCycle,
+              newCountedCycle,
+              adjustmentAmount: previousCountedCycle - newCountedCycle,
+              reason: 'All developer rejections were accepted and no fixes were required.',
+              note: `Review Round ${qualifyingCycle} was excluded from the developer's effective cycle count because all rejected comments were accepted and no fixes were required.`,
+              occurredAt: adjustmentTime,
+            });
+          }
+        }
+      }
+      db.notifications.push({
+        id: `n-${String(Date.now())}-${String(db.notifications.length + 1)}`,
+        userId: task.developerId,
+        kind: 'TaskApproved',
+        title: `${task.taskCode} approved`,
+        body: `${user.name} approved your code review task (Cycle ${task.reviewCycle}).`,
+        href: `/developer/tasks/${task.id}`,
+        taskId: task.id,
+        isRead: false,
+        createdAt: now,
+      });
     } else {
       task.status = 'ChangesRequested';
-      // The cycle advances here and nowhere else — see `nextReviewCycle` for the
-      // contradiction between spec p.10 and FL 2.11.2.3-02 (plan risk R3).
+      // Strictly monotonic immutable historicalCycle sequence:
+      const nextHistorical = nextHistoricalReviewCycle(task, reviewsForTask(task.id));
+      task.historicalCycle = nextHistorical;
       task.reviewCycle = nextReviewCycle(task.reviewCycle, decision);
-      // Requesting changes returns the task to its developer, so the queue is
-      // clear for whoever picks up the resubmission.
       task.reviewerId = null;
+      task.currentReviewSessionId = null;
+
+      db.notifications.push({
+        id: `n-${String(Date.now())}-${String(db.notifications.length + 1)}`,
+        userId: task.developerId,
+        kind: 'ChangesRequested',
+        title: `Changes requested on ${task.taskCode}`,
+        body: `${user.name} requested changes (Cycle ${review.reviewCycle}). Review Ranking: Rank ${parsed.data.rank}.`,
+        href: `/developer/tasks/${task.id}`,
+        taskId: task.id,
+        isRead: false,
+        createdAt: now,
+      });
     }
     touch(task);
 
@@ -1476,54 +1922,6 @@ export const handlers: HttpHandler[] = [
       note: parsed.data.feedbackSummary === '' ? null : parsed.data.feedbackSummary,
       occurredAt: now,
     });
-    recordMockAudit(user, {
-      actionType: decision === 'Approved' ? 'TASK_APPROVED' : 'CHANGES_REQUESTED',
-      entityType: 'REVIEW',
-      entityId: review.id,
-      taskId: task.id,
-      description: `${user.name} ${decision === 'Approved' ? 'approved' : 'requested changes for'} task '${task.title}'`,
-      oldValue: { status: 'InReview', rank: existing?.rank ?? null },
-      newValue: { status: task.status, rank: review.rank },
-    });
-    if (existing?.rank !== review.rank) {
-      recordMockAudit(user, {
-        actionType: 'REVIEW_RANK_CHANGED',
-        entityType: 'REVIEW',
-        entityId: review.id,
-        taskId: task.id,
-        description: `${user.name} changed the review rank for task '${task.title}'`,
-        oldValue: { rank: existing?.rank ?? null },
-        newValue: { rank: review.rank },
-      });
-    }
-    createNotification({
-      userId: task.developerId,
-      kind: decision === 'Approved' ? 'TaskApproved' : 'ChangesRequested',
-      title:
-        decision === 'Approved' ? `${task.title} approved` : `Changes requested on ${task.title}`,
-      body:
-        decision === 'Approved'
-          ? `${user.name} approved your code review task.`
-          : `${user.name} requested changes to your code review task.`,
-      href: `/crp/developer/tasks/${task.id}`,
-      taskId: task.id,
-    });
-    if (decision === 'Approved') {
-      for (const administrator of db.users.filter(
-        (candidate) =>
-          candidate.isActive &&
-          (candidate.roles.includes('Admin') || candidate.roles.includes('Super Admin')),
-      )) {
-        createNotification({
-          userId: administrator.id,
-          kind: 'TaskApproved',
-          title: `${task.title} approved`,
-          body: `${user.name} approved the code review task.`,
-          href: `/crp/admin/tasks/${task.id}`,
-          taskId: task.id,
-        });
-      }
-    }
 
     return HttpResponse.json(toListItem(task));
   }),
@@ -1544,6 +1942,13 @@ export const handlers: HttpHandler[] = [
 
     const task = findTask(String(params['taskId']));
     if (!task) return errorResponse(404, 'NOT_FOUND', 'Task not found.');
+
+    const hasHistoricalReview = db.reviews.some(
+      (r) => r.taskId === task.id && r.reviewerId === user.id && r.decision !== null,
+    );
+    if (!canViewTask({ userId: user.id, roles: user.roles }, task, { hasHistoricalReview })) {
+      return errorResponse(404, 'NOT_FOUND', 'Task not found.');
+    }
 
     return HttpResponse.json(attachmentsForTask(task.id));
   }),
@@ -1566,6 +1971,9 @@ export const handlers: HttpHandler[] = [
 
     const task = findTask(String(params['taskId']));
     if (!task) return errorResponse(404, 'NOT_FOUND', 'Task not found.');
+    if (isTerminalTask(task.status)) {
+      return errorResponse(409, 'INVALID_STATE', 'This task can no longer be edited.');
+    }
 
     // Only the owning developer attaches, and only while the task is theirs to
     // change — the same window in which they may edit anything else.
@@ -1653,7 +2061,14 @@ export const handlers: HttpHandler[] = [
     const task = findTask(String(params['taskId']));
     if (!task) return errorResponse(404, 'NOT_FOUND', 'Task not found.');
 
-    return HttpResponse.json(responsesForCycle(task.id, task.reviewCycle));
+    const hasHistoricalReview = db.reviews.some(
+      (r) => r.taskId === task.id && r.reviewerId === user.id && r.decision !== null,
+    );
+    if (!canViewTask({ userId: user.id, roles: user.roles }, task, { hasHistoricalReview })) {
+      return errorResponse(404, 'NOT_FOUND', 'Task not found.');
+    }
+
+    return HttpResponse.json(db.issueResponses.filter((r) => r.taskId === task.id));
   }),
 
   /**
@@ -1670,6 +2085,9 @@ export const handlers: HttpHandler[] = [
 
     const task = findTask(String(params['taskId']));
     if (!task) return errorResponse(404, 'NOT_FOUND', 'Task not found.');
+    if (isTerminalTask(task.status)) {
+      return errorResponse(409, 'INVALID_STATE', 'This task is terminal and cannot be modified.');
+    }
     if (!canRespondToFindings({ userId: user.id, roles: user.roles }, task)) {
       return errorResponse(403, 'FORBIDDEN', 'You cannot respond to this feedback.');
     }
@@ -1687,12 +2105,28 @@ export const handlers: HttpHandler[] = [
       );
     }
 
+    const allTaskReviews = reviewsForTask(task.id);
+    const activeCycle = resolveActiveReviewCycle(task, allTaskReviews);
+
     const reason = (parsed.data.rejectionReason ?? '').trim();
+    const commentId = parsed.data.commentId ?? null;
+    const screenshotId = parsed.data.screenshotId ?? null;
+    const entityKey = commentId
+      ? commentId.startsWith('c-')
+        ? commentId
+        : `c-${commentId}`
+      : screenshotId
+        ? screenshotId.startsWith('s-')
+          ? screenshotId
+          : `s-${screenshotId}`
+        : 'overall';
+
     const record: IssueResponseRecord = {
-      id: `resp-${task.id}-${String(task.reviewCycle)}-${parsed.data.screenshotId ?? 'overall'}`,
+      id: createCycleResponseId(task.id, activeCycle, entityKey),
       taskId: task.id,
-      reviewCycle: task.reviewCycle,
-      screenshotId: parsed.data.screenshotId,
+      reviewCycle: activeCycle,
+      commentId,
+      screenshotId,
       kind: parsed.data.kind,
       rejectionReason: reason === '' ? null : reason,
       verdict: 'Pending',
@@ -1700,21 +2134,87 @@ export const handlers: HttpHandler[] = [
     };
 
     // Upsert: changing your mind about a finding replaces the answer rather than
-    // stacking a second one.
+    // stacking a second one for the current cycle.
     const index = db.issueResponses.findIndex((r) => r.id === record.id);
     if (index === -1) db.issueResponses.push(record);
     else db.issueResponses[index] = record;
 
-    recordMockAudit(user, {
-      actionType: parsed.data.kind === 'Resolved' ? 'ISSUE_RESOLVED' : 'ISSUE_REJECTED',
-      entityType: 'REVIEW_FINDING',
-      entityId: record.screenshotId ?? record.id,
-      taskId: task.id,
-      description: `${user.name} ${parsed.data.kind.toLowerCase()} a finding on task '${task.title}'`,
-      newValue: record,
-    });
+    return HttpResponse.json(db.issueResponses.filter((r) => r.taskId === task.id));
+  }),
 
-    return HttpResponse.json(responsesForCycle(task.id, task.reviewCycle));
+  /**
+   * Remove a developer's response (e.g. deselecting Resolve or clearing a saved rejection).
+   */
+  http.delete('/api/tasks/:taskId/responses/:responseId', async ({ request, params }) => {
+    await delay(LATENCY_MS);
+    const user = currentUser(request);
+    if (!user) return errorResponse(401, 'NOT_AUTHENTICATED', 'Not authenticated.');
+
+    const task = findTask(String(params['taskId']));
+    if (!task) return errorResponse(404, 'NOT_FOUND', 'Task not found.');
+    if (isTerminalTask(task.status)) {
+      return errorResponse(409, 'INVALID_STATE', 'This task is terminal and cannot be modified.');
+    }
+    if (!canRespondToFindings({ userId: user.id, roles: user.roles }, task)) {
+      return errorResponse(403, 'FORBIDDEN', 'You cannot respond to this feedback.');
+    }
+
+    const responseId = String(params['responseId']);
+
+    db.issueResponses = db.issueResponses.filter((r) => r.id !== responseId);
+
+    return HttpResponse.json(db.issueResponses.filter((r) => r.taskId === task.id));
+  }),
+
+  /**
+   * Reviewer rules on a developer's response ('Accepted' | 'Overruled') — FL 2.11.2.3-02.
+   */
+  http.patch('/api/tasks/:taskId/responses/:responseId/verdict', async ({ request, params }) => {
+    await delay(LATENCY_MS);
+    const user = currentUser(request);
+    if (!user) return errorResponse(401, 'NOT_AUTHENTICATED', 'Not authenticated.');
+
+    const task = findTask(String(params['taskId']));
+    if (!task) return errorResponse(404, 'NOT_FOUND', 'Task not found.');
+    if (isTerminalTask(task.status)) {
+      return errorResponse(409, 'INVALID_STATE', 'This task is terminal and cannot be modified.');
+    }
+    if (task.reviewerId !== user.id) {
+      return errorResponse(
+        403,
+        'FORBIDDEN',
+        'Only the assigned reviewer may evaluate developer responses.',
+      );
+    }
+
+    const body = (await request.json()) as { verdict?: unknown; reviewerComment?: unknown };
+    let verdict: 'Accepted' | 'Overruled' | 'Pending';
+    if (body.verdict === 'Pending' || body.verdict === null || body.verdict === undefined) {
+      verdict = 'Pending';
+    } else if (body.verdict === 'Accepted') {
+      verdict = 'Accepted';
+    } else {
+      verdict = 'Overruled';
+    }
+
+    const rawComment = typeof body.reviewerComment === 'string' ? body.reviewerComment.trim() : '';
+
+    if (verdict === 'Overruled' && !rawComment) {
+      return errorResponse(
+        422,
+        'EXPLANATION_REQUIRED',
+        'An explanation is required when overruling or not accepting a developer response.',
+      );
+    }
+
+    const record = db.issueResponses.find((r) => r.id === String(params['responseId']));
+    if (!record) return errorResponse(404, 'NOT_FOUND', 'Response record not found.');
+
+    record.verdict = verdict;
+    record.reviewerComment = verdict === 'Overruled' && rawComment ? rawComment : null;
+    record.adjudicatedAt = verdict === 'Pending' ? null : new Date().toISOString();
+
+    return HttpResponse.json(record);
   }),
 
   /* ----------------------------------------------------------------- admin */
@@ -1727,54 +2227,6 @@ export const handlers: HttpHandler[] = [
    * browser. `requireAdmin` is the control.
    */
 
-  http.get('/api/audit-logs', async ({ request }) => {
-    await delay(LATENCY_MS);
-    const denied = requireAdmin(request);
-    if (denied) return denied;
-
-    const url = new URL(request.url);
-    const page = Math.max(1, Number(url.searchParams.get('page') ?? 1));
-    const pageSize = Math.min(100, Math.max(1, Number(url.searchParams.get('pageSize') ?? 25)));
-    const search = (url.searchParams.get('search') ?? '').trim().toLowerCase();
-    const actorUserId = url.searchParams.get('actorUserId');
-    const actorRole = url.searchParams.get('actorRole');
-    const actionType = url.searchParams.get('actionType');
-    const entityType = url.searchParams.get('entityType');
-    const dateFrom = url.searchParams.get('dateFrom');
-    const dateTo = url.searchParams.get('dateTo');
-
-    const filtered = db.auditLogs
-      .filter((entry) => actorUserId === null || entry.actorUserId === actorUserId)
-      .filter(
-        (entry) =>
-          actorRole === null || entry.actorRole.toLowerCase().includes(actorRole.toLowerCase()),
-      )
-      .filter((entry) => actionType === null || entry.actionType === actionType)
-      .filter((entry) => entityType === null || entry.entityType === entityType)
-      .filter((entry) => dateFrom === null || entry.timestamp >= dateFrom)
-      .filter((entry) => dateTo === null || entry.timestamp <= dateTo)
-      .filter(
-        (entry) =>
-          search === '' ||
-          entry.actorName.toLowerCase().includes(search) ||
-          entry.description.toLowerCase().includes(search) ||
-          entry.actionType.toLowerCase().includes(search) ||
-          (entry.entityId?.toLowerCase().includes(search) ?? false),
-      )
-      .slice()
-      .sort((left, right) => right.timestamp.localeCompare(left.timestamp));
-    const start = (page - 1) * pageSize;
-    return HttpResponse.json({
-      items: filtered.slice(start, start + pageSize),
-      pagination: {
-        page,
-        pageSize,
-        total: filtered.length,
-        totalPages: Math.ceil(filtered.length / pageSize),
-      },
-    });
-  }),
-
   http.get('/api/users', async ({ request }) => {
     await delay(LATENCY_MS);
     const denied = requireAdmin(request);
@@ -1783,7 +2235,6 @@ export const handlers: HttpHandler[] = [
     return HttpResponse.json(
       db.users
         .filter((user) => !db.deletedUserIds.has(user.id))
-        .slice()
         .sort((a, b) => a.name.localeCompare(b.name)),
     );
   }),
@@ -2066,16 +2517,6 @@ export const handlers: HttpHandler[] = [
       isActive: true,
     };
     db.customers.push(customer);
-    const actor = currentUser(request);
-    if (actor) {
-      recordMockAudit(actor, {
-        actionType: 'CUSTOMER_CREATED',
-        entityType: 'CUSTOMER',
-        entityId: customer.id,
-        description: `${actor.name} created customer ${customer.name}`,
-        newValue: customer,
-      });
-    }
 
     return HttpResponse.json(customer, { status: 201 });
   }),
@@ -2097,42 +2538,37 @@ export const handlers: HttpHandler[] = [
      * `code` is deliberately NOT editable.
      *
      * It is the prefix of every Task ID already issued for this customer
-     * (for example, CUSTOMER-19). Changing it would either rewrite historical
-     * identifiers or leave the grid showing two prefixes for one customer.
+     * (AASL-019). Changing it would either rewrite historical identifiers or
+     * leave the grid showing two prefixes for one customer.
      */
-    const oldValue = { ...customer };
     if (parsed.data.name !== undefined) customer.name = parsed.data.name;
     if (parsed.data.description !== undefined) customer.description = parsed.data.description;
     if (parsed.data.color !== undefined) customer.color = parsed.data.color;
     if (parsed.data.isActive !== undefined) customer.isActive = parsed.data.isActive;
-
-    const actor = currentUser(request);
-    if (actor) {
-      recordMockAudit(actor, {
-        actionType:
-          parsed.data.isActive === undefined
-            ? 'CUSTOMER_UPDATED'
-            : parsed.data.isActive
-              ? 'CUSTOMER_ACTIVATED'
-              : 'CUSTOMER_DEACTIVATED',
-        entityType: 'CUSTOMER',
-        entityId: customer.id,
-        description: `${actor.name} updated customer ${customer.name}`,
-        oldValue,
-        newValue: customer,
-      });
-    }
 
     return HttpResponse.json(customer);
   }),
 
   http.delete('/api/customers/:customerId', async ({ request, params }) => {
     await delay(LATENCY_MS);
-    const denied = requireAdmin(request);
+    const denied = requireCapability(request, 'records.purge');
     if (denied) return denied;
+
+    const actor = currentUser(request);
+    if (!actor) return errorResponse(401, 'NOT_AUTHENTICATED', 'Not authenticated.');
 
     const customer = findCustomer(String(params['customerId']));
     if (!customer) return errorResponse(404, 'NOT_FOUND', 'Customer not found.');
+
+    const body = (await request.json().catch(() => ({}))) as { reason?: unknown };
+    const reason = requiredReason(body.reason);
+    if (reason === null) {
+      return errorResponse(
+        422,
+        'REASON_REQUIRED',
+        'Provide a reason for permanently deleting this customer.',
+      );
+    }
 
     if (db.tasks.some((t) => t.customerId === customer.id)) {
       return errorResponse(
@@ -2142,17 +2578,15 @@ export const handlers: HttpHandler[] = [
       );
     }
 
+    recordSystemAuditEvent({
+      action: 'CustomerDeleted',
+      actorId: actor.id,
+      targetType: 'Customer',
+      targetId: customer.id,
+      targetLabel: customer.name,
+      reason,
+    });
     db.customers = db.customers.filter((c) => c.id !== customer.id);
-    const actor = currentUser(request);
-    if (actor) {
-      recordMockAudit(actor, {
-        actionType: 'CUSTOMER_DELETED',
-        entityType: 'CUSTOMER',
-        entityId: customer.id,
-        description: `${actor.name} deleted customer ${customer.name}`,
-        oldValue: customer,
-      });
-    }
     return new HttpResponse(null, { status: 204 });
   }),
 
@@ -2168,18 +2602,39 @@ export const handlers: HttpHandler[] = [
     const task = findTask(String(params['taskId']));
     if (!task) return errorResponse(404, 'NOT_FOUND', 'Task not found.');
 
-    if (!canAssignReviewer({ userId: actor.id, roles: actor.roles }, task)) {
-      return errorResponse(422, 'INVALID_STATE', 'This task cannot be assigned a reviewer.');
+    if (isTerminalTask(task.status)) {
+      return errorResponse(409, 'INVALID_STATE', 'Terminal tasks cannot be assigned a reviewer.');
     }
 
-    const body = (await request.json()) as { reviewerId?: unknown };
+    if (
+      task.isHandedOver ||
+      db.handovers.some((h) => h.taskId === task.id && h.status === 'Pending')
+    ) {
+      return errorResponse(
+        409,
+        'HANDOVER_REQUIRES_RESOLUTION',
+        'This task has an active handover request. Resolve the handover instead.',
+      );
+    }
+
+    if (task.status === 'ChangesRequested') {
+      return errorResponse(
+        422,
+        'CHANGES_REQUESTED_ACTIVE',
+        'Cannot assign a reviewer while changes are requested from the developer.',
+      );
+    }
+
+    const body = (await request.json().catch(() => ({}))) as {
+      reviewerId?: unknown;
+      reason?: unknown;
+    };
     const reviewer = findUser(typeof body.reviewerId === 'string' ? body.reviewerId : '');
     if (!reviewer || !reviewer.roles.includes('Reviewer') || !reviewer.isActive) {
       return errorResponse(422, 'INVALID_REVIEWER', 'Select an active reviewer.');
     }
 
-    // The self-review bar again (spec section 1.5). An admin route to it would
-    // be the same defect by another door.
+    // The self-review bar again (spec section 1.5).
     if (reviewer.id === task.developerId) {
       return errorResponse(
         422,
@@ -2188,38 +2643,207 @@ export const handlers: HttpHandler[] = [
       );
     }
 
-    const wasUnassigned = task.reviewerId === null;
-    const previousReviewerId = task.reviewerId;
+    const currentHistoricalCycle = task.historicalCycle ?? task.reviewCycle;
+    const now = new Date().toISOString();
+
+    if (task.status === 'InReview') {
+      if (!canReassignReviewer({ userId: actor.id, roles: actor.roles }, task)) {
+        return errorResponse(422, 'INVALID_STATE', 'This task cannot be reassigned.');
+      }
+      if (reviewer.id === task.reviewerId) {
+        return errorResponse(422, 'SAME_REVIEWER', 'Select a different reviewer.');
+      }
+
+      const reason = requiredReason(body.reason);
+      if (reason === null) {
+        return errorResponse(
+          422,
+          'REASON_REQUIRED',
+          'Provide a reason for reassigning the reviewer.',
+        );
+      }
+
+      const newSessionId = createReviewSessionId(task.id, currentHistoricalCycle);
+      task.reviewerId = reviewer.id;
+      task.currentReviewSessionId = newSessionId;
+      touch(task);
+
+      const activeDraft = findReview(task.id, currentHistoricalCycle);
+      if (activeDraft?.decision === null) {
+        activeDraft.reviewerId = reviewer.id;
+        activeDraft.reviewerName = reviewer.name;
+        activeDraft.currentReviewSessionId = newSessionId;
+        activeDraft.rank = null;
+        activeDraft.previousFeedbackReviewNote = null;
+        activeDraft.updatedAt = now;
+      }
+
+      recordEvent({
+        taskId: task.id,
+        kind: 'Reassigned',
+        reviewCycle: task.reviewCycle,
+        actorId: actor.id,
+        note: `${reviewer.name} (Reason: ${reason})`,
+        occurredAt: now,
+      });
+
+      db.notifications.push({
+        id: `n-${String(Date.now())}-${String(db.notifications.length + 1)}`,
+        userId: reviewer.id,
+        kind: 'TaskAssigned',
+        title: `${task.taskCode} assigned for review`,
+        body: `You were reassigned to review ${task.taskCode}.`,
+        href: `/reviewer/tasks/${task.id}`,
+        taskId: task.id,
+        isRead: false,
+        createdAt: now,
+      });
+
+      return HttpResponse.json(toListItem(task));
+    }
+
+    if (task.status === 'Submitted' || task.status === 'ReSubmitted') {
+      if (!canAssignReviewer({ userId: actor.id, roles: actor.roles }, task)) {
+        return errorResponse(422, 'INVALID_STATE', 'This task cannot be assigned a reviewer.');
+      }
+
+      const newSessionId = createReviewSessionId(task.id, currentHistoricalCycle);
+      task.reviewerId = reviewer.id;
+      task.status = 'InReview';
+      task.currentReviewSessionId = newSessionId;
+      touch(task);
+
+      const activeDraft = ensureReview(task, reviewer.id, reviewer.name);
+      activeDraft.reviewerId = reviewer.id;
+      activeDraft.reviewerName = reviewer.name;
+      activeDraft.currentReviewSessionId = newSessionId;
+      activeDraft.updatedAt = now;
+
+      recordEvent({
+        taskId: task.id,
+        kind: 'ReviewerAssigned',
+        reviewCycle: task.reviewCycle,
+        actorId: actor.id,
+        note: reviewer.name,
+        occurredAt: now,
+      });
+
+      db.notifications.push({
+        id: `n-${String(Date.now())}-${String(db.notifications.length + 1)}`,
+        userId: reviewer.id,
+        kind: 'TaskAssigned',
+        title: `${task.taskCode} assigned for review`,
+        body: `You have been assigned to review ${task.taskCode}.`,
+        href: `/reviewer/tasks/${task.id}`,
+        taskId: task.id,
+        isRead: false,
+        createdAt: now,
+      });
+
+      return HttpResponse.json(toListItem(task));
+    }
+
+    return errorResponse(422, 'INVALID_STATE', 'This task cannot be assigned a reviewer.');
+  }),
+
+  /** Explicit reassign endpoint */
+  http.post('/api/tasks/:taskId/reassign', async ({ request, params }) => {
+    await delay(LATENCY_MS);
+    const denied = requireAdmin(request);
+    if (denied) return denied;
+
+    const actor = currentUser(request);
+    if (!actor) return errorResponse(401, 'NOT_AUTHENTICATED', 'Not authenticated.');
+
+    const task = findTask(String(params['taskId']));
+    if (!task) return errorResponse(404, 'NOT_FOUND', 'Task not found.');
+
+    if (isTerminalTask(task.status)) {
+      return errorResponse(409, 'INVALID_STATE', 'Terminal tasks cannot be reassigned.');
+    }
+
+    if (
+      task.isHandedOver ||
+      db.handovers.some((h) => h.taskId === task.id && h.status === 'Pending')
+    ) {
+      return errorResponse(
+        409,
+        'HANDOVER_REQUIRES_RESOLUTION',
+        'This task has an active handover request. Resolve the handover instead.',
+      );
+    }
+
+    if (!canReassignReviewer({ userId: actor.id, roles: actor.roles }, task)) {
+      return errorResponse(422, 'INVALID_STATE', 'This task cannot be reassigned.');
+    }
+
+    const body = (await request.json().catch(() => ({}))) as {
+      reviewerId?: unknown;
+      reason?: unknown;
+    };
+    const reviewer = findUser(typeof body.reviewerId === 'string' ? body.reviewerId : '');
+    if (!reviewer || !reviewer.roles.includes('Reviewer') || !reviewer.isActive) {
+      return errorResponse(422, 'INVALID_REVIEWER', 'Select an active reviewer.');
+    }
+
+    if (reviewer.id === task.developerId) {
+      return errorResponse(
+        422,
+        'SELF_REVIEW',
+        'A developer cannot be assigned to review their own task.',
+      );
+    }
+
+    if (reviewer.id === task.reviewerId) {
+      return errorResponse(422, 'SAME_REVIEWER', 'Select a different reviewer.');
+    }
+
+    const reason = requiredReason(body.reason);
+    if (reason === null) {
+      return errorResponse(
+        422,
+        'REASON_REQUIRED',
+        'Provide a reason for reassigning the reviewer.',
+      );
+    }
+
+    const currentHistoricalCycle = task.historicalCycle ?? task.reviewCycle;
+    const now = new Date().toISOString();
+    const newSessionId = createReviewSessionId(task.id, currentHistoricalCycle);
+
     task.reviewerId = reviewer.id;
-    // Assigning takes the task out of the open queue: it is now someone's.
-    if (task.status === 'Submitted' || task.status === 'ReSubmitted') task.status = 'InReview';
+    task.currentReviewSessionId = newSessionId;
     touch(task);
+
+    const activeDraft = findReview(task.id, currentHistoricalCycle);
+    if (activeDraft?.decision === null) {
+      activeDraft.reviewerId = reviewer.id;
+      activeDraft.reviewerName = reviewer.name;
+      activeDraft.currentReviewSessionId = newSessionId;
+      activeDraft.rank = null;
+      activeDraft.previousFeedbackReviewNote = null;
+      activeDraft.updatedAt = now;
+    }
 
     recordEvent({
       taskId: task.id,
-      kind: wasUnassigned ? 'ReviewerAssigned' : 'Reassigned',
+      kind: 'Reassigned',
       reviewCycle: task.reviewCycle,
       actorId: actor.id,
-      note: reviewer.name,
-      occurredAt: new Date().toISOString(),
+      note: `${reviewer.name} (Reason: ${reason})`,
+      occurredAt: now,
     });
-    recordMockAudit(actor, {
-      actionType: wasUnassigned ? 'REVIEWER_ASSIGNED' : 'REVIEWER_REASSIGNED',
-      entityType: 'TASK',
-      entityId: task.id,
-      taskId: task.id,
-      targetUserId: reviewer.id,
-      description: `${actor.name} ${wasUnassigned ? 'assigned' : 'reassigned'} task '${task.title}' to ${reviewer.name}`,
-      oldValue: { reviewerId: previousReviewerId },
-      newValue: { reviewerId: reviewer.id, status: task.status },
-    });
-    createNotification({
+
+    db.notifications.push({
+      id: `n-${String(Date.now())}-${String(db.notifications.length + 1)}`,
       userId: reviewer.id,
-      kind: wasUnassigned ? 'TaskAssigned' : 'TaskReassigned',
-      title: `${task.title} ${wasUnassigned ? 'assigned' : 'reassigned'} to you`,
-      body: `${actor.name} ${wasUnassigned ? 'assigned' : 'reassigned'} this review task to ${reviewer.name}.`,
-      href: `/crp/reviewer/tasks/${task.id}`,
+      kind: 'TaskAssigned',
+      title: `${task.taskCode} assigned for review`,
+      body: `You were reassigned to review ${task.taskCode}.`,
+      href: `/reviewer/tasks/${task.id}`,
       taskId: task.id,
+      isRead: false,
+      createdAt: now,
     });
 
     return HttpResponse.json(toListItem(task));
@@ -2240,70 +2864,166 @@ export const handlers: HttpHandler[] = [
       return errorResponse(422, 'INVALID_STATE', 'This task can no longer be cancelled.');
     }
 
-    const body = (await request.json().catch(() => ({}))) as {
-      reason?: unknown;
-    };
-    const previousStatus = task.status;
+    const body = (await request.json().catch(() => ({}))) as { reason?: unknown };
+    const reason = requiredReason(body.reason);
+    if (reason === null) {
+      return errorResponse(422, 'REASON_REQUIRED', 'Provide a reason for cancelling this task.');
+    }
+
+    const previousReviewerId = task.reviewerId;
+    const now = new Date().toISOString();
+
     task.status = 'Cancelled';
+    task.reviewerId = null;
+    task.currentReviewSessionId = null;
+    task.isHandedOver = false;
     touch(task);
+
+    // Cancel pending handover if one exists
+    const pendingHandover = db.handovers.find(
+      (h) => h.taskId === task.id && h.status === 'Pending',
+    );
+    if (pendingHandover) {
+      pendingHandover.status = 'Cancelled';
+      pendingHandover.resolvedAt = now;
+    }
+
+    const currentHistoricalCycle = task.historicalCycle ?? task.reviewCycle;
+    const activeDraft = findReview(task.id, currentHistoricalCycle);
+    if (activeDraft?.decision === null) {
+      activeDraft.currentReviewSessionId = null;
+    }
+
     recordEvent({
       taskId: task.id,
       kind: 'Cancelled',
       reviewCycle: task.reviewCycle,
       actorId: actor.id,
-      note: typeof body.reason === 'string' ? body.reason : null,
-      occurredAt: new Date().toISOString(),
+      note: reason,
+      occurredAt: now,
     });
-    recordMockAudit(actor, {
-      actionType: 'TASK_CANCELLED',
-      entityType: 'TASK',
-      entityId: task.id,
+
+    db.notifications.push({
+      id: `n-${String(Date.now())}-${String(db.notifications.length + 1)}`,
+      userId: task.developerId,
+      kind: 'TaskCancelled',
+      title: `${task.taskCode} was cancelled`,
+      body: `Admin cancelled this task. Reason: ${reason}`,
+      href: `/developer/tasks/${task.id}`,
       taskId: task.id,
-      description: `${actor.name} cancelled task '${task.title}'`,
-      oldValue: { status: previousStatus },
-      newValue: { status: task.status },
-      metadata: { reason: typeof body.reason === 'string' ? body.reason : null },
+      isRead: false,
+      createdAt: now,
     });
+
+    if (previousReviewerId) {
+      db.notifications.push({
+        id: `n-${String(Date.now())}-${String(db.notifications.length + 2)}`,
+        userId: previousReviewerId,
+        kind: 'TaskCancelled',
+        title: `${task.taskCode} review was cancelled`,
+        body: `Admin cancelled this task. Reason: ${reason}`,
+        href: `/reviewer/tasks/${task.id}`,
+        taskId: task.id,
+        isRead: false,
+        createdAt: now,
+      });
+    }
 
     return HttpResponse.json(toListItem(task));
   }),
 
   http.delete('/api/tasks/:taskId', async ({ request, params }) => {
     await delay(LATENCY_MS);
-    const denied = requireAdmin(request);
-    if (denied) return denied;
-
     const actor = currentUser(request);
     if (!actor) return errorResponse(401, 'NOT_AUTHENTICATED', 'Not authenticated.');
 
     const task = findTask(String(params['taskId']));
     if (!task) return errorResponse(404, 'NOT_FOUND', 'Task not found.');
 
-    if (!canDeleteTask({ userId: actor.id, roles: actor.roles }, task)) {
+    // 1. Developer Discard Draft
+    if (
+      actor.roles.includes('Developer') &&
+      actor.id === task.developerId &&
+      task.status === 'Draft'
+    ) {
+      const hasSubmittedEvidence =
+        db.checklistSubmissions.some((s) => s.taskId === task.id) ||
+        db.reviews.some((r) => r.taskId === task.id && r.decision !== null);
+      if (hasSubmittedEvidence) {
+        return errorResponse(
+          409,
+          'DRAFT_HAS_SUBMITTED_EVIDENCE',
+          'This draft has submitted evidence and cannot be discarded.',
+        );
+      }
+
+      db.tasks = db.tasks.filter((t) => t.id !== task.id);
+      db.checklists = db.checklists.filter((c) => c.taskId !== task.id);
+      db.attachments = db.attachments.filter((a) => a.taskId !== task.id);
+      db.events = db.events.filter((e) => e.taskId !== task.id);
+
+      return new HttpResponse(null, { status: 204 });
+    }
+
+    // 2. Super Admin Permanent Purge
+    if (!hasCapability(actor.roles, 'records.purge')) {
+      return errorResponse(403, 'FORBIDDEN', 'You do not have access to purge tasks.');
+    }
+
+    const flags: PurgeEvidenceFlags = {
+      hasSubmittedSnapshot: db.checklistSubmissions.some((s) => s.taskId === task.id),
+      hasReviews: db.reviews.some((r) => r.taskId === task.id && r.decision !== null),
+      hasReviewComments: db.reviews.some(
+        (r) => r.taskId === task.id && (r.comments?.length ?? 0) > 0,
+      ),
+      hasReviewScreenshots: db.reviews.some(
+        (r) => r.taskId === task.id && (r.screenshots?.length ?? 0) > 0,
+      ),
+      hasIssueResponses: db.issueResponses.some((r) => r.taskId === task.id),
+      hasAdjudication: db.issueResponses.some(
+        (r) => r.taskId === task.id && r.verdict !== 'Pending' && r.verdict !== null,
+      ),
+      hasHandoverHistory: db.handovers.some((h) => h.taskId === task.id),
+      hasReviewSessions: Boolean(task.currentReviewSessionId),
+      hasWorkflowEvents: db.events.some(
+        (e) => e.taskId === task.id && e.kind !== 'Created' && e.kind !== 'ReviewDraftSaved',
+      ),
+    };
+
+    if (!canPurgeTask({ userId: actor.id, roles: actor.roles }, task, flags)) {
       return errorResponse(
-        422,
-        'INVALID_STATE',
-        'Only a draft or cancelled task can be deleted. Cancel it instead.',
+        409,
+        'TASK_HAS_WORKFLOW_EVIDENCE',
+        'Tasks with submitted review evidence, review comments, or workflow history cannot be permanently deleted.',
       );
     }
 
-    // Everything hanging off the task goes with it, so no orphan rows are left
-    // to be counted by Reports.
+    const body = (await request.json().catch(() => ({}))) as { reason?: unknown };
+    const reason = requiredReason(body.reason);
+    if (reason === null) {
+      return errorResponse(
+        422,
+        'REASON_REQUIRED',
+        'Provide a reason for permanently deleting this task.',
+      );
+    }
+
+    recordSystemAuditEvent({
+      action: 'TaskDeleted',
+      actorId: actor.id,
+      targetType: 'Task',
+      targetId: task.id,
+      targetLabel: task.taskCode,
+      reason,
+    });
+
     db.tasks = db.tasks.filter((t) => t.id !== task.id);
     db.checklists = db.checklists.filter((c) => c.taskId !== task.id);
+    db.checklistSubmissions = db.checklistSubmissions.filter((entry) => entry.taskId !== task.id);
     db.reviews = db.reviews.filter((r) => r.taskId !== task.id);
     db.issueResponses = db.issueResponses.filter((r) => r.taskId !== task.id);
     db.attachments = db.attachments.filter((a) => a.taskId !== task.id);
     db.events = db.events.filter((e) => e.taskId !== task.id);
-
-    recordMockAudit(actor, {
-      actionType: 'TASK_DELETED',
-      entityType: 'TASK',
-      entityId: task.id,
-      taskId: task.id,
-      description: `${actor.name} deleted task '${task.title}'`,
-      oldValue: task,
-    });
 
     return new HttpResponse(null, { status: 204 });
   }),
@@ -2335,7 +3055,7 @@ export const handlers: HttpHandler[] = [
     const record: TaskTypeRecord = {
       id: `tt-${slug(parsed.data.name)}-${String(Date.now())}`,
       name: parsed.data.name,
-      order: parsed.data.order ?? nextOrder(db.taskTypes),
+      order: nextOrder(db.taskTypes),
       isActive: true,
     };
     db.taskTypes.push(record);
@@ -2390,8 +3110,15 @@ export const handlers: HttpHandler[] = [
     const parsed = updateTaskTypeInputSchema.safeParse(await request.json());
     if (!parsed.success) return errorResponse(422, 'VALIDATION_FAILED', firstIssue(parsed.error));
 
+    if (
+      parsed.data.name !== undefined &&
+      db.taskTypes.some(
+        (t) => t.id !== record.id && t.name.toLowerCase() === parsed.data.name?.toLowerCase(),
+      )
+    ) {
+      return errorResponse(409, 'NAME_TAKEN', 'A task type with that name already exists.');
+    }
     if (parsed.data.name !== undefined) record.name = parsed.data.name;
-    if (parsed.data.order !== undefined) record.order = parsed.data.order;
     if (parsed.data.isActive !== undefined) record.isActive = parsed.data.isActive;
 
     return HttpResponse.json(record);
@@ -2413,11 +3140,11 @@ export const handlers: HttpHandler[] = [
         'This task type is used by existing tasks. Deactivate it instead.',
       );
     }
-    if (allQuestions().some((question) => question.appliesTo.includes(id))) {
+    if (db.checklistTemplate.some((category) => category.applicableTaskTypeIds.includes(id))) {
       return errorResponse(
         409,
         'TASK_TYPE_IN_USE',
-        'Checklist questions still target this task type. Remove it from them first.',
+        'Checklist categories still target this task type. Remove it from them first.',
       );
     }
 
@@ -2442,6 +3169,14 @@ export const handlers: HttpHandler[] = [
     const parsed = createChecklistCategoryInputSchema.safeParse(await request.json());
     if (!parsed.success) return errorResponse(422, 'VALIDATION_FAILED', firstIssue(parsed.error));
 
+    if (
+      parsed.data.applicableTaskTypeIds.some(
+        (id) => !db.taskTypes.some((type) => type.id === id && type.isActive),
+      )
+    ) {
+      return errorResponse(422, 'INVALID_TASK_TYPE', 'Choose one or more active task types.');
+    }
+
     if (db.checklistTemplate.some((c) => c.name.toLowerCase() === parsed.data.name.toLowerCase())) {
       return errorResponse(409, 'NAME_TAKEN', 'A category with that name already exists.');
     }
@@ -2451,6 +3186,7 @@ export const handlers: HttpHandler[] = [
       name: parsed.data.name,
       order: parsed.data.order ?? nextOrder(db.checklistTemplate),
       isActive: true,
+      applicableTaskTypeIds: parsed.data.applicableTaskTypeIds,
       questions: [],
     };
     db.checklistTemplate.push(category);
@@ -2502,8 +3238,35 @@ export const handlers: HttpHandler[] = [
     const parsed = updateChecklistCategoryInputSchema.safeParse(await request.json());
     if (!parsed.success) return errorResponse(422, 'VALIDATION_FAILED', firstIssue(parsed.error));
 
+    if (
+      parsed.data.name !== undefined &&
+      db.checklistTemplate.some(
+        (entry) =>
+          entry.id !== category.id && entry.name.toLowerCase() === parsed.data.name?.toLowerCase(),
+      )
+    ) {
+      return errorResponse(409, 'NAME_TAKEN', 'A category with that name already exists.');
+    }
+    if (
+      parsed.data.applicableTaskTypeIds?.some((id) => !db.taskTypes.some((type) => type.id === id))
+    ) {
+      return errorResponse(422, 'INVALID_TASK_TYPE', 'One of those task types does not exist.');
+    }
     if (parsed.data.name !== undefined) category.name = parsed.data.name;
-    if (parsed.data.order !== undefined) category.order = parsed.data.order;
+    if (parsed.data.applicableTaskTypeIds !== undefined)
+      category.applicableTaskTypeIds = parsed.data.applicableTaskTypeIds;
+    if (parsed.data.order !== undefined && parsed.data.order !== category.order) {
+      const siblings = db.checklistTemplate.filter((entry) => entry.id !== category.id);
+      if (siblings.some((entry) => entry.order === parsed.data.order)) {
+        const shifted = siblings.map((entry) =>
+          entry.order >= parsed.data.order! ? { ...entry, order: entry.order + 1 } : entry,
+        );
+        db.checklistTemplate = db.checklistTemplate.map(
+          (entry) => shifted.find((item) => item.id === entry.id) ?? entry,
+        );
+      }
+      category.order = parsed.data.order;
+    }
     if (parsed.data.isActive !== undefined) category.isActive = parsed.data.isActive;
 
     return HttpResponse.json(category);
@@ -2586,13 +3349,6 @@ export const handlers: HttpHandler[] = [
     const category = db.checklistTemplate.find((c) => c.id === parsed.data.categoryId);
     if (!category) return errorResponse(422, 'INVALID_CATEGORY', 'That category does not exist.');
 
-    const unknown = parsed.data.appliesTo.filter(
-      (id) => !db.taskTypes.some((type) => type.id === id),
-    );
-    if (unknown.length > 0) {
-      return errorResponse(422, 'INVALID_TASK_TYPE', 'One of those task types does not exist.');
-    }
-
     /*
       Order collisions.
 
@@ -2647,7 +3403,6 @@ export const handlers: HttpHandler[] = [
       categoryId: category.id,
       text: parsed.data.text,
       order: requestedOrder ?? nextQuestionOrder(category.questions),
-      appliesTo: parsed.data.appliesTo,
       isActive: true,
     };
     category.questions.push(question);
@@ -2669,7 +3424,6 @@ export const handlers: HttpHandler[] = [
     if (!parsed.success) return errorResponse(422, 'VALIDATION_FAILED', firstIssue(parsed.error));
 
     if (parsed.data.text !== undefined) question.text = parsed.data.text;
-    if (parsed.data.appliesTo !== undefined) question.appliesTo = parsed.data.appliesTo;
     if (parsed.data.isActive !== undefined) question.isActive = parsed.data.isActive;
 
     /*
@@ -2684,28 +3438,43 @@ export const handlers: HttpHandler[] = [
       identity, so shifting is the only sensible outcome. Insertion is the case
       with a genuine fork, and it keeps the strategy prompt.
     */
-    if (parsed.data.order !== undefined && parsed.data.order !== question.order) {
-      const requested = parsed.data.order;
-      // The question being moved is excluded, or it would shift itself.
-      const siblings = owner.questions.filter((q) => q.id !== id);
+    const targetOwner =
+      parsed.data.categoryId === undefined || parsed.data.categoryId === owner.id
+        ? owner
+        : db.checklistTemplate.find((c) => c.id === parsed.data.categoryId);
+    if (!targetOwner)
+      return errorResponse(422, 'INVALID_CATEGORY', 'That category does not exist.');
+
+    if (targetOwner.id !== owner.id) {
+      // Cross-category move: if order is omitted, append to end of target category
+      const requested = parsed.data.order ?? nextQuestionOrder(targetOwner.questions);
+      const siblings = targetOwner.questions.filter((q) => q.id !== id);
 
       if (questionAtOrder(siblings, requested) !== undefined) {
         const shifted = shiftOrdersFrom(siblings, requested);
-        owner.questions = owner.questions.map((q) => shifted.find((s) => s.id === q.id) ?? q);
+        targetOwner.questions = targetOwner.questions.map(
+          (q) => shifted.find((s) => s.id === q.id) ?? q,
+        );
       }
 
       question.order = requested;
-    }
+      owner.questions = resequenceAfterRemoval(
+        owner.questions.filter((q) => q.id !== id).sort((a, b) => a.order - b.order),
+      );
+      question.categoryId = targetOwner.id;
+      targetOwner.questions.push(question);
+    } else if (parsed.data.order !== undefined && parsed.data.order !== question.order) {
+      const requested = parsed.data.order;
+      const siblings = targetOwner.questions.filter((q) => q.id !== id);
 
-    // Moving a question between categories moves the row, so `categoryId` and
-    // the containing array can never disagree.
-    if (parsed.data.categoryId !== undefined && parsed.data.categoryId !== owner.id) {
-      const target = db.checklistTemplate.find((c) => c.id === parsed.data.categoryId);
-      if (!target) return errorResponse(422, 'INVALID_CATEGORY', 'That category does not exist.');
+      if (questionAtOrder(siblings, requested) !== undefined) {
+        const shifted = shiftOrdersFrom(siblings, requested);
+        targetOwner.questions = targetOwner.questions.map(
+          (q) => shifted.find((s) => s.id === q.id) ?? q,
+        );
+      }
 
-      owner.questions = owner.questions.filter((q) => q.id !== id);
-      question.categoryId = target.id;
-      target.questions.push(question);
+      question.order = requested;
     }
 
     return HttpResponse.json(question);
@@ -2784,7 +3553,7 @@ export const handlers: HttpHandler[] = [
       const denied = requireAdmin(request);
       if (denied) return denied;
     }
-    if (scope === 'reviewer' && !user.roles.includes('Reviewer')) {
+    if (scope === 'reviewer' && !canAccessWorkspace(user.roles, 'reviewer')) {
       return errorResponse(403, 'FORBIDDEN', 'You do not have access to this workspace.');
     }
 
@@ -2808,11 +3577,7 @@ export const handlers: HttpHandler[] = [
     return HttpResponse.json(
       visible.map((review) => ({
         ...review,
-        findings: {
-          incorrectCode: '',
-          incompleteImplementation: '',
-          sourceFormatting: '',
-        },
+        findings: { incorrectCode: '', incompleteImplementation: '', sourceFormatting: '' },
         otherRemarks: '',
         feedbackSummary: '',
         screenshots: [],
@@ -2825,17 +3590,18 @@ export const handlers: HttpHandler[] = [
   /**
    * A reviewer hands a task back (spec p.12).
    *
-   * ⚠️ No Figma screen and no development-spec section exist for this; the flow
-   * below is our design (plan §1.3).
-   *
-   * What it does: clears the reviewer, returns the task to its pre-review status
-   * and raises a Pending handover for the admin. `isHandedOver` identifies it in
-   * the open Available queue until a reviewer picks it or an admin reassigns it.
-   *
-   * What it deliberately does NOT do: touch `reviewCycle`. A cycle counts a
-   * completed review round (spec p.10), and handing over is the absence of one.
-   * Incrementing here would inflate every cycle metric in Reports whenever a
-   * reviewer went on leave.
+   * What it does:
+   * 1. Validates reviewer ownership and InReview state.
+   * 2. Prevents duplicate / concurrent handovers.
+   * 3. Validates mandatory trimmed reason.
+   * 4. Persists the latest live draft (preserving rankings, comments, screenshots, and authorship).
+   * 5. Clears reviewerId to null.
+   * 6. Restores pre-review status (Submitted vs ReSubmitted) derived from lifecycle events.
+   * 7. Quarantines the task (isHandedOver = true).
+   * 8. Leaves reviewCycle unchanged.
+   * 9. Creates a Pending handover record.
+   * 10. Dispatches TaskHandedOver notification to all active Admins.
+   * 11. Records HandedOver audit event.
    */
   http.post('/api/tasks/:taskId/handover', async ({ request, params }) => {
     await delay(LATENCY_MS);
@@ -2851,12 +3617,86 @@ export const handlers: HttpHandler[] = [
       return errorResponse(422, 'INVALID_STATE', 'This task is not yours to hand over.');
     }
 
+    if (task.isHandedOver) {
+      return errorResponse(409, 'ALREADY_HANDED_OVER', 'This task has already been handed over.');
+    }
+
+    // Only one Pending handover may exist per task
+    const existingPending = db.handovers.find(
+      (h) => h.taskId === task.id && h.status === 'Pending',
+    );
+    if (existingPending) {
+      return errorResponse(
+        409,
+        'ALREADY_HANDED_OVER',
+        'A handover is already pending for this task.',
+      );
+    }
+
     const parsed = createHandoverInputSchema.safeParse(await request.json());
     if (!parsed.success) return errorResponse(422, 'VALIDATION_FAILED', firstIssue(parsed.error));
 
     const now = new Date().toISOString();
+
+    // Persist the latest supplied draft atomically if provided
+    const currentSessionId =
+      task.currentReviewSessionId ??
+      findReview(task.id, task.historicalCycle ?? task.reviewCycle)?.currentReviewSessionId ??
+      undefined;
+    if (parsed.data.draft) {
+      const review = ensureReview(task, user.id, user.name);
+      // Handover transfers unfinished review context, NEVER a final rank
+      review.rank = null;
+      review.previousFeedbackReviewNote = null;
+      if (parsed.data.draft.comments) {
+        const existingComments =
+          findReview(task.id, task.historicalCycle ?? task.reviewCycle)?.comments ?? [];
+        const authorshipError = validateCommentAuthorship(
+          existingComments,
+          parsed.data.draft.comments,
+          user.id,
+          currentSessionId,
+        );
+        if (authorshipError) {
+          return errorResponse(403, 'FORBIDDEN', authorshipError);
+        }
+        review.comments = parsed.data.draft.comments.map((c) => {
+          const prev = existingComments.find(
+            (p) =>
+              p.id === c.id &&
+              (currentSessionId
+                ? p.reviewSessionId !== currentSessionId
+                : Boolean(p.reviewerId && p.reviewerId !== user.id)),
+          );
+          if (prev) return { ...prev };
+          return {
+            ...c,
+            reviewerId: c.reviewerId ?? user.id,
+            reviewerName: c.reviewerName ?? user.name,
+            reviewSessionId: c.reviewSessionId ?? currentSessionId,
+          };
+        });
+      }
+      if (parsed.data.draft.generalCheck) {
+        review.generalCheck = parsed.data.draft.generalCheck;
+      }
+      if (parsed.data.draft.findings) {
+        review.findings = parsed.data.draft.findings;
+      }
+      if (parsed.data.draft.otherRemarks !== undefined) {
+        review.otherRemarks = parsed.data.draft.otherRemarks;
+      }
+      if (parsed.data.draft.feedbackSummary !== undefined) {
+        review.feedbackSummary = parsed.data.draft.feedbackSummary;
+      }
+      review.updatedAt = now;
+    }
+
     const handover: Handover = {
-      id: `ho-${task.id}-${String(db.handovers.length + 1)}`,
+      id: generateHandoverId({
+        existingIds: db.handovers.map((h) => h.id),
+        date: new Date(now),
+      }),
       taskId: task.id,
       fromReviewerId: user.id,
       fromReviewerName: user.name,
@@ -2872,10 +3712,50 @@ export const handlers: HttpHandler[] = [
 
     task.reviewerId = null;
     task.isHandedOver = true;
-    // Back to where it was before this reviewer picked it up. A first-cycle task
-    // returns to Submitted; one that has been round returns to Re-Submitted.
-    task.status = task.reviewCycle > 1 ? 'ReSubmitted' : 'Submitted';
+    task.currentReviewSessionId = null;
+    const currentReview = findReview(task.id, task.historicalCycle ?? task.reviewCycle);
+    if (currentReview?.decision === null) {
+      currentReview.currentReviewSessionId = null;
+      currentReview.rank = null;
+    }
+    // Derive pre-review queue status safely from lifecycle events, NOT from reviewCycle
+    task.status = getOriginStatus(task.id);
     touch(task);
+
+    const notificationRecipients = db.users.filter(
+      (candidate) =>
+        candidate.isActive &&
+        candidate.id !== user.id &&
+        (candidate.id === task.developerId ||
+          candidate.roles.includes('Reviewer') ||
+          candidate.roles.includes('Admin') ||
+          candidate.roles.includes('Super Admin')),
+    );
+    for (const recipient of notificationRecipients) {
+      const isDeveloper = recipient.id === task.developerId;
+      const isReviewer = recipient.roles.includes('Reviewer') && !isDeveloper;
+      db.notifications.push({
+        id: `n-${String(Date.now())}-${String(db.notifications.length + 1)}`,
+        userId: recipient.id,
+        kind: 'TaskHandedOver',
+        title: isReviewer
+          ? `${task.taskCode} available to pick`
+          : `${task.taskCode} review handed over`,
+        body: isDeveloper
+          ? `${user.name} handed over your review task for reassignment.`
+          : isReviewer
+            ? `${user.name} handed over this task. It is now available to pick.`
+            : `${user.name} handed over review for ${task.taskCode}. Reason: ${parsed.data.reason}`,
+        href: isDeveloper
+          ? `/developer/tasks/${task.id}`
+          : isReviewer
+            ? '/reviewer'
+            : '/admin/handovers',
+        taskId: task.id,
+        isRead: false,
+        createdAt: now,
+      });
+    }
 
     recordEvent({
       taskId: task.id,
@@ -2885,56 +3765,6 @@ export const handlers: HttpHandler[] = [
       note: parsed.data.reason,
       occurredAt: now,
     });
-    recordMockAudit(user, {
-      actionType: 'TASK_HANDOVER',
-      entityType: 'HANDOVER',
-      entityId: handover.id,
-      taskId: task.id,
-      description: `${user.name} handed over task '${task.title}': ${parsed.data.reason}`,
-      oldValue: { reviewerId: user.id, reviewerName: user.name },
-      newValue: handover,
-    });
-    createNotification({
-      userId: task.developerId,
-      kind: 'TaskHandedOver',
-      title: `${task.title} handed over`,
-      body: `${user.name} handed over your review task for reassignment.`,
-      href: '/crp/admin/handovers',
-      taskId: task.id,
-    });
-    for (const administrator of db.users.filter(
-      (candidate) =>
-        candidate.isActive &&
-        candidate.id !== task.developerId &&
-        candidate.id !== user.id &&
-        !candidate.roles.includes('Reviewer') &&
-        (candidate.roles.includes('Admin') || candidate.roles.includes('Super Admin')),
-    )) {
-      createNotification({
-        userId: administrator.id,
-        kind: 'TaskHandedOver',
-        title: `${task.title} handed over`,
-        body: `${user.name} handed over this review task for reassignment.`,
-        href: '/crp/admin/handovers',
-        taskId: task.id,
-      });
-    }
-    for (const reviewer of db.users.filter(
-      (candidate) =>
-        candidate.isActive &&
-        candidate.id !== task.developerId &&
-        candidate.id !== user.id &&
-        candidate.roles.includes('Reviewer'),
-    )) {
-      createNotification({
-        userId: reviewer.id,
-        kind: 'TaskHandedOver',
-        title: `${task.title} available to pick`,
-        body: `${user.name} handed over this review task. It is now available to pick.`,
-        href: `/crp/reviewer/tasks/${task.id}`,
-        taskId: task.id,
-      });
-    }
 
     return HttpResponse.json(toListItem(task));
   }),
@@ -2945,13 +3775,52 @@ export const handlers: HttpHandler[] = [
     const denied = requireAdmin(request);
     if (denied) return denied;
 
-    const rank = { Pending: 0, Reassigned: 1, Cancelled: 2 };
+    const rank: Record<string, number> = {
+      Pending: 0,
+      Reassigned: 1,
+      ReturnedToQueue: 2,
+      Cancelled: 2,
+    };
 
     return HttpResponse.json(
       db.handovers
         .slice()
-        .sort((a, b) => rank[a.status] - rank[b.status] || b.createdAt.localeCompare(a.createdAt)),
+        .sort(
+          (a, b) =>
+            (rank[a.status] ?? 2) - (rank[b.status] ?? 2) || b.createdAt.localeCompare(a.createdAt),
+        ),
     );
+  }),
+
+  /** A single handover by ID for the admin detail view. */
+  http.get('/api/handovers/:handoverId', async ({ request, params }) => {
+    await delay(LATENCY_MS);
+    const denied = requireAdmin(request);
+    if (denied) return denied;
+
+    const handover = db.handovers.find((h) => h.id === String(params['handoverId']));
+    if (!handover) return errorResponse(404, 'NOT_FOUND', 'Handover not found.');
+
+    return HttpResponse.json(handover);
+  }),
+
+  /** Read-only preserved review draft for an admin inspecting a handover. */
+  http.get('/api/handovers/:handoverId/draft', async ({ request, params }) => {
+    await delay(LATENCY_MS);
+    const denied = requireAdmin(request);
+    if (denied) return denied;
+
+    const handover = db.handovers.find((h) => h.id === String(params['handoverId']));
+    if (!handover) return errorResponse(404, 'NOT_FOUND', 'Handover not found.');
+
+    const task = findTask(handover.taskId);
+    if (!task) return errorResponse(404, 'NOT_FOUND', 'Task not found.');
+
+    const currentHistoricalCycle = task.historicalCycle ?? task.reviewCycle;
+    const review = findReview(task.id, currentHistoricalCycle);
+    if (!review) return new HttpResponse(null, { status: 204 });
+
+    return HttpResponse.json(review);
   }),
 
   /** Reassign a handed-over task to another reviewer. */
@@ -2969,6 +3838,9 @@ export const handlers: HttpHandler[] = [
 
     const task = findTask(handover.taskId);
     if (!task) return errorResponse(404, 'NOT_FOUND', 'Task not found.');
+    if (!task.isHandedOver) {
+      return errorResponse(409, 'INVALID_STATE', 'This task is not currently handed over.');
+    }
 
     const parsed = reassignHandoverInputSchema.safeParse(await request.json());
     if (!parsed.success) return errorResponse(422, 'VALIDATION_FAILED', firstIssue(parsed.error));
@@ -2987,16 +3859,41 @@ export const handlers: HttpHandler[] = [
     }
 
     const now = new Date().toISOString();
+    const currentHistoricalCycle = task.historicalCycle ?? task.reviewCycle;
+    const newSessionId = createReviewSessionId(task.id, currentHistoricalCycle);
     task.reviewerId = reviewer.id;
     task.isHandedOver = false;
     task.status = 'InReview';
+    task.currentReviewSessionId = newSessionId;
     touch(task);
+
+    const activeDraft = findReview(task.id, currentHistoricalCycle);
+    if (activeDraft?.decision === null) {
+      activeDraft.reviewerId = reviewer.id;
+      activeDraft.reviewerName = reviewer.name;
+      activeDraft.currentReviewSessionId = newSessionId;
+      activeDraft.rank = null;
+      activeDraft.previousFeedbackReviewNote = null;
+      activeDraft.updatedAt = now;
+    }
 
     handover.status = 'Reassigned';
     handover.reassignedToId = reviewer.id;
     handover.reassignedToName = reviewer.name;
     handover.reassignedById = actor.id;
     handover.resolvedAt = now;
+
+    db.notifications.push({
+      id: `n-${String(Date.now())}-${String(db.notifications.length + 1)}`,
+      userId: reviewer.id,
+      kind: 'TaskAssigned',
+      title: `Assigned to review ${task.taskCode}`,
+      body: `You have been assigned to review ${task.taskCode} following a handover.`,
+      href: `/reviewer/tasks/${task.id}`,
+      taskId: task.id,
+      isRead: false,
+      createdAt: now,
+    });
 
     recordEvent({
       taskId: task.id,
@@ -3006,30 +3903,79 @@ export const handlers: HttpHandler[] = [
       note: reviewer.name,
       occurredAt: now,
     });
-    recordMockAudit(actor, {
-      actionType: 'HANDOVER_REASSIGNED',
-      entityType: 'HANDOVER',
-      entityId: handover.id,
+
+    return HttpResponse.json(handover);
+  }),
+
+  /**
+   * Return a handed-over task to the open queue instead of naming a reviewer.
+   *
+   * The other half of the admin's decision, and the reason handover is not just
+   * "unassign": sometimes the right answer is "anyone may take this", and
+   * without this action the admin would have to pick a name they do not have.
+   */
+  http.post('/api/handovers/:handoverId/return', async ({ request, params }) => {
+    await delay(LATENCY_MS);
+    const denied = requireAdmin(request);
+    if (denied) return denied;
+
+    const actor = currentUser(request);
+    const handover = db.handovers.find((h) => h.id === String(params['handoverId']));
+    if (!handover || !actor) return errorResponse(404, 'NOT_FOUND', 'Handover not found.');
+    if (handover.status !== 'Pending') {
+      return errorResponse(422, 'ALREADY_RESOLVED', 'This handover has already been resolved.');
+    }
+
+    const task = findTask(handover.taskId);
+    if (!task) return errorResponse(404, 'NOT_FOUND', 'Task not found.');
+    if (!task.isHandedOver) {
+      return errorResponse(409, 'INVALID_STATE', 'This task is not currently handed over.');
+    }
+
+    const now = new Date().toISOString();
+    task.isHandedOver = false;
+    task.reviewerId = null;
+    task.currentReviewSessionId = null;
+    task.status = getOriginStatus(task.id);
+    touch(task);
+
+    const currentHistoricalCycle = task.historicalCycle ?? task.reviewCycle;
+    const activeDraft = findReview(task.id, currentHistoricalCycle);
+    if (activeDraft?.decision === null) {
+      activeDraft.currentReviewSessionId = null;
+      activeDraft.rank = null;
+      activeDraft.previousFeedbackReviewNote = null;
+      activeDraft.updatedAt = now;
+    }
+
+    handover.status = 'ReturnedToQueue';
+    handover.resolvedAt = now;
+    handover.reassignedById = actor.id;
+
+    recordEvent({
       taskId: task.id,
-      targetUserId: reviewer.id,
-      description: `${actor.name} reassigned task '${task.title}' from ${handover.fromReviewerName} to ${reviewer.name}. Handover reason: ${handover.reason}`,
-      oldValue: {
-        reviewerId: handover.fromReviewerId,
-        reviewerName: handover.fromReviewerName,
-        reason: handover.reason,
-      },
-      newValue: { reviewerId: reviewer.id, reviewerName: reviewer.name },
-    });
-    createNotification({
-      userId: reviewer.id,
-      kind: 'TaskAssigned',
-      title: `${task.title} reassigned to you`,
-      body: `${actor.name} reassigned this review task to ${reviewer.name}.`,
-      href: `/crp/reviewer/tasks/${task.id}`,
-      taskId: task.id,
+      kind: 'ReturnedToQueue',
+      reviewCycle: task.reviewCycle,
+      actorId: actor.id,
+      note: 'Returned to open review queue',
+      occurredAt: now,
     });
 
     return HttpResponse.json(handover);
+  }),
+
+  /* ---------------------------------------------------------- system audit */
+
+  http.get('/api/system-audit-events', async ({ request }) => {
+    await delay(LATENCY_MS);
+    const denied = requireCapability(request, 'audit.system.view');
+    if (denied) return denied;
+
+    return HttpResponse.json(
+      systemAuditEventSchema
+        .array()
+        .parse(db.auditEvents.slice().sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))),
+    );
   }),
 
   /* --------------------------------------------------------- notifications */

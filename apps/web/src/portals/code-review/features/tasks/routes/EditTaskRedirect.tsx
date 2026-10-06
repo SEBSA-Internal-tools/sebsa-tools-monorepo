@@ -76,6 +76,8 @@ export function EditTaskRedirect() {
     hydrate({
       taskId: task.id,
       taskCode: task.taskCode,
+      createdAt: task.createdAt,
+      submittedAt: task.submittedAt,
       customerId: task.customerId,
       crimId: task.crimId,
       version: task.version ?? '',
@@ -91,7 +93,6 @@ export function EditTaskRedirect() {
       draft: {
         customerId: task.customerId,
         crimId: task.crimId,
-        version: task.version ?? '',
         priority: task.priority,
       },
       taskTypes: task.taskTypeIds,
@@ -104,9 +105,7 @@ export function EditTaskRedirect() {
      * route is a redirect: Back from the wizard should return to the task, not
      * bounce through here and hydrate again.
      */
-    void navigate(ROUTES.developer.editTaskStep(task.id, resumeStep(missing)), {
-      replace: true,
-    });
+    void navigate(ROUTES.developer.editTaskStep(task.id, resumeStep(missing)), { replace: true });
   }, [isLoading, task, mayEdit, checklist, template, hydrate, navigate]);
 
   if (isLoading) return <PageSkeleton className="min-h-[60vh]" />;

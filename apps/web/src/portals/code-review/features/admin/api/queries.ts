@@ -100,7 +100,8 @@ export function useDeleteCustomer() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (customerId: string) => api.delete(`/customers/${customerId}`, z.unknown()),
+    mutationFn: ({ customerId, reason }: { customerId: string; reason: string }) =>
+      api.delete(`/customers/${customerId}`, z.unknown(), { body: { reason } }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: taskKeys.customers() });
     },
@@ -113,8 +114,15 @@ export function useAssignReviewer() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ taskId, reviewerId }: { taskId: string; reviewerId: string }) =>
-      api.post(`/tasks/${taskId}/assign`, taskListItemSchema, { reviewerId }),
+    mutationFn: ({
+      taskId,
+      reviewerId,
+      reason,
+    }: {
+      taskId: string;
+      reviewerId: string;
+      reason?: string | undefined;
+    }) => api.post(`/tasks/${taskId}/assign`, taskListItemSchema, { reviewerId, reason }),
     onSuccess: (task) => {
       void queryClient.invalidateQueries({ queryKey: taskKeys.lists() });
       void queryClient.invalidateQueries({
@@ -136,12 +144,8 @@ export function useCancelTask() {
       api.post(`/tasks/${taskId}/cancel`, taskListItemSchema, { reason }),
     onSuccess: (task) => {
       void queryClient.invalidateQueries({ queryKey: taskKeys.lists() });
-      void queryClient.invalidateQueries({
-        queryKey: taskKeys.detail(task.id),
-      });
-      void queryClient.invalidateQueries({
-        queryKey: taskKeys.events(task.id),
-      });
+      void queryClient.invalidateQueries({ queryKey: taskKeys.detail(task.id) });
+      void queryClient.invalidateQueries({ queryKey: taskKeys.events(task.id) });
     },
   });
 }
@@ -150,7 +154,8 @@ export function useDeleteTask() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (taskId: string) => api.delete(`/tasks/${taskId}`, z.unknown()),
+    mutationFn: ({ taskId, reason }: { taskId: string; reason: string }) =>
+      api.delete(`/tasks/${taskId}`, z.unknown(), { body: { reason } }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: taskKeys.lists() });
     },

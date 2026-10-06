@@ -19,6 +19,8 @@ function task(overrides: Partial<TaskListItem> & { status: TaskStatus }): TaskLi
     customerId: 'c-aasl',
     priority: 'Medium',
     reviewCycle: 1,
+    historicalCycle: 1,
+    adjustedCycles: [],
     developerId: 'u-dev',
     reviewerId: null,
     taskTypeIds: [],
@@ -44,7 +46,6 @@ const ALL_STATUSES: readonly TaskStatus[] = [
   'ChangesRequested',
   'ReSubmitted',
   'Approved',
-  'Delivered',
   'Cancelled',
 ];
 
@@ -73,12 +74,9 @@ describe('filterTasks — bucket', () => {
     expect(kept.map((t) => t.status)).toEqual(['Submitted']);
   });
 
-  it('treats a delivered task as approved', () => {
-    const kept = filterTasks(everyStatus, {
-      ...EMPTY_TASK_FILTERS,
-      bucket: 'approved',
-    });
-    expect(kept.map((t) => t.status)).toEqual(['Approved', 'Delivered']);
+  it('keeps approved tasks for the approved bucket', () => {
+    const kept = filterTasks(everyStatus, { ...EMPTY_TASK_FILTERS, bucket: 'approved' });
+    expect(kept.map((t) => t.status)).toEqual(['Approved']);
   });
 
   it('ignores a bucket it does not recognise rather than emptying the grid', () => {
@@ -108,16 +106,13 @@ describe('filterTasks — bucket', () => {
   });
 
   it('can narrow a bucket to one of its own statuses', () => {
-    // Clicking Approved on the dashboard and then picking Delivered in the
-    // Select is a legitimate, if narrow, question — the two must intersect, not
-    // fight.
     const kept = filterTasks(everyStatus, {
       ...EMPTY_TASK_FILTERS,
-      bucket: 'approved',
-      status: 'Delivered',
+      bucket: 'awaitingReview',
+      status: 'InReview',
     });
 
-    expect(kept.map((t) => t.status)).toEqual(['Delivered']);
+    expect(kept.map((t) => t.status)).toEqual(['InReview']);
   });
 
   it('returns nothing when the bucket and the status select cannot both hold', () => {
@@ -152,6 +147,17 @@ describe('filterTasks — existing dimensions still hold', () => {
     expect(
       filterTasks(rows, { ...EMPTY_TASK_FILTERS, search: 'crim-848' }).map((t) => t.id),
     ).toEqual(['match']);
+  });
+
+  it('searches newly generated compact titles without special parsing', () => {
+    const rows = [
+      task({ id: 'compact', status: 'Draft', title: 'AIM-570-4', crimId: '570' }),
+      task({ id: 'other', status: 'Draft', title: 'SEMCO-949-3', crimId: '949' }),
+    ];
+
+    expect(
+      filterTasks(rows, { ...EMPTY_TASK_FILTERS, search: 'aim-570-4' }).map((entry) => entry.id),
+    ).toEqual(['compact']);
   });
 
   it('treats ALL as no filter on every dimension', () => {

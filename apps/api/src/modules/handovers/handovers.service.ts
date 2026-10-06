@@ -17,6 +17,7 @@ import { AuditService } from '../audit/audit.service.js';
 import type { ReassignHandoverDto } from './dto/reassign-handover.dto.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { retryPrismaTransaction } from '../../common/prisma-errors.js';
+import { reviewDraftSchema } from '@sdp/contracts';
 
 const handoverInclude = {
   task: true,
@@ -40,6 +41,54 @@ export class HandoversService {
       orderBy: [{ status: 'asc' }, { requestedAt: 'desc' }],
     });
     return handovers.map((handover) => this.toResponse(handover));
+  }
+
+  async findOne(id: string) {
+    const handover = await this.prisma.handoverTask.findUnique({
+      where: { id },
+      include: handoverInclude,
+    });
+    if (!handover) throw new NotFoundException(`Handover ${id} was not found`);
+    return this.toResponse(handover);
+  }
+
+  async findDraft(id: string) {
+    const handover = await this.prisma.handoverTask.findUnique({
+      where: { id },
+      include: { task: { select: { currentReviewCycle: true } }, fromReviewer: true },
+    });
+    if (!handover) throw new NotFoundException(`Handover ${id} was not found`);
+    const log = await this.prisma.auditLog.findFirst({
+      where: { entityType: 'HANDOVER', entityId: id, action: 'TASK_HANDOVER' },
+      select: { metadata: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!log?.metadata || typeof log.metadata !== 'object' || Array.isArray(log.metadata))
+      return null;
+    const parsed = reviewDraftSchema.safeParse(log.metadata['reviewDraft']);
+    if (!parsed.success) return null;
+    const draft = parsed.data;
+    return {
+      id: handover.id,
+      taskId: handover.taskId,
+      reviewCycle: Math.max(handover.task.currentReviewCycle, 1),
+      reviewerId: handover.fromReviewerId,
+      reviewerName: handover.fromReviewer.fullName,
+      currentReviewSessionId: draft.currentReviewSessionId ?? handover.id,
+      comments: draft.comments,
+      generalCheck: draft.generalCheck,
+      findings: draft.findings,
+      otherRemarks: draft.otherRemarks,
+      feedbackSummary: draft.feedbackSummary,
+      screenshots: draft.comments.flatMap(({ screenshots }) => screenshots),
+      rank: draft.rank,
+      previousFeedbackReviewNote: draft.previousFeedbackReviewNote ?? null,
+      previousFeedbackAcknowledged: draft.previousFeedbackAcknowledged ?? null,
+      decision: null,
+      decidedAt: null,
+      createdAt: handover.requestedAt.toISOString(),
+      updatedAt: handover.requestedAt.toISOString(),
+    };
   }
 
   async reassign(id: string, dto: ReassignHandoverDto, actor: AuthenticatedUser) {
@@ -97,12 +146,25 @@ export class HandoversService {
           where: { taskId: handover.taskId, isCurrent: true },
           data: { isCurrent: false, unassignedAt: now },
         });
-        await tx.taskReviewerAssignment.create({
+        const assignment = await tx.taskReviewerAssignment.create({
           data: {
             taskId: handover.taskId,
             reviewerId: reviewer.id,
             assignedBy: actor.id,
             assignmentType: ReviewerAssignmentType.HANDOVER_REASSIGNED,
+          },
+        });
+        await tx.codeReviewForm.updateMany({
+          where: {
+            taskId: handover.taskId,
+            reviewCycleNumber: Math.max(handover.task.currentReviewCycle, 1),
+            status: 'DRAFT',
+          },
+          data: {
+            reviewerId: reviewer.id,
+            currentReviewSessionId: assignment.id,
+            reviewRank: null,
+            previousFeedbackReviewNote: null,
           },
         });
         await tx.taskStatusHistory.create({
@@ -146,11 +208,50 @@ export class HandoversService {
     );
   }
 
+  async returnToQueue(id: string, actor: AuthenticatedUser) {
+    return this.prisma.$transaction(async (tx) => {
+      const handover = await tx.handoverTask.findUnique({
+        where: { id },
+        include: handoverInclude,
+      });
+      if (!handover) throw new NotFoundException(`Handover ${id} was not found`);
+      if (handover.status !== HandoverStatus.PENDING) {
+        throw new ConflictException('This handover has already been resolved');
+      }
+      const now = new Date();
+      const resolved = await tx.handoverTask.updateMany({
+        where: { id, status: HandoverStatus.PENDING },
+        data: {
+          status: HandoverStatus.RETURNED_TO_QUEUE,
+          reassignedBy: actor.id,
+          reassignedAt: now,
+        },
+      });
+      if (resolved.count !== 1) {
+        throw new ConflictException('This handover has already been resolved');
+      }
+      await this.audit.record(tx, actor, {
+        actionType: 'HANDOVER_RETURNED_TO_QUEUE',
+        entityType: 'HANDOVER',
+        entityId: id,
+        taskId: handover.taskId,
+        description: `${actor.name} returned task '${handover.task.title}' to the open review queue`,
+      });
+      const updated = await tx.handoverTask.findUnique({
+        where: { id },
+        include: handoverInclude,
+      });
+      if (!updated) throw new NotFoundException(`Handover ${id} was not found`);
+      return this.toResponse(updated);
+    });
+  }
+
   private toResponse(handover: HandoverWithRelations) {
     const status = {
       PENDING: 'Pending',
       REASSIGNED: 'Reassigned',
       CANCELLED: 'Cancelled',
+      RETURNED_TO_QUEUE: 'ReturnedToQueue',
     }[handover.status];
     return {
       id: handover.id,

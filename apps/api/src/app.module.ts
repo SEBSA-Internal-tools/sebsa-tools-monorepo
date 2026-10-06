@@ -23,6 +23,7 @@ import { ChecklistQuestionsModule } from './modules/checklist-questions/checklis
 import { AuditModule } from './modules/audit/audit.module.js';
 import { HandoversModule } from './modules/handovers/handovers.module.js';
 import { NotificationsModule } from './modules/notifications/notifications.module.js';
+import { ReviewsModule } from './modules/reviews/reviews.module.js';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     ReviewTasksModule,
     HandoversModule,
     NotificationsModule,
+    ReviewsModule,
     RolesModule,
     UserRolesModule,
     ChecklistSectionsModule,

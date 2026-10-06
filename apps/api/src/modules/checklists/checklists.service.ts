@@ -31,12 +31,12 @@ export class ChecklistsService {
         name: section.name,
         order: Math.min(...section.taskTypes.map(({ displayOrder }) => displayOrder)),
         isActive: section.isActive,
+        applicableTaskTypeIds: section.taskTypes.map(({ taskTypeId }) => String(taskTypeId)),
         questions: section.questions.map((question) => ({
           id: question.id,
           categoryId: section.id,
           text: question.questionText,
           order: question.displayOrder,
-          appliesTo: section.taskTypes.map(({ taskTypeId }) => String(taskTypeId)),
           isActive: question.isActive,
         })),
       }))

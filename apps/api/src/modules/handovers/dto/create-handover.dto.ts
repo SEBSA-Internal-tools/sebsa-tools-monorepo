@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsObject, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 
 export class CreateHandoverDto {
   @ApiProperty({ example: 'I am unavailable and cannot complete this review.' })
@@ -8,4 +8,9 @@ export class CreateHandoverDto {
   @MinLength(1)
   @MaxLength(2000)
   reason!: string;
+
+  @ApiPropertyOptional({ type: Object })
+  @IsOptional()
+  @IsObject()
+  draft?: Record<string, unknown>;
 }

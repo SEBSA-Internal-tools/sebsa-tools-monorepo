@@ -1,6 +1,13 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { z } from 'zod';
-import { taskAttachmentSchema, taskChecklistSchema, taskListItemSchema } from '@sdp/contracts';
+import {
+  checklistSubmissionSchema,
+  issueResponseRecordSchema,
+  taskAttachmentSchema,
+  taskChecklistSchema,
+  taskEventSchema,
+  taskListItemSchema,
+} from '@sdp/contracts';
 import { absentAsNull, api } from '@/lib/apiClient.ts';
 
 /**
@@ -23,14 +30,13 @@ export const taskKeys = {
   detail: (taskId: string) => [...taskKeys.all, 'detail', taskId] as const,
   events: (taskId: string) => [...taskKeys.all, 'events', taskId] as const,
   checklist: (taskId: string) => [...taskKeys.all, 'checklist', taskId] as const,
+  checklistSubmissions: (taskId: string) =>
+    [...taskKeys.all, 'checklist-submissions', taskId] as const,
   attachments: (taskId: string) => [...taskKeys.all, 'attachments', taskId] as const,
+  responses: (taskId: string) => [...taskKeys.all, 'responses', taskId] as const,
   template: () => ['checklist-template'] as const,
   taskTypes: () => ['task-types'] as const,
   customers: () => ['customers'] as const,
-  nextTaskId: (customerId: string) =>
-    [...taskKeys.customers(), customerId, 'next-task-id'] as const,
-  nextTaskVersion: (customerId: string, crimId: string) =>
-    [...taskKeys.all, 'next-version', customerId, crimId] as const,
 };
 
 /**
@@ -93,6 +99,17 @@ export function useTaskChecklist(taskId: string | undefined) {
   });
 }
 
+export function useChecklistSubmissions(taskId: string | undefined) {
+  return useQuery({
+    queryKey: taskKeys.checklistSubmissions(taskId ?? ''),
+    queryFn: ({ signal }) =>
+      api.get(`/tasks/${taskId ?? ''}/checklist-submissions`, checklistSubmissionSchema.array(), {
+        signal,
+      }),
+    enabled: taskId !== undefined && taskId !== '',
+  });
+}
+
 /**
  * The developer's supporting images.
  *
@@ -104,6 +121,29 @@ export function useTaskAttachments(taskId: string | undefined) {
     queryKey: taskKeys.attachments(taskId ?? ''),
     queryFn: ({ signal }) =>
       api.get(`/tasks/${taskId ?? ''}/attachments`, z.array(taskAttachmentSchema), { signal }),
+    enabled: taskId !== undefined && taskId !== '',
+  });
+}
+
+/**
+ * The task's activity log and the developer's responses to review comments.
+ * Read here rather than in `features/tasks` because the reviewer and admin
+ * screens render them too.
+ */
+export function useTaskEvents(taskId: string | undefined) {
+  return useQuery({
+    queryKey: taskKeys.events(taskId ?? ''),
+    queryFn: ({ signal }) =>
+      api.get(`/tasks/${taskId ?? ''}/events`, z.array(taskEventSchema), { signal }),
+    enabled: taskId !== undefined && taskId !== '',
+  });
+}
+
+export function useIssueResponses(taskId: string | undefined) {
+  return useQuery({
+    queryKey: taskKeys.responses(taskId ?? ''),
+    queryFn: ({ signal }) =>
+      api.get(`/tasks/${taskId ?? ''}/responses`, z.array(issueResponseRecordSchema), { signal }),
     enabled: taskId !== undefined && taskId !== '',
   });
 }

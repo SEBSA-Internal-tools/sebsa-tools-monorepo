@@ -28,7 +28,6 @@ export const STATUS_COLORS: Record<TaskStatus, string> = {
   ChangesRequested: '#f59e0b',
   ReSubmitted: '#0891b2',
   Approved: '#15803d',
-  Delivered: '#0d9488',
   Cancelled: '#dc2626',
 };
 

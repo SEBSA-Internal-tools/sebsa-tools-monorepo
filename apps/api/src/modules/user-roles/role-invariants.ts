@@ -1,5 +1,5 @@
-import { ConflictException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
+import { ApiException } from '../../common/api-error.js';
 import type { RoleCode } from '../auth/auth.constants.js';
 import type { UserWithRoleRecords } from '../users/user-response.js';
 
@@ -26,7 +26,10 @@ export async function assertNotLastActiveRoleHolder(
     });
     if (count <= 1) {
       const label = role === 'SUPER_ADMIN' ? 'Super Admin' : 'administrator';
-      throw new ConflictException(`The last active ${label} cannot be ${action}`);
+      throw new ApiException(
+        'INVALID_STATE_TRANSITION',
+        `The last active ${label} cannot be ${action}`,
+      );
     }
   }
 }

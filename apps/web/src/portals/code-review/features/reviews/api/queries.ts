@@ -1,7 +1,6 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { z } from 'zod';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  generalCheckQuestionSchema,
+  issueResponseRecordSchema,
   reviewSchema,
   taskListItemSchema,
   type CreateHandoverInput,
@@ -30,18 +29,6 @@ export {
  * picked from Available lingers there until a refresh.
  */
 
-/** The 13 General Check questions (spec section 3.1). */
-export function useGeneralCheckQuestions() {
-  return useQuery({
-    queryKey: reviewKeys.generalCheck(),
-    queryFn: ({ signal }) =>
-      api.get('/general-check', z.array(generalCheckQuestionSchema), {
-        signal,
-      }),
-    staleTime: 5 * 60 * 1000,
-  });
-}
-
 /**
  * Claim a task off the Available queue.
  *
@@ -57,59 +44,15 @@ export function usePickTask() {
     onSuccess: (task) => {
       queryClient.setQueryData(taskKeys.detail(task.id), task);
       void queryClient.invalidateQueries({ queryKey: taskKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: taskKeys.events(task.id) });
+      void queryClient.invalidateQueries({ queryKey: reviewKeys.current(task.id) });
+      void queryClient.invalidateQueries({ queryKey: reviewKeys.history(task.id) });
     },
     onSettled: () => {
       // Even on a lost race the queue has moved on, so refetch either way.
       void queryClient.invalidateQueries({ queryKey: taskKeys.lists() });
     },
   });
-}
-
-/* -------------------------------------------------------------------------- */
-/* Screenshots                                                                 */
-/* -------------------------------------------------------------------------- */
-
-/**
- * All three screenshot mutations write the whole review back into the cache.
- *
- * The server returns the updated review, so there is nothing to guess at — and
- * because the form seeds itself from `current.id` rather than from the object,
- * replacing it here does not discard what the reviewer has typed.
- */
-function useScreenshotMutation<TInput>(
-  taskId: string,
-  request: (input: TInput) => Promise<unknown>,
-) {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (input: TInput) => request(input) as Promise<ReturnType<typeof reviewSchema.parse>>,
-    onSuccess: (review) => {
-      queryClient.setQueryData(reviewKeys.current(taskId), review);
-    },
-  });
-}
-
-export function useAddScreenshot(taskId: string) {
-  return useScreenshotMutation(
-    taskId,
-    (file: { fileName: string; sizeBytes: number; mimeType: string; dataUrl: string }) =>
-      api.post(`/tasks/${taskId}/review/screenshots`, reviewSchema, file),
-  );
-}
-
-export function useCommentScreenshot(taskId: string) {
-  return useScreenshotMutation(
-    taskId,
-    ({ screenshotId, comment }: { screenshotId: string; comment: string }) =>
-      api.patch(`/tasks/${taskId}/review/screenshots/${screenshotId}`, reviewSchema, { comment }),
-  );
-}
-
-export function useRemoveScreenshot(taskId: string) {
-  return useScreenshotMutation(taskId, (screenshotId: string) =>
-    api.delete(`/tasks/${taskId}/review/screenshots/${screenshotId}`, reviewSchema),
-  );
 }
 
 /**
@@ -128,11 +71,10 @@ export function useHandOver(taskId: string) {
     onSuccess: (task) => {
       queryClient.setQueryData(taskKeys.detail(task.id), task);
       void queryClient.invalidateQueries({ queryKey: taskKeys.lists() });
-      void queryClient.invalidateQueries({
-        queryKey: taskKeys.events(task.id),
-      });
+      void queryClient.invalidateQueries({ queryKey: taskKeys.events(task.id) });
       void queryClient.invalidateQueries({ queryKey: ['handovers'] });
-      void queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      void queryClient.invalidateQueries({ queryKey: reviewKeys.current(task.id) });
+      void queryClient.invalidateQueries({ queryKey: reviewKeys.history(task.id) });
     },
   });
 }
@@ -150,13 +92,35 @@ export function useHandOver(taskId: string) {
  * Nothing else is invalidated: a draft changes no status, no queue and no
  * metric, because `decision` stays null.
  */
+export interface SaveReviewDraftVariables {
+  draft: ReviewDraft;
+  source?: 'autosave' | 'manual';
+}
+
 export function useSaveReviewDraft(taskId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (draft: ReviewDraft) => api.put(`/tasks/${taskId}/review`, reviewSchema, draft),
-    onSuccess: (review) => {
+    mutationFn: (variables: SaveReviewDraftVariables | ReviewDraft) => {
+      const draft = 'draft' in variables ? variables.draft : variables;
+      const source = 'source' in variables && variables.source ? variables.source : 'autosave';
+      return api.put(
+        `/tasks/${taskId}/review`,
+        reviewSchema,
+        draft,
+        source === 'manual' ? { searchParams: { source: 'manual' } } : undefined,
+      );
+    },
+    onSuccess: (review, variables) => {
       queryClient.setQueryData(reviewKeys.current(taskId), review);
+      const isManual =
+        typeof variables === 'object' &&
+        variables !== null &&
+        'source' in variables &&
+        variables.source === 'manual';
+      if (isManual) {
+        void queryClient.invalidateQueries({ queryKey: taskKeys.events(taskId) });
+      }
     },
   });
 }
@@ -170,16 +134,34 @@ export function useDecideReview(taskId: string) {
     onSuccess: (task) => {
       queryClient.setQueryData(taskKeys.detail(task.id), task);
       void queryClient.invalidateQueries({ queryKey: taskKeys.lists() });
-      void queryClient.invalidateQueries({
-        queryKey: taskKeys.events(task.id),
-      });
-      void queryClient.invalidateQueries({
-        queryKey: reviewKeys.current(task.id),
-      });
-      void queryClient.invalidateQueries({
-        queryKey: reviewKeys.history(task.id),
-      });
+      void queryClient.invalidateQueries({ queryKey: taskKeys.events(task.id) });
+      void queryClient.invalidateQueries({ queryKey: reviewKeys.current(task.id) });
+      void queryClient.invalidateQueries({ queryKey: reviewKeys.history(task.id) });
       void queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    },
+  });
+}
+
+export function useUpdateVerdict(taskId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      responseId,
+      verdict,
+      reviewerComment,
+    }: {
+      responseId: string;
+      verdict: 'Accepted' | 'Overruled' | 'Pending';
+      reviewerComment?: string | null | undefined;
+    }) =>
+      api.patch(`/tasks/${taskId}/responses/${responseId}/verdict`, issueResponseRecordSchema, {
+        verdict,
+        reviewerComment,
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: taskKeys.responses(taskId) });
+      void queryClient.invalidateQueries({ queryKey: reviewKeys.history(taskId) });
     },
   });
 }

@@ -3,6 +3,7 @@ import { Prisma, type AuditLog } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { AuthenticatedUser } from '../auth/auth.types.js';
 import type { AuditLogQueryDto } from './dto/audit-log-query.dto.js';
+import type { SystemAuditEvent } from '@sdp/contracts';
 
 type AuditWriter = Pick<Prisma.TransactionClient, 'auditLog'>;
 
@@ -87,6 +88,111 @@ export class AuditService {
     };
   }
 
+  async findSystemEvents() {
+    const logs = await this.prisma.auditLog.findMany({
+      where: {
+        action: {
+          in: [
+            'ROLE_GRANTED',
+            'ROLE_REMOVED',
+            'ROLES_CHANGED',
+            'SUPER_ADMIN_TRANSFERRED',
+            'USER_ACTIVATED',
+            'USER_DEACTIVATED',
+            'USER_DELETED',
+            'TASK_DELETED',
+            'CUSTOMER_DELETED',
+          ],
+        },
+        userId: { not: null },
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    });
+
+    return logs.flatMap((log): SystemAuditEvent[] => {
+      if (!log.userId) return [];
+      const targetId = log.targetUserId ?? log.entityId;
+      if (!targetId || !isUuid(targetId)) return [];
+      const base = {
+        id: log.id,
+        actorId: log.userId,
+        actorName: log.actorName,
+        targetId,
+        targetLabel: log.description,
+        reason: log.description,
+        occurredAt: log.createdAt.toISOString(),
+      };
+      if (log.action === 'SUPER_ADMIN_TRANSFERRED') {
+        return [{ ...base, action: 'SuperAdminGranted' as const, targetType: 'User' as const }];
+      }
+      if (log.action === 'ROLE_GRANTED' || log.action === 'ROLE_REMOVED') {
+        const role = log.description.toUpperCase().includes('SUPER ADMIN')
+          ? 'SuperAdmin'
+          : log.description.toUpperCase().includes('ADMIN')
+            ? 'Admin'
+            : null;
+        if (!role) return [];
+        const suffix = log.action === 'ROLE_GRANTED' ? 'Granted' : 'Revoked';
+        return [
+          {
+            ...base,
+            action: `${role}${suffix}`,
+            targetType: 'User' as const,
+          },
+        ];
+      }
+      if (log.action === 'ROLES_CHANGED') {
+        const oldRoles = jsonStringArray(log.oldValues);
+        const newRoles = jsonStringArray(log.newValues);
+        const changes = [
+          ['ADMIN', 'AdminGranted', 'AdminRevoked'],
+          ['SUPER_ADMIN', 'SuperAdminGranted', 'SuperAdminRevoked'],
+        ] as const;
+        return changes.flatMap(([role, granted, revoked]) => {
+          const before = oldRoles.includes(role);
+          const after = newRoles.includes(role);
+          if (before === after) return [];
+          return [
+            {
+              ...base,
+              action: after ? granted : revoked,
+              targetType: 'User' as const,
+            },
+          ];
+        });
+      }
+      const mapped = {
+        USER_ACTIVATED: 'PrivilegedUserActivated',
+        USER_DEACTIVATED: 'PrivilegedUserDeactivated',
+        USER_DELETED: 'UserDeleted',
+        TASK_DELETED: 'TaskDeleted',
+        CUSTOMER_DELETED: 'CustomerDeleted',
+      } as const;
+      const action = mapped[log.action as keyof typeof mapped];
+      if (!action) return [];
+      if (
+        (log.action === 'USER_ACTIVATED' || log.action === 'USER_DEACTIVATED') &&
+        ![...jsonObjectRoles(log.oldValues), ...jsonObjectRoles(log.newValues)].some((role) =>
+          ['ADMIN', 'SUPER_ADMIN'].includes(role),
+        )
+      ) {
+        return [];
+      }
+      return [
+        {
+          ...base,
+          action,
+          targetType:
+            log.action === 'TASK_DELETED'
+              ? ('Task' as const)
+              : log.action === 'CUSTOMER_DELETED'
+                ? ('Customer' as const)
+                : ('User' as const),
+        },
+      ];
+    });
+  }
+
   private toResponse(item: AuditLog) {
     return {
       id: item.id,
@@ -105,4 +211,19 @@ export class AuditService {
       metadata: item.metadata,
     };
   }
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function jsonStringArray(value: Prisma.JsonValue | null): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : [];
+}
+
+function jsonObjectRoles(value: Prisma.JsonValue | null): string[] {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
+  return jsonStringArray(value['roles'] ?? null);
 }

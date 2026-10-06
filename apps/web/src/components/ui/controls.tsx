@@ -159,8 +159,17 @@ export function Checkbox({
 }) {
   const id = useId();
 
+  // The whole row toggles through native label activation, so pointer and
+  // keyboard users hit the same control and a click on the box never fires twice.
   return (
-    <div className={cn('flex items-start gap-2.5', className)}>
+    <label
+      htmlFor={id}
+      className={cn(
+        'flex items-start gap-2.5',
+        disabled ? 'cursor-not-allowed' : 'cursor-pointer',
+        className,
+      )}
+    >
       <RadixCheckbox.Root
         id={id}
         checked={checked}
@@ -178,11 +187,11 @@ export function Checkbox({
           <Check className="size-3 text-white" aria-hidden="true" />
         </RadixCheckbox.Indicator>
       </RadixCheckbox.Root>
-      <label htmlFor={id} className="cursor-pointer select-none">
+      <span className="min-w-0 flex-1 select-none">
         <span className="block text-sm text-ink-900">{label}</span>
         {description ? <span className="block text-xs text-ink-500">{description}</span> : null}
-      </label>
-    </div>
+      </span>
+    </label>
   );
 }
 

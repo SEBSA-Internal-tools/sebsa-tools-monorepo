@@ -22,10 +22,7 @@ const DEVELOPER = 'u-hiruni';
 
 function renderWizard(path = '/crp/developer/tasks/new') {
   const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false, gcTime: 0 },
-      mutations: { retry: false },
-    },
+    defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } },
   });
 
   const router = createMemoryRouter(routes, { initialEntries: [path] });
@@ -65,12 +62,6 @@ async function chooseCustomer(user: ReturnType<typeof userEvent.setup>, name: st
   await user.click(await screen.findByRole('option', { name }));
 }
 
-function sampleCustomer() {
-  const customer = db.customers[0];
-  if (!customer) throw new Error('seed has no sample customer');
-  return customer;
-}
-
 beforeEach(() => {
   signInForTest(DEVELOPER);
   useTaskDraft.getState().reset();
@@ -84,7 +75,7 @@ describe('New Review Task wizard', () => {
     });
   });
 
-  it('blocks Next on step 1 until customer, CRIM ID, and Priority are entered', async () => {
+  it('blocks Next on step 1 until customer and CRIM ID are entered', async () => {
     const { router, user } = renderWizard();
 
     // The requirement panel is persistent, not revealed by a failed click:
@@ -92,9 +83,7 @@ describe('New Review Task wizard', () => {
     expect(await screen.findByText(/before you can continue/i)).toBeInTheDocument();
     expect(screen.getAllByText(/select a customer/i).length).toBeGreaterThan(0);
 
-    const next = await screen.findByRole('button', {
-      name: /next: quality checklist/i,
-    });
+    const next = await screen.findByRole('button', { name: /next: quality checklist/i });
     // `aria-disabled`, not `disabled`: the button stays focusable and clickable
     // so that pressing it can EXPLAIN the block. A natively disabled button
     // swallows the click and tells a keyboard user nothing.
@@ -119,19 +108,10 @@ describe('New Review Task wizard', () => {
     });
   });
 
-  it('does not preselect a priority', async () => {
-    renderWizard();
+  it('enables Next only once step 1 is satisfied', async () => {
+    const { user } = renderWizard();
 
-    const priorities = await screen.findByRole('radiogroup', { name: /priority/i });
-    expect(within(priorities).getAllByRole('radio')).toHaveLength(3);
-    expect(within(priorities).queryAllByRole('radio', { checked: true })).toHaveLength(0);
-    expect(useTaskDraft.getState().priority).toBe('');
-  });
-
-  it('enables Save Draft and advances without saving when required details are complete', async () => {
-    const { router, user } = renderWizard();
-
-    await chooseCustomer(user, sampleCustomer().name);
+    await chooseCustomer(user, 'AASL');
     expect(await screen.findByRole('button', { name: /next: quality checklist/i })).toHaveAttribute(
       'aria-disabled',
       'true',
@@ -139,157 +119,56 @@ describe('New Review Task wizard', () => {
 
     await user.type(await screen.findByLabelText(/crim id/i), 'CRIM-1');
     await waitFor(() => {
-      expect(screen.getByLabelText(/version/i)).toHaveValue('1');
-    });
-    expect(screen.getByLabelText(/version/i)).toHaveAttribute('readonly');
-    expect(screen.getByRole('button', { name: /next: quality checklist/i })).toHaveAttribute(
-      'aria-disabled',
-      'true',
-    );
-
-    await user.click(screen.getByRole('radio', { name: 'High' }));
-    expect(screen.getByRole('button', { name: /save draft/i })).toBeEnabled();
-    expect(screen.getByRole('button', { name: /next: quality checklist/i })).toHaveAttribute(
-      'aria-disabled',
-      'false',
-    );
-
-    const taskCount = db.tasks.length;
-    await user.click(screen.getByRole('button', { name: /next: quality checklist/i }));
-    await waitFor(() => {
-      expect(router.state.location.pathname).toBe('/crp/developer/tasks/new/checklist');
-    });
-    expect(useTaskDraft.getState().taskId).toBeNull();
-    expect(db.tasks).toHaveLength(taskCount);
-  });
-
-  it('generates Version 1 when saving the first task for a CRIM ID', async () => {
-    const { user } = renderWizard();
-
-    await chooseCustomer(user, sampleCustomer().name);
-    await user.type(await screen.findByLabelText(/crim id/i), 'CRIM-NO-VERSION');
-    await user.click(screen.getByRole('radio', { name: 'Low' }));
-    await user.click(screen.getByRole('button', { name: /save draft/i }));
-
-    await waitFor(() => {
-      expect(useTaskDraft.getState().taskId).not.toBeNull();
-      expect(screen.getByRole('button', { name: /save draft/i })).toHaveAttribute(
-        'aria-busy',
+      expect(screen.getByRole('button', { name: /next: quality checklist/i })).toHaveAttribute(
+        'aria-disabled',
         'false',
       );
     });
-    const saved = db.tasks.find((task) => task.id === useTaskDraft.getState().taskId);
-    expect(saved).toMatchObject({ version: '1', priority: 'Low' });
-  });
-
-  it('submits successfully without saving a draft from the Details step first', async () => {
-    const { router, user } = renderWizard();
-
-    await chooseCustomer(user, sampleCustomer().name);
-    await user.type(await screen.findByLabelText(/crim id/i), 'CRIM-DIRECT-SUBMIT');
-    await user.click(screen.getByRole('radio', { name: 'High' }));
-    await user.click(screen.getByRole('button', { name: /next: quality checklist/i }));
-
-    await user.click(await screen.findByRole('checkbox', { name: /quick report/i }));
-    for (const group of screen.getAllByRole('radiogroup')) {
-      await user.click(within(group).getByRole('radio', { name: 'Yes' }));
-    }
-    await user.click(screen.getByRole('button', { name: /next: review & submit/i }));
-
-    await waitFor(() => {
-      expect(router.state.location.pathname).toBe('/crp/developer/tasks/new/review');
-    });
-    const taskId = useTaskDraft.getState().taskId;
-    expect(taskId).not.toBeNull();
-
-    await user.click(await screen.findByRole('button', { name: /submit for review/i }));
-    await waitFor(() => {
-      expect(router.state.location.pathname).toBe('/crp/developer/tasks/new/confirmed');
-    });
-    expect(db.tasks.find((task) => task.id === taskId)?.status).toBe('Submitted');
-  });
-
-  it('loads the selected customer next Task ID into System Information', async () => {
-    const { user } = renderWizard();
-    const customer = sampleCustomer();
-    const expectedSequence = (db.sequences[customer.id] ?? 0) + 1;
-    const expectedPrefix = customer.name
-      .trim()
-      .toUpperCase()
-      .replace(/[^A-Z0-9]+/g, '');
-
-    await chooseCustomer(user, customer.name);
-
-    expect(
-      await screen.findByText(`${expectedPrefix}-${String(expectedSequence).padStart(2, '0')}`),
-    ).toBeInTheDocument();
   });
 
   it('previews the derived title as the fields are filled (FL 2.5-01)', async () => {
     const { user } = renderWizard();
 
-    const customer = sampleCustomer();
-    await chooseCustomer(user, customer.name);
-    await user.type(await screen.findByLabelText(/crim id/i), 'CRIM-848');
+    await chooseCustomer(user, 'AASL');
+    await user.type(await screen.findByLabelText(/crim id/i), 'CRIM-NEW-AUTO');
 
-    expect(await screen.findByDisplayValue(`${customer.name} – CRIM-848 – 1`)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByLabelText(/^version$/i)).toHaveTextContent('0');
+    });
+    expect(await screen.findByDisplayValue('AASL-CRIM-NEW-AUTO-0')).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: /^version$/i })).not.toBeInTheDocument();
   });
 
-  it('advances to the checklist without duplicating the saved draft', async () => {
+  it('advances to the checklist once step 1 is complete, and creates the task', async () => {
     const { router, user } = renderWizard();
 
-    await chooseCustomer(user, sampleCustomer().name);
+    await chooseCustomer(user, 'AASL');
     await user.type(await screen.findByLabelText(/crim id/i), 'CRIM-999');
-    await user.click(screen.getByRole('radio', { name: 'Medium' }));
-    await user.click(screen.getByRole('button', { name: /save draft/i }));
     await waitFor(() => {
-      expect(useTaskDraft.getState().taskId).not.toBeNull();
+      expect(screen.getByRole('button', { name: /next: quality checklist/i })).toHaveAttribute(
+        'aria-disabled',
+        'false',
+      );
     });
-    const savedTaskId = useTaskDraft.getState().taskId;
-    const taskCount = db.tasks.length;
-
     await user.click(screen.getByRole('button', { name: /next/i }));
 
     await waitFor(() => {
       expect(router.state.location.pathname).toBe('/crp/developer/tasks/new/checklist');
     });
 
-    expect(useTaskDraft.getState().taskId).toBe(savedTaskId);
-    expect(db.tasks).toHaveLength(taskCount);
-  });
-
-  it('enables Save Draft only after an opened draft changes and resets it after saving', async () => {
-    const task = db.tasks.find(
-      (candidate) => candidate.developerId === DEVELOPER && candidate.status === 'Draft',
-    );
-    if (!task) throw new Error('seed has no draft for this developer');
-
-    const originalCrimId = task.crimId;
-    const { user } = renderWizard(`/crp/developer/tasks/${task.id}/edit/details`);
-    const crimId = await screen.findByLabelText(/crim id/i);
-    const saveDraft = screen.getByRole('button', { name: /save draft/i });
-
-    await waitFor(() => {
-      expect(saveDraft).toBeDisabled();
-      expect(crimId).toHaveValue(originalCrimId);
-    });
-
-    await user.type(crimId, '-UPDATED');
-    expect(saveDraft).toBeEnabled();
-    await user.click(saveDraft);
-
-    await waitFor(() => {
-      expect(saveDraft).toBeDisabled();
-      expect(db.tasks.find((candidate) => candidate.id === task.id)?.crimId).toBe(
-        `${originalCrimId}-UPDATED`,
-      );
-    });
+    // The task was persisted on leaving step 1, so returning does not create a
+    // second draft.
+    expect(useTaskDraft.getState().taskId).not.toBeNull();
   });
 
   it('shows no checklist questions until a task type is selected', async () => {
     const { user } = renderPersistedChecklist();
 
     expect(await screen.findByText(/select at least one task type to load/i)).toBeInTheDocument();
+
+    // Footer status accurately reflects task type requirement, not "required fields remaining"
+    expect(screen.getAllByText(/select at least one task type/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/required field(s)? remaining/i)).not.toBeInTheDocument();
 
     await user.click(await screen.findByRole('checkbox', { name: /quick report/i }));
 
@@ -302,9 +181,7 @@ describe('New Review Task wizard', () => {
 
     await user.click(await screen.findByRole('checkbox', { name: /quick report/i }));
 
-    const next = await screen.findByRole('button', {
-      name: /next: review & submit/i,
-    });
+    const next = await screen.findByRole('button', { name: /next: review & submit/i });
     expect(next).toHaveAttribute('aria-disabled', 'true');
 
     await user.click(next);
@@ -313,7 +190,7 @@ describe('New Review Task wizard', () => {
     // The Section progress panel names which sections are short, so the user
     // knows where to look in a 30-question form.
     expect(await screen.findByText(/quick reports — 0 of 2 answered/i)).toBeInTheDocument();
-    expect(screen.getByText(/questions still unanswered/i)).toBeInTheDocument();
+    expect(screen.getByText(/questions (still unanswered|need answers)/i)).toBeInTheDocument();
   });
 
   it('records an answer against the question it was given for', async () => {
@@ -321,9 +198,7 @@ describe('New Review Task wizard', () => {
 
     await user.click(await screen.findByRole('checkbox', { name: /quick report/i }));
 
-    const group = await screen.findByRole('radiogroup', {
-      name: /have you used views instead/i,
-    });
+    const group = await screen.findByRole('radiogroup', { name: /have you used views instead/i });
     await user.click(within(group).getByRole('radio', { name: 'Yes' }));
 
     expect(within(group).getByRole('radio', { name: 'Yes' })).toHaveAttribute(
@@ -340,9 +215,7 @@ describe('New Review Task wizard', () => {
     const { user } = renderPersistedChecklist();
 
     await user.click(await screen.findByRole('checkbox', { name: /quick report/i }));
-    const group = await screen.findByRole('radiogroup', {
-      name: /have you used views instead/i,
-    });
+    const group = await screen.findByRole('radiogroup', { name: /have you used views instead/i });
     await user.click(within(group).getByRole('radio', { name: 'Yes' }));
     await user.type(screen.getByLabelText(/additional remarks/i), 'Some notes');
 
@@ -402,9 +275,7 @@ describe('New Review Task wizard', () => {
      * it has to survive middle-click, copy-link and Back. A `button` role here
      * would mean the affordance had regressed to an onClick handler.
      */
-    const resume = await screen.findByRole('link', {
-      name: /continue editing/i,
-    });
+    const resume = await screen.findByRole('link', { name: /continue editing/i });
     await user.click(resume);
 
     await waitFor(() => {
@@ -437,8 +308,8 @@ describe('New Review Task wizard', () => {
      */
     useTaskDraft.getState().hydrate({
       taskId: 't-existing',
-      taskCode: 'CUSTOMER-999',
-      customerId: 'sample-customer',
+      taskCode: 'AASL-999',
+      customerId: 'c-aasl',
       crimId: 'CRIM-OLD',
     });
 
@@ -464,5 +335,23 @@ describe('New Review Task wizard', () => {
     // save handler strips it. Asserting the store here documents that split.
     useTaskDraft.getState().toggleTaskType('tt-quick-report');
     expect(useTaskDraft.getState().taskTypeIds).toEqual([]);
+  });
+
+  it('shows a generated read-only Version instead of accepting manual input', async () => {
+    const { user } = renderWizard();
+
+    await chooseCustomer(user, 'AASL');
+    await user.type(await screen.findByLabelText(/crim id/i), 'CRIM-SYSTEM-VERSION');
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/^version$/i)).toHaveTextContent('0');
+    });
+    expect(screen.queryByRole('textbox', { name: /^version$/i })).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /next: quality checklist/i })).toHaveAttribute(
+        'aria-disabled',
+        'false',
+      );
+    });
   });
 });

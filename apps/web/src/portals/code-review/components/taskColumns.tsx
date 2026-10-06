@@ -44,9 +44,7 @@ const handoverTaskCodeColumn = helper.accessor('taskCode', {
         <MonoId value={context.getValue()} />
         {task.handedOverByName ? (
           <span className="text-[10px] text-status-handover italic">
-            {interpolate(tasks.list.handoverBadge, {
-              name: task.handedOverByName.trim().split(/\s+/)[0] ?? task.handedOverByName,
-            })}
+            Prev. {task.handedOverByName.trim().split(/\s+/)[0] ?? task.handedOverByName}
           </span>
         ) : null}
       </div>
@@ -56,8 +54,13 @@ const handoverTaskCodeColumn = helper.accessor('taskCode', {
 
 const titleColumn = helper.accessor('title', {
   header: labels.title,
+  cell: (context) => <TitleCell title={context.getValue()} />,
+});
+
+const compactTitleColumn = helper.accessor('title', {
+  header: labels.title,
   cell: (context) => (
-    <TitleCell title={context.getValue()} version={context.row.original.version} />
+    <TitleCell title={context.getValue()} className="!w-[200px] !max-w-[200px]" />
   ),
 });
 
@@ -125,6 +128,8 @@ export interface TaskColumnOptions {
   showPriority?: boolean | undefined;
   /** Identify tasks that have previously been handed over. */
   showHandover?: boolean | undefined;
+  /** Keep Title close to CRIM ID in Reviewer task queues. */
+  compactIdentityColumns?: boolean | undefined;
 }
 
 export function buildTaskColumns(options: TaskColumnOptions = {}): ColumnList<TaskListItem> {
@@ -134,11 +139,12 @@ export function buildTaskColumns(options: TaskColumnOptions = {}): ColumnList<Ta
     showDeveloper = false,
     showPriority = true,
     showHandover = false,
+    compactIdentityColumns = false,
   } = options;
 
   const columns: ColumnList<TaskListItem> = [
     showHandover ? handoverTaskCodeColumn : taskCodeColumn,
-    titleColumn,
+    compactIdentityColumns ? compactTitleColumn : titleColumn,
     crimIdColumn,
     customerColumn,
   ];
@@ -163,12 +169,19 @@ export function buildTaskColumns(options: TaskColumnOptions = {}): ColumnList<Ta
   return columns;
 }
 
-/** The trailing arrow used by My Tasks and the reviewer queues. */
-export function taskArrowAction(task: TaskListItem, onOpen: () => void) {
+/** The trailing view action used by My Tasks and the reviewer queues. */
+export function taskArrowAction(
+  task: TaskListItem,
+  onOpen: () => void,
+  text: string = tasks.list.viewTask,
+) {
   return (
     <RowArrowAction
       label={interpolate(tasks.list.openTask, { taskCode: task.taskCode })}
       onClick={onOpen}
+      text={text}
     />
   );
 }
+
+export const taskViewAction = taskArrowAction;

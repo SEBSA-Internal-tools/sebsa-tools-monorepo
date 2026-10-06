@@ -31,11 +31,27 @@ describe('ReviewTasksService task versions', () => {
     const findMany = vi
       .fn()
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ version: '1' }, { version: 'V5' }, { version: 'legacy' }]);
-    const service = serviceWith({ task: { findMany } });
+      .mockResolvedValueOnce([{ version: '1' }, { version: 'V5' }, { version: 'legacy' }])
+      .mockResolvedValueOnce([]);
+    const customer = { findUnique: vi.fn().mockResolvedValue({ code: 'CUST' }) };
+    const service = serviceWith({ customer, task: { findMany } });
 
-    await expect(service.nextVersion(customerId, ' CRIM-1001 ')).resolves.toEqual({ version: 1 });
-    await expect(service.nextVersion(customerId, 'CRIM-1001')).resolves.toEqual({ version: 6 });
+    await expect(service.nextVersion(customerId, ' CRIM-1001 ')).resolves.toEqual({
+      version: 0,
+      title: 'CUST-CRIM-1001-0',
+    });
+    await expect(service.nextVersion(customerId, 'CRIM-1001')).resolves.toEqual({
+      version: 6,
+      title: 'CUST-CRIM-1001-6',
+    });
+    await expect(service.nextVersion(customerId, ' Test 0 ')).resolves.toEqual({
+      version: 0,
+      title: 'CUST-Test-0-0',
+    });
+    expect(customer.findUnique).toHaveBeenCalledWith({
+      where: { id: customerId },
+      select: { code: true },
+    });
     expect(findMany).toHaveBeenCalledWith({
       where: { customerId, crimId: { equals: 'CRIM-1001', mode: 'insensitive' } },
       select: { version: true },
@@ -199,6 +215,88 @@ describe('ReviewTasksService draft checklist', () => {
   });
 });
 
+describe('ReviewTasksService draft discard', () => {
+  const taskId = '00000000-0000-4000-8000-000000000010';
+
+  function deletionPrisma(task: {
+    developerId: string;
+    status: TaskStatus;
+    submittedAt: Date | null;
+  }) {
+    const tx = {
+      task: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: taskId,
+          title: 'Draft task',
+          taskCode: 'CUST-CRIM-0',
+          developerChecklist: null,
+          ...task,
+        }),
+        delete: vi.fn().mockResolvedValue({}),
+      },
+      taskStatusHistory: { deleteMany: vi.fn().mockResolvedValue({ count: 1 }) },
+      taskTaskType: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+    };
+    return {
+      tx,
+      prisma: { $transaction: vi.fn((operation) => operation(tx)) },
+    };
+  }
+
+  it('permanently removes an owned, unsubmitted Developer draft', async () => {
+    const user = actor(['DEVELOPER']);
+    const { prisma, tx } = deletionPrisma({
+      developerId: user.id,
+      status: TaskStatus.DRAFT,
+      submittedAt: null,
+    });
+    const service = serviceWith(prisma);
+
+    await expect(service.remove(taskId, user)).resolves.toBeUndefined();
+
+    expect(tx.task.delete).toHaveBeenCalledWith({ where: { id: taskId } });
+  });
+
+  it("does not let a Developer discard another user's draft", async () => {
+    const user = actor(['DEVELOPER']);
+    const { prisma, tx } = deletionPrisma({
+      developerId: '00000000-0000-4000-8000-000000000099',
+      status: TaskStatus.DRAFT,
+      submittedAt: null,
+    });
+    const service = serviceWith(prisma);
+
+    await expect(service.remove(taskId, user)).rejects.toBeInstanceOf(ForbiddenException);
+    expect(tx.task.delete).not.toHaveBeenCalled();
+  });
+
+  it('does not let a Developer discard a submitted task', async () => {
+    const user = actor(['DEVELOPER']);
+    const { prisma, tx } = deletionPrisma({
+      developerId: user.id,
+      status: TaskStatus.SUBMITTED,
+      submittedAt: new Date('2026-02-02T10:00:00.000Z'),
+    });
+    const service = serviceWith(prisma);
+
+    await expect(service.remove(taskId, user)).rejects.toBeInstanceOf(ForbiddenException);
+    expect(tx.task.delete).not.toHaveBeenCalled();
+  });
+
+  it('preserves existing Admin deletion access', async () => {
+    const user = actor(['ADMIN']);
+    const { prisma, tx } = deletionPrisma({
+      developerId: '00000000-0000-4000-8000-000000000099',
+      status: TaskStatus.SUBMITTED,
+      submittedAt: new Date('2026-02-02T10:00:00.000Z'),
+    });
+    const service = serviceWith(prisma);
+
+    await expect(service.remove(taskId, user)).resolves.toBeUndefined();
+    expect(tx.task.delete).toHaveBeenCalledWith({ where: { id: taskId } });
+  });
+});
+
 describe('ReviewTasksService task picking', () => {
   it('atomically claims an available task and records assignment and status history', async () => {
     const user = actor(['REVIEWER']);
@@ -208,6 +306,7 @@ describe('ReviewTasksService task picking', () => {
       currentReviewer: null,
       status: TaskStatus.SUBMITTED,
       title: 'Test task',
+      currentReviewCycle: 1,
       handovers: [],
     };
     const picked = {
@@ -241,8 +340,9 @@ describe('ReviewTasksService task picking', () => {
       },
       taskReviewerAssignment: {
         updateMany: vi.fn().mockResolvedValue({ count: 0 }),
-        create: vi.fn().mockResolvedValue({}),
+        create: vi.fn().mockResolvedValue({ id: '00000000-0000-4000-8000-000000000201' }),
       },
+      $executeRaw: vi.fn().mockResolvedValue(0),
       taskStatusHistory: { create: vi.fn().mockResolvedValue({}) },
     };
     const service = serviceWith({
@@ -268,6 +368,7 @@ describe('ReviewTasksService task picking', () => {
         assignmentType: ReviewerAssignmentType.SELF_PICKED,
       },
     });
+    expect(tx.$executeRaw).toHaveBeenCalledOnce();
     expect(tx.taskStatusHistory.create).toHaveBeenCalledWith({
       data: {
         taskId: picked.id,
@@ -279,6 +380,7 @@ describe('ReviewTasksService task picking', () => {
     });
     expect(result).toMatchObject({
       id: picked.id,
+      title: 'TEST-CRIM-1',
       status: 'InReview',
       reviewerId: user.id,
       reviewerName: user.name,
@@ -351,6 +453,7 @@ describe('ReviewTasksService task picking', () => {
       currentReviewer: null,
       status: TaskStatus.SUBMITTED,
       title: 'Handed-over task',
+      currentReviewCycle: 1,
       handovers: [
         {
           id: handoverId,
@@ -397,8 +500,9 @@ describe('ReviewTasksService task picking', () => {
       handoverTask: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
       taskReviewerAssignment: {
         updateMany: vi.fn().mockResolvedValue({ count: 1 }),
-        create: vi.fn().mockResolvedValue({}),
+        create: vi.fn().mockResolvedValue({ id: '00000000-0000-4000-8000-000000000202' }),
       },
+      $executeRaw: vi.fn().mockResolvedValue(1),
       taskStatusHistory: { create: vi.fn().mockResolvedValue({}) },
     };
     const service = serviceWith({
@@ -447,6 +551,7 @@ describe('ReviewTasksService task picking', () => {
       currentReviewer: null,
       status: TaskStatus.SUBMITTED,
       title: 'Handed-over task',
+      currentReviewCycle: 1,
       handovers: [
         {
           id: '00000000-0000-0000-0000-000000000030',
@@ -493,8 +598,9 @@ describe('ReviewTasksService task picking', () => {
       handoverTask: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
       taskReviewerAssignment: {
         updateMany: vi.fn().mockResolvedValue({ count: 1 }),
-        create: vi.fn().mockResolvedValue({}),
+        create: vi.fn().mockResolvedValue({ id: '00000000-0000-4000-8000-000000000203' }),
       },
+      $executeRaw: vi.fn().mockResolvedValue(1),
       taskStatusHistory: { create: vi.fn().mockResolvedValue({}) },
       user: {
         findMany: vi
@@ -596,7 +702,23 @@ describe('ReviewTasksService handover', () => {
       $transaction: vi.fn((operation: (client: typeof tx) => Promise<unknown>) => operation(tx)),
     });
 
-    const result = await service.handover(taskId, { reason: 'On leave next week.' }, reviewer);
+    const draft = {
+      rank: null,
+      comments: [],
+      generalCheck: [],
+      findings: {
+        incorrectCode: '',
+        incompleteImplementation: '',
+        sourceFormatting: '',
+      },
+      otherRemarks: 'Preserve this draft',
+      feedbackSummary: '',
+    };
+    const result = await service.handover(
+      taskId,
+      { reason: 'On leave next week.', draft },
+      reviewer,
+    );
 
     expect(tx.task.updateMany).toHaveBeenCalledWith({
       where: { id: taskId, currentReviewerId: reviewer.id, status: TaskStatus.IN_REVIEW },
@@ -622,6 +744,7 @@ describe('ReviewTasksService handover', () => {
       expect.objectContaining({
         actionType: 'TASK_HANDOVER',
         newValue: expect.objectContaining({ reason: 'On leave next week.' }),
+        metadata: { reviewDraft: draft },
       }),
     );
     expect(notifications.createMany).toHaveBeenCalledWith(tx, [

@@ -117,7 +117,7 @@ export function UserFormDialog({
           <Button variant="secondary" onClick={onClose}>
             {common.actions.cancel}
           </Button>
-          <Button onClick={() => void submit()} isLoading={isPending}>
+          <Button variant="adminPrimary" onClick={() => void submit()} isLoading={isPending}>
             {user === null
               ? isPending
                 ? admin.users.creating

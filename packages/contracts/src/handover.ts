@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { idSchema, isoDateTimeSchema } from './common.js';
 import { handoverStatusSchema } from './enums.js';
+import { reviewDraftSchema } from './review.js';
 
 /**
  * Handover — spec §1.5 p.12.
@@ -30,7 +31,8 @@ export const handoverSchema = z.object({
 export type Handover = z.infer<typeof handoverSchema>;
 
 export const createHandoverInputSchema = z.object({
-  reason: z.string().trim().min(1, 'Explain why this review is being handed over'),
+  reason: z.string().trim().min(1, 'Please provide a reason for handing over this review.'),
+  draft: reviewDraftSchema.optional(),
 });
 export type CreateHandoverInput = z.infer<typeof createHandoverInputSchema>;
 

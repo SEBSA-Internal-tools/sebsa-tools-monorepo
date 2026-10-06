@@ -66,7 +66,6 @@ const SUBMITTED_STATUSES: readonly TaskStatus[] = [
   'ChangesRequested',
   'ReSubmitted',
   'Approved',
-  'Delivered',
 ];
 
 export function taskMetrics(items: readonly TaskListItem[]): TaskMetrics {
@@ -75,9 +74,7 @@ export function taskMetrics(items: readonly TaskListItem[]): TaskMetrics {
     count: items.filter((task) => task.status === status).length,
   })).filter((entry) => entry.count > 0);
 
-  const approvedTasks = items.filter(
-    (task) => task.status === 'Approved' || task.status === 'Delivered',
-  );
+  const approvedTasks = items.filter((task) => task.status === 'Approved');
   const submitted = items.filter((task) => SUBMITTED_STATUSES.includes(task.status)).length;
 
   // Approved tasks only — see `byCycle` on the interface above.
@@ -208,9 +205,7 @@ export function developerQualityMetrics(
     .map((customerId) => {
       const own = items.filter((task) => task.customerId === customerId);
       const first = own[0];
-      const approved = own.filter(
-        (task) => task.status === 'Approved' || task.status === 'Delivered',
-      );
+      const approved = own.filter((task) => task.status === 'Approved');
       const submitted = own.filter((task) => SUBMITTED_STATUSES.includes(task.status));
       const ownRanks = awarded
         .filter((entry) => taskCustomer.get(entry.taskId) === customerId)

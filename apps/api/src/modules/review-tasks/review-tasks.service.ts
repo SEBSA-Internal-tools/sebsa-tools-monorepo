@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import {
   BadRequestException,
   ConflictException,
@@ -6,6 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  ChecklistAnswerValue,
   ChecklistStatus,
   HandoverStatus,
   NotificationType,
@@ -13,7 +15,14 @@ import {
   ReviewerAssignmentType,
   TaskStatus,
 } from '@prisma/client';
+import {
+  checklistDraftSchema,
+  checklistSubmissionSchema,
+  type ChecklistSubmission,
+  type TaskEventKind,
+} from '@sdp/contracts';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { ApiException } from '../../common/api-error.js';
 import { rethrowPrismaConflict, retryPrismaTransaction } from '../../common/prisma-errors.js';
 import type { ChecklistAnswerDto, CreateReviewTaskDto } from './dto/create-review-task.dto.js';
 import type { UpdateReviewTaskDto } from './dto/update-review-task.dto.js';
@@ -31,6 +40,12 @@ const taskInclude = {
   customer: true,
   developer: true,
   currentReviewer: true,
+  reviewerAssignments: {
+    where: { isCurrent: true },
+    select: { id: true },
+    orderBy: { assignedAt: 'desc' },
+    take: 1,
+  },
   taskTypes: { include: { taskType: true } },
   developerChecklist: {
     include: {
@@ -99,7 +114,16 @@ export class ReviewTasksService {
   }
 
   async nextVersion(customerId: string, crimId: string) {
-    return { version: await this.nextTaskVersion(this.prisma, customerId, crimId.trim()) };
+    const normalizedCrimId = crimId.trim();
+    const [customer, version] = await Promise.all([
+      this.prisma.customer.findUnique({ where: { id: customerId }, select: { code: true } }),
+      this.nextTaskVersion(this.prisma, customerId, normalizedCrimId),
+    ]);
+    if (!customer) throw new NotFoundException(`Customer ${customerId} was not found`);
+    return {
+      version,
+      title: this.taskTitle(customer.code, normalizedCrimId, String(version)),
+    };
   }
 
   async findChecklist(id: string, user: AuthenticatedUser) {
@@ -134,12 +158,153 @@ export class ReviewTasksService {
     };
   }
 
+  async saveChecklist(id: string, input: unknown, user: AuthenticatedUser) {
+    const parsed = checklistDraftSchema.safeParse(input);
+    if (!parsed.success) {
+      throw new ApiException('VALIDATION_FAILED', 'Check the checklist data and try again', [
+        ...parsed.error.issues,
+      ]);
+    }
+    await this.update(
+      id,
+      {
+        taskTypeIds: parsed.data.taskTypeIds.map(Number),
+        checklistAnswers: parsed.data.answers.map(({ questionId, answer }) => ({
+          questionId,
+          answer: {
+            Yes: ChecklistAnswerValue.YES,
+            No: ChecklistAnswerValue.NO,
+            NA: ChecklistAnswerValue.NA,
+          }[answer],
+        })),
+        additionalRemarks: parsed.data.remarks,
+      },
+      user,
+    );
+    return this.findChecklist(id, user);
+  }
+
+  async findChecklistSubmissions(id: string, user: AuthenticatedUser) {
+    const task = await this.getTask(id);
+    if (!mayReadTask(user, task))
+      throw new ForbiddenException('You cannot access this review task');
+    const records = await this.prisma.auditLog.findMany({
+      where: { taskId: id, action: { in: ['TASK_SUBMITTED', 'TASK_RESUBMITTED'] } },
+      select: { metadata: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    const submissions = records.flatMap(({ metadata }) => {
+      if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return [];
+      const parsed = checklistSubmissionSchema.safeParse(metadata['checklistSubmission']);
+      return parsed.success ? [parsed.data] : [];
+    });
+    if (submissions.length === 0 && task.submittedAt && task.developerChecklist) {
+      submissions.push(this.toChecklistSubmission(task, 1, task.submittedAt, task.developerId));
+    }
+    return submissions;
+  }
+
+  async findEvents(id: string, user: AuthenticatedUser) {
+    const task = await this.getTask(id);
+    if (!mayReadTask(user, task))
+      throw new ForbiddenException('You cannot access this review task');
+    const logs = await this.prisma.auditLog.findMany({
+      where: { taskId: id, userId: { not: null } },
+      orderBy: { createdAt: 'asc' },
+    });
+    const kindByAction: Record<string, TaskEventKind | undefined> = {
+      TASK_CREATED: 'Created',
+      TASK_SUBMITTED: 'Submitted',
+      TASK_RESUBMITTED: 'Resubmitted',
+      TASK_PICKED: 'Picked',
+      REVIEWER_ASSIGNED: 'ReviewerAssigned',
+      REVIEWER_REASSIGNED: 'Reassigned',
+      REVIEW_DRAFT_SAVED: 'ReviewDraftSaved',
+      TASK_APPROVED: 'Approved',
+      CHANGES_REQUESTED: 'ChangesRequested',
+      TASK_HANDOVER: 'HandedOver',
+      HANDOVER_REASSIGNED: 'Reassigned',
+      TASK_CANCELLED: 'Cancelled',
+    };
+    return logs.flatMap((log) => {
+      const kind = kindByAction[log.action];
+      if (!kind || !log.userId) return [];
+      return [
+        {
+          id: log.id,
+          taskId: id,
+          kind,
+          reviewCycle: Math.max(task.currentReviewCycle, 1),
+          actorId: log.userId,
+          actorName: log.actorName,
+          note: log.description,
+          occurredAt: log.createdAt.toISOString(),
+        },
+      ];
+    });
+  }
+
+  async findAttachments(id: string, user: AuthenticatedUser) {
+    const task = await this.getTask(id);
+    if (!mayReadTask(user, task))
+      throw new ForbiddenException('You cannot access this review task');
+    const rows = await this.prisma.taskAttachment.findMany({
+      where: { taskId: id },
+      orderBy: [{ uploadedAt: 'asc' }, { id: 'asc' }],
+    });
+    return rows.map((row) => this.toAttachment(row));
+  }
+
+  async addAttachment(id: string, input: unknown, user: AuthenticatedUser) {
+    const task = await this.getEditableTask(id, user);
+    const body = input as Record<string, unknown>;
+    const fileName = typeof body['fileName'] === 'string' ? body['fileName'].trim() : '';
+    const mimeType = typeof body['mimeType'] === 'string' ? body['mimeType'].trim() : '';
+    const storageRef = typeof body['dataUrl'] === 'string' ? body['dataUrl'] : '';
+    const sizeBytes = typeof body['sizeBytes'] === 'number' ? body['sizeBytes'] : -1;
+    if (!fileName || !mimeType.startsWith('image/') || !storageRef || sizeBytes < 0) {
+      throw new ApiException('VALIDATION_FAILED', 'Provide a valid image attachment');
+    }
+    await this.prisma.taskAttachment.create({
+      data: { taskId: task.id, fileName, mimeType, storageRef, sizeBytes, uploadedById: user.id },
+    });
+    return this.findAttachments(id, user);
+  }
+
+  async captionAttachment(
+    id: string,
+    attachmentId: string,
+    input: unknown,
+    user: AuthenticatedUser,
+  ) {
+    await this.getEditableTask(id, user);
+    const body = input as Record<string, unknown>;
+    const caption = typeof body['caption'] === 'string' ? body['caption'].trim() : '';
+    const updated = await this.prisma.taskAttachment.updateMany({
+      where: { id: attachmentId, taskId: id },
+      data: { caption },
+    });
+    if (updated.count !== 1)
+      throw new NotFoundException(`Attachment ${attachmentId} was not found`);
+    return this.findAttachments(id, user);
+  }
+
+  async removeAttachment(id: string, attachmentId: string, user: AuthenticatedUser) {
+    await this.getEditableTask(id, user);
+    const removed = await this.prisma.taskAttachment.deleteMany({
+      where: { id: attachmentId, taskId: id },
+    });
+    if (removed.count !== 1)
+      throw new NotFoundException(`Attachment ${attachmentId} was not found`);
+    return this.findAttachments(id, user);
+  }
+
   private async getTask(id: string) {
     const task = await this.prisma.task.findUnique({
       where: { id },
       include: taskInclude,
     });
-    if (!task) throw new NotFoundException(`Review task ${id} was not found`);
+    if (!task) throw new ApiException('TASK_NOT_FOUND', `Review task ${id} was not found`);
     return task;
   }
 
@@ -171,7 +336,7 @@ export class ReviewTasksService {
               data: {
                 taskCode: formatTaskCode(customer.name, sequence),
                 customerSequenceNo: sequence,
-                title: this.taskTitle(customer.name, crimId, String(version)),
+                title: this.taskTitle(customer.code, crimId, String(version)),
                 crimId,
                 version: String(version),
                 priority: dto.priority,
@@ -251,7 +416,7 @@ export class ReviewTasksService {
         rethrowPrismaConflict(error);
       }
     }
-    throw new ConflictException('Could not allocate a task number; please retry');
+    throw new ApiException('VERSION_CONFLICT', 'Could not allocate a task number; please retry');
   }
 
   async update(id: string, dto: UpdateReviewTaskDto, user: AuthenticatedUser) {
@@ -270,7 +435,19 @@ export class ReviewTasksService {
               customer: true,
             },
           });
-          if (!existing) throw new NotFoundException(`Review task ${id} was not found`);
+          if (!existing)
+            throw new ApiException('TASK_NOT_FOUND', `Review task ${id} was not found`);
+
+          if (
+            (dto.customerId !== undefined && dto.customerId !== existing.customerId) ||
+            (dto.crimId !== undefined &&
+              dto.crimId.trim().toLocaleLowerCase() !== existing.crimId.trim().toLocaleLowerCase())
+          ) {
+            throw new ApiException(
+              'IMMUTABLE_TASK_IDENTITY',
+              'Customer and CRIM ID cannot be changed after the draft is created',
+            );
+          }
 
           const hasChecklist = this.hasChecklistPayload(dto);
           const checklistCompleted = hasChecklist
@@ -280,7 +457,7 @@ export class ReviewTasksService {
           const developerId = existing.developerId;
 
           let customerId = existing.customerId;
-          let customerName = existing.customer.name;
+          let customerCode = existing.customer.code;
           let customerSequenceNo = existing.customerSequenceNo;
           let taskCode = existing.taskCode;
           if (dto.customerId && dto.customerId !== existing.customerId) {
@@ -293,7 +470,7 @@ export class ReviewTasksService {
               _max: { customerSequenceNo: true },
             });
             customerId = customer.id;
-            customerName = customer.name;
+            customerCode = customer.code;
             customerSequenceNo = (aggregate._max.customerSequenceNo ?? 0) + 1;
             taskCode = formatTaskCode(customer.name, customerSequenceNo);
           }
@@ -352,7 +529,7 @@ export class ReviewTasksService {
               customerId,
               customerSequenceNo,
               taskCode,
-              title: this.taskTitle(customerName, crimId, existing.version),
+              title: this.taskTitle(customerCode, crimId, existing.version),
               crimId,
               ...(dto.priority === undefined ? {} : { priority: dto.priority }),
               developerId,
@@ -385,7 +562,15 @@ export class ReviewTasksService {
           where: { id },
           include: { developerChecklist: true },
         });
-        if (!task) throw new NotFoundException(`Review task ${id} was not found`);
+        if (!task) throw new ApiException('TASK_NOT_FOUND', `Review task ${id} was not found`);
+        if (!hasAdminAccess(actor)) {
+          if (!actor.roles.includes('DEVELOPER') || task.developerId !== actor.id) {
+            throw new ForbiddenException('You cannot discard this review task');
+          }
+          if (task.status !== TaskStatus.DRAFT || task.submittedAt !== null) {
+            throw new ForbiddenException('Only an unsubmitted draft can be discarded');
+          }
+        }
         if (task.developerChecklist) {
           await tx.checklistAnswer.deleteMany({
             where: { checklistId: task.developerChecklist.id },
@@ -421,11 +606,49 @@ export class ReviewTasksService {
       throw new ConflictException('Only a draft or changes-requested task can be submitted');
     }
     if (!task.checklistCompleted) {
-      throw new BadRequestException('Complete the quality checklist before submitting');
+      throw new ApiException(
+        'CHECKLIST_INCOMPLETE',
+        'Complete the quality checklist before submitting',
+      );
+    }
+    if (isResubmission) {
+      const latestChangesReview = await this.prisma.codeReviewForm.findFirst({
+        where: { taskId: id, decision: 'CHANGES_REQUESTED' },
+        select: { findings: { select: { id: true } } },
+        orderBy: [{ reviewCycleNumber: 'desc' }, { completedAt: 'desc' }],
+      });
+      const findingIds = latestChangesReview?.findings.map(({ id: findingId }) => findingId) ?? [];
+      const responses = await this.prisma.developerFindingResponse.findMany({
+        where: {
+          findingId: { in: findingIds },
+          developerId: task.developerId,
+          reviewCycleNumber: Math.max(task.currentReviewCycle, 1),
+        },
+        select: { findingId: true, decision: true, rejectionReason: true },
+      });
+      const answered = new Set(
+        responses
+          .filter(
+            ({ decision, rejectionReason }) =>
+              decision !== 'REJECTED' || Boolean(rejectionReason?.trim()),
+          )
+          .map(({ findingId }) => findingId),
+      );
+      if (findingIds.some((findingId) => !answered.has(findingId))) {
+        throw new ApiException(
+          'RESPONSES_INCOMPLETE',
+          'Respond to every review finding before resubmitting',
+        );
+      }
     }
 
     const submitted = await this.prisma.$transaction(async (tx) => {
       const now = new Date();
+      const submissionVersion =
+        (await tx.auditLog.count({
+          where: { taskId: id, action: { in: ['TASK_SUBMITTED', 'TASK_RESUBMITTED'] } },
+        })) + 1;
+      const checklistSubmission = this.toChecklistSubmission(task, submissionVersion, now, user.id);
       const nextStatus = isResubmission ? TaskStatus.RESUBMITTED : TaskStatus.SUBMITTED;
       const updated = await tx.task.update({
         where: { id },
@@ -452,6 +675,7 @@ export class ReviewTasksService {
         description: `${user.name} ${isResubmission ? 'resubmitted' : 'submitted'} task '${task.title}'`,
         oldValue: { status: task.status },
         newValue: { status: nextStatus },
+        metadata: { checklistSubmission: checklistSubmission as Prisma.InputJsonObject },
       });
       if (!isResubmission) {
         const recipients = await tx.user.findMany({
@@ -497,6 +721,7 @@ export class ReviewTasksService {
             currentReviewerId: true,
             status: true,
             title: true,
+            currentReviewCycle: true,
             currentReviewer: { select: { fullName: true } },
             handovers: {
               where: { status: HandoverStatus.PENDING },
@@ -511,7 +736,7 @@ export class ReviewTasksService {
             },
           },
         });
-        if (!candidate) throw new NotFoundException(`Review task ${id} was not found`);
+        if (!candidate) throw new ApiException('TASK_NOT_FOUND', `Review task ${id} was not found`);
         if (candidate.developerId === user.id) {
           throw new ForbiddenException('You cannot review your own task');
         }
@@ -586,6 +811,13 @@ export class ReviewTasksService {
               : ReviewerAssignmentType.SELF_PICKED,
           },
         });
+        await tx.$executeRaw`
+          UPDATE "code_review_forms"
+          SET "reviewer_id" = ${user.id}::uuid
+          WHERE "task_id" = ${id}::uuid
+            AND "review_cycle_number" = ${Math.max(candidate.currentReviewCycle, 1)}
+            AND "status" = 'DRAFT'
+        `;
         await tx.taskStatusHistory.create({
           data: {
             taskId: id,
@@ -671,7 +903,7 @@ export class ReviewTasksService {
         });
 
         const task = await tx.task.findUnique({ where: { id }, include: taskInclude });
-        if (!task) throw new NotFoundException(`Review task ${id} was not found`);
+        if (!task) throw new ApiException('TASK_NOT_FOUND', `Review task ${id} was not found`);
         return this.toResponse(task);
       }),
     );
@@ -686,10 +918,11 @@ export class ReviewTasksService {
           title: true,
           developerId: true,
           currentReviewerId: true,
+          currentReviewCycle: true,
           status: true,
         },
       });
-      if (!task) throw new NotFoundException(`Review task ${id} was not found`);
+      if (!task) throw new ApiException('TASK_NOT_FOUND', `Review task ${id} was not found`);
       if (task.status === TaskStatus.DRAFT) {
         throw new ConflictException('A draft task cannot be assigned for review');
       }
@@ -717,7 +950,7 @@ export class ReviewTasksService {
         where: { taskId: id, isCurrent: true },
         data: { isCurrent: false, unassignedAt: now },
       });
-      await tx.taskReviewerAssignment.create({
+      const assignment = await tx.taskReviewerAssignment.create({
         data: {
           taskId: id,
           reviewerId: reviewer.id,
@@ -725,6 +958,19 @@ export class ReviewTasksService {
           assignmentType: isReassignment
             ? ReviewerAssignmentType.ADMIN_REASSIGNED
             : ReviewerAssignmentType.ADMIN_ASSIGNED,
+        },
+      });
+      await tx.codeReviewForm.updateMany({
+        where: {
+          taskId: id,
+          reviewCycleNumber: Math.max(task.currentReviewCycle, 1),
+          status: 'DRAFT',
+        },
+        data: {
+          reviewerId: reviewer.id,
+          currentReviewSessionId: assignment.id,
+          reviewRank: null,
+          previousFeedbackReviewNote: null,
         },
       });
       await tx.task.update({
@@ -763,7 +1009,7 @@ export class ReviewTasksService {
       });
 
       const updated = await tx.task.findUnique({ where: { id }, include: taskInclude });
-      if (!updated) throw new NotFoundException(`Review task ${id} was not found`);
+      if (!updated) throw new ApiException('TASK_NOT_FOUND', `Review task ${id} was not found`);
       return this.toResponse(updated);
     });
   }
@@ -784,7 +1030,7 @@ export class ReviewTasksService {
             handovers: { where: { status: HandoverStatus.PENDING }, select: { id: true } },
           },
         });
-        if (!task) throw new NotFoundException(`Review task ${id} was not found`);
+        if (!task) throw new ApiException('TASK_NOT_FOUND', `Review task ${id} was not found`);
         if (task.currentReviewerId !== actor.id) {
           throw new ForbiddenException('Only the assigned reviewer can hand over this task');
         }
@@ -844,6 +1090,13 @@ export class ReviewTasksService {
             reviewerId: null,
             reason: dto.reason.trim(),
           },
+          ...(dto.draft === undefined
+            ? {}
+            : {
+                metadata: {
+                  reviewDraft: dto.draft as Prisma.InputJsonObject,
+                },
+              }),
         });
 
         const administrators = await tx.user.findMany({
@@ -900,7 +1153,7 @@ export class ReviewTasksService {
         ]);
 
         const updated = await tx.task.findUnique({ where: { id }, include: taskInclude });
-        if (!updated) throw new NotFoundException(`Review task ${id} was not found`);
+        if (!updated) throw new ApiException('TASK_NOT_FOUND', `Review task ${id} was not found`);
         return this.toResponse(updated);
       }),
     );
@@ -960,12 +1213,85 @@ export class ReviewTasksService {
   }
 
   private taskTitle(
-    customerName: string,
+    customerCode: string,
     crimId: string,
     version: string | null | undefined,
   ): string {
+    const parts = [customerCode.trim(), crimId.trim().replace(/\s+/g, '-')];
     const suffix = version?.trim();
-    return `${customerName.trim()} – ${crimId.trim()}${suffix ? ` – ${suffix}` : ''}`;
+    if (suffix) parts.push(suffix);
+    return parts.join('-');
+  }
+
+  private async getEditableTask(id: string, user: AuthenticatedUser) {
+    const task = await this.getTask(id);
+    if (task.developerId !== user.id) {
+      throw new ForbiddenException('Only the owning developer may edit this task');
+    }
+    if (task.status !== TaskStatus.DRAFT && task.status !== TaskStatus.CHANGES_REQUESTED) {
+      throw new ApiException('INVALID_STATE_TRANSITION', 'This task can no longer be edited');
+    }
+    return task;
+  }
+
+  private toAttachment(row: {
+    id: string;
+    taskId: string;
+    fileName: string;
+    sizeBytes: number;
+    mimeType: string;
+    storageRef: string;
+    caption: string;
+    uploadedById: string;
+    uploadedAt: Date;
+  }) {
+    return {
+      ...row,
+      uploadedAt: row.uploadedAt.toISOString(),
+    };
+  }
+
+  private toChecklistSubmission(
+    task: TaskWithRelations,
+    version: number,
+    submittedAt: Date,
+    developerId: string,
+  ): ChecklistSubmission {
+    const categories = new Map<string, ChecklistSubmission['categories'][number]>();
+    for (const entry of task.developerChecklist?.answers ?? []) {
+      const section = entry.question.section;
+      const category = categories.get(section.id) ?? {
+        categoryId: section.id,
+        categoryName: section.name,
+        categoryOrder: categories.size,
+        questions: [],
+      };
+      category.questions.push({
+        questionId: entry.questionId,
+        questionText: entry.question.questionText,
+        questionOrder: entry.question.displayOrder,
+        answer: ({ YES: 'Yes', NO: 'No', NA: 'NA' } as const)[entry.answer],
+      });
+      categories.set(section.id, category);
+    }
+    return {
+      id: randomUUID(),
+      taskId: task.id,
+      version,
+      submittedAt: submittedAt.toISOString(),
+      developerId,
+      taskTypes: task.taskTypes.map(({ taskType }) => ({
+        id: String(taskType.id),
+        name: taskType.name,
+      })),
+      categories: [...categories.values()].map((category) => ({
+        ...category,
+        questions: category.questions.sort(
+          (left, right) => left.questionOrder - right.questionOrder,
+        ),
+      })),
+      remarks: task.developerChecklist?.additionalRemarks ?? '',
+    };
   }
 
   private async nextTaskVersion(
@@ -981,7 +1307,7 @@ export class ReviewTasksService {
       const value = task.version?.trim().replace(/^V/i, '') ?? '';
       if (!/^\d+$/.test(value)) return highest;
       return Math.max(highest, Number(value));
-    }, 0);
+    }, -1);
     return highestVersion + 1;
   }
 
@@ -1004,15 +1330,18 @@ export class ReviewTasksService {
     return {
       id: task.id,
       taskCode: task.taskCode,
-      title: task.title,
+      title: this.taskTitle(task.customer.code, task.crimId, task.version),
       crimId: task.crimId,
       version: task.version,
       customerId: task.customerId,
       priority,
       status,
       reviewCycle: Math.max(task.currentReviewCycle, 1),
+      historicalCycle: Math.max(task.currentReviewCycle, 1),
+      adjustedCycles: [],
       developerId: task.developerId,
       reviewerId: task.currentReviewerId,
+      currentReviewSessionId: task.reviewerAssignments?.[0]?.id ?? null,
       taskTypeIds: task.taskTypes.map(({ taskTypeId }) => String(taskTypeId)),
       isChecklistComplete: task.checklistCompleted,
       isHandedOver: task.handovers.some(({ status }) => status === HandoverStatus.PENDING),
@@ -1064,10 +1393,11 @@ export class ReviewTasksService {
     const missing = [...requiredIds].filter((id) => !answeredIds.has(id));
     const invalid = [...answeredIds].filter((id) => !requiredIds.has(id));
     if (invalid.length) {
-      throw new BadRequestException({
-        message: 'Checklist answers must match applicable active questions',
-        invalidQuestionIds: invalid,
-      });
+      throw new ApiException(
+        'CHECKLIST_INCOMPLETE',
+        'Checklist answers must match applicable active questions',
+        [{ invalidQuestionIds: invalid }],
+      );
     }
     return taskTypeIds.length > 0 && missing.length === 0;
   }

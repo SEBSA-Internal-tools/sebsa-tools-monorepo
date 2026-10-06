@@ -2,6 +2,15 @@ import { z } from 'zod';
 import { idSchema, isoDateTimeSchema } from './common.js';
 import { roleSchema } from './enums.js';
 
+export const userRolesSchema = z
+  .array(roleSchema)
+  .min(1, 'Select at least one role')
+  .refine((roles) => new Set(roles).size === roles.length, 'Roles must not be duplicated')
+  .refine(
+    (roles) => !roles.includes('Super Admin') || roles.length === 1,
+    'Super Admin must be the only assigned role',
+  );
+
 /* -------------------------------------------------------------------------- */
 /* User                                                                        */
 /* -------------------------------------------------------------------------- */
@@ -11,7 +20,7 @@ export const userSchema = z.object({
   name: z.string().min(1),
   email: z.string().email(),
   /** Additive — a user may be Developer AND Reviewer AND Admin at once. */
-  roles: z.array(roleSchema).min(1),
+  roles: userRolesSchema,
   isActive: z.boolean(),
   createdAt: isoDateTimeSchema,
 });
@@ -28,7 +37,9 @@ export type CurrentUser = z.infer<typeof currentUserSchema>;
 export const createUserInputSchema = z.object({
   name: z.string().trim().min(1, 'Name is required'),
   email: z.string().trim().email('Enter a valid email address'),
-  roles: z.array(roleSchema).min(1, 'Select at least one role'),
+  roles: userRolesSchema,
+  /** Required by policy when this request changes privileged access. */
+  reason: z.string().trim().optional(),
 });
 export type CreateUserInput = z.infer<typeof createUserInputSchema>;
 

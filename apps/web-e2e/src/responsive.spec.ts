@@ -364,12 +364,19 @@ test.describe('cards in a row share a height', () => {
    * No overflow assertion can see this, and neither can jsdom, which computes
    * no layout at all. Only measured boxes catch it.
    */
-  const ROWS: { name: string; path: string; as: keyof typeof AS }[] = [
+  // `card` is the card surface: Home cards carry `.rounded-card`, counter cards
+  // are toggle buttons. Waiting for it also skips the loading skeleton row.
+  const ROWS: { name: string; path: string; as: keyof typeof AS; card: string }[] = [
     // Signed in as the admin, so Home shows all three workspace cards.
-    { name: 'Home · workspace cards', path: '/', as: 'admin' },
-    { name: 'Developer · counters', path: '/crp/developer', as: 'developer' },
-    { name: 'Reviewer · counters', path: '/crp/reviewer', as: 'reviewer' },
-    { name: 'Admin · counters', path: '/crp/admin', as: 'admin' },
+    { name: 'Home · workspace cards', path: '/', as: 'admin', card: '.rounded-card' },
+    {
+      name: 'Developer · counters',
+      path: '/crp/developer',
+      as: 'developer',
+      card: '[aria-pressed]',
+    },
+    { name: 'Reviewer · counters', path: '/crp/reviewer', as: 'reviewer', card: '[aria-pressed]' },
+    { name: 'Admin · counters', path: '/crp/admin', as: 'admin', card: '[aria-pressed]' },
   ];
 
   for (const row of ROWS) {
@@ -382,10 +389,13 @@ test.describe('cards in a row share a height', () => {
         await signIn(page, row.as);
         await page.goto(row.path);
         await page.locator('h1').first().waitFor();
+        await page.locator(row.card).first().waitFor();
 
-        const heights = await page.evaluate(() => {
+        const heights = await page.evaluate((surface) => {
           const grids = Array.from(document.querySelectorAll<HTMLElement>('.grid'));
-          const cardRow = grids.find((grid) => grid.children.length >= 3);
+          const cardRow = grids.find(
+            (grid) => grid.children.length >= 3 && grid.querySelector(surface) !== null,
+          );
           if (cardRow === undefined) return [];
 
           /*
@@ -394,23 +404,23 @@ test.describe('cards in a row share a height', () => {
            * The grid stretches its children to the row height unconditionally,
            * so comparing those measures nothing — the first version of this
            * test passed with the bug deliberately reintroduced. The card is the
-           * `.rounded-card` element: sometimes the grid child itself, sometimes
-           * one level down inside an animation wrapper, which is precisely
-           * where the height stops being passed on.
+           * surface element: sometimes the grid child itself, sometimes one
+           * level down inside an animation wrapper, which is precisely where
+           * the height stops being passed on.
            */
-          return Array.from(cardRow.children)
-            .map((child) =>
-              child.matches('.rounded-card') ? child : child.querySelector('.rounded-card'),
-            )
-            .filter((card): card is Element => card !== null)
-            // The currently-selected filter card (aria-pressed="true", on the
-            // Admin/Reviewer counter rows) carries a deliberate scale-[1.02]
-            // emphasis - genuinely a couple of pixels taller by design, not a
-            // shared-height defect. Excluded from this comparison rather than
-            // from the row itself, so it still counts toward "found a row".
-            .filter((card) => card.getAttribute('aria-pressed') !== 'true')
-            .map((card) => Math.round(card.getBoundingClientRect().height));
-        });
+          return (
+            Array.from(cardRow.children)
+              .map((child) => (child.matches(surface) ? child : child.querySelector(surface)))
+              .filter((card): card is Element => card !== null)
+              // The currently-selected filter card (aria-pressed="true", on the
+              // Admin/Reviewer counter rows) carries a deliberate scale-[1.02]
+              // emphasis - genuinely a couple of pixels taller by design, not a
+              // shared-height defect. Excluded from this comparison rather than
+              // from the row itself, so it still counts toward "found a row".
+              .filter((card) => card.getAttribute('aria-pressed') !== 'true')
+              .map((card) => Math.round(card.getBoundingClientRect().height))
+          );
+        }, row.card);
 
         expect(heights.length, 'no row of three or more cards was found').toBeGreaterThanOrEqual(3);
 

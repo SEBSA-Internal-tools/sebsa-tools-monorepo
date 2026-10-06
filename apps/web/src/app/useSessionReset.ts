@@ -6,7 +6,6 @@ import { useQueryClient } from '@tanstack/react-query';
  * exception is greppable and a second one cannot appear silently.
  */
 /* eslint-disable boundaries/dependencies */
-import { useChecklistAdminView } from '@/portals/code-review/features/admin/hooks/useChecklistAdminView.ts';
 import { useTaskDraft } from '@/portals/code-review/features/tasks/hooks/useTaskDraft.ts';
 /* eslint-enable boundaries/dependencies */
 import { useSession } from '@/hooks/useSession.ts';
@@ -24,9 +23,6 @@ import { useSession } from '@/hooks/useSession.ts';
  *   `sdp.*`, but the Zustand store's live state survives inside the running page,
  *   and it is the store the wizard reads. Clearing one without the other leaves
  *   a half-written task on screen that no longer exists anywhere.
- * - **The checklist admin view store**, for the same reason: it holds one
- *   admin's unsaved reordering of the quality checklist, and the next person to
- *   sign in on this browser must not inherit it.
  *
  *   `reset()` then `clearStorage()`, in that order and both needed. `reset()`
  *   goes through the `persist` middleware, which promptly writes the emptied
@@ -41,7 +37,7 @@ import { useSession } from '@/hooks/useSession.ts';
  * Lives in `app/` because sign-out is genuinely an application-wide concern
  * rather than any one feature's.
  *
- * KNOWN EXCEPTION to the layer rule. The two stores it clears now live inside
+ * KNOWN EXCEPTION to the layer rule. The store it clears now lives inside
  * the Code Review portal, so this is the one file in `src/app` that imports
  * `@/portals/*`. It was a legal downward import while `features/tasks` was
  * top-level; moving the portal-specific features under `portals/code-review`
@@ -64,8 +60,6 @@ export function useSessionReset(): void {
       queryClient.clear();
       useTaskDraft.getState().reset();
       useTaskDraft.persist.clearStorage();
-      useChecklistAdminView.getState().reset();
-      useChecklistAdminView.persist.clearStorage();
     }
     wasAuthenticated.current = isAuthenticated;
   }, [isAuthenticated, queryClient]);

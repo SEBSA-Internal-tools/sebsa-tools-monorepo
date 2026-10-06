@@ -1,13 +1,15 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   AlertTriangle,
   Building2,
+  Calendar,
   CheckCircle2,
   ClipboardCheck,
   Gauge,
   Inbox,
   Timer,
 } from 'lucide-react';
+import type { Review } from '@sdp/contracts';
 import { CustomerChip } from '@/portals/code-review/components/badges.tsx';
 import { CategoryBarChart } from '@/components/common/charts/CategoryBarChart.tsx';
 import {
@@ -23,6 +25,7 @@ import { KpiCard } from '@/components/common/KpiCard.tsx';
 import { Reveal } from '@/components/common/Reveal.tsx';
 import { EmptyState, ErrorState, LoadingState } from '@/components/common/states.tsx';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card.tsx';
+import { Select, type SelectOption } from '@/components/ui/Select.tsx';
 import { formatDate, formatDurationHours, interpolate } from '@/lib/formatters.ts';
 import { useReviewsGiven } from '@/portals/code-review/hooks/useReviews.ts';
 import { useTasks } from '@/portals/code-review/hooks/useTasks.ts';
@@ -95,19 +98,60 @@ function orNotAvailable(value: number | null, format: (value: number) => string)
 const asPercent = (value: number) => `${value.toFixed(1)}%`;
 const asRank = (value: number) => value.toFixed(2);
 
+type TimeRangeKey = 'all' | '30d' | '90d' | 'quarter';
+
+function filterReviewsByTimeRange(reviews: readonly Review[], range: TimeRangeKey): Review[] {
+  if (range === 'all') return reviews.slice();
+
+  let cutoffTime = 0;
+  const now = new Date();
+
+  if (range === '30d') {
+    cutoffTime = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  } else if (range === '90d') {
+    cutoffTime = Date.now() - 90 * 24 * 60 * 60 * 1000;
+  } else if (range === 'quarter') {
+    const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
+    cutoffTime = new Date(now.getFullYear(), quarterStartMonth, 1).getTime();
+  }
+
+  return reviews.filter((r) => {
+    const timestamp = r.decidedAt ?? r.createdAt;
+    if (!timestamp) return false;
+    return new Date(timestamp).getTime() >= cutoffTime;
+  });
+}
+
 export function ReviewerAnalyticsPage() {
   const given = useReviewsGiven();
   const assigned = useTasks('assigned');
   const history = useTasks('history');
 
-  const summary = useMemo(
-    () => reviewerSummary(given.data ?? [], assigned.data?.length ?? 0),
-    [given.data, assigned.data],
+  const [timeRange, setTimeRange] = useState<TimeRangeKey>('all');
+
+  const timeRangeOptions = useMemo<SelectOption[]>(
+    () => [
+      { value: 'all', label: labels.timeRanges?.all ?? 'All Time' },
+      { value: '30d', label: labels.timeRanges?.['30d'] ?? 'Last 30 Days' },
+      { value: '90d', label: labels.timeRanges?.['90d'] ?? 'Last 90 Days' },
+      { value: 'quarter', label: labels.timeRanges?.quarter ?? 'This Quarter' },
+    ],
+    [],
   );
-  const weeks = useMemo(() => reviewActivityByWeek(given.data ?? []), [given.data]);
-  const buckets = useMemo(() => turnaroundBuckets(given.data ?? []), [given.data]);
-  const decisions = useMemo(() => decisionMix(given.data ?? []), [given.data]);
-  const ranks = useMemo(() => rankGivenDistribution(given.data ?? []), [given.data]);
+
+  const filteredGiven = useMemo(
+    () => filterReviewsByTimeRange(given.data ?? [], timeRange),
+    [given.data, timeRange],
+  );
+
+  const summary = useMemo(
+    () => reviewerSummary(filteredGiven, assigned.data?.length ?? 0),
+    [filteredGiven, assigned.data],
+  );
+  const weeks = useMemo(() => reviewActivityByWeek(filteredGiven), [filteredGiven]);
+  const buckets = useMemo(() => turnaroundBuckets(filteredGiven), [filteredGiven]);
+  const decisions = useMemo(() => decisionMix(filteredGiven), [filteredGiven]);
+  const ranks = useMemo(() => rankGivenDistribution(filteredGiven), [filteredGiven]);
 
   /*
     The customer join needs BOTH task lists, but for a narrower reason than it
@@ -129,8 +173,8 @@ export function ReviewerAnalyticsPage() {
     [history.data, assigned.data],
   );
   const byCustomer = useMemo(
-    () => reviewsByCustomer(given.data ?? [], joinable),
-    [given.data, joinable],
+    () => reviewsByCustomer(filteredGiven, joinable),
+    [filteredGiven, joinable],
   );
 
   /*
@@ -149,9 +193,21 @@ export function ReviewerAnalyticsPage() {
    * route, as it always claimed to be.
    */
   const header = (
-    <div>
-      <h2 className="font-display text-lg font-bold text-ink-900">{labels.title}</h2>
-      <p className="mt-0.5 text-sm text-ink-500">{labels.subtitle}</p>
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <h2 className="font-display text-lg font-bold text-ink-900">{labels.title}</h2>
+        <p className="mt-0.5 text-sm text-ink-500">{labels.subtitle}</p>
+      </div>
+      <div className="w-full sm:w-56">
+        <Select
+          value={timeRange}
+          onValueChange={(val) => setTimeRange(val as TimeRangeKey)}
+          options={timeRangeOptions}
+          icon={<Calendar className="size-4" />}
+          label={labels.timeRange ?? 'Time Range'}
+          aria-label={labels.timeRange ?? 'Time Range'}
+        />
+      </div>
     </div>
   );
 
@@ -364,9 +420,7 @@ export function ReviewerAnalyticsPage() {
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <CustomerChip name={customer.name} color={customer.color} variant="inline" />
                     <p className="text-xs text-ink-500">
-                      {interpolate(labels.customerReviews, {
-                        count: customer.reviewCount,
-                      })}
+                      {interpolate(labels.customerReviews, { count: customer.reviewCount })}
                     </p>
                   </div>
 

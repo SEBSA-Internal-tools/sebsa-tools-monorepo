@@ -27,12 +27,20 @@ export const taskSchema = z.object({
   priority: prioritySchema,
   status: taskStatusSchema,
 
-  /** Increments only on Request Changes (spec p.10). See plan risk R3. */
+  /** Effective / countable review cycle (can decrement on qualifying accepted rejections). */
   reviewCycle: z.number().int().min(1),
+
+  /** Monotonic immutable historical cycle sequence (never decrements). */
+  historicalCycle: z.number().int().min(1).default(1),
+
+  /** Tracks which historical cycles have received an accepted-rejection decrement (idempotency). */
+  adjustedCycles: z.array(z.number().int()).default([]),
 
   developerId: idSchema,
   /** Null until a reviewer picks the task from the Available queue. */
   reviewerId: idSchema.nullable(),
+  /** The currently active review ownership session ID (null when handed over / open). */
+  currentReviewSessionId: idSchema.optional().nullable(),
 
   /** Task type IDS selected on the checklist screen; drive which questions render. */
   taskTypeIds: z.array(taskTypeIdSchema),
@@ -75,9 +83,21 @@ export const taskListItemSchema = taskSchema.extend({
 export type TaskListItem = z.infer<typeof taskListItemSchema>;
 
 export const nextTaskVersionSchema = z.object({
-  version: z.number().int().min(1),
+  version: z.number().int().min(0),
+  title: z.string().min(1),
 });
 export type NextTaskVersion = z.infer<typeof nextTaskVersionSchema>;
+
+export function deriveTaskTitle(
+  customerCode: string,
+  crimId: string,
+  version?: string | number | null,
+): string {
+  const parts = [customerCode.trim(), crimId.trim()];
+  const normalizedVersion = version === null || version === undefined ? '' : String(version).trim();
+  if (normalizedVersion !== '') parts.push(normalizedVersion);
+  return parts.join('-');
+}
 
 /* -------------------------------------------------------------------------- */
 /* Create / update input                                                       */
@@ -141,14 +161,16 @@ export const TASK_EVENT_KINDS = [
   'Created',
   'Submitted',
   'Picked',
+  'ReviewDraftSaved',
   'Approved',
   'ChangesRequested',
   'Resubmitted',
   'HandedOver',
   'Reassigned',
+  'ReturnedToQueue',
   'Cancelled',
-  'Delivered',
   'ReviewerAssigned',
+  'CountedCycleAdjusted',
 ] as const;
 export const taskEventKindSchema = z.enum(TASK_EVENT_KINDS);
 export type TaskEventKind = z.infer<typeof taskEventKindSchema>;
@@ -163,6 +185,11 @@ export const taskEventSchema = z.object({
   actorName: z.string(),
   note: z.string().nullable(),
   occurredAt: isoDateTimeSchema,
+  qualifyingReviewRound: z.number().int().min(1).optional(),
+  previousCountedCycle: z.number().int().min(1).optional(),
+  newCountedCycle: z.number().int().min(1).optional(),
+  adjustmentAmount: z.number().int().min(1).optional(),
+  reason: z.string().optional(),
 });
 export type TaskEvent = z.infer<typeof taskEventSchema>;
 

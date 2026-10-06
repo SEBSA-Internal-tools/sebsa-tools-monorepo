@@ -26,16 +26,22 @@ export const ROUTES = {
   },
   admin: {
     root: routePaths.crp.admin.dashboard,
+    task: routePaths.crp.admin.task,
     users: routePaths.crp.admin.users,
     customers: routePaths.crp.admin.customers,
     checklist: routePaths.crp.admin.checklist,
     handovers: routePaths.crp.admin.handovers,
+    handover: routePaths.crp.admin.handover,
+    handoverTask: routePaths.crp.admin.handoverTask,
     reports: routePaths.crp.admin.reports,
     activity: routePaths.crp.admin.activity,
-    roles: routePaths.crp.admin.roles,
   },
 } as const;
 
+/**
+ * Which roles may enter each workspace. Admin-only users do not implicitly gain
+ * the Developer or Reviewer workspaces; each requires its own role.
+ */
 export const WORKSPACE_ACCESS = {
   developer: ['Developer'],
   reviewer: ['Reviewer'],

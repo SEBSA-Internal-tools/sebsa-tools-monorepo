@@ -25,7 +25,6 @@ function question(order: number, id = `q-${String(order)}`): ChecklistQuestion {
     categoryId: 'cat-unit-testing',
     text: `Question ${String(order)}`,
     order,
-    appliesTo: ['tt-customization'],
     isActive: true,
   };
 }

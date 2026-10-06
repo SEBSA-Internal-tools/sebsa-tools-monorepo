@@ -218,4 +218,32 @@ export const codeReviewRoutes: RouteObject[] = [
       },
     ],
   },
+  {
+    path: `${relativePaths.crp.admin}/${SEGMENTS.handovers}/:handoverId`,
+    handle: { title: 'Handover Task Overview' },
+    lazy: async () => {
+      const module =
+        await import('@/portals/code-review/features/admin/routes/AdminHandoverTaskPage');
+      return { Component: guarded('admin', module.AdminHandoverTaskPage) };
+    },
+  },
+  {
+    path: `${relativePaths.crp.admin}/${SEGMENTS.tasks}/:taskId/${SEGMENTS.handover}`,
+    handle: { title: 'Handover Task Overview' },
+    lazy: async () => {
+      const module =
+        await import('@/portals/code-review/features/admin/routes/AdminHandoverTaskPage');
+      return { Component: guarded('admin', module.AdminHandoverTaskPage) };
+    },
+  },
+  {
+    path: `${relativePaths.crp.admin}/${SEGMENTS.tasks}/:taskId`,
+    handle: { title: 'Task Details' },
+    lazy: async () => {
+      const module = await import('@/portals/code-review/features/tasks/routes/TaskDetailPage');
+      return {
+        Component: guarded('admin', () => <module.TaskDetailPage mode="admin" />),
+      };
+    },
+  },
 ];

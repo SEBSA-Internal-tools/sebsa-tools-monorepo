@@ -170,6 +170,7 @@ describe('admin tasks grid', () => {
     expect(await screen.findByText(/cancel this task\?/i)).toBeInTheDocument();
     expect(within(row).getByText('Submitted')).toBeInTheDocument();
 
+    await user.type(screen.getByRole('textbox', { name: /reason/i }), 'No longer required.');
     await user.click(screen.getByRole('button', { name: /^cancel task$/i }));
 
     await waitFor(() => {
@@ -180,12 +181,13 @@ describe('admin tasks grid', () => {
 
 describe('admin users tab', () => {
   it('lets the current Super Admin transfer ownership to an existing Admin', async () => {
-    const actor = findUser(ADMIN);
+    const actor = findUser('u-qa-superadmin');
     const target = findUser('u-janith');
     if (actor === undefined || target === undefined) throw new Error('Admin fixture was not found');
-    actor.roles = ['Super Admin'];
+    signInForTest(actor.id);
 
     const { user } = renderAdmin('/crp/admin/users');
+    await user.type(await screen.findByRole('searchbox', { name: /search users/i }), target.name);
     await user.click(
       await screen.findByRole('button', {
         name: /transfer super admin to Janith Hasthanayake/i,
@@ -224,6 +226,10 @@ describe('admin users tab', () => {
     await user.click(screen.getByRole('checkbox', { name: 'Reviewer' }));
     await user.click(screen.getByRole('button', { name: /^create user$/i }));
 
+    await user.type(
+      await screen.findByRole('searchbox', { name: /search users/i }),
+      'test.person@sebsaworld.com',
+    );
     expect(await screen.findByText('test.person@sebsaworld.com')).toBeInTheDocument();
   });
 
@@ -246,7 +252,7 @@ describe('admin users tab', () => {
     expect(await screen.findByText('Dheliya Kankanamge')).toBeInTheDocument();
 
     await user.click(screen.getByRole('combobox', { name: /role/i }));
-    await user.click(await screen.findByRole('option', { name: 'Admin' }));
+    await user.click(await screen.findByRole('checkbox', { name: 'Admin' }));
 
     // Dheliya is Developer-only, so the Admin filter must drop them.
     await waitFor(() => {
@@ -275,6 +281,7 @@ describe('admin customers tab', () => {
   });
 
   it('refuses to delete a customer that has tasks', async () => {
+    signInForTest('u-qa-superadmin');
     const { user } = renderAdmin('/crp/admin/customers');
 
     // Matched on the DESCRIPTION cell: 'BLOM' is both the chip name and the
@@ -288,6 +295,7 @@ describe('admin customers tab', () => {
     const confirm = await screen.findByRole('button', {
       name: /^delete customer$/i,
     });
+    await user.type(screen.getByRole('textbox', { name: /reason/i }), 'Duplicate customer record.');
     await user.click(confirm);
 
     // Wait for the request to settle. The toast is NOT asserted here: `Toaster`

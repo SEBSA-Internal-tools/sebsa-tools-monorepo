@@ -30,6 +30,8 @@ export function SegmentedOptions<TValue extends string>({
   label,
   required = false,
   className,
+  size = 'md',
+  labelClassName,
 }: {
   value: TValue | '';
   onValueChange: (value: TValue) => void;
@@ -38,9 +40,12 @@ export function SegmentedOptions<TValue extends string>({
   label: ReactNode;
   required?: boolean;
   className?: string;
+  size?: 'sm' | 'md';
+  labelClassName?: string;
 }) {
   const groupId = useId();
   const buttonRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const isCompact = size === 'sm';
 
   function moveSelection(event: KeyboardEvent<HTMLButtonElement>, index: number) {
     const direction =
@@ -65,7 +70,14 @@ export function SegmentedOptions<TValue extends string>({
 
   return (
     <div className={className}>
-      <p id={groupId} className="mb-1.5 block text-sm font-medium text-ink-900">
+      <p
+        id={groupId}
+        className={cn(
+          'block text-sm font-medium text-ink-900',
+          labelClassName?.includes('sr-only') ? 'sr-only' : 'mb-1.5',
+          labelClassName,
+        )}
+      >
         {label}
         {required ? (
           <>
@@ -77,7 +89,11 @@ export function SegmentedOptions<TValue extends string>({
         ) : null}
       </p>
 
-      <div role="radiogroup" aria-labelledby={groupId} className="flex flex-wrap gap-2">
+      <div
+        role="radiogroup"
+        aria-labelledby={groupId}
+        className={cn('flex flex-wrap', isCompact ? 'gap-1.5' : 'gap-2')}
+      >
         {options.map((option, index) => {
           const selected = option.value === value;
           const firstEnabled = options.findIndex((candidate) => !candidate.disabled);
@@ -97,9 +113,10 @@ export function SegmentedOptions<TValue extends string>({
               }}
               onKeyDown={(event) => moveSelection(event, index)}
               className={cn(
-                'inline-flex items-center gap-2 rounded-control border px-4 py-2.5 text-sm transition-colors',
+                'inline-flex items-center rounded-control border transition-colors',
                 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600',
                 'disabled:pointer-events-none disabled:opacity-50',
+                isCompact ? 'gap-1.5 px-3 py-1.5 text-xs' : 'gap-2 px-4 py-2.5 text-sm',
                 selected
                   ? 'border-violet-600 bg-violet-50 font-semibold text-violet-700'
                   : 'border-line-strong bg-surface text-ink-700 hover:bg-canvas',
@@ -107,7 +124,11 @@ export function SegmentedOptions<TValue extends string>({
             >
               {option.dotClassName === undefined ? null : (
                 <span
-                  className={cn('size-2 shrink-0 rounded-full', option.dotClassName)}
+                  className={cn(
+                    'shrink-0 rounded-full',
+                    isCompact ? 'size-1.5' : 'size-2',
+                    option.dotClassName,
+                  )}
                   aria-hidden="true"
                 />
               )}

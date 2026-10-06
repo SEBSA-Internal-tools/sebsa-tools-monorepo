@@ -45,6 +45,7 @@ describe('HandoversService.reassign', () => {
         title: 'Task under review',
         developerId: '00000000-0000-0000-0000-000000000099',
         status: TaskStatus.SUBMITTED,
+        currentReviewCycle: 1,
       },
       fromReviewer: previousReviewer,
     };
@@ -66,8 +67,9 @@ describe('HandoversService.reassign', () => {
       task: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
       taskReviewerAssignment: {
         updateMany: vi.fn().mockResolvedValue({ count: 0 }),
-        create: vi.fn().mockResolvedValue({}),
+        create: vi.fn().mockResolvedValue({ id: '00000000-0000-4000-8000-000000000301' }),
       },
+      codeReviewForm: { updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
       taskStatusHistory: { create: vi.fn().mockResolvedValue({}) },
     };
     const audit = { record: vi.fn().mockResolvedValue(undefined) };
@@ -256,6 +258,7 @@ describe('HandoversService.reassign', () => {
           title: 'Repeatable handover task',
           developerId,
           status: state.status,
+          currentReviewCycle: 1,
         },
         fromReviewer: {
           id: handover.fromReviewerId,
@@ -272,6 +275,7 @@ describe('HandoversService.reassign', () => {
     };
 
     const tx = {
+      $executeRaw: vi.fn().mockResolvedValue(1),
       task: {
         findUnique: vi.fn((args: { select?: unknown }) =>
           Promise.resolve(args.select ? selectedTask() : taskResponse()),
@@ -348,9 +352,10 @@ describe('HandoversService.reassign', () => {
             isCurrent: true,
             unassignedAt: null,
           });
-          return Promise.resolve({});
+          return Promise.resolve({ id: crypto.randomUUID() });
         }),
       },
+      codeReviewForm: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
       taskStatusHistory: { create: vi.fn().mockResolvedValue({}) },
       user: {
         findMany: vi.fn().mockResolvedValue([]),

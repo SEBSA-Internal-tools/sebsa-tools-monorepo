@@ -31,10 +31,7 @@ const OTHER_DEVELOPER = 'u-kavidu';
 
 function renderAt(path: string) {
   const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false, gcTime: 0 },
-      mutations: { retry: false },
-    },
+    defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } },
   });
   const router = createMemoryRouter(routes, { initialEntries: [path] });
 
@@ -49,11 +46,20 @@ function renderAt(path: string) {
   };
 }
 
-function returnedTask() {
+/**
+ * A draft the developer can reopen, with a complete saved checklist.
+ *
+ * Editing is Draft-only (a returned task is the response turn), and the seeded
+ * drafts carry no checklist, so the developer's returned task is put back to
+ * Draft in the per-test database, which `resetDb` restores afterwards.
+ */
+function editableDraft() {
   const task = db.tasks.find(
     (candidate) => candidate.developerId === DEVELOPER && candidate.status === 'ChangesRequested',
   );
   if (!task) throw new Error('seed has no returned task for this developer');
+  task.status = 'Draft';
+  task.reviewerId = null;
   return task;
 }
 
@@ -63,12 +69,11 @@ beforeEach(() => {
 });
 
 describe('reopening a task in the wizard', () => {
-  it('hydrates a returned task from the URL, not from a stale draft', async () => {
+  it('hydrates a reopened draft from the URL, not from a stale draft', async () => {
     /*
      * The scenario the route was built for.
      *
-     * A developer edits draft A, goes away, comes back and opens returned task
-     * B. Both live in the same single-slot store, so without the URL winning,
+     * A developer edits draft A, goes away, comes back and reopens draft B. Both live in the same single-slot store, so without the URL winning,
      * B's page shows A's customer, A's CRIM ID and A's checklist answers — and
      * the next Save Draft PATCHes A.
      */
@@ -80,7 +85,7 @@ describe('reopening a task in the wizard', () => {
       remarks: 'Notes that belong to a different task.',
     });
 
-    const task = returnedTask();
+    const task = editableDraft();
     const { router } = renderAt(`/crp/developer/tasks/${task.id}/edit`);
 
     await waitFor(() => {
@@ -100,7 +105,7 @@ describe('reopening a task in the wizard', () => {
   });
 
   it('carries the saved checklist answers back into the store', async () => {
-    const task = returnedTask();
+    const task = editableDraft();
     const saved = findChecklist(task.id);
     if (!saved || saved.answers.length === 0) throw new Error('seed task has no saved checklist');
 
@@ -115,10 +120,7 @@ describe('reopening a task in the wizard', () => {
     const { answers } = useTaskDraft.getState();
     expect(answers).toHaveLength(saved.answers.length);
     for (const entry of saved.answers) {
-      expect(answers).toContainEqual({
-        questionId: entry.questionId,
-        answer: entry.answer,
-      });
+      expect(answers).toContainEqual({ questionId: entry.questionId, answer: entry.answer });
     }
   });
 
@@ -128,7 +130,7 @@ describe('reopening a task in the wizard', () => {
      * task types and a complete checklist, so there is no step left to fill in
      * and the developer should not be walked through two they already finished.
      */
-    const task = returnedTask();
+    const task = editableDraft();
     expect(task.isChecklistComplete).toBe(true);
 
     const { router } = renderAt(`/crp/developer/tasks/${task.id}/edit`);
@@ -137,9 +139,9 @@ describe('reopening a task in the wizard', () => {
       expect(router.state.location.pathname).toBe(`/crp/developer/tasks/${task.id}/edit/review`);
     });
 
-    // Check that title indicates editing existing task, and back button returns to Task Details
+    // Check that title indicates editing existing task, and back button returns to Task Overview
     expect(await screen.findByRole('heading', { name: /edit review task/i })).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: /back to task details/i }).length).toBeGreaterThan(
+    expect(screen.getAllByRole('button', { name: /back to task overview/i }).length).toBeGreaterThan(
       0,
     );
   });
@@ -204,7 +206,7 @@ describe('reopening a task in the wizard', () => {
   });
 
   it('replaces itself in history so Back does not bounce through the redirect', async () => {
-    const task = returnedTask();
+    const task = editableDraft();
     const { router } = renderAt(`/crp/developer/tasks/${task.id}/edit`);
 
     await waitFor(() => {

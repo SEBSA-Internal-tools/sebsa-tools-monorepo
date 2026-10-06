@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { ArrowLeft, CheckCircle2, Eye, FilePlus2, GitPullRequest } from 'lucide-react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { StatusBadge, Tag } from '@/portals/code-review/components/badges.tsx';
@@ -36,6 +37,12 @@ export function SubmissionConfirmedPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const resetDraft = useTaskDraft((s) => s.reset);
+
+  // The wizard has unmounted by now, so the submitted task can be cleared from the
+  // persisted draft without re-rendering it against an empty store.
+  useEffect(() => {
+    useTaskDraft.getState().reset();
+  }, []);
 
   if (!isConfirmationState(location.state)) {
     return <Navigate to={ROUTES.developer.root} replace />;

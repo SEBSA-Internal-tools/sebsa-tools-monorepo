@@ -56,6 +56,11 @@ export class CreateReviewTaskDto {
   @IsEnum(TaskPriority)
   priority!: TaskPriority;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  noteToReviewer?: string | null;
+
   @ApiPropertyOptional({ type: [Number] })
   @IsOptional()
   @Type(() => Number)

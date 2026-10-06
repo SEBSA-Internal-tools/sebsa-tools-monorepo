@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import type { Handover, TaskListItem, User } from '@sdp/contracts';
+import type { Handover, Task, User } from '@sdp/contracts';
 import { Button } from '@/components/ui/Button.tsx';
 import { Dialog } from '@/components/ui/Dialog.tsx';
 import { Field } from '@/components/ui/Field.tsx';
@@ -32,7 +32,7 @@ export function ReassignHandoverDialog({
   onClose,
 }: {
   handover: Handover;
-  task: TaskListItem | undefined;
+  task: Pick<Task, 'developerId' | 'taskCode'> | undefined;
   users: readonly User[];
   onClose: () => void;
 }) {
@@ -47,10 +47,7 @@ export function ReassignHandoverDialog({
     [users, task?.developerId],
   );
 
-  const options: SelectOption[] = eligible.map((user) => ({
-    value: user.id,
-    label: user.name,
-  }));
+  const options: SelectOption[] = eligible.map((user) => ({ value: user.id, label: user.name }));
 
   function submit() {
     if (reviewerId === '') return;
@@ -60,12 +57,7 @@ export function ReassignHandoverDialog({
       { handoverId: handover.id, reviewerId },
       {
         onSuccess: () => {
-          toast.success(
-            interpolate(labels.success, {
-              taskCode: task?.taskCode ?? '',
-              name,
-            }),
-          );
+          toast.success(interpolate(labels.success, { taskCode: task?.taskCode ?? '', name }));
           onClose();
         },
         onError: (cause) => {
@@ -93,6 +85,7 @@ export function ReassignHandoverDialog({
             {common.actions.cancel}
           </Button>
           <Button
+            variant="adminPrimary"
             onClick={submit}
             disabled={reviewerId === '' || eligible.length === 0}
             isLoading={reassign.isPending}

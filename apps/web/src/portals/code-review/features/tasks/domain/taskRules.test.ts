@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_VERSION_CHARS } from '@sdp/contracts';
 import {
   canLeaveStep,
   canSubmit,
@@ -18,20 +17,20 @@ const READY: TaskReadinessInput = {
 
 describe('deriveTitle (FL 2.5-01)', () => {
   it('joins customer and CRIM ID', () => {
-    expect(deriveTitle('AASL', 'CRIM-848')).toBe('AASL – CRIM-848');
+    expect(deriveTitle('AASL', 'CRIM-848')).toBe('AASL-CRIM-848');
   });
 
   it('appends the version only when there is one', () => {
-    expect(deriveTitle('AASL', 'CRIM-848', '1')).toBe('AASL – CRIM-848 – 1');
-    expect(deriveTitle('AASL', 'CRIM-848', '')).toBe('AASL – CRIM-848');
-    expect(deriveTitle('AASL', 'CRIM-848', null)).toBe('AASL – CRIM-848');
-    expect(deriveTitle('AASL', 'CRIM-848', undefined)).toBe('AASL – CRIM-848');
+    expect(deriveTitle('AASL', 'CRIM-848', 'V1')).toBe('AASL-CRIM-848-V1');
+    expect(deriveTitle('AASL', 'CRIM-848', '')).toBe('AASL-CRIM-848');
+    expect(deriveTitle('AASL', 'CRIM-848', null)).toBe('AASL-CRIM-848');
+    expect(deriveTitle('AASL', 'CRIM-848', undefined)).toBe('AASL-CRIM-848');
   });
 
   it('trims, so stray whitespace never becomes part of the record', () => {
-    expect(deriveTitle('  AASL ', ' CRIM-848  ', '  1 ')).toBe('AASL – CRIM-848 – 1');
+    expect(deriveTitle('  AASL ', ' CRIM-848  ', '  V1 ')).toBe('AASL-CRIM-848-V1');
     // A version that is only whitespace is no version at all.
-    expect(deriveTitle('AASL', 'CRIM-848', '   ')).toBe('AASL – CRIM-848');
+    expect(deriveTitle('AASL', 'CRIM-848', '   ')).toBe('AASL-CRIM-848');
   });
 });
 
@@ -48,7 +47,7 @@ describe('missingRequirements', () => {
         taskTypes: [],
         isChecklistComplete: false,
       }),
-    ).toEqual(['customer', 'crimId', 'priority', 'taskTypes', 'checklist']);
+    ).toEqual(['customer', 'crimId', 'taskTypes', 'checklist']);
   });
 
   it('treats a whitespace-only CRIM ID as missing', () => {
@@ -58,31 +57,6 @@ describe('missingRequirements', () => {
         draft: { ...READY.draft, crimId: '   ' },
       }),
     ).toEqual(['crimId']);
-  });
-
-  it('requires the developer to select a priority', () => {
-    expect(
-      missingRequirements({
-        ...READY,
-        draft: { ...READY.draft, priority: '' },
-      }),
-    ).toEqual(['priority']);
-  });
-
-  it('flags an over-long version but accepts one at the limit', () => {
-    const atLimit = 'v'.repeat(MAX_VERSION_CHARS);
-    expect(
-      missingRequirements({
-        ...READY,
-        draft: { ...READY.draft, version: atLimit },
-      }),
-    ).toEqual([]);
-    expect(
-      missingRequirements({
-        ...READY,
-        draft: { ...READY.draft, version: `${atLimit}x` },
-      }),
-    ).toEqual(['versionTooLong']);
   });
 
   it('blocks submission on an incomplete checklist (FL 2.2-03)', () => {
@@ -103,7 +77,7 @@ describe('wizard step gating (acceptance scenario 1)', () => {
   });
 
   it('assigns each requirement to the step that owns it', () => {
-    expect(requirementsForStep('details', empty)).toEqual(['customer', 'crimId', 'priority']);
+    expect(requirementsForStep('details', empty)).toEqual(['customer', 'crimId']);
     expect(requirementsForStep('checklist', empty)).toEqual(['taskTypes', 'checklist']);
     // The review step introduces no requirements of its own; it is blocked only
     // by the steps behind it, which the wizard enforces by not letting the user
