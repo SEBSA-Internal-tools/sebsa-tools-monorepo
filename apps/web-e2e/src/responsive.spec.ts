@@ -350,6 +350,60 @@ test.describe('primary actions stay reachable', () => {
   }
 });
 
+test.describe('row actions column stays pinned', () => {
+  /**
+   * The trailing `actions` column is sticky to the right edge of the grid's
+   * scroll box, so on a laptop-width screen the row buttons are visible without
+   * scrolling the grid sideways, and stay visible when it is scrolled.
+   */
+  const GRIDS = [
+    { name: 'Developer · My Tasks', path: '/crp/developer', as: 'developer' },
+    { name: 'Admin · Users', path: '/crp/admin/users', as: 'admin' },
+    { name: 'Admin · Customers', path: '/crp/admin/customers', as: 'admin' },
+  ] as const;
+
+  for (const grid of GRIDS) {
+    for (const width of [1024, 1280, 1366] as const) {
+      test(`${grid.name} at ${String(width)}px`, async ({ page }) => {
+        test.slow();
+        await page.setViewportSize({ width, height: 800 });
+        await signIn(page, grid.as);
+        await page.goto(grid.path);
+
+        const cell = page.locator('tbody tr:first-child td').last();
+        await expect(cell).toBeVisible();
+
+        const inView = async () => {
+          // The rows re-mount when data lands; poll rather than read once.
+          const box = await expect
+            .poll(() => cell.boundingBox(), { message: 'the actions cell has no layout box' })
+            .not.toBeNull()
+            .then(() => cell.boundingBox());
+          expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(width + 1);
+          expect(box?.x ?? -1).toBeGreaterThanOrEqual(0);
+        };
+
+        await inView();
+
+        await page
+          .locator('div.overflow-x-auto')
+          .first()
+          .evaluate((el) => {
+            el.scrollLeft = 0;
+          });
+        await inView();
+        await page
+          .locator('div.overflow-x-auto')
+          .first()
+          .evaluate((el) => {
+            el.scrollLeft = el.scrollWidth;
+          });
+        await inView();
+      });
+    }
+  }
+});
+
 test.describe('cards in a row share a height', () => {
   /**
    * A grid row of cards must be flush along the bottom at every width.
