@@ -58,9 +58,9 @@ import {
 } from './db.ts';
 import {
   createCycleResponseId,
-  nextHistoricalReviewCycle,
-  nextReviewCycle,
-  resolveActiveReviewCycle,
+  nextReviewRound,
+  nextCountedCycle,
+  resolveActiveReviewRound,
   reviewBlockers,
 } from '@/portals/code-review/features/reviews/domain/reviewRules.ts';
 import {
@@ -154,8 +154,8 @@ function toWireNotification(n: Notification & { userId: string }): Notification 
  * Screenshots can be attached before the reviewer has answered anything, so the
  * row has to exist before the decision does.
  */
-export function createReviewSessionId(taskId: string, reviewCycle: number): string {
-  return `rs-${taskId}-${reviewCycle}-${crypto.randomUUID()}`;
+export function createReviewSessionId(taskId: string, reviewRound: number): string {
+  return `rs-${taskId}-${reviewRound}-${crypto.randomUUID()}`;
 }
 
 /**
@@ -165,8 +165,8 @@ export function createReviewSessionId(taskId: string, reviewCycle: number): stri
  * row has to exist before the decision does.
  */
 function ensureReview(task: Task, reviewerId: string, reviewerName: string): Review {
-  const currentHistoricalCycle = task.historicalCycle ?? task.reviewCycle;
-  const existing = findReview(task.id, currentHistoricalCycle);
+  const currentHistoricalRound = task.reviewRound;
+  const existing = findReview(task.id, currentHistoricalRound);
   if (existing) {
     if (
       existing.decision === null &&
@@ -184,7 +184,7 @@ function ensureReview(task: Task, reviewerId: string, reviewerName: string): Rev
       !task.currentReviewSessionId &&
       task.status === 'InReview'
     ) {
-      const newSessionId = createReviewSessionId(task.id, currentHistoricalCycle);
+      const newSessionId = createReviewSessionId(task.id, currentHistoricalRound);
       task.currentReviewSessionId = newSessionId;
       existing.currentReviewSessionId = newSessionId;
     }
@@ -193,12 +193,12 @@ function ensureReview(task: Task, reviewerId: string, reviewerName: string): Rev
 
   const now = new Date().toISOString();
   if (!task.currentReviewSessionId && task.status === 'InReview') {
-    task.currentReviewSessionId = createReviewSessionId(task.id, currentHistoricalCycle);
+    task.currentReviewSessionId = createReviewSessionId(task.id, currentHistoricalRound);
   }
   const review: Review = {
-    id: `rev-${task.id}-${String(currentHistoricalCycle)}`,
+    id: `rev-${task.id}-${String(currentHistoricalRound)}`,
     taskId: task.id,
-    reviewCycle: currentHistoricalCycle,
+    reviewRound: currentHistoricalRound,
     reviewerId,
     reviewerName,
     currentReviewSessionId: task.currentReviewSessionId ?? null,
@@ -563,7 +563,7 @@ export const handlers: HttpHandler[] = [
           if (t.status === 'ChangesRequested' || t.status === 'Approved') {
             const taskReviews = db.reviews
               .filter((r) => r.taskId === t.id && r.decision !== null)
-              .sort((a, b) => b.reviewCycle - a.reviewCycle);
+              .sort((a, b) => b.reviewRound - a.reviewRound);
             const latest = taskReviews[0];
             return latest ? latest.reviewerId === user.id : false;
           }
@@ -628,8 +628,8 @@ export const handlers: HttpHandler[] = [
     }
 
     if (task.status === 'InReview' && !task.currentReviewSessionId) {
-      const currentHistoricalCycle = task.historicalCycle ?? task.reviewCycle;
-      task.currentReviewSessionId = createReviewSessionId(task.id, currentHistoricalCycle);
+      const currentHistoricalRound = task.reviewRound;
+      task.currentReviewSessionId = createReviewSessionId(task.id, currentHistoricalRound);
     }
 
     return HttpResponse.json(toListItem(task));
@@ -729,8 +729,8 @@ export const handlers: HttpHandler[] = [
       customerId: customer.id,
       priority: parsed.data.priority,
       status: 'Draft',
-      reviewCycle: 1,
-      historicalCycle: 1,
+      reviewRound: 1,
+      countedCycle: 1,
       adjustedCycles: [],
       developerId: user.id,
       reviewerId: null,
@@ -747,7 +747,7 @@ export const handlers: HttpHandler[] = [
     recordEvent({
       taskId: task.id,
       kind: 'Created',
-      reviewCycle: 1,
+      reviewRound: 1,
       actorId: user.id,
       note: null,
       occurredAt: now,
@@ -1050,12 +1050,12 @@ export const handlers: HttpHandler[] = [
      */
     if (isResubmission) {
       const allTaskReviews = reviewsForTask(task.id);
-      const activeCycle = resolveActiveReviewCycle(task, allTaskReviews);
+      const activeRound = resolveActiveReviewRound(task, allTaskReviews);
       const lastReview = allTaskReviews.find(
         (candidate) => candidate.decision === 'ChangesRequested',
       );
       const allTaskResponses = db.issueResponses.filter((r) => r.taskId === task.id);
-      const currentCycleResponses = allTaskResponses.filter((r) => r.reviewCycle === activeCycle);
+      const currentCycleResponses = allTaskResponses.filter((r) => r.reviewRound === activeRound);
       const readiness = resubmitReadiness(
         issuesFromReview(lastReview ?? null, allTaskReviews, allTaskResponses),
         currentCycleResponses,
@@ -1115,19 +1115,16 @@ export const handlers: HttpHandler[] = [
 
     if (isResubmission) {
       const allTaskReviews = reviewsForTask(task.id);
-      const activeCycle = resolveActiveReviewCycle(task, allTaskReviews);
-      task.reviewCycle = activeCycle;
-      if (task.historicalCycle !== undefined && task.historicalCycle !== null) {
-        task.historicalCycle = activeCycle;
-      }
+      const activeRound = resolveActiveReviewRound(task, allTaskReviews);
+      task.reviewRound = activeRound;
 
       // Ensure active cycle review record exists in db.reviews, preventing duplicate review cycles
-      const existingReview = findReview(task.id, activeCycle);
+      const existingReview = findReview(task.id, activeRound);
       if (!existingReview) {
         db.reviews.push({
-          id: `rev-${task.id}-${String(activeCycle)}`,
+          id: `rev-${task.id}-${String(activeRound)}`,
           taskId: task.id,
-          reviewCycle: activeCycle,
+          reviewRound: activeRound,
           reviewerId: null,
           reviewerName: null,
           currentReviewSessionId: null,
@@ -1153,7 +1150,7 @@ export const handlers: HttpHandler[] = [
           userId: lastReview.reviewerId,
           kind: 'TaskResubmitted',
           title: `${task.taskCode} resubmitted for review`,
-          body: `${user.name} responded to review findings and resubmitted (Cycle ${task.reviewCycle}).`,
+          body: `${user.name} responded to review findings and resubmitted (Round ${task.reviewRound}).`,
           href: `/reviewer/tasks/${task.id}`,
           taskId: task.id,
           isRead: false,
@@ -1166,7 +1163,7 @@ export const handlers: HttpHandler[] = [
     recordEvent({
       taskId: task.id,
       kind: isResubmission ? 'Resubmitted' : 'Submitted',
-      reviewCycle: task.reviewCycle,
+      reviewRound: task.reviewRound,
       actorId: user.id,
       note: null,
       occurredAt: now,
@@ -1243,14 +1240,14 @@ export const handlers: HttpHandler[] = [
     }
 
     const now = new Date().toISOString();
-    const currentHistoricalCycle = task.historicalCycle ?? task.reviewCycle;
-    const newSessionId = createReviewSessionId(task.id, currentHistoricalCycle);
+    const currentHistoricalRound = task.reviewRound;
+    const newSessionId = createReviewSessionId(task.id, currentHistoricalRound);
     task.reviewerId = user.id;
     task.status = 'InReview';
     task.currentReviewSessionId = newSessionId;
     touch(task);
 
-    const activeDraft = findReview(task.id, currentHistoricalCycle);
+    const activeDraft = findReview(task.id, currentHistoricalRound);
     if (activeDraft?.decision === null) {
       activeDraft.reviewerId = user.id;
       activeDraft.reviewerName = user.name;
@@ -1263,7 +1260,7 @@ export const handlers: HttpHandler[] = [
     recordEvent({
       taskId: task.id,
       kind: 'Picked',
-      reviewCycle: task.reviewCycle,
+      reviewRound: task.reviewRound,
       actorId: user.id,
       note: null,
       occurredAt: now,
@@ -1288,8 +1285,8 @@ export const handlers: HttpHandler[] = [
       return errorResponse(404, 'NOT_FOUND', 'Task not found.');
     }
 
-    const currentHistoricalCycle = task.historicalCycle ?? task.reviewCycle;
-    const review = findReview(task.id, currentHistoricalCycle);
+    const currentHistoricalRound = task.reviewRound;
+    const review = findReview(task.id, currentHistoricalRound);
     if (!review) return new HttpResponse(null, { status: 204 });
 
     // Defensive fallback: if task was reassigned but review record ownership wasn't updated,
@@ -1321,18 +1318,18 @@ export const handlers: HttpHandler[] = [
     }
 
     const reviews = reviewsForTask(task.id);
-    const activeCycle = resolveActiveReviewCycle(task, reviews);
-    const hasActiveReview = reviews.some((r) => r.reviewCycle === activeCycle);
-    const activeCycleResponses = db.issueResponses.filter(
-      (r) => r.taskId === task.id && r.reviewCycle === activeCycle,
+    const activeRound = resolveActiveReviewRound(task, reviews);
+    const hasActiveReview = reviews.some((r) => r.reviewRound === activeRound);
+    const activeRoundResponses = db.issueResponses.filter(
+      (r) => r.taskId === task.id && r.reviewRound === activeRound,
     );
 
     const allReviewsList = [...reviews];
-    if (!hasActiveReview && (task.status === 'ReSubmitted' || activeCycleResponses.length > 0)) {
+    if (!hasActiveReview && (task.status === 'ReSubmitted' || activeRoundResponses.length > 0)) {
       allReviewsList.unshift({
-        id: `rev-${task.id}-${String(activeCycle)}`,
+        id: `rev-${task.id}-${String(activeRound)}`,
         taskId: task.id,
-        reviewCycle: activeCycle,
+        reviewRound: activeRound,
         reviewerId: task.reviewerId,
         reviewerName: task.reviewerId ? (findUser(task.reviewerId)?.name ?? null) : null,
         currentReviewSessionId: task.currentReviewSessionId ?? null,
@@ -1354,7 +1351,7 @@ export const handlers: HttpHandler[] = [
     const withResponses = allReviewsList.map((review) => ({
       ...review,
       responses: db.issueResponses.filter(
-        (r) => r.taskId === task.id && r.reviewCycle === review.reviewCycle,
+        (r) => r.taskId === task.id && r.reviewRound === review.reviewRound,
       ),
     }));
     return HttpResponse.json(withResponses);
@@ -1426,7 +1423,7 @@ export const handlers: HttpHandler[] = [
       return errorResponse(403, 'FORBIDDEN', 'Only the assigned reviewer may edit screenshots.');
     }
 
-    const review = findReview(task.id, task.historicalCycle ?? task.reviewCycle);
+    const review = findReview(task.id, task.reviewRound);
     const shot = review?.screenshots.find((s) => s.id === String(params['screenshotId']));
     if (!review || !shot) return errorResponse(404, 'NOT_FOUND', 'Screenshot not found.');
 
@@ -1454,7 +1451,7 @@ export const handlers: HttpHandler[] = [
         );
       }
 
-      const review = findReview(task.id, task.historicalCycle ?? task.reviewCycle);
+      const review = findReview(task.id, task.reviewRound);
       if (!review) return errorResponse(404, 'NOT_FOUND', 'Review not found.');
 
       review.screenshots = review.screenshots.filter(
@@ -1559,7 +1556,7 @@ export const handlers: HttpHandler[] = [
       recordEvent({
         taskId: task.id,
         kind: 'ReviewDraftSaved',
-        reviewCycle: task.reviewCycle,
+        reviewRound: task.reviewRound,
         actorId: user.id,
         note: 'Review draft saved',
         occurredAt: new Date().toISOString(),
@@ -1600,7 +1597,7 @@ export const handlers: HttpHandler[] = [
       return errorResponse(422, 'VALIDATION_FAILED', 'Check the highlighted fields.');
     }
 
-    const currentHistoricalCycle = task.historicalCycle ?? task.reviewCycle;
+    const currentHistoricalRound = task.reviewRound;
     const existingReview = ensureReview(task, user.id, user.name);
     const existingComments = [...(existingReview.comments ?? [])];
     const incomingComments = parsed.data.comments ?? [];
@@ -1619,11 +1616,11 @@ export const handlers: HttpHandler[] = [
 
     const screenshots = existingReview.screenshots ?? [];
 
-    // Check developer responses for the previous cycle (if any)
+    // Check developer responses for the previous review round (if any)
     const lastChangesReview = reviewsForTask(task.id).find(
       (r) => r.decision === 'ChangesRequested',
     );
-    const qualifyingCycle = lastChangesReview?.reviewCycle;
+    const qualifyingCycle = lastChangesReview?.reviewRound;
 
     let hasPendingAdjudication = false;
     let hasUnresolvedIssues = false;
@@ -1631,7 +1628,7 @@ export const handlers: HttpHandler[] = [
 
     if (qualifyingCycle !== undefined) {
       const qualifyingResponses = db.issueResponses.filter(
-        (r) => r.taskId === task.id && r.reviewCycle === qualifyingCycle,
+        (r) => r.taskId === task.id && r.reviewRound === qualifyingCycle,
       );
       hasPendingAdjudication = qualifyingResponses.some(
         (r) => !r.verdict || r.verdict === 'Pending',
@@ -1715,7 +1712,7 @@ export const handlers: HttpHandler[] = [
     const review: Review = {
       id: existingReview.id,
       taskId: task.id,
-      reviewCycle: currentHistoricalCycle,
+      reviewRound: currentHistoricalRound,
       reviewerId: user.id,
       reviewerName: user.name,
       currentReviewSessionId: currentSessionId ?? null,
@@ -1747,17 +1744,17 @@ export const handlers: HttpHandler[] = [
           task.adjustedCycles = [];
         }
         if (!task.adjustedCycles.includes(qualifyingCycle)) {
-          const previousCountedCycle = task.reviewCycle;
-          const newCountedCycle = Math.max(1, task.reviewCycle - 1);
+          const previousCountedCycle = task.countedCycle;
+          const newCountedCycle = Math.max(1, task.countedCycle - 1);
           if (newCountedCycle < previousCountedCycle) {
-            task.reviewCycle = newCountedCycle;
+            task.countedCycle = newCountedCycle;
             task.adjustedCycles.push(qualifyingCycle);
 
             const adjustmentTime = new Date(new Date(now).getTime() - 1000).toISOString();
             recordEvent({
               taskId: task.id,
               kind: 'CountedCycleAdjusted',
-              reviewCycle: currentHistoricalCycle,
+              reviewRound: currentHistoricalRound,
               actorId: user.id,
               qualifyingReviewRound: qualifyingCycle,
               previousCountedCycle,
@@ -1775,7 +1772,7 @@ export const handlers: HttpHandler[] = [
         userId: task.developerId,
         kind: 'TaskApproved',
         title: `${task.taskCode} approved`,
-        body: `${user.name} approved your code review task (Cycle ${task.reviewCycle}).`,
+        body: `${user.name} approved your code review task (Round ${task.reviewRound}).`,
         href: `/developer/tasks/${task.id}`,
         taskId: task.id,
         isRead: false,
@@ -1784,9 +1781,9 @@ export const handlers: HttpHandler[] = [
     } else {
       task.status = 'ChangesRequested';
       // Strictly monotonic immutable historicalCycle sequence:
-      const nextHistorical = nextHistoricalReviewCycle(task, reviewsForTask(task.id));
-      task.historicalCycle = nextHistorical;
-      task.reviewCycle = nextReviewCycle(task.reviewCycle, decision);
+      const nextHistorical = nextReviewRound(task, reviewsForTask(task.id));
+      task.reviewRound = nextHistorical;
+      task.countedCycle = nextCountedCycle(task.countedCycle, decision);
       task.reviewerId = null;
       task.currentReviewSessionId = null;
 
@@ -1795,7 +1792,7 @@ export const handlers: HttpHandler[] = [
         userId: task.developerId,
         kind: 'ChangesRequested',
         title: `Changes requested on ${task.taskCode}`,
-        body: `${user.name} requested changes (Cycle ${review.reviewCycle}). Review Ranking: Rank ${parsed.data.rank}.`,
+        body: `${user.name} requested changes (Round ${review.reviewRound}). Review Ranking: Rank ${parsed.data.rank}.`,
         href: `/developer/tasks/${task.id}`,
         taskId: task.id,
         isRead: false,
@@ -1807,7 +1804,7 @@ export const handlers: HttpHandler[] = [
     recordEvent({
       taskId: task.id,
       kind: decision === 'Approved' ? 'Approved' : 'ChangesRequested',
-      reviewCycle: review.reviewCycle,
+      reviewRound: review.reviewRound,
       actorId: user.id,
       note: parsed.data.feedbackSummary === '' ? null : parsed.data.feedbackSummary,
       occurredAt: now,
@@ -1996,7 +1993,7 @@ export const handlers: HttpHandler[] = [
     }
 
     const allTaskReviews = reviewsForTask(task.id);
-    const activeCycle = resolveActiveReviewCycle(task, allTaskReviews);
+    const activeRound = resolveActiveReviewRound(task, allTaskReviews);
 
     const reason = (parsed.data.rejectionReason ?? '').trim();
     const commentId = parsed.data.commentId ?? null;
@@ -2012,9 +2009,9 @@ export const handlers: HttpHandler[] = [
         : 'overall';
 
     const record: IssueResponseRecord = {
-      id: createCycleResponseId(task.id, activeCycle, entityKey),
+      id: createCycleResponseId(task.id, activeRound, entityKey),
       taskId: task.id,
-      reviewCycle: activeCycle,
+      reviewRound: activeRound,
       commentId,
       screenshotId,
       kind: parsed.data.kind,
@@ -2516,7 +2513,7 @@ export const handlers: HttpHandler[] = [
       );
     }
 
-    const currentHistoricalCycle = task.historicalCycle ?? task.reviewCycle;
+    const currentHistoricalRound = task.reviewRound;
     const now = new Date().toISOString();
 
     if (task.status === 'InReview') {
@@ -2536,12 +2533,12 @@ export const handlers: HttpHandler[] = [
         );
       }
 
-      const newSessionId = createReviewSessionId(task.id, currentHistoricalCycle);
+      const newSessionId = createReviewSessionId(task.id, currentHistoricalRound);
       task.reviewerId = reviewer.id;
       task.currentReviewSessionId = newSessionId;
       touch(task);
 
-      const activeDraft = findReview(task.id, currentHistoricalCycle);
+      const activeDraft = findReview(task.id, currentHistoricalRound);
       if (activeDraft?.decision === null) {
         activeDraft.reviewerId = reviewer.id;
         activeDraft.reviewerName = reviewer.name;
@@ -2554,7 +2551,7 @@ export const handlers: HttpHandler[] = [
       recordEvent({
         taskId: task.id,
         kind: 'Reassigned',
-        reviewCycle: task.reviewCycle,
+        reviewRound: task.reviewRound,
         actorId: actor.id,
         note: `${reviewer.name} (Reason: ${reason})`,
         occurredAt: now,
@@ -2580,7 +2577,7 @@ export const handlers: HttpHandler[] = [
         return errorResponse(422, 'INVALID_STATE', 'This task cannot be assigned a reviewer.');
       }
 
-      const newSessionId = createReviewSessionId(task.id, currentHistoricalCycle);
+      const newSessionId = createReviewSessionId(task.id, currentHistoricalRound);
       task.reviewerId = reviewer.id;
       task.status = 'InReview';
       task.currentReviewSessionId = newSessionId;
@@ -2595,7 +2592,7 @@ export const handlers: HttpHandler[] = [
       recordEvent({
         taskId: task.id,
         kind: 'ReviewerAssigned',
-        reviewCycle: task.reviewCycle,
+        reviewRound: task.reviewRound,
         actorId: actor.id,
         note: reviewer.name,
         occurredAt: now,
@@ -2680,15 +2677,15 @@ export const handlers: HttpHandler[] = [
       );
     }
 
-    const currentHistoricalCycle = task.historicalCycle ?? task.reviewCycle;
+    const currentHistoricalRound = task.reviewRound;
     const now = new Date().toISOString();
-    const newSessionId = createReviewSessionId(task.id, currentHistoricalCycle);
+    const newSessionId = createReviewSessionId(task.id, currentHistoricalRound);
 
     task.reviewerId = reviewer.id;
     task.currentReviewSessionId = newSessionId;
     touch(task);
 
-    const activeDraft = findReview(task.id, currentHistoricalCycle);
+    const activeDraft = findReview(task.id, currentHistoricalRound);
     if (activeDraft?.decision === null) {
       activeDraft.reviewerId = reviewer.id;
       activeDraft.reviewerName = reviewer.name;
@@ -2701,7 +2698,7 @@ export const handlers: HttpHandler[] = [
     recordEvent({
       taskId: task.id,
       kind: 'Reassigned',
-      reviewCycle: task.reviewCycle,
+      reviewRound: task.reviewRound,
       actorId: actor.id,
       note: `${reviewer.name} (Reason: ${reason})`,
       occurredAt: now,
@@ -2761,8 +2758,8 @@ export const handlers: HttpHandler[] = [
       pendingHandover.resolvedAt = now;
     }
 
-    const currentHistoricalCycle = task.historicalCycle ?? task.reviewCycle;
-    const activeDraft = findReview(task.id, currentHistoricalCycle);
+    const currentHistoricalRound = task.reviewRound;
+    const activeDraft = findReview(task.id, currentHistoricalRound);
     if (activeDraft?.decision === null) {
       activeDraft.currentReviewSessionId = null;
     }
@@ -2770,7 +2767,7 @@ export const handlers: HttpHandler[] = [
     recordEvent({
       taskId: task.id,
       kind: 'Cancelled',
-      reviewCycle: task.reviewCycle,
+      reviewRound: task.reviewRound,
       actorId: actor.id,
       note: reason,
       occurredAt: now,
@@ -3514,7 +3511,7 @@ export const handlers: HttpHandler[] = [
     // Persist the latest supplied draft atomically if provided
     const currentSessionId =
       task.currentReviewSessionId ??
-      findReview(task.id, task.historicalCycle ?? task.reviewCycle)?.currentReviewSessionId ??
+      findReview(task.id, task.reviewRound)?.currentReviewSessionId ??
       undefined;
     if (parsed.data.draft) {
       const review = ensureReview(task, user.id, user.name);
@@ -3523,7 +3520,7 @@ export const handlers: HttpHandler[] = [
       review.previousFeedbackReviewNote = null;
       if (parsed.data.draft.comments) {
         const existingComments =
-          findReview(task.id, task.historicalCycle ?? task.reviewCycle)?.comments ?? [];
+          findReview(task.id, task.reviewRound)?.comments ?? [];
         const authorshipError = validateCommentAuthorship(
           existingComments,
           parsed.data.draft.comments,
@@ -3586,7 +3583,7 @@ export const handlers: HttpHandler[] = [
     task.reviewerId = null;
     task.isHandedOver = true;
     task.currentReviewSessionId = null;
-    const currentReview = findReview(task.id, task.historicalCycle ?? task.reviewCycle);
+    const currentReview = findReview(task.id, task.reviewRound);
     if (currentReview?.decision === null) {
       currentReview.currentReviewSessionId = null;
       currentReview.rank = null;
@@ -3613,7 +3610,7 @@ export const handlers: HttpHandler[] = [
     recordEvent({
       taskId: task.id,
       kind: 'HandedOver',
-      reviewCycle: task.reviewCycle,
+      reviewRound: task.reviewRound,
       actorId: user.id,
       note: parsed.data.reason,
       occurredAt: now,
@@ -3669,8 +3666,8 @@ export const handlers: HttpHandler[] = [
     const task = findTask(handover.taskId);
     if (!task) return errorResponse(404, 'NOT_FOUND', 'Task not found.');
 
-    const currentHistoricalCycle = task.historicalCycle ?? task.reviewCycle;
-    const review = findReview(task.id, currentHistoricalCycle);
+    const currentHistoricalRound = task.reviewRound;
+    const review = findReview(task.id, currentHistoricalRound);
     if (!review) return new HttpResponse(null, { status: 204 });
 
     return HttpResponse.json(review);
@@ -3720,15 +3717,15 @@ export const handlers: HttpHandler[] = [
     }
 
     const now = new Date().toISOString();
-    const currentHistoricalCycle = task.historicalCycle ?? task.reviewCycle;
-    const newSessionId = createReviewSessionId(task.id, currentHistoricalCycle);
+    const currentHistoricalRound = task.reviewRound;
+    const newSessionId = createReviewSessionId(task.id, currentHistoricalRound);
     task.reviewerId = reviewer.id;
     task.isHandedOver = false;
     task.status = 'InReview';
     task.currentReviewSessionId = newSessionId;
     touch(task);
 
-    const activeDraft = findReview(task.id, currentHistoricalCycle);
+    const activeDraft = findReview(task.id, currentHistoricalRound);
     if (activeDraft?.decision === null) {
       activeDraft.reviewerId = reviewer.id;
       activeDraft.reviewerName = reviewer.name;
@@ -3759,7 +3756,7 @@ export const handlers: HttpHandler[] = [
     recordEvent({
       taskId: task.id,
       kind: 'Reassigned',
-      reviewCycle: task.reviewCycle,
+      reviewRound: task.reviewRound,
       actorId: actor.id,
       note: reviewer.name,
       occurredAt: now,
@@ -3800,8 +3797,8 @@ export const handlers: HttpHandler[] = [
     task.status = getOriginStatus(task.id);
     touch(task);
 
-    const currentHistoricalCycle = task.historicalCycle ?? task.reviewCycle;
-    const activeDraft = findReview(task.id, currentHistoricalCycle);
+    const currentHistoricalRound = task.reviewRound;
+    const activeDraft = findReview(task.id, currentHistoricalRound);
     if (activeDraft?.decision === null) {
       activeDraft.currentReviewSessionId = null;
       activeDraft.rank = null;
@@ -3816,7 +3813,7 @@ export const handlers: HttpHandler[] = [
     recordEvent({
       taskId: task.id,
       kind: 'ReturnedToQueue',
-      reviewCycle: task.reviewCycle,
+      reviewRound: task.reviewRound,
       actorId: actor.id,
       note: 'Returned to open review queue',
       occurredAt: now,

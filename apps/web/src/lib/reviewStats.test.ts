@@ -15,7 +15,7 @@ function review(overrides: Partial<Review> = {}): Review {
   return {
     id: 'r1',
     taskId: 't1',
-    reviewCycle: 1,
+    reviewRound: 1,
     reviewerId: 'u-reviewer',
     reviewerName: 'Reviewer',
     comments: [],

@@ -29,8 +29,8 @@ export function HandedOverSummary({ task, events, className }: HandedOverSummary
     .filter((e) => e.kind === 'HandedOver')
     .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))[0];
 
-  const reviewRound = task.historicalCycle ?? task.reviewCycle ?? 1;
-  const countedCycle = task.reviewCycle ?? 1;
+  const reviewRound = task.reviewRound ?? 1;
+  const countedCycle = task.countedCycle ?? 1;
   const handedOverBy = textOr(handoverEvent?.actorName, 'Reviewer');
   const handedOverAt = handoverEvent?.occurredAt ? formatDateTime(handoverEvent.occurredAt) : null;
   const reason = textOr(handoverEvent?.note, textOr(handoverEvent?.reason, 'No reason specified'));
@@ -83,16 +83,16 @@ export function HandedOverSummary({ task, events, className }: HandedOverSummary
 
           <div className="space-y-1 rounded-lg border border-line/60 bg-canvas/40 p-3">
             <span className="block text-[11px] font-semibold tracking-wider text-ink-500 uppercase">
-              Review Round
+              Round
             </span>
-            <span className="text-sm font-bold text-ink-900">Cycle {reviewRound}</span>
+            <span className="text-sm font-bold text-ink-900">Round {reviewRound}</span>
           </div>
 
           <div className="space-y-1 rounded-lg border border-line/60 bg-canvas/40 p-3">
             <span className="block text-[11px] font-semibold tracking-wider text-ink-500 uppercase">
               Counted Cycle
             </span>
-            <span className="text-sm font-bold text-ink-900">{countedCycle}</span>
+            <span className="text-sm font-bold text-ink-900">Cycle {countedCycle}</span>
           </div>
 
           <div className="space-y-1 rounded-lg border border-line/60 bg-canvas/40 p-3">

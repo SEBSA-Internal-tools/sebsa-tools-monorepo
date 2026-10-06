@@ -214,33 +214,35 @@
     },
     "rejections": {
       "title": "Developer Rejections Review",
-      "subtitle": "The developer rejected one or more findings from the previous review cycle. Evaluate each justification.",
+      "subtitle": "The developer rejected one or more findings from the previous review round. Evaluate each justification.",
       "finding": "Reviewer Finding",
       "developerReason": "Developer Rejection Reason",
       "accept": "Accept Rejection",
       "overrule": "Do Not Accept",
-      "acceptedBadge": "Accepted (Cycle -1)",
+      "acceptedBadge": "Accepted (Counted Cycle -1)",
       "overruledBadge": "Not Accepted",
       "pendingBadge": "Pending Evaluation",
-      "allAcceptedBanner": "All developer rejections have been accepted. You can now approve this task with the review cycle count reduced by 1.",
-      "singleAcceptedBanner": "The developer rejection has been accepted. You can now approve this task with the review cycle count reduced by 1."
+      "allAcceptedBanner": "All developer rejections have been accepted. You can now approve this task with the counted cycle count reduced by 1.",
+      "singleAcceptedBanner": "The developer rejection has been accepted. You can now approve this task with the counted cycle count reduced by 1."
     },
     "sidebar": {
       "readinessTitle": "Review Readiness",
       "readinessSubtitle": "Validation status of the current review form",
-      "cycleTitle": "Current Cycle",
+      "cycleTitle": "Current Round",
+      "roundTitle": "Current Round",
       "activityTitle": "Review Activity",
       "notificationTitle": "Email Notification",
       "notificationBody": "When you Approve or Request Changes, the developer will receive an email notification with a direct link to inspect the review findings."
     },
-    "historyTitle": "Review Cycle History",
-    "historySubtitle": "Every completed cycle on this task, newest first.",
-    "historyEmpty": "No completed cycles yet.",
-    "cycleLabel": "Cycle {cycle}",
+    "historyTitle": "Review Round History",
+    "historySubtitle": "Every completed round on this task, newest first.",
+    "historyEmpty": "No completed rounds yet.",
+    "cycleLabel": "Round {cycle}",
+    "roundLabel": "Round {round}",
     "noScreenshots": "No screenshot feedback",
     "noScreenshotsHint": "No screenshot feedback has been attached to this task.",
     "emptyCommentsTitle": "No review comments",
-    "emptyCommentsApprovedHint": "All quality requirements were met during this cycle. No review comments were recorded.",
-    "emptyCommentsChangesRequestedHint": "No review comments were recorded for this cycle."
+    "emptyCommentsApprovedHint": "All quality requirements were met during this round. No review comments were recorded.",
+    "emptyCommentsChangesRequestedHint": "No review comments were recorded for this round."
   }
 }

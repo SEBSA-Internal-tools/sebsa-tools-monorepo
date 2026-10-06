@@ -30,8 +30,8 @@ export function HandoverSummaryCard({ handover, task, className }: HandoverSumma
   const isReassigned = handover.status === 'Reassigned';
   const isReturned = handover.status === 'ReturnedToQueue';
 
-  const round = task.historicalCycle ?? task.reviewCycle;
-  const counted = task.reviewCycle;
+  const round = task.reviewRound ?? 1;
+  const counted = task.countedCycle ?? 1;
 
   return (
     <Card
@@ -118,9 +118,9 @@ export function HandoverSummaryCard({ handover, task, className }: HandoverSumma
           <div className="min-w-0 space-y-1 overflow-hidden rounded-lg border border-line bg-surface/60 p-2.5">
             <span className="flex items-center gap-1.5 text-xs font-medium text-ink-500">
               <Layers className="size-3.5 shrink-0 text-ink-400" />
-              Review Round
+              Round
             </span>
-            <p className="truncate text-xs font-bold text-ink-900 sm:text-sm">Cycle {round}</p>
+            <p className="truncate text-xs font-bold text-ink-900 sm:text-sm">Round {round}</p>
           </div>
 
           {/* Counted Cycle */}
@@ -129,7 +129,7 @@ export function HandoverSummaryCard({ handover, task, className }: HandoverSumma
               <Repeat className="size-3.5 shrink-0 text-ink-400" />
               Counted Cycle
             </span>
-            <p className="truncate text-xs font-bold text-ink-900 sm:text-sm">{counted}</p>
+            <p className="truncate text-xs font-bold text-ink-900 sm:text-sm">Cycle {counted}</p>
           </div>
 
           {/* Origin Status */}

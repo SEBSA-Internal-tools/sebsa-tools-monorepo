@@ -32,21 +32,37 @@ const labels = tasks.list.columns;
 
 const taskCodeColumn = helper.accessor('taskCode', {
   header: labels.taskId,
+  meta: {
+    headerClassName: 'w-[120px] min-w-[110px] whitespace-nowrap',
+    cellClassName: 'w-[120px] min-w-[110px] whitespace-nowrap',
+  },
   cell: (context) => <MonoId value={context.getValue()} />,
 });
 
 const titleColumn = helper.accessor('title', {
   header: labels.title,
+  meta: {
+    headerClassName: 'min-w-[180px]',
+    cellClassName: 'min-w-[180px]',
+  },
   cell: (context) => <TitleCell title={context.getValue()} />,
 });
 
 const crimIdColumn = helper.accessor('crimId', {
   header: labels.crimId,
+  meta: {
+    headerClassName: 'w-[110px] min-w-[100px] whitespace-nowrap',
+    cellClassName: 'w-[110px] min-w-[100px] whitespace-nowrap',
+  },
   cell: (context) => <MonoId value={context.getValue()} />,
 });
 
 const customerColumn = helper.accessor('customerName', {
   header: labels.customer,
+  meta: {
+    headerClassName: 'w-[130px] min-w-[120px] whitespace-nowrap',
+    cellClassName: 'w-[130px] min-w-[120px] whitespace-nowrap',
+  },
   cell: (context) => (
     <CustomerChip
       name={context.getValue()}
@@ -58,35 +74,65 @@ const customerColumn = helper.accessor('customerName', {
 
 const developerColumn = helper.accessor('developerName', {
   header: labels.developer,
-  cell: (context) => <span className="text-sm">{context.getValue()}</span>,
+  meta: {
+    headerClassName: 'min-w-[130px] whitespace-nowrap',
+    cellClassName: 'min-w-[130px] whitespace-nowrap',
+  },
+  cell: (context) => <span className="text-sm whitespace-nowrap">{context.getValue()}</span>,
 });
 
 const reviewerColumn = helper.accessor('reviewerName', {
   header: labels.reviewer,
   // "Unassigned" rather than the usual em-dash: in this column an empty value
   // is a state someone acts on, not missing data, and screen 01 names it.
-  cell: (context) => <OptionalCell value={context.getValue()} fallback={labels.unassigned} />,
+  meta: {
+    headerClassName: 'min-w-[130px] whitespace-nowrap',
+    cellClassName: 'min-w-[130px] whitespace-nowrap',
+  },
+  cell: (context) => (
+    <span className="whitespace-nowrap">
+      <OptionalCell value={context.getValue()} fallback={labels.unassigned} />
+    </span>
+  ),
 });
 
 const statusColumn = helper.accessor('status', {
   header: labels.status,
+  meta: {
+    headerClassName: 'w-[160px] min-w-[150px] whitespace-nowrap',
+    cellClassName: 'w-[160px] min-w-[150px]',
+  },
   cell: (context) => (
-    <StatusCell status={context.getValue()} cycle={context.row.original.reviewCycle} />
+    <StatusCell status={context.getValue()} cycle={context.row.original.reviewRound} />
   ),
 });
 
 const priorityColumn = helper.accessor('priority', {
   header: labels.priority,
+  meta: {
+    headerClassName: 'w-[100px] min-w-[95px] whitespace-nowrap',
+    cellClassName: 'w-[100px] min-w-[95px] whitespace-nowrap',
+  },
   cell: (context) => <PriorityPill priority={context.getValue()} />,
 });
 
-const cycleColumn = helper.accessor('reviewCycle', {
-  header: labels.cycle,
-  cell: (context) => <span className="text-sm tabular-nums">{context.getValue()}</span>,
+const cycleColumn = helper.accessor('countedCycle', {
+  header: labels.countedCycle ?? labels.cycle,
+  meta: {
+    headerClassName: 'w-[150px] min-w-[145px] whitespace-nowrap',
+    cellClassName: 'w-[150px] min-w-[145px] whitespace-nowrap',
+  },
+  cell: (context) => (
+    <span className="text-sm font-medium tabular-nums whitespace-nowrap">Cycle {context.getValue()}</span>
+  ),
 });
 
 const createdColumn = helper.accessor('createdAt', {
   header: labels.created,
+  meta: {
+    headerClassName: 'w-[125px] min-w-[120px] whitespace-nowrap',
+    cellClassName: 'w-[125px] min-w-[120px] whitespace-nowrap',
+  },
   cell: (context) => <DateCell>{formatDate(context.getValue())}</DateCell>,
 });
 
@@ -131,6 +177,10 @@ export function buildTaskColumns(options: TaskColumnOptions = {}): ColumnList<Ta
       helper.display({
         id: 'actions',
         header: '',
+        meta: {
+          headerClassName: 'w-[100px] min-w-[90px] whitespace-nowrap',
+          cellClassName: 'w-[100px] min-w-[90px] whitespace-nowrap',
+        },
         cell: (context) => renderAction(context.row.original),
       }),
     );

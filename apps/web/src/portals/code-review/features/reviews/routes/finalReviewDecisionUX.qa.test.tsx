@@ -37,8 +37,8 @@ beforeEach(() => {
   if (task) {
     task.status = 'InReview';
     task.reviewerId = REVIEWER;
-    task.reviewCycle = 1;
-    task.historicalCycle = 1;
+    task.reviewRound = 1;
+    task.countedCycle = 1;
     task.adjustedCycles = [];
     task.isHandedOver = false;
   }
@@ -79,10 +79,10 @@ describe('FINAL REVIEW DECISION UX QA SUITE', () => {
       within(dialog).getByText(/This will complete the review and approve the task\./i),
     ).toBeInTheDocument();
 
-    // Summary contains Rank 1, 0 comments, Cycle 1
+    // Summary contains Rank 1, 0 comments, Round 1
     expect(within(dialog).getByText(/Rank 1 — Good \/ Approved Quality/i)).toBeInTheDocument();
     expect(within(dialog).getByText('0')).toBeInTheDocument();
-    expect(within(dialog).getByText(/Cycle 1/i)).toBeInTheDocument();
+    expect(within(dialog).getByText(/Round 1/i)).toBeInTheDocument();
 
     // Buttons
     expect(within(dialog).getByRole('button', { name: /Cancel/i })).toBeInTheDocument();
@@ -194,7 +194,7 @@ describe('FINAL REVIEW DECISION UX QA SUITE', () => {
     ).toBeInTheDocument();
     expect(within(dialog).getByText('2')).toBeInTheDocument(); // 2 comments
     expect(within(dialog).getByText('0')).toBeInTheDocument(); // 0 screenshots
-    expect(within(dialog).getByText(/Cycle 1/i)).toBeInTheDocument();
+    expect(within(dialog).getByText(/Round 1/i)).toBeInTheDocument();
   });
 
   it('5. Cancel Request Changes closes dialog without mutation', async () => {

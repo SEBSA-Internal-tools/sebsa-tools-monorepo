@@ -17,6 +17,8 @@ export interface DeveloperRejectionsReviewProps {
   taskId: string;
   history: readonly ReviewHistoryEntry[];
   responses: readonly IssueResponseRecord[];
+  activeRound?: number | undefined;
+  /** Legacy alias for activeRound */
   activeCycle?: number | undefined;
   onUpdateVerdict: (
     responseId: string,
@@ -39,6 +41,7 @@ export function DeveloperRejectionsReview({
   taskId,
   history,
   responses,
+  activeRound,
   activeCycle,
   onUpdateVerdict,
   onDraftChange,
@@ -54,40 +57,41 @@ export function DeveloperRejectionsReview({
     targetAction: () => void;
   } | null>(null);
 
-  // Find latest completed review with decision (the cycle being re-reviewed)
+  // Find latest completed review with decision (the round being re-reviewed)
   const completedReviews = history.filter((entry) => entry.decision !== null);
   const lastReview = completedReviews[0] ?? null;
   if (!lastReview) return null;
 
-  // Resolve target cycle for adjudication:
-  // Prefer explicit activeCycle or the highest response reviewCycle that exceeds lastReview.reviewCycle,
-  // falling back cleanly to lastReview.reviewCycle for legacy single-cycle test fixtures.
-  const targetCycle =
+  // Resolve target round for adjudication:
+  // Prefer explicit activeRound/activeCycle or the highest response reviewRound that exceeds lastReview.reviewRound,
+  // falling back cleanly to lastReview.reviewRound for legacy single-round test fixtures.
+  const targetRound =
+    activeRound ??
     activeCycle ??
-    (responses.some((r) => r.reviewCycle > lastReview.reviewCycle)
-      ? Math.max(...responses.map((r) => r.reviewCycle))
-      : lastReview.reviewCycle);
+    (responses.some((r) => r.reviewRound > lastReview.reviewRound)
+      ? Math.max(...responses.map((r) => r.reviewRound))
+      : lastReview.reviewRound);
 
-  const hasTargetCycleResponses = responses.some((r) => r.reviewCycle === targetCycle);
-  const cycleResponses = hasTargetCycleResponses
-    ? responses.filter((r) => r.reviewCycle === targetCycle)
-    : responses.filter((r) => r.reviewCycle === lastReview.reviewCycle);
+  const hasTargetRoundResponses = responses.some((r) => r.reviewRound === targetRound);
+  const roundResponses = hasTargetRoundResponses
+    ? responses.filter((r) => r.reviewRound === targetRound)
+    : responses.filter((r) => r.reviewRound === lastReview.reviewRound);
 
-  if (cycleResponses.length === 0) return null;
+  if (roundResponses.length === 0) return null;
 
-  const rejectedResponses = cycleResponses.filter((r) => r.kind === 'Rejected');
+  const rejectedResponses = roundResponses.filter((r) => r.kind === 'Rejected');
   const allRejectionsAccepted =
     rejectedResponses.length > 0 &&
     rejectedResponses.every((r) => r.verdict === 'Accepted') &&
-    cycleResponses.filter((r) => r.kind === 'Resolved').length === 0;
+    roundResponses.filter((r) => r.kind === 'Resolved').length === 0;
 
-  const hasOverruled = cycleResponses.some((r) => r.verdict === 'Overruled');
-  const hasPending = cycleResponses.some((r) => !r.verdict || r.verdict === 'Pending');
+  const hasOverruled = roundResponses.some((r) => r.verdict === 'Overruled');
+  const hasPending = roundResponses.some((r) => !r.verdict || r.verdict === 'Pending');
 
-  // Collect all comments across history to support multi-cycle findings
+  // Collect all comments across history to support multi-round findings
   const allHistoryComments = new Map<
     string,
-    { text: string; screenshots: ReviewScreenshot[]; cycle: number }
+    { text: string; screenshots: ReviewScreenshot[]; round: number }
   >();
   for (const entry of history) {
     for (const c of entry.comments ?? []) {
@@ -95,13 +99,13 @@ export function DeveloperRejectionsReview({
         allHistoryComments.set(c.id, {
           text: c.text,
           screenshots: c.screenshots ?? [],
-          cycle: entry.reviewCycle,
+          round: entry.reviewRound,
         });
       }
     }
   }
 
-  // Derive feedback items from lastReview comments + any cycleResponses referencing past comments
+  // Derive feedback items from lastReview comments + any roundResponses referencing past comments
   const items: {
     id: string;
     label: string;
@@ -115,7 +119,7 @@ export function DeveloperRejectionsReview({
   if (lastReview.comments && lastReview.comments.length > 0) {
     lastReview.comments.forEach((c, idx) => {
       addedCommentIds.add(c.id);
-      const resp = cycleResponses.find((r) => r.commentId === c.id);
+      const resp = roundResponses.find((r) => r.commentId === c.id);
       items.push({
         id: c.id,
         label: `Review Comment #${idx + 1}`,
@@ -126,8 +130,8 @@ export function DeveloperRejectionsReview({
     });
   }
 
-  // Include any cycleResponses whose comment originated in a prior cycle
-  cycleResponses.forEach((resp) => {
+  // Include any roundResponses whose comment originated in a prior round
+  roundResponses.forEach((resp) => {
     if (resp.commentId && !addedCommentIds.has(resp.commentId)) {
       addedCommentIds.add(resp.commentId);
       const prior = allHistoryComments.get(resp.commentId);
@@ -144,7 +148,7 @@ export function DeveloperRejectionsReview({
   // Legacy fallback for screenshot-based findings
   if (items.length === 0) {
     (lastReview.screenshots ?? []).forEach((shot) => {
-      const resp = cycleResponses.find((r) => r.screenshotId === shot.id);
+      const resp = roundResponses.find((r) => r.screenshotId === shot.id);
       items.push({
         id: shot.id,
         label: shot.fileName,
@@ -267,13 +271,13 @@ export function DeveloperRejectionsReview({
       <Card
         collapsible
         defaultExpanded={hasPending}
-        resetKey={`${taskId}:${cycleResponses.length > 0 ? 'responses' : 'empty'}`}
-        summary={`${itemsWithResponse.length} ${itemsWithResponse.length === 1 ? 'response' : 'responses'} · ${cycleResponses.filter((response) => !response.verdict || response.verdict === 'Pending').length} pending adjudication`}
+        resetKey={`${taskId}:${roundResponses.length > 0 ? 'responses' : 'empty'}`}
+        summary={`${itemsWithResponse.length} ${itemsWithResponse.length === 1 ? 'response' : 'responses'} · ${roundResponses.filter((response) => !response.verdict || response.verdict === 'Pending').length} pending adjudication`}
         className="border-amber-200/80 bg-gradient-to-b from-amber-50/20 via-surface to-surface shadow-card"
       >
         <CardHeader
           title="Developer Response & Rejection Review"
-          description="Inspect developer responses to prior cycle feedback. Adjudicate all resolved findings and developer rejections before deciding."
+          description="Inspect developer responses to prior round feedback. Adjudicate all resolved findings and developer rejections before deciding."
           icon={<MessageSquareWarning className="size-4 text-amber-600" />}
         />
 
@@ -281,7 +285,7 @@ export function DeveloperRejectionsReview({
           {allRejectionsAccepted ? (
             <Alert
               tone="success"
-              title="All rejections accepted. Zero developer corrections were required. Task can be approved with review cycle count reduced by 1."
+              title="All rejections accepted. Zero developer corrections were required. Task can be approved with counted cycle reduced by 1."
             />
           ) : hasOverruled ? (
             <Alert

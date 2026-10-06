@@ -33,10 +33,14 @@
       "statusAll": "All Statuses",
       "priority": "Priority",
       "priorityAll": "All Priorities",
-      "cycle": "Cycle",
-      "cycleAll": "All Cycles",
-      "cycleValue": "Cycle {n}",
-      "cyclePlus": "Cycle {n}+",
+      "cycle": "Round",
+      "cycleAll": "All Rounds",
+      "cycleValue": "Round {n}",
+      "cyclePlus": "Round {n}+",
+      "round": "Round",
+      "roundAll": "All Rounds",
+      "roundValue": "Round {n}",
+      "roundPlus": "Round {n}+",
       "reset": "Reset Filters"
     },
     "columns": {
@@ -46,7 +50,9 @@
       "customer": "Customer",
       "status": "Status",
       "priority": "Priority",
-      "cycle": "Cycle",
+      "cycle": "Counted Cycle",
+      "countedCycle": "Counted Cycle",
+      "round": "Round",
       "created": "Created",
       "reviewer": "Reviewer",
       "developer": "Developer",
@@ -120,8 +126,8 @@
       "reviewer": "Reviewer",
       "priority": "Priority",
       "status": "Status",
-      "cycle": "Review Cycle",
-      "reviewRound": "Review Round",
+      "cycle": "Round",
+      "reviewRound": "Round",
       "countedCycle": "Counted Cycle",
       "created": "Created",
       "submitted": "Submitted",
@@ -130,8 +136,8 @@
       "remarks": "Additional Remarks"
     },
     "tooltips": {
-      "reviewRound": "The current review round. Historical review records preserve their original round numbers.",
-      "countedCycle": "The cycle count used for developer performance. This may be lower if a review cycle was excluded after all rejected comments were accepted."
+      "reviewRound": "The actual chronological review attempt sequence.",
+      "countedCycle": "The cycle count used for business reporting. This may be lower if a review round was excluded after all rejected comments were accepted."
     },
     "events": {
       "Created": "Task created",
@@ -247,7 +253,8 @@
     "confirmed": {
       "title": "Submitted for review",
       "body": "{taskCode} · {title} is now in the reviewer queue.",
-      "cycle": "Review Cycle {cycle}",
+      "cycle": "Round {cycle}",
+      "round": "Round {round}",
       "viewTask": "View Task",
       "createAnother": "New Review Task",
       "backToTasks": "Back to Dashboard",
@@ -283,7 +290,7 @@
   },
   "response": {
     "title": "Review Feedback",
-    "subtitle": "Reviewed by {reviewer} · Cycle {cycle}. Respond to each finding, then resubmit.",
+    "subtitle": "Reviewed by {reviewer} · Round {round}. Respond to each finding, then resubmit.",
     "summaryTitle": "Reviewer summary",
     "overallFindings": "Detailed review findings",
     "resolve": "Resolve",
@@ -299,7 +306,7 @@
     "blockedByUnanswered": "{count} finding still needs a response.",
     "blockedByUnansweredPlural": "{count} findings still need a response.",
     "historyTitle": "Review Feedback History",
-    "historySubtitle": "Completed and pending review cycles, newest first."
+    "historySubtitle": "Completed and pending review rounds, newest first."
   },
   "discardDraft": {
     "action": "Discard Draft",

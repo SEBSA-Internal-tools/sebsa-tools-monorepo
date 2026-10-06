@@ -597,6 +597,7 @@ export function DataTable<TRow extends object>({
                 {group.headers.map((header) => {
                   const sortable = header.column.getCanSort();
                   const direction = header.column.getIsSorted();
+                  const meta = header.column.columnDef.meta;
 
                   return (
                     <th
@@ -612,7 +613,9 @@ export function DataTable<TRow extends object>({
                             : undefined
                       }
                       className={cn(
-                        'px-4 py-3 text-left text-xs font-semibold tracking-wide text-ink-500 uppercase',
+                        'px-4 py-3 text-left text-xs font-semibold tracking-wide text-ink-500 uppercase whitespace-nowrap',
+                        meta?.headerClassName,
+                        meta?.className,
                         isPinnedColumn(header.column.id) && PINNED_HEAD_CLASS,
                       )}
                     >
@@ -620,7 +623,7 @@ export function DataTable<TRow extends object>({
                         <button
                           type="button"
                           onClick={header.column.getToggleSortingHandler()}
-                          className="inline-flex cursor-pointer items-center gap-1 rounded transition-colors hover:text-ink-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600"
+                          className="inline-flex cursor-pointer items-center gap-1 rounded whitespace-nowrap transition-colors hover:text-ink-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600"
                         >
                           <table.FlexRender header={header} />
                           <SortIcon direction={direction} />
@@ -671,6 +674,10 @@ export function DataTable<TRow extends object>({
                     id: cell.id,
                     content: <table.FlexRender cell={cell} />,
                     pinned: isPinnedColumn(cell.column.id),
+                    className: cn(
+                      cell.column.columnDef.meta?.cellClassName,
+                      cell.column.columnDef.meta?.className,
+                    ),
                   }))}
                   accent={getRowAccent?.(row.original)}
                   {...(onRowClick ? { onActivate: () => onRowClick(row.original) } : {})}
@@ -755,7 +762,7 @@ function DataRow({
   onActivate,
   reorder,
 }: {
-  cells: readonly { id: string; content: ReactNode; pinned: boolean }[];
+  cells: readonly { id: string; content: ReactNode; pinned: boolean; className?: string | undefined }[];
   accent?: string | undefined;
   onActivate?: (() => void) | undefined;
   reorder?: RowReorder | undefined;
@@ -871,6 +878,7 @@ function DataRow({
             // grid and misaligned the first column against its own header.
             index === 0 && accent !== undefined && 'border-l-[3px]',
             cell.pinned && PINNED_CELL_CLASS,
+            cell.className,
             // The drop line, for the same reason: `border-collapse` swallows a
             // border on the row, so the indicator is an inset shadow drawn
             // across every cell. It reads as one continuous line.

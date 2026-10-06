@@ -20,6 +20,8 @@ const SORT_COLUMNS = new Set([
   'reason',
   'status',
   'priority',
+  'reviewRound',
+  'countedCycle',
   'reviewCycle',
   'reassignedToName',
   'createdAt',

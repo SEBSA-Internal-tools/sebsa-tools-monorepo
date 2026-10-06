@@ -5,7 +5,7 @@ import { createEditableSnapshot, EMPTY_DRAFT, reviewToDraft } from './reviewDraf
 function comment(overrides: Partial<ReviewComment> = {}): ReviewComment {
   return {
     id: 'c-1',
-    reviewCycle: 1,
+    reviewRound: 1,
     reviewerId: 'u-rev',
     reviewSessionId: 's-1',
     text: 'Fix the null check.',
@@ -25,7 +25,7 @@ describe('reviewToDraft', () => {
     const review = reviewSchema.parse({
       id: 'r-1',
       taskId: 't-1',
-      reviewCycle: 1,
+      reviewRound: 1,
       reviewerId: 'u-rev',
       reviewerName: 'Rev',
       currentReviewSessionId: 's-1',

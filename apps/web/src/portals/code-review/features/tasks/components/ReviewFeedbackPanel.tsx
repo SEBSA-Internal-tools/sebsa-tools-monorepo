@@ -581,6 +581,7 @@ export function ReviewFeedbackPanel({
   review,
   allReviews,
   responses,
+  activeRound: explicitActiveRound,
   activeCycle: explicitActiveCycle,
   onRespond,
   onDelete,
@@ -591,6 +592,8 @@ export function ReviewFeedbackPanel({
   review: Review | null;
   allReviews?: readonly ReviewHistoryEntry[] | null;
   responses: readonly IssueResponseRecord[];
+  activeRound?: number;
+  /** Legacy alias for activeRound */
   activeCycle?: number;
   onRespond: (input: ResponseLike) => void;
   onDelete?: ((responseId: string) => void) | undefined;
@@ -619,14 +622,14 @@ export function ReviewFeedbackPanel({
   const issues = issuesFromReview(review, allReviews, responses);
   if (issues.length === 0 || review === null) return null;
 
-  const effectiveActiveCycle = explicitActiveCycle ?? review.reviewCycle;
+  const effectiveActiveRound = explicitActiveRound ?? explicitActiveCycle ?? review.reviewRound;
 
-  // Active responses are strictly the developer's responses for the current rework cycle that are pending/unadjudicated
+  // Active responses are strictly the developer's responses for the current rework round that are pending/unadjudicated
   const activeResponses = responses.filter(
     (r) =>
       r.verdict !== 'Overruled' &&
       r.verdict !== 'Accepted' &&
-      (effectiveActiveCycle != null ? r.reviewCycle === effectiveActiveCycle : true),
+      (effectiveActiveRound != null ? r.reviewRound === effectiveActiveRound : true),
   );
 
   const activeSessionId = review.currentReviewSessionId;
@@ -687,7 +690,8 @@ export function ReviewFeedbackPanel({
           title={tasks.response.title}
           description={interpolate(tasks.response.subtitle, {
             reviewer: review.reviewerName ?? 'Reviewer',
-            cycle: review.reviewCycle,
+            round: review.reviewRound,
+            cycle: review.reviewRound,
           })}
           icon={<MessageSquareWarning className="size-4 text-amber-600" />}
           action={review.rank === null ? null : <RankBadge rank={review.rank} />}
@@ -763,9 +767,9 @@ export function ReviewFeedbackPanel({
                         (issue.screenshotId != null && r.screenshotId === issue.screenshotId)) &&
                       (r.verdict === 'Overruled' ||
                         r.verdict === 'Accepted' ||
-                        (effectiveActiveCycle != null && r.reviewCycle < effectiveActiveCycle)),
+                        (review.reviewRound != null && r.reviewRound < review.reviewRound)),
                   )
-                  .sort((a, b) => b.reviewCycle - a.reviewCycle)[0];
+                  .sort((a, b) => b.reviewRound - a.reviewRound)[0];
 
                 return (
                   <IssueRow
