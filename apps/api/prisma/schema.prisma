@@ -114,6 +114,12 @@ enum ReviewerDecision {
   @@map("reviewer_decision")
 }
 
+enum ReviewCycleOutcome {
+  CHANGES_REQUESTED
+
+  @@map("review_cycle_outcome")
+}
+
 enum HandoverStatus {
   PENDING
   REASSIGNED
@@ -275,6 +281,7 @@ model Task {
   statusHistory       TaskStatusHistory[]
   developerChecklist  DeveloperChecklist?
   codeReviewForms     CodeReviewForm[]
+  reviewCycles        ReviewCycle[]
   handovers           HandoverTask[]
   notifications       Notification[]
   attachments         TaskAttachment[]
@@ -531,6 +538,7 @@ model DeveloperFindingResponse {
   findingId         String            @map("finding_id") @db.Uuid
   developerId       String            @map("developer_id") @db.Uuid
   reviewCycleNumber Int               @default(1) @map("review_cycle_number")
+  cycleId           String?           @map("cycle_id") @db.Uuid
   decision          DeveloperDecision
   rejectionReason   String?           @map("rejection_reason") @db.Text
   developerComment  String?           @map("developer_comment") @db.Text
@@ -542,11 +550,31 @@ model DeveloperFindingResponse {
   finding           ReviewFinding     @relation(fields: [findingId], references: [id], onDelete: Restrict)
   developer         User              @relation("ResponseDeveloper", fields: [developerId], references: [id], onDelete: Restrict)
   reviewer          User?             @relation("ResponseReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
+  cycle             ReviewCycle?      @relation(fields: [cycleId], references: [id], onDelete: Restrict)
 
   @@index([findingId])
   @@index([developerId])
   @@index([reviewedBy])
+  @@index([cycleId])
   @@map("developer_finding_responses")
+}
+
+model ReviewCycle {
+  id              String             @id @default(uuid()) @db.Uuid
+  taskId          String             @map("task_id") @db.Uuid
+  roundNumber     Int                @map("round_number")
+  outcome         ReviewCycleOutcome @default(CHANGES_REQUESTED)
+  counted         Boolean            @default(true)
+  exclusionReason String?            @map("exclusion_reason") @db.Text
+  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  excludedAt      DateTime?          @map("excluded_at") @db.Timestamptz(6)
+  task            Task               @relation(fields: [taskId], references: [id], onDelete: Restrict)
+  responses       DeveloperFindingResponse[]
+
+  @@unique([taskId, roundNumber])
+  @@index([taskId, counted])
+  @@map("review_cycles")
 }
 
 model HandoverTask {

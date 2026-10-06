@@ -61,7 +61,6 @@ import {
 import { recordMockAudit } from './audit.ts';
 import {
   createCycleResponseId,
-  nextHistoricalReviewCycle,
   nextReviewCycle,
   resolveActiveReviewCycle,
   reviewBlockers,
@@ -163,7 +162,7 @@ export function createReviewSessionId(taskId: string, reviewCycle: number): stri
  * row has to exist before the decision does.
  */
 function ensureReview(task: Task, reviewerId: string, reviewerName: string): Review {
-  const currentHistoricalCycle = task.historicalCycle ?? task.reviewCycle;
+  let currentHistoricalCycle = task.historicalCycle ?? 0;
   const existing = findReview(task.id, currentHistoricalCycle);
   if (existing) {
     if (
@@ -187,6 +186,14 @@ function ensureReview(task: Task, reviewerId: string, reviewerName: string): Rev
       existing.currentReviewSessionId = newSessionId;
     }
     return existing;
+  }
+
+  const currentWasCompleted = reviewsForTask(task.id).some(
+    (review) => review.reviewCycle === currentHistoricalCycle && review.decision !== null,
+  );
+  if (currentHistoricalCycle === 0 || currentWasCompleted) {
+    currentHistoricalCycle += 1;
+    task.historicalCycle = currentHistoricalCycle;
   }
 
   const now = new Date().toISOString();
@@ -1710,8 +1717,8 @@ export const handlers: HttpHandler[] = [
       return errorResponse(422, 'VALIDATION_FAILED', 'Check the highlighted fields.');
     }
 
-    const currentHistoricalCycle = task.historicalCycle ?? task.reviewCycle;
     const existingReview = ensureReview(task, user.id, user.name);
+    const currentHistoricalCycle = existingReview.reviewCycle;
     const existingComments = [...(existingReview.comments ?? [])];
     const incomingComments = parsed.data.comments ?? [];
     const currentSessionId =
@@ -1858,7 +1865,7 @@ export const handlers: HttpHandler[] = [
         }
         if (!task.adjustedCycles.includes(qualifyingCycle)) {
           const previousCountedCycle = task.reviewCycle;
-          const newCountedCycle = Math.max(1, task.reviewCycle - 1);
+          const newCountedCycle = Math.max(0, task.reviewCycle - 1);
           if (newCountedCycle < previousCountedCycle) {
             task.reviewCycle = newCountedCycle;
             task.adjustedCycles.push(qualifyingCycle);
@@ -1893,9 +1900,6 @@ export const handlers: HttpHandler[] = [
       });
     } else {
       task.status = 'ChangesRequested';
-      // Strictly monotonic immutable historicalCycle sequence:
-      const nextHistorical = nextHistoricalReviewCycle(task, reviewsForTask(task.id));
-      task.historicalCycle = nextHistorical;
       task.reviewCycle = nextReviewCycle(task.reviewCycle, decision);
       task.reviewerId = null;
       task.currentReviewSessionId = null;

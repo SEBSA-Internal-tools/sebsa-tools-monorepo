@@ -305,7 +305,7 @@ export function ReviewTaskPage() {
       setDecisionToConfirm({
         decision,
         draft,
-        reviewCycle: task?.historicalCycle ?? task?.reviewCycle ?? 1,
+        reviewCycle: Math.max(1, task?.historicalCycle ?? task?.reviewCycle ?? 0),
       });
     },
     [task?.historicalCycle, task?.reviewCycle],
@@ -641,7 +641,7 @@ export function ReviewTaskPage() {
         task?.currentReviewSessionId ?? current?.currentReviewSessionId ?? undefined
       }
       taskCode={task.taskCode}
-      reviewCycle={task.historicalCycle ?? task.reviewCycle ?? 1}
+      reviewCycle={Math.max(1, task.historicalCycle ?? task.reviewCycle ?? 0)}
       onSaveDraft={handleAutoSave}
       onDraftChange={handleDraftChange}
       onManualSaveDraft={handleManualSave}

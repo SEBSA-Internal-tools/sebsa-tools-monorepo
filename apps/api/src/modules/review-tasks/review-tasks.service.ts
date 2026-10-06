@@ -57,6 +57,10 @@ const taskInclude = {
     },
   },
   codeReviewForms: { select: { reviewerId: true, decision: true } },
+  reviewCycles: {
+    select: { roundNumber: true, counted: true, exclusionReason: true },
+    orderBy: { roundNumber: 'asc' },
+  },
   handovers: {
     select: { status: true, fromReviewer: { select: { fullName: true } } },
     orderBy: { requestedAt: 'desc' },
@@ -65,6 +69,23 @@ const taskInclude = {
 
 type TaskWithRelations = Prisma.TaskGetPayload<{ include: typeof taskInclude }>;
 type TaskVersionReader = Pick<Prisma.TransactionClient, 'task'>;
+
+interface ReviewCycleProjection {
+  roundNumber: number;
+  counted: boolean;
+}
+
+export function deriveTaskReviewCycles(
+  currentReviewRound: number,
+  cycles: readonly ReviewCycleProjection[],
+) {
+  const adjustedCycles = cycles.filter(({ counted }) => !counted).map(({ roundNumber }) => roundNumber);
+  return {
+    reviewCycle: cycles.filter(({ counted }) => counted).length,
+    historicalCycle: currentReviewRound,
+    adjustedCycles,
+  };
+}
 
 function hasAdminAccess(user: AuthenticatedUser): boolean {
   return user.roles.includes('ADMIN') || user.roles.includes('SUPER_ADMIN');
@@ -225,10 +246,15 @@ export class ReviewTasksService {
       TASK_HANDOVER: 'HandedOver',
       HANDOVER_REASSIGNED: 'Reassigned',
       TASK_CANCELLED: 'Cancelled',
+      COUNTED_CYCLE_ADJUSTED: 'CountedCycleAdjusted',
     };
     return logs.flatMap((log) => {
       const kind = kindByAction[log.action];
       if (!kind || !log.userId) return [];
+      const metadata =
+        log.metadata && typeof log.metadata === 'object' && !Array.isArray(log.metadata)
+          ? log.metadata
+          : null;
       return [
         {
           id: log.id,
@@ -239,6 +265,15 @@ export class ReviewTasksService {
           actorName: log.actorName,
           note: log.description,
           occurredAt: log.createdAt.toISOString(),
+          ...(kind === 'CountedCycleAdjusted' && metadata
+            ? {
+                qualifyingReviewRound: Number(metadata['qualifyingReviewRound']),
+                previousCountedCycle: Number(metadata['previousCountedCycle']),
+                newCountedCycle: Number(metadata['newCountedCycle']),
+                adjustmentAmount: Number(metadata['adjustmentAmount']),
+                reason: typeof metadata['reason'] === 'string' ? metadata['reason'] : '',
+              }
+            : {}),
         },
       ];
     });
@@ -622,7 +657,7 @@ export class ReviewTasksService {
         where: {
           findingId: { in: findingIds },
           developerId: task.developerId,
-          reviewCycleNumber: Math.max(task.currentReviewCycle, 1),
+          reviewCycleNumber: task.currentReviewCycle + 1,
         },
         select: { findingId: true, decision: true, rejectionReason: true },
       });
@@ -655,7 +690,6 @@ export class ReviewTasksService {
         data: {
           status: nextStatus,
           submittedAt: now,
-          currentReviewCycle: Math.max(task.currentReviewCycle, 1),
           statusHistory: {
             create: {
               oldStatus: task.status,
@@ -1027,6 +1061,11 @@ export class ReviewTasksService {
             developerId: true,
             currentReviewerId: true,
             currentReviewer: { select: { fullName: true } },
+            codeReviewForms: {
+              where: { decision: 'CHANGES_REQUESTED' },
+              select: { id: true },
+              take: 1,
+            },
             handovers: { where: { status: HandoverStatus.PENDING }, select: { id: true } },
           },
         });
@@ -1042,7 +1081,7 @@ export class ReviewTasksService {
         }
 
         const waitingStatus =
-          task.currentReviewCycle > 1 ? TaskStatus.RESUBMITTED : TaskStatus.SUBMITTED;
+          (task.codeReviewForms?.length ?? 0) > 0 ? TaskStatus.RESUBMITTED : TaskStatus.SUBMITTED;
         const released = await tx.task.updateMany({
           where: { id, currentReviewerId: actor.id, status: TaskStatus.IN_REVIEW },
           data: { currentReviewerId: null, status: waitingStatus },
@@ -1312,6 +1351,7 @@ export class ReviewTasksService {
   }
 
   private toResponse(task: TaskWithRelations) {
+    const cycleSummary = deriveTaskReviewCycles(task.currentReviewCycle, task.reviewCycles ?? []);
     const status = {
       DRAFT: 'Draft',
       SUBMITTED: 'Submitted',
@@ -1336,9 +1376,9 @@ export class ReviewTasksService {
       customerId: task.customerId,
       priority,
       status,
-      reviewCycle: Math.max(task.currentReviewCycle, 1),
-      historicalCycle: Math.max(task.currentReviewCycle, 1),
-      adjustedCycles: [],
+      reviewCycle: cycleSummary.reviewCycle,
+      historicalCycle: cycleSummary.historicalCycle,
+      adjustedCycles: cycleSummary.adjustedCycles,
       developerId: task.developerId,
       reviewerId: task.currentReviewerId,
       currentReviewSessionId: task.reviewerAssignments?.[0]?.id ?? null,

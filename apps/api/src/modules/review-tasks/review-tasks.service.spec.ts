@@ -3,7 +3,7 @@ import { HandoverStatus, ReviewerAssignmentType, TaskStatus } from '@prisma/clie
 import { describe, expect, it, vi } from 'vitest';
 import type { RoleCode } from '../auth/auth.constants.js';
 import type { AuthenticatedUser } from '../auth/auth.types.js';
-import { ReviewTasksService } from './review-tasks.service.js';
+import { deriveTaskReviewCycles, ReviewTasksService } from './review-tasks.service.js';
 
 const audit = { record: vi.fn().mockResolvedValue(undefined) };
 const notifications = {
@@ -55,6 +55,33 @@ describe('ReviewTasksService task versions', () => {
     expect(findMany).toHaveBeenCalledWith({
       where: { customerId, crimId: { equals: 'CRIM-1001', mode: 'insensitive' } },
       select: { version: true },
+    });
+  });
+});
+
+describe('ReviewTasksService review round and counted-cycle projection', () => {
+  it('keeps round and counted-cycle values independent', () => {
+    const result = deriveTaskReviewCycles(3, [
+      { roundNumber: 1, counted: true },
+      { roundNumber: 2, counted: true },
+    ]);
+
+    expect(result).toEqual({ reviewCycle: 2, historicalCycle: 3, adjustedCycles: [] });
+  });
+
+  it('reports zero counted cycles without reducing or renumbering the round', () => {
+    const result = deriveTaskReviewCycles(2, [
+      { roundNumber: 1, counted: false },
+    ]);
+
+    expect(result).toEqual({ reviewCycle: 0, historicalCycle: 2, adjustedCycles: [1] });
+  });
+
+  it('starts at round zero with no counted cycles', () => {
+    expect(deriveTaskReviewCycles(0, [])).toEqual({
+      reviewCycle: 0,
+      historicalCycle: 0,
+      adjustedCycles: [],
     });
   });
 });
@@ -239,7 +266,9 @@ describe('ReviewTasksService draft discard', () => {
     };
     return {
       tx,
-      prisma: { $transaction: vi.fn((operation) => operation(tx)) },
+      prisma: {
+        $transaction: vi.fn((operation: (client: typeof tx) => unknown) => operation(tx)),
+      },
     };
   }
 

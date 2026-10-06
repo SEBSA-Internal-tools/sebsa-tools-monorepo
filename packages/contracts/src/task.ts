@@ -27,11 +27,11 @@ export const taskSchema = z.object({
   priority: prioritySchema,
   status: taskStatusSchema,
 
-  /** Effective / countable review cycle (can decrement on qualifying accepted rejections). */
-  reviewCycle: z.number().int().min(1),
+  /** Number of persisted business cycles whose `counted` flag is true. */
+  reviewCycle: z.number().int().min(0),
 
-  /** Monotonic immutable historical cycle sequence (never decrements). */
-  historicalCycle: z.number().int().min(1).default(1),
+  /** Monotonic immutable review round (zero until a reviewer starts reviewing). */
+  historicalCycle: z.number().int().min(0).default(0),
 
   /** Tracks which historical cycles have received an accepted-rejection decrement (idempotency). */
   adjustedCycles: z.array(z.number().int()).default([]),
@@ -187,7 +187,7 @@ export const taskEventSchema = z.object({
   occurredAt: isoDateTimeSchema,
   qualifyingReviewRound: z.number().int().min(1).optional(),
   previousCountedCycle: z.number().int().min(1).optional(),
-  newCountedCycle: z.number().int().min(1).optional(),
+  newCountedCycle: z.number().int().min(0).optional(),
   adjustmentAmount: z.number().int().min(1).optional(),
   reason: z.string().optional(),
 });

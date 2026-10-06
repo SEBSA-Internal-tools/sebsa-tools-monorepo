@@ -132,6 +132,7 @@ export function cycleDistribution(
   labels: { one: string; two: string; threePlus: string },
 ): Slice[] {
   const counts = new Map<string, { label: string; value: number }>([
+    ['0', { label: '0 Cycles', value: 0 }],
     ['1', { label: labels.one, value: 0 }],
     ['2', { label: labels.two, value: 0 }],
     ['3+', { label: labels.threePlus, value: 0 }],
@@ -147,7 +148,8 @@ export function cycleDistribution(
      * opposite things off one number. Nothing in the seed carries a 0 today,
      * which is precisely why the divergence would have shipped.
      */
-    const key = task.reviewCycle <= 1 ? '1' : task.reviewCycle === 2 ? '2' : '3+';
+    const key =
+      task.reviewCycle === 0 ? '0' : task.reviewCycle === 1 ? '1' : task.reviewCycle === 2 ? '2' : '3+';
     const entry = counts.get(key);
     if (entry) entry.value += 1;
   }

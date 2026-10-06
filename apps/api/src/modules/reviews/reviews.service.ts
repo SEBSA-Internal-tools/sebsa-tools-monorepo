@@ -1,4 +1,5 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { createHash } from 'node:crypto';
 import {
   CodeReviewAnswerValue,
   CodeReviewFormStatus,
@@ -10,9 +11,9 @@ import {
 } from '@prisma/client';
 import {
   issueResponseDraftSchema,
+  reviewCommentSchema,
   reviewDraftSchema,
   reviewScopeSchema,
-  type ReviewDraft,
 } from '@sdp/contracts';
 import { z } from 'zod';
 import { ApiException } from '../../common/api-error.js';
@@ -35,6 +36,55 @@ const reviewInclude = {
 } satisfies Prisma.CodeReviewFormInclude;
 
 type ReviewRow = Prisma.CodeReviewFormGetPayload<{ include: typeof reviewInclude }>;
+
+// A draft may legitimately contain a newly-added, still-empty comment. The shared
+// Review schema intentionally requires text for completed reviews, so the API uses
+// this relaxed input shape only while saving a draft and applies completion rules
+// in assertDecisionAllowed before a decision can be recorded.
+export const reviewDraftInputSchema = reviewDraftSchema.extend({
+  comments: z.array(reviewCommentSchema.extend({ text: z.string() })).default([]),
+});
+
+type ReviewDraftInput = z.infer<typeof reviewDraftInputSchema>;
+
+export interface CycleFindingDecision {
+  developerDecision: DeveloperDecision;
+  reviewerDecision: ReviewerDecision;
+}
+
+export function shouldCountReviewCycle(
+  findingCount: number,
+  latestDecisions: readonly CycleFindingDecision[],
+): boolean {
+  if (findingCount === 0 || latestDecisions.length !== findingCount) return true;
+  return !latestDecisions.every(
+    ({ developerDecision, reviewerDecision }) =>
+      developerDecision === DeveloperDecision.REJECTED &&
+      reviewerDecision === ReviewerDecision.ACCEPTED,
+  );
+}
+
+export function reviewRoundToStart(currentRound: number, hasActiveDraft: boolean): number {
+  return hasActiveDraft ? currentRound : currentRound + 1;
+}
+
+export function hasValidDeveloperRejectionReason(
+  kind: 'Resolved' | 'Rejected',
+  reason: string | null | undefined,
+): boolean {
+  return kind !== 'Rejected' || Boolean(reason?.trim());
+}
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function stableReviewEntityUuid(value: string): string {
+  if (UUID_PATTERN.test(value)) return value.toLowerCase();
+  const hash = createHash('sha256').update(value).digest('hex').slice(0, 32).split('');
+  hash[12] = '5';
+  hash[16] = ['8', '9', 'a', 'b'][Number.parseInt(hash[16] ?? '0', 16) % 4] ?? '8';
+  const compact = hash.join('');
+  return `${compact.slice(0, 8)}-${compact.slice(8, 12)}-${compact.slice(12, 16)}-${compact.slice(16, 20)}-${compact.slice(20)}`;
+}
 
 @Injectable()
 export class ReviewsService {
@@ -76,15 +126,11 @@ export class ReviewsService {
   }
 
   async findCurrent(taskId: string, user: AuthenticatedUser) {
-    const task = await this.assertTaskVisible(taskId, user);
-    const row = await this.prisma.codeReviewForm.findUnique({
-      where: {
-        taskId_reviewCycleNumber: {
-          taskId,
-          reviewCycleNumber: Math.max(task.currentReviewCycle, 1),
-        },
-      },
+    await this.assertTaskVisible(taskId, user);
+    const row = await this.prisma.codeReviewForm.findFirst({
+      where: { taskId, status: CodeReviewFormStatus.DRAFT },
       include: reviewInclude,
+      orderBy: { reviewCycleNumber: 'desc' },
     });
     return row ? this.toReview(row) : null;
   }
@@ -105,16 +151,17 @@ export class ReviewsService {
   }
 
   async saveDraft(taskId: string, input: unknown, user: AuthenticatedUser, manual = false) {
-    const parsed = reviewDraftSchema.safeParse(input);
+    const parsed = reviewDraftInputSchema.safeParse(input);
     if (!parsed.success) {
       throw new ApiException('VALIDATION_FAILED', 'Check the highlighted fields', [
         ...parsed.error.issues,
       ]);
     }
-    const task = await this.assertAssignedReviewer(taskId, user);
-    const row = await this.prisma.$transaction((tx) =>
-      this.persistDraft(tx, taskId, Math.max(task.currentReviewCycle, 1), parsed.data, user),
-    );
+    await this.assertAssignedReviewer(taskId, user);
+    const row = await this.prisma.$transaction(async (tx) => {
+      const round = await this.ensureReviewRoundStarted(tx, taskId);
+      return this.persistDraft(tx, taskId, round, parsed.data, user);
+    });
     if (manual) {
       await this.audit.record(this.prisma, user, {
         actionType: 'REVIEW_DRAFT_SAVED',
@@ -129,7 +176,7 @@ export class ReviewsService {
 
   async decide(taskId: string, input: unknown, user: AuthenticatedUser) {
     const decisionInput = z
-      .object({ decision: z.enum(['Approved', 'ChangesRequested']), draft: reviewDraftSchema })
+      .object({ decision: z.enum(['Approved', 'ChangesRequested']), draft: reviewDraftInputSchema })
       .safeParse(input);
     if (!decisionInput.success) {
       throw new ApiException('VALIDATION_FAILED', 'Check the highlighted fields', [
@@ -141,18 +188,20 @@ export class ReviewsService {
       decisionInput.data.decision === 'Approved'
         ? ReviewDecision.APPROVED
         : ReviewDecision.CHANGES_REQUESTED;
+    const decisionRound = await this.resolveDecisionRound(taskId, task.currentReviewCycle);
     await this.assertDecisionAllowed(
       taskId,
-      task.currentReviewCycle,
+      decisionRound,
       decisionInput.data.draft,
       decision,
       user,
     );
     await this.prisma.$transaction(async (tx) => {
+      const round = await this.ensureReviewRoundStarted(tx, taskId);
       const review = await this.persistDraft(
         tx,
         taskId,
-        Math.max(task.currentReviewCycle, 1),
+        round,
         decisionInput.data.draft,
         user,
       );
@@ -168,14 +217,15 @@ export class ReviewsService {
         data: {
           status,
           currentReviewerId: decision === ReviewDecision.CHANGES_REQUESTED ? null : user.id,
-          currentReviewCycle:
-            decision === ReviewDecision.CHANGES_REQUESTED
-              ? Math.max(task.currentReviewCycle, 1) + 1
-              : Math.max(task.currentReviewCycle, 1),
           ...(decision === ReviewDecision.APPROVED ? { approvedAt: now } : {}),
         },
       });
       if (decision === ReviewDecision.CHANGES_REQUESTED) {
+        await tx.reviewCycle.upsert({
+          where: { taskId_roundNumber: { taskId, roundNumber: round } },
+          create: { taskId, roundNumber: round },
+          update: {},
+        });
         await tx.taskReviewerAssignment.updateMany({
           where: { taskId, reviewerId: user.id, isCurrent: true },
           data: { isCurrent: false, unassignedAt: now },
@@ -223,7 +273,7 @@ export class ReviewsService {
     if (task.developerId !== user.id || task.status !== TaskStatus.CHANGES_REQUESTED) {
       throw new ForbiddenException('You cannot respond to this feedback');
     }
-    if (parsed.data.kind === 'Rejected' && !parsed.data.rejectionReason?.trim()) {
+    if (!hasValidDeveloperRejectionReason(parsed.data.kind, parsed.data.rejectionReason)) {
       throw new ApiException(
         'VALIDATION_FAILED',
         'Provide a reason when rejecting a review finding',
@@ -240,7 +290,7 @@ export class ReviewsService {
       where: {
         findingId,
         developerId: user.id,
-        reviewCycleNumber: Math.max(task.currentReviewCycle, 1),
+        reviewCycleNumber: task.currentReviewCycle + 1,
       },
       orderBy: { respondedAt: 'desc' },
     });
@@ -257,12 +307,22 @@ export class ReviewsService {
     if (existing) {
       await this.prisma.developerFindingResponse.update({ where: { id: existing.id }, data });
     } else {
+      const cycle = await this.prisma.reviewCycle.findUnique({
+        where: {
+          taskId_roundNumber: {
+            taskId,
+            roundNumber: finding.reviewForm.reviewCycleNumber,
+          },
+        },
+        select: { id: true },
+      });
       await this.prisma.developerFindingResponse.create({
         data: {
           ...data,
           findingId,
           developerId: user.id,
-          reviewCycleNumber: Math.max(task.currentReviewCycle, 1),
+          reviewCycleNumber: task.currentReviewCycle + 1,
+          cycleId: cycle?.id ?? null,
         },
       });
     }
@@ -285,16 +345,22 @@ export class ReviewsService {
       })
       .safeParse(input);
     if (!parsed.success) throw new ApiException('VALIDATION_FAILED', 'Check the verdict');
-    const task = await this.assertAssignedReviewer(taskId, user);
+    await this.assertAssignedReviewer(taskId, user);
     if (parsed.data.verdict === 'Overruled' && !parsed.data.reviewerComment) {
       throw new ApiException(
         'VALIDATION_FAILED',
         'An explanation is required when overruling a response',
       );
     }
-    const updated = await this.prisma.developerFindingResponse.updateMany({
-      where: { id: responseId, finding: { reviewForm: { taskId } } },
-      data: {
+    return this.prisma.$transaction(async (tx) => {
+      const response = await tx.developerFindingResponse.findFirst({
+        where: { id: responseId, finding: { reviewForm: { taskId } } },
+        select: { cycleId: true, finding: { select: { reviewForm: { select: { reviewCycleNumber: true } } } } },
+      });
+      if (!response) throw new NotFoundException(`Response ${responseId} was not found`);
+      await tx.developerFindingResponse.update({
+        where: { id: responseId },
+        data: {
         reviewerDecision: {
           Pending: ReviewerDecision.PENDING,
           Accepted: ReviewerDecision.ACCEPTED,
@@ -303,17 +369,122 @@ export class ReviewsService {
         reviewerComment: parsed.data.reviewerComment ?? null,
         reviewedBy: user.id,
         reviewedAt: new Date(),
+        },
+      });
+      await this.evaluateOriginalCycleCounted(
+        tx,
+        taskId,
+        response.finding.reviewForm.reviewCycleNumber,
+        user,
+      );
+      const updated = await tx.developerFindingResponse.findUnique({
+        where: { id: responseId },
+        include: { finding: { include: { reviewForm: true } } },
+      });
+      return updated ? this.toResponse(updated, taskId, updated.reviewCycleNumber) : undefined;
+    });
+  }
+
+  private async resolveDecisionRound(taskId: string, currentRound: number): Promise<number> {
+    const draft = await this.prisma.codeReviewForm.findFirst({
+      where: { taskId, status: CodeReviewFormStatus.DRAFT },
+      select: { reviewCycleNumber: true },
+      orderBy: { reviewCycleNumber: 'desc' },
+    });
+    return draft?.reviewCycleNumber ?? currentRound + 1;
+  }
+
+  private async ensureReviewRoundStarted(
+    tx: Prisma.TransactionClient,
+    taskId: string,
+  ): Promise<number> {
+    const locked = await tx.$queryRaw<{ current_review_cycle: number }[]>`
+      SELECT "current_review_cycle"
+      FROM "tasks"
+      WHERE "id" = ${taskId}::uuid
+      FOR UPDATE
+    `;
+    const currentRound = locked[0]?.current_review_cycle;
+    if (currentRound === undefined) {
+      throw new ApiException('TASK_NOT_FOUND', `Review task ${taskId} was not found`);
+    }
+    const draft = await tx.codeReviewForm.findFirst({
+      where: { taskId, status: CodeReviewFormStatus.DRAFT },
+      select: { reviewCycleNumber: true },
+      orderBy: { reviewCycleNumber: 'desc' },
+    });
+    if (draft) return draft.reviewCycleNumber;
+    const nextRound = reviewRoundToStart(currentRound, false);
+    await tx.task.update({ where: { id: taskId }, data: { currentReviewCycle: nextRound } });
+    return nextRound;
+  }
+
+  /**
+   * Re-evaluates one persisted business cycle from issue-level decisions.
+   * The unique task/round key plus an update-to-state implementation makes retries idempotent.
+   */
+  private async evaluateOriginalCycleCounted(
+    tx: Prisma.TransactionClient,
+    taskId: string,
+    originalRound: number,
+    actor: AuthenticatedUser,
+  ): Promise<void> {
+    const cycle = await tx.reviewCycle.findUnique({
+      where: { taskId_roundNumber: { taskId, roundNumber: originalRound } },
+    });
+    if (!cycle) return;
+    const findings = await tx.reviewFinding.findMany({
+      where: { reviewForm: { taskId, reviewCycleNumber: originalRound } },
+      select: {
+        id: true,
+        responses: {
+          where: { cycleId: cycle.id },
+          select: { decision: true, reviewerDecision: true, reviewCycleNumber: true },
+          orderBy: [{ reviewCycleNumber: 'desc' }, { respondedAt: 'desc' }],
+        },
       },
     });
-    if (updated.count !== 1) throw new NotFoundException(`Response ${responseId} was not found`);
-    return (await this.findResponses(task.id, user)).find(({ id }) => id === responseId);
+    const latest = findings.map(({ responses }) => responses[0]).filter((entry) => entry !== undefined);
+    const counted = shouldCountReviewCycle(
+      findings.length,
+      latest.map((response) => ({
+        developerDecision: response.decision,
+        reviewerDecision: response.reviewerDecision,
+      })),
+    );
+    const exclude = !counted;
+    const reason = exclude
+      ? 'All findings were rejected by the developer and all rejection reasons were accepted by the reviewer; no developer correction was required.'
+      : null;
+    if (cycle.counted === !exclude && cycle.exclusionReason === reason) return;
+    const previousCount = await tx.reviewCycle.count({ where: { taskId, counted: true } });
+    await tx.reviewCycle.update({
+      where: { id: cycle.id },
+      data: { counted: !exclude, exclusionReason: reason, excludedAt: exclude ? new Date() : null },
+    });
+    if (exclude && cycle.counted) {
+      await this.audit.record(tx, actor, {
+        actionType: 'COUNTED_CYCLE_ADJUSTED',
+        entityType: 'REVIEW_CYCLE',
+        entityId: cycle.id,
+        taskId,
+        description: `Review Round ${originalRound} was excluded from counted cycles`,
+        metadata: {
+          qualifyingReviewRound: originalRound,
+          previousCountedCycle: previousCount,
+          newCountedCycle: Math.max(0, previousCount - 1),
+          adjustmentAmount: 1,
+          reason,
+        },
+      });
+    }
   }
 
   private async persistDraft(
     tx: Prisma.TransactionClient,
     taskId: string,
     cycle: number,
-    draft: ReviewDraft,
+    draft: ReviewDraftInput,
     user: AuthenticatedUser,
   ) {
     const assignment = await tx.taskReviewerAssignment.findFirst({
@@ -373,7 +544,9 @@ export class ReviewsService {
         })),
       });
     }
-    const incomingIds = draft.comments.map(({ id }) => id);
+    const findingIdFor = (id: string) =>
+      stableReviewEntityUuid(UUID_PATTERN.test(id) ? id : `${taskId}:finding:${id}`);
+    const incomingIds = draft.comments.map(({ id }) => findingIdFor(id));
     const removable = await tx.reviewFinding.findMany({
       where: {
         reviewFormId: form.id,
@@ -400,12 +573,13 @@ export class ReviewsService {
       });
     }
     for (const [index, comment] of draft.comments.entries()) {
-      const existing = await tx.reviewFinding.findUnique({ where: { id: comment.id } });
+      const findingId = findingIdFor(comment.id);
+      const existing = await tx.reviewFinding.findUnique({ where: { id: findingId } });
       if (existing && existing.createdBy !== user.id) continue;
       await tx.reviewFinding.upsert({
-        where: { id: comment.id },
+        where: { id: findingId },
         create: {
-          id: comment.id,
+          id: findingId,
           reviewFormId: form.id,
           findingNo: index + 1,
           commentText: comment.text,
@@ -414,12 +588,14 @@ export class ReviewsService {
         },
         update: { findingNo: index + 1, commentText: comment.text, reviewSessionId },
       });
-      await tx.findingScreenshot.deleteMany({ where: { findingId: comment.id } });
+      await tx.findingScreenshot.deleteMany({ where: { findingId } });
       if (comment.screenshots.length > 0) {
         await tx.findingScreenshot.createMany({
           data: comment.screenshots.map((shot) => ({
-            id: shot.id,
-            findingId: comment.id,
+            id: stableReviewEntityUuid(
+              UUID_PATTERN.test(shot.id) ? shot.id : `${findingId}:screenshot:${shot.id}`,
+            ),
+            findingId,
             fileName: shot.fileName,
             storageKey: shot.storageRef,
             mimeType: shot.mimeType,
@@ -453,10 +629,10 @@ export class ReviewsService {
   private async assertDecisionAllowed(
     taskId: string,
     cycle: number,
-    draft: ReviewDraft,
+    draft: ReviewDraftInput,
     decision: ReviewDecision,
     user: AuthenticatedUser,
-  ) {
+  ): Promise<void> {
     const assignment = await this.prisma.taskReviewerAssignment.findFirst({
       where: { taskId, reviewerId: user.id, isCurrent: true },
       select: { id: true },
@@ -503,9 +679,22 @@ export class ReviewsService {
         'Acknowledge the previous reviewer feedback before approving',
       );
     }
+    const previousChangesReview = await this.prisma.codeReviewForm.findFirst({
+      where: {
+        taskId,
+        decision: ReviewDecision.CHANGES_REQUESTED,
+        reviewCycleNumber: { lt: Math.max(cycle, 1) },
+      },
+      select: { reviewCycleNumber: true, findings: { select: { id: true } } },
+      orderBy: [{ reviewCycleNumber: 'desc' }, { completedAt: 'desc' }],
+    });
+    const previousFindingIds = previousChangesReview?.findings.map(({ id }) => id) ?? [];
     const responses = await this.prisma.developerFindingResponse.findMany({
-      where: { finding: { reviewForm: { taskId } }, reviewCycleNumber: Math.max(cycle, 1) },
-      select: { reviewerDecision: true },
+      where: {
+        findingId: { in: previousFindingIds },
+        reviewCycleNumber: Math.max(cycle, 1),
+      },
+      select: { findingId: true, decision: true, reviewerDecision: true },
     });
     if (responses.some(({ reviewerDecision }) => reviewerDecision === ReviewerDecision.PENDING)) {
       throw new ApiException(
@@ -555,26 +744,28 @@ export class ReviewsService {
     const decision = row.decision
       ? { APPROVED: 'Approved', CHANGES_REQUESTED: 'ChangesRequested' }[row.decision]
       : null;
-    const comments = row.findings.map((finding) => ({
-      id: finding.id,
-      reviewId: row.id,
-      reviewCycle: row.reviewCycleNumber,
-      reviewerId: finding.createdBy,
-      reviewerName: finding.creator.fullName,
-      reviewSessionId: finding.reviewSessionId ?? row.currentReviewSessionId ?? row.id,
-      text: finding.commentText,
-      screenshots: finding.screenshots.map((shot) => ({
-        id: shot.id,
-        fileName: shot.fileName,
-        sizeBytes: Number(shot.fileSize),
-        mimeType: shot.mimeType,
-        storageRef: shot.storageKey,
-        comment: shot.annotationText ?? '',
-        uploadedAt: shot.uploadedAt.toISOString(),
-      })),
-      createdAt: finding.createdAt.toISOString(),
-      updatedAt: finding.updatedAt.toISOString(),
-    }));
+    const comments = row.findings
+      .filter(({ commentText }) => commentText.trim() !== '')
+      .map((finding) => ({
+        id: finding.id,
+        reviewId: row.id,
+        reviewCycle: row.reviewCycleNumber,
+        reviewerId: finding.createdBy,
+        reviewerName: finding.creator.fullName,
+        reviewSessionId: finding.reviewSessionId ?? row.currentReviewSessionId ?? row.id,
+        text: finding.commentText,
+        screenshots: finding.screenshots.map((shot) => ({
+          id: shot.id,
+          fileName: shot.fileName,
+          sizeBytes: Number(shot.fileSize),
+          mimeType: shot.mimeType,
+          storageRef: shot.storageKey,
+          comment: shot.annotationText ?? '',
+          uploadedAt: shot.uploadedAt.toISOString(),
+        })),
+        createdAt: finding.createdAt.toISOString(),
+        updatedAt: finding.updatedAt.toISOString(),
+      }));
     return {
       id: row.id,
       taskId: row.taskId,
