@@ -27,13 +27,13 @@ export const taskSchema = z.object({
   priority: prioritySchema,
   status: taskStatusSchema,
 
-  /** Effective / countable review cycle (can decrement on qualifying accepted rejections). */
-  reviewCycle: z.number().int().min(1),
+  /** The actual chronological / historical review attempt sequence (monotonic, never decrements). */
+  reviewRound: z.number().int().min(1).default(1),
 
-  /** Monotonic immutable historical cycle sequence (never decrements). */
-  historicalCycle: z.number().int().min(1).default(1),
+  /** Effective / business countable review cycle (can decrement on qualifying accepted rejections). */
+  countedCycle: z.number().int().min(1).default(1),
 
-  /** Tracks which historical cycles have received an accepted-rejection decrement (idempotency). */
+  /** Tracks which historical review rounds have received an accepted-rejection decrement (idempotency). */
   adjustedCycles: z.array(z.number().int()).default([]),
 
   developerId: idSchema,
@@ -142,7 +142,8 @@ export const taskFilterSchema = z.object({
   customerId: z.array(idSchema).optional(),
   developerId: z.array(idSchema).optional(),
   reviewerId: z.array(idSchema).optional(),
-  reviewCycle: z.array(z.number().int()).optional(),
+  reviewRound: z.array(z.number().int()).optional(),
+  countedCycle: z.array(z.number().int()).optional(),
   page: z.number().int().min(1).default(1),
   pageSize: z.number().int().min(1).max(200).default(25),
   sortBy: z.string().optional(),
@@ -151,7 +152,7 @@ export const taskFilterSchema = z.object({
 export type TaskFilter = z.infer<typeof taskFilterSchema>;
 
 /* -------------------------------------------------------------------------- */
-/* Task event — the append-only audit trail behind cycle history (screen 14)   */
+/* Task event — the append-only audit trail behind round history (screen 14)   */
 /* and the "log of which reviewers worked on the task" the spec asks for (p.10)*/
 /* -------------------------------------------------------------------------- */
 
@@ -177,8 +178,8 @@ export const taskEventSchema = z.object({
   id: idSchema,
   taskId: idSchema,
   kind: taskEventKindSchema,
-  /** Cycle the event belongs to, so history can be grouped by cycle. */
-  reviewCycle: z.number().int().min(1),
+  /** Review round the event belongs to, so history can be grouped by round. */
+  reviewRound: z.number().int().min(1),
   actorId: idSchema,
   actorName: z.string(),
   note: z.string().nullable(),

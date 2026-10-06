@@ -207,7 +207,7 @@ describe('Review History', () => {
     db.reviews.push({
       id: `rev-${task.id}-history-probe`,
       taskId: task.id,
-      reviewCycle: 1,
+      reviewRound: 1,
       reviewerId: REVIEWER,
       reviewerName: 'Reviewer',
       comments: [],
@@ -223,7 +223,8 @@ describe('Review History', () => {
       updatedAt: '2026-07-02T00:00:00.000Z',
     });
     task.status = 'ChangesRequested';
-    task.reviewCycle = 2;
+    task.reviewRound = 2;
+    task.countedCycle = 2;
     task.reviewerId = null;
 
     renderApp('/crp/reviewer/history');
@@ -244,7 +245,7 @@ describe('Review History', () => {
     db.reviews.push({
       id: `rev-${task.id}-reopened-probe`,
       taskId: task.id,
-      reviewCycle: 1,
+      reviewRound: 1,
       reviewerId: REVIEWER,
       reviewerName: 'Reviewer',
       comments: [],
@@ -260,7 +261,8 @@ describe('Review History', () => {
       updatedAt: '2026-07-02T00:00:00.000Z',
     });
     task.status = 'InReview';
-    task.reviewCycle = 2;
+    task.reviewRound = 2;
+    task.countedCycle = 2;
     task.reviewerId = REVIEWER;
 
     renderApp('/crp/reviewer/history');

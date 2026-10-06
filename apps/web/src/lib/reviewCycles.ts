@@ -1,54 +1,84 @@
 /**
- * Review-cycle arithmetic shared by the developer and reviewer workspaces and
+ * Review-round and cycle arithmetic shared by the developer and reviewer workspaces and
  * the mock API. `reviews/domain/reviewRules` re-exports these for its callers.
  */
 
 /**
- * The next strictly monotonic historical cycle number, so a cycle id never
- * collides even after the effective `reviewCycle` was decremented.
+ * The next strictly monotonic historical review round number, so a review id never
+ * collides even after the business `countedCycle` was decremented.
  */
-export function nextHistoricalReviewCycle(
-  task: { reviewCycle: number; historicalCycle?: number },
-  existingReviews: readonly { reviewCycle: number }[],
+export function nextReviewRound(
+  task: { reviewRound?: number; reviewCycle?: number; historicalCycle?: number },
+  existingReviews: readonly { reviewRound?: number; reviewCycle?: number }[] = [],
 ): number {
   const highestExisting =
-    existingReviews.length > 0 ? Math.max(...existingReviews.map((r) => r.reviewCycle)) : 0;
-  const currentHistorical = task.historicalCycle ?? task.reviewCycle;
+    existingReviews.length > 0
+      ? Math.max(...existingReviews.map((r) => r.reviewRound ?? r.reviewCycle ?? 0))
+      : 0;
+  const currentHistorical = Math.max(
+    task.reviewRound ?? 0,
+    task.historicalCycle ?? 0,
+    task.reviewCycle ?? 0,
+    1,
+  );
   return Math.max(highestExisting, currentHistorical) + 1;
 }
 
+/** Legacy alias for nextReviewRound */
+export const nextHistoricalReviewCycle = nextReviewRound;
+
 /**
- * The cycle that developer responses and re-review adjudication belong to.
+ * The review round that developer responses and re-review adjudication belong to.
  *
  * Once a review has been decided and the task is back in rework or re-review,
- * the active cycle sits above every completed one, so responses get
- * cycle-scoped ids and never overwrite an earlier cycle's data.
+ * the active round sits above every completed one, so responses get
+ * round-scoped ids and never overwrite an earlier round's data.
  */
-export function resolveActiveReviewCycle(
-  task: { reviewCycle: number; historicalCycle?: number | null; status?: string | null },
-  existingReviews: readonly { reviewCycle: number; decision?: string | null }[] = [],
+export function resolveActiveReviewRound(
+  task: {
+    reviewRound?: number | null;
+    reviewCycle?: number | null;
+    historicalCycle?: number | null;
+    status?: string | null;
+  },
+  existingReviews: readonly {
+    reviewRound?: number | null;
+    reviewCycle?: number | null;
+    decision?: string | null;
+  }[] = [],
 ): number {
   const completedReviews = existingReviews.filter((r) => r.decision !== null);
-  const highestCompletedCycle =
-    completedReviews.length > 0 ? Math.max(...completedReviews.map((r) => r.reviewCycle)) : 0;
-  const anyCycle =
-    existingReviews.length > 0 ? Math.max(...existingReviews.map((r) => r.reviewCycle)) : 0;
-  const taskCycle = task.historicalCycle ?? task.reviewCycle;
+  const highestCompletedRound =
+    completedReviews.length > 0
+      ? Math.max(...completedReviews.map((r) => r.reviewRound ?? r.reviewCycle ?? 0))
+      : 0;
+  const anyRound =
+    existingReviews.length > 0
+      ? Math.max(...existingReviews.map((r) => r.reviewRound ?? r.reviewCycle ?? 0))
+      : 0;
+  const taskRound = task.reviewRound ?? task.historicalCycle ?? task.reviewCycle ?? 1;
 
   const inRework =
     task.status === 'ChangesRequested' ||
     task.status === 'ReSubmitted' ||
     task.status === 'InReview';
-  if (highestCompletedCycle > 0 && inRework) {
-    return Math.max(taskCycle, highestCompletedCycle + 1, anyCycle);
+  if (highestCompletedRound > 0 && inRework) {
+    return Math.max(taskRound, highestCompletedRound + 1, anyRound);
   }
 
-  return Math.max(taskCycle, highestCompletedCycle, anyCycle, 1);
+  return Math.max(taskRound, highestCompletedRound, anyRound, 1);
 }
 
-/** A cycle-scoped response id, so a response is never shared across cycles. */
-export function createCycleResponseId(taskId: string, cycle: number, entityKey: string): string {
+/** Legacy alias for resolveActiveReviewRound */
+export const resolveActiveReviewCycle = resolveActiveReviewRound;
+
+/** A round-scoped response id, so a response is never shared across rounds. */
+export function createRoundResponseId(taskId: string, round: number, entityKey: string): string {
   const cleanKey =
     entityKey.startsWith('c-') || entityKey.startsWith('s-') ? entityKey : `c-${entityKey}`;
-  return `resp-${taskId}-${String(cycle)}-${cleanKey}`;
+  return `resp-${taskId}-${String(round)}-${cleanKey}`;
 }
+
+/** Legacy alias for createRoundResponseId */
+export const createCycleResponseId = createRoundResponseId;
+

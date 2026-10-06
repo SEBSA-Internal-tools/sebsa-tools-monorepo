@@ -75,12 +75,33 @@ export function restoreDatabase(storage: Pick<Storage, 'getItem'>): void {
     if (Array.isArray(candidate['tasks'])) {
       for (const task of candidate['tasks'] as Record<string, unknown>[]) {
         if (task['status'] === 'Delivered') task['status'] = 'Approved';
+        task['reviewRound'] =
+          task['reviewRound'] ?? task['historicalCycle'] ?? task['reviewCycle'] ?? 1;
+        task['countedCycle'] = task['countedCycle'] ?? task['reviewCycle'] ?? 1;
+      }
+    }
+    if (Array.isArray(candidate['reviews'])) {
+      for (const review of candidate['reviews'] as Record<string, unknown>[]) {
+        review['reviewRound'] = review['reviewRound'] ?? review['reviewCycle'] ?? 1;
+        if (Array.isArray(review['comments'])) {
+          for (const comment of review['comments'] as Record<string, unknown>[]) {
+            comment['reviewRound'] = comment['reviewRound'] ?? comment['reviewCycle'] ?? 1;
+          }
+        }
+      }
+    }
+    if (Array.isArray(candidate['issueResponses'])) {
+      for (const response of candidate['issueResponses'] as Record<string, unknown>[]) {
+        response['reviewRound'] = response['reviewRound'] ?? response['reviewCycle'] ?? 1;
       }
     }
     if (Array.isArray(candidate['events'])) {
-      candidate['events'] = (candidate['events'] as Record<string, unknown>[]).filter(
-        (event) => event['kind'] !== 'Delivered',
-      );
+      candidate['events'] = (candidate['events'] as Record<string, unknown>[])
+        .filter((event) => event['kind'] !== 'Delivered')
+        .map((event) => {
+          event['reviewRound'] = event['reviewRound'] ?? event['reviewCycle'] ?? 1;
+          return event;
+        });
     }
     // Never hydrate a partial/incompatible snapshot over the seed database.
     const hydrated = databaseSchema.parse(candidate);

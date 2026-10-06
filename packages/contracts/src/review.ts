@@ -53,7 +53,7 @@ export type ReviewScreenshot = z.infer<typeof reviewScreenshotSchema>;
 export const reviewCommentSchema = z.object({
   id: idSchema,
   reviewId: idSchema.optional(),
-  reviewCycle: z.number().int().min(1),
+  reviewRound: z.number().int().min(1),
   reviewerId: idSchema.optional(),
   reviewerName: z.string().optional(),
   reviewSessionId: idSchema.optional(),
@@ -65,7 +65,7 @@ export const reviewCommentSchema = z.object({
 export type ReviewComment = z.infer<typeof reviewCommentSchema>;
 
 /* -------------------------------------------------------------------------- */
-/* Review — one row per cycle                                                  */
+/* Review — one row per round                                                  */
 /* -------------------------------------------------------------------------- */
 
 /** Legacy Detailed Review Findings text areas (preserved for historical compatibility). */
@@ -79,7 +79,7 @@ export type ReviewFindings = z.infer<typeof reviewFindingsSchema>;
 export const reviewSchema = z.object({
   id: idSchema,
   taskId: idSchema,
-  reviewCycle: z.number().int().min(1),
+  reviewRound: z.number().int().min(1),
   reviewerId: idSchema.nullable(),
   reviewerName: z.string().nullable(),
   currentReviewSessionId: idSchema.optional().nullable(),
@@ -139,8 +139,8 @@ export type ReviewDraft = z.infer<typeof reviewDraftSchema>;
 export const issueResponseRecordSchema = z.object({
   id: idSchema,
   taskId: idSchema,
-  /** The immutable historical cycle whose feedback is being answered. */
-  reviewCycle: z.number().int().min(1),
+  /** The immutable historical review round whose feedback is being answered. */
+  reviewRound: z.number().int().min(1),
   /** Foreign key linking to the ReviewComment. */
   commentId: idSchema.optional().nullable(),
   /** Null when responding to the review as a whole rather than one screenshot. */

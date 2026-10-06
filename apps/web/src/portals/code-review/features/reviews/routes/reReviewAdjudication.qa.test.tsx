@@ -47,8 +47,8 @@ describe('Re-Review Adjudication Workflow QA Suite', () => {
     const task = db.tasks.find((t) => t.developerId === DEVELOPER)!;
     task.status = 'InReview';
     task.reviewerId = REVIEWER;
-    task.reviewCycle = 2;
-    task.historicalCycle = 2;
+    task.reviewRound = 2;
+    task.countedCycle = 2;
     task.adjustedCycles = [];
 
     // Seed previous review
@@ -56,13 +56,13 @@ describe('Re-Review Adjudication Workflow QA Suite', () => {
     db.reviews.push({
       id: `rev-${task.id}-1`,
       taskId: task.id,
-      reviewCycle: 1,
+      reviewRound: 1,
       reviewerId: REVIEWER,
       reviewerName: 'Pinsara Chandika',
       comments: [
         {
           id: 'comm-res-1',
-          reviewCycle: 1,
+          reviewRound: 1,
           text: 'Fix typo in login header.',
           screenshots: [],
           createdAt: new Date().toISOString(),
@@ -86,7 +86,7 @@ describe('Re-Review Adjudication Workflow QA Suite', () => {
     db.issueResponses.push({
       id: `resp-${task.id}-1-comm-res-1`,
       taskId: task.id,
-      reviewCycle: 1,
+      reviewRound: 1,
       commentId: 'comm-res-1',
       screenshotId: null,
       kind: 'Resolved',
@@ -131,21 +131,21 @@ describe('Re-Review Adjudication Workflow QA Suite', () => {
     const task = db.tasks.find((t) => t.developerId === DEVELOPER)!;
     task.status = 'InReview';
     task.reviewerId = REVIEWER;
-    task.reviewCycle = 2;
-    task.historicalCycle = 2;
+    task.reviewRound = 2;
+    task.countedCycle = 2;
     task.adjustedCycles = [];
 
     db.reviews = db.reviews.filter((r) => r.taskId !== task.id);
     db.reviews.push({
       id: `rev-${task.id}-1`,
       taskId: task.id,
-      reviewCycle: 1,
+      reviewRound: 1,
       reviewerId: REVIEWER,
       reviewerName: 'Pinsara Chandika',
       comments: [
         {
           id: 'comm-res-fail',
-          reviewCycle: 1,
+          reviewRound: 1,
           text: 'Handle null pointer on empty input array.',
           screenshots: [],
           createdAt: new Date().toISOString(),
@@ -168,7 +168,7 @@ describe('Re-Review Adjudication Workflow QA Suite', () => {
     db.issueResponses.push({
       id: `resp-${task.id}-1-comm-res-fail`,
       taskId: task.id,
-      reviewCycle: 1,
+      reviewRound: 1,
       commentId: 'comm-res-fail',
       screenshotId: null,
       kind: 'Resolved',
@@ -225,21 +225,21 @@ describe('Re-Review Adjudication Workflow QA Suite', () => {
     const task = db.tasks.find((t) => t.developerId === DEVELOPER)!;
     task.status = 'InReview';
     task.reviewerId = REVIEWER;
-    task.reviewCycle = 2;
-    task.historicalCycle = 2;
+    task.reviewRound = 2;
+    task.countedCycle = 2;
     task.adjustedCycles = [];
 
     db.reviews = db.reviews.filter((r) => r.taskId !== task.id);
     db.reviews.push({
       id: `rev-${task.id}-1`,
       taskId: task.id,
-      reviewCycle: 1,
+      reviewRound: 1,
       reviewerId: REVIEWER,
       reviewerName: 'Pinsara Chandika',
       comments: [
         {
           id: 'comm-rej-1',
-          reviewCycle: 1,
+          reviewRound: 1,
           text: 'Add border to table container.',
           screenshots: [],
           createdAt: new Date().toISOString(),
@@ -262,7 +262,7 @@ describe('Re-Review Adjudication Workflow QA Suite', () => {
     db.issueResponses.push({
       id: `resp-${task.id}-1-comm-rej-1`,
       taskId: task.id,
-      reviewCycle: 1,
+      reviewRound: 1,
       commentId: 'comm-rej-1',
       screenshotId: null,
       kind: 'Rejected',
@@ -300,21 +300,21 @@ describe('Re-Review Adjudication Workflow QA Suite', () => {
     const task = db.tasks.find((t) => t.developerId === DEVELOPER)!;
     task.status = 'InReview';
     task.reviewerId = REVIEWER;
-    task.reviewCycle = 2;
-    task.historicalCycle = 2;
+    task.reviewRound = 2;
+    task.countedCycle = 2;
     task.adjustedCycles = [];
 
     db.reviews = db.reviews.filter((r) => r.taskId !== task.id);
     db.reviews.push({
       id: `rev-${task.id}-1`,
       taskId: task.id,
-      reviewCycle: 1,
+      reviewRound: 1,
       reviewerId: REVIEWER,
       reviewerName: 'Pinsara Chandika',
       comments: [
         {
           id: 'comm-rej-deny',
-          reviewCycle: 1,
+          reviewRound: 1,
           text: 'Rate limit endpoint to 10 req/sec.',
           screenshots: [],
           createdAt: new Date().toISOString(),
@@ -337,7 +337,7 @@ describe('Re-Review Adjudication Workflow QA Suite', () => {
     db.issueResponses.push({
       id: `resp-${task.id}-1-comm-rej-deny`,
       taskId: task.id,
-      reviewCycle: 1,
+      reviewRound: 1,
       commentId: 'comm-rej-deny',
       screenshotId: null,
       kind: 'Rejected',
@@ -395,21 +395,21 @@ describe('Re-Review Adjudication Workflow QA Suite', () => {
     const task = db.tasks.find((t) => t.developerId === DEVELOPER)!;
     task.status = 'InReview';
     task.reviewerId = REVIEWER;
-    task.reviewCycle = 2;
-    task.historicalCycle = 2;
+    task.reviewRound = 2;
+    task.countedCycle = 2;
     task.adjustedCycles = [];
 
     db.reviews = db.reviews.filter((r) => r.taskId !== task.id);
     db.reviews.push({
       id: `rev-${task.id}-1`,
       taskId: task.id,
-      reviewCycle: 1,
+      reviewRound: 1,
       reviewerId: REVIEWER,
       reviewerName: 'Pinsara Chandika',
       comments: [
         {
           id: 'comm-pending',
-          reviewCycle: 1,
+          reviewRound: 1,
           text: 'Add error boundary.',
           screenshots: [],
           createdAt: new Date().toISOString(),
@@ -433,7 +433,7 @@ describe('Re-Review Adjudication Workflow QA Suite', () => {
     db.issueResponses.push({
       id: `resp-${task.id}-1-comm-pending`,
       taskId: task.id,
-      reviewCycle: 1,
+      reviewRound: 1,
       commentId: 'comm-pending',
       screenshotId: null,
       kind: 'Resolved',
@@ -465,21 +465,21 @@ describe('Re-Review Adjudication Workflow QA Suite', () => {
     const task = db.tasks.find((t) => t.developerId === DEVELOPER)!;
     task.status = 'ChangesRequested';
     task.reviewerId = null;
-    task.reviewCycle = 2;
-    task.historicalCycle = 2;
+    task.reviewRound = 2;
+    task.countedCycle = 2;
 
     // Review history with previous cycle comments
     db.reviews = db.reviews.filter((r) => r.taskId !== task.id);
     db.reviews.push({
       id: `rev-${task.id}-1`,
       taskId: task.id,
-      reviewCycle: 1,
+      reviewRound: 1,
       reviewerId: REVIEWER,
       reviewerName: 'Pinsara Chandika',
       comments: [
         {
           id: 'comm-chain-1',
-          reviewCycle: 1,
+          reviewRound: 1,
           text: 'Original reviewer finding: SQL parameter binding missing.',
           screenshots: [],
           createdAt: '2026-09-10T10:00:00.000Z',
@@ -503,7 +503,7 @@ describe('Re-Review Adjudication Workflow QA Suite', () => {
     db.issueResponses.push({
       id: `resp-${task.id}-1-comm-chain-1`,
       taskId: task.id,
-      reviewCycle: 1,
+      reviewRound: 1,
       commentId: 'comm-chain-1',
       screenshotId: null,
       kind: 'Resolved',
@@ -537,24 +537,24 @@ describe('Re-Review Adjudication Workflow QA Suite', () => {
     ).toBeGreaterThanOrEqual(1);
   });
 
-  it('7. ReviewCycleHistory renders Pending as "Pending Adjudication", never "Verdict: Not Accepted"', async () => {
+  it('7. ReviewRoundHistory renders Pending as "Pending Adjudication", never "Verdict: Not Accepted"', async () => {
     const task = db.tasks.find((t) => t.developerId === DEVELOPER)!;
     task.status = 'InReview';
     task.reviewerId = REVIEWER;
-    task.reviewCycle = 2;
-    task.historicalCycle = 2;
+    task.reviewRound = 2;
+    task.countedCycle = 2;
 
     db.reviews = db.reviews.filter((r) => r.taskId !== task.id);
     db.reviews.push({
       id: `rev-${task.id}-1`,
       taskId: task.id,
-      reviewCycle: 1,
+      reviewRound: 1,
       reviewerId: REVIEWER,
       reviewerName: 'Pinsara Chandika',
       comments: [
         {
           id: 'comm-pending-history',
-          reviewCycle: 1,
+          reviewRound: 1,
           text: 'Check memory leak in event listener.',
           screenshots: [],
           createdAt: new Date().toISOString(),
@@ -577,7 +577,7 @@ describe('Re-Review Adjudication Workflow QA Suite', () => {
     db.issueResponses.push({
       id: `resp-${task.id}-1-pending-history`,
       taskId: task.id,
-      reviewCycle: 1,
+      reviewRound: 1,
       commentId: 'comm-pending-history',
       screenshotId: null,
       kind: 'Rejected',
@@ -589,8 +589,8 @@ describe('Re-Review Adjudication Workflow QA Suite', () => {
     renderApp(`/crp/reviewer/tasks/${task.id}`);
 
     // Wait for history section
-    await screen.findByRole('heading', { name: /Review Cycle History/i });
-    await expandSection(/Review Cycle History/i);
+    await screen.findByRole('heading', { name: /Review (Round|Cycle) History/i });
+    await expandSection(/Review (Round|Cycle) History/i);
 
     // Verify it renders "Verdict: Pending Adjudication"
     expect(await screen.findByText(/Verdict: Pending Adjudication/i)).toBeInTheDocument();
@@ -604,8 +604,8 @@ describe('Re-Review Adjudication Workflow QA Suite', () => {
     expect(qaTasks.length).toBe(10);
 
     for (const t of qaTasks) {
-      expect(t.reviewCycle).toBeGreaterThanOrEqual(1);
-      expect(t.historicalCycle).toBeGreaterThanOrEqual(1);
+      expect(t.reviewRound).toBeGreaterThanOrEqual(1);
+      expect(t.countedCycle).toBeGreaterThanOrEqual(1);
 
       const responses = db.issueResponses.filter((r) => r.taskId === t.id);
       for (const resp of responses) {
@@ -628,7 +628,8 @@ describe('Re-Review Adjudication Workflow QA Suite', () => {
 
   it('9. QA-ADJ-CYCLE-DECREMENT: All rejections accepted -> Approval decrements counted cycle by 1', async () => {
     const task = db.tasks.find((t) => t.taskCode === 'QA-ADJ-CYCLE-DECREMENT')!;
-    expect(task.reviewCycle).toBe(2);
+    expect(task.reviewRound).toBe(2);
+    expect(task.countedCycle).toBe(2);
     expect(task.adjustedCycles?.length ?? 0).toBe(0);
 
     renderApp(`/crp/reviewer/tasks/${task.id}`);
@@ -666,17 +667,19 @@ describe('Re-Review Adjudication Workflow QA Suite', () => {
     await waitFor(() => {
       expect(task.status).toBe('Approved');
     });
-    expect(task.reviewCycle).toBe(1);
+    expect(task.countedCycle).toBe(1);
+    expect(task.reviewRound).toBe(2);
     expect(task.adjustedCycles).toContain(1);
 
-    // Historical Cycle 1 record remains intact with reviewCycle: 1
-    const histRev = db.reviews.find((r) => r.taskId === task.id && r.reviewCycle === 1);
+    // Historical Round 1 record remains intact with reviewRound: 1
+    const histRev = db.reviews.find((r) => r.taskId === task.id && r.reviewRound === 1);
     expect(histRev?.decision).toBe('ChangesRequested');
   });
 
   it('10. QA-ADJ-ALL-ACCEPTED-MIXED: Resolved + Rejected accepted -> Approval preserves counted cycle (no decrement)', async () => {
     const task = db.tasks.find((t) => t.taskCode === 'QA-ADJ-ALL-ACCEPTED-MIXED')!;
-    expect(task.reviewCycle).toBe(2);
+    expect(task.reviewRound).toBe(2);
+    expect(task.countedCycle).toBe(2);
 
     renderApp(`/crp/reviewer/tasks/${task.id}`);
 
@@ -705,7 +708,8 @@ describe('Re-Review Adjudication Workflow QA Suite', () => {
     });
 
     // Counted cycle must NOT decrement because actual developer fixes existed
-    expect(task.reviewCycle).toBe(2);
+    expect(task.reviewRound).toBe(2);
+    expect(task.countedCycle).toBe(2);
     expect(task.adjustedCycles?.length ?? 0).toBe(0);
   });
 
@@ -744,23 +748,23 @@ describe('Re-Review Adjudication Workflow QA Suite', () => {
 
   it('12. QA-ADJ-HISTORY: Multi-cycle task renders correct verdicts and explanations in history', async () => {
     const task = db.tasks.find((t) => t.taskCode === 'QA-ADJ-HISTORY')!;
-    expect(task.reviewCycle).toBe(3);
+    expect(task.reviewRound).toBe(3);
 
     renderApp(`/crp/reviewer/tasks/${task.id}`);
 
-    await screen.findByRole('heading', { name: /Review Cycle History/i });
-    await expandSection(/Review Cycle History/i);
+    await screen.findByRole('heading', { name: /Review (Round|Cycle) History/i });
+    await expandSection(/Review (Round|Cycle) History/i);
 
-    // Expand Cycle 1
-    const cycle1Btn = screen.getByRole('button', { name: /Cycle 1/i });
-    await userEvent.click(cycle1Btn);
+    // Expand Round 1
+    const round1Btn = screen.getByRole('button', { name: /Round 1/i });
+    await userEvent.click(round1Btn);
 
-    // Cycle 1 Rejection Accepted
+    // Round 1 Rejection Accepted
     expect(
       (await screen.findAllByText(/Verdict: Rejection Accepted/i)).length,
     ).toBeGreaterThanOrEqual(1);
 
-    // Cycle 2 Not Resolved + Follow-up explanation
+    // Round 2 Not Resolved + Follow-up explanation
     expect((await screen.findAllByText(/Verdict: Not Resolved/i)).length).toBeGreaterThanOrEqual(1);
     expect(
       screen.getAllByText(/Cache eviction is called only on insert, not on update/i).length,
@@ -771,21 +775,21 @@ describe('Re-Review Adjudication Workflow QA Suite', () => {
     const task = db.tasks.find((t) => t.developerId === DEVELOPER)!;
     task.status = 'InReview';
     task.reviewerId = REVIEWER;
-    task.reviewCycle = 2;
-    task.historicalCycle = 2;
+    task.reviewRound = 2;
+    task.countedCycle = 2;
     task.adjustedCycles = [];
 
     db.reviews = db.reviews.filter((r) => r.taskId !== task.id);
     db.reviews.push({
       id: `rev-${task.id}-toggle`,
       taskId: task.id,
-      reviewCycle: 1,
+      reviewRound: 1,
       reviewerId: REVIEWER,
       reviewerName: 'Pinsara Chandika',
       comments: [
         {
           id: 'comm-tog-1',
-          reviewCycle: 1,
+          reviewRound: 1,
           text: 'Fix typo in login header.',
           screenshots: [],
           createdAt: new Date().toISOString(),
@@ -793,7 +797,7 @@ describe('Re-Review Adjudication Workflow QA Suite', () => {
         },
         {
           id: 'comm-tog-2',
-          reviewCycle: 1,
+          reviewRound: 1,
           text: 'Remove obsolete config parameter.',
           screenshots: [],
           createdAt: new Date().toISOString(),
@@ -817,7 +821,7 @@ describe('Re-Review Adjudication Workflow QA Suite', () => {
       {
         id: `resp-${task.id}-tog-1`,
         taskId: task.id,
-        reviewCycle: 1,
+        reviewRound: 1,
         commentId: 'comm-tog-1',
         screenshotId: null,
         kind: 'Resolved',
@@ -828,7 +832,7 @@ describe('Re-Review Adjudication Workflow QA Suite', () => {
       {
         id: `resp-${task.id}-tog-2`,
         taskId: task.id,
-        reviewCycle: 1,
+        reviewRound: 1,
         commentId: 'comm-tog-2',
         screenshotId: null,
         kind: 'Rejected',
@@ -882,20 +886,20 @@ describe('Re-Review Adjudication Workflow QA Suite', () => {
     const task = db.tasks.find((t) => t.developerId === DEVELOPER)!;
     task.status = 'InReview';
     task.reviewerId = REVIEWER;
-    task.reviewCycle = 2;
-    task.historicalCycle = 2;
+    task.reviewRound = 2;
+    task.countedCycle = 2;
 
     db.reviews = db.reviews.filter((r) => r.taskId !== task.id);
     db.reviews.push({
       id: `rev-${task.id}-mand`,
       taskId: task.id,
-      reviewCycle: 1,
+      reviewRound: 1,
       reviewerId: REVIEWER,
       reviewerName: 'Pinsara Chandika',
       comments: [
         {
           id: 'comm-mand-1',
-          reviewCycle: 1,
+          reviewRound: 1,
           text: 'Handle null pointer on input array.',
           screenshots: [],
           createdAt: new Date().toISOString(),
@@ -918,7 +922,7 @@ describe('Re-Review Adjudication Workflow QA Suite', () => {
     db.issueResponses.push({
       id: `resp-${task.id}-mand-1`,
       taskId: task.id,
-      reviewCycle: 1,
+      reviewRound: 1,
       commentId: 'comm-mand-1',
       screenshotId: null,
       kind: 'Resolved',
@@ -969,20 +973,20 @@ describe('Re-Review Adjudication Workflow QA Suite', () => {
     const task = db.tasks.find((t) => t.developerId === DEVELOPER)!;
     task.status = 'InReview';
     task.reviewerId = REVIEWER;
-    task.reviewCycle = 2;
-    task.historicalCycle = 2;
+    task.reviewRound = 2;
+    task.countedCycle = 2;
 
     db.reviews = db.reviews.filter((r) => r.taskId !== task.id);
     db.reviews.push({
       id: `rev-${task.id}-prot`,
       taskId: task.id,
-      reviewCycle: 1,
+      reviewRound: 1,
       reviewerId: REVIEWER,
       reviewerName: 'Pinsara Chandika',
       comments: [
         {
           id: 'comm-prot-1',
-          reviewCycle: 1,
+          reviewRound: 1,
           text: 'Security check on session token.',
           screenshots: [],
           createdAt: new Date().toISOString(),
@@ -1005,7 +1009,7 @@ describe('Re-Review Adjudication Workflow QA Suite', () => {
     db.issueResponses.push({
       id: `resp-${task.id}-prot-1`,
       taskId: task.id,
-      reviewCycle: 1,
+      reviewRound: 1,
       commentId: 'comm-prot-1',
       screenshotId: null,
       kind: 'Resolved',
@@ -1053,20 +1057,20 @@ describe('Re-Review Adjudication Workflow QA Suite', () => {
     const task = db.tasks.find((t) => t.developerId === DEVELOPER)!;
     task.status = 'InReview';
     task.reviewerId = REVIEWER;
-    task.reviewCycle = 2;
-    task.historicalCycle = 2;
+    task.reviewRound = 2;
+    task.countedCycle = 2;
 
     db.reviews = db.reviews.filter((r) => r.taskId !== task.id);
     db.reviews.push({
       id: `rev-${task.id}-edit`,
       taskId: task.id,
-      reviewCycle: 1,
+      reviewRound: 1,
       reviewerId: REVIEWER,
       reviewerName: 'Pinsara Chandika',
       comments: [
         {
           id: 'comm-edit-1',
-          reviewCycle: 1,
+          reviewRound: 1,
           text: 'Review pagination boundary.',
           screenshots: [],
           createdAt: new Date().toISOString(),
@@ -1089,7 +1093,7 @@ describe('Re-Review Adjudication Workflow QA Suite', () => {
     db.issueResponses.push({
       id: `resp-${task.id}-edit-1`,
       taskId: task.id,
-      reviewCycle: 1,
+      reviewRound: 1,
       commentId: 'comm-edit-1',
       screenshotId: null,
       kind: 'Resolved',
@@ -1134,20 +1138,20 @@ describe('Re-Review Adjudication Workflow QA Suite', () => {
     const task = db.tasks.find((t) => t.developerId === DEVELOPER)!;
     task.status = 'InReview';
     task.reviewerId = REVIEWER;
-    task.reviewCycle = 2;
-    task.historicalCycle = 2;
+    task.reviewRound = 2;
+    task.countedCycle = 2;
 
     db.reviews = db.reviews.filter((r) => r.taskId !== task.id);
     db.reviews.push({
       id: `rev-${task.id}-rem`,
       taskId: task.id,
-      reviewCycle: 1,
+      reviewRound: 1,
       reviewerId: REVIEWER,
       reviewerName: 'Pinsara Chandika',
       comments: [
         {
           id: 'comm-rem-1',
-          reviewCycle: 1,
+          reviewRound: 1,
           text: 'Check database index.',
           screenshots: [],
           createdAt: new Date().toISOString(),
@@ -1170,7 +1174,7 @@ describe('Re-Review Adjudication Workflow QA Suite', () => {
     db.issueResponses.push({
       id: `resp-${task.id}-rem-1`,
       taskId: task.id,
-      reviewCycle: 1,
+      reviewRound: 1,
       commentId: 'comm-rem-1',
       screenshotId: null,
       kind: 'Resolved',

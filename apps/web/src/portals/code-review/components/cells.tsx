@@ -34,7 +34,7 @@ export function TitleCell({ title, className }: { title: string; className?: str
   return (
     <span
       className={cn(
-        'flex w-[200px] max-w-[200px] min-w-0 items-center gap-2 sm:w-[240px] sm:max-w-[240px] xl:w-[320px] xl:max-w-[320px]',
+        'flex min-w-0 max-w-full items-center gap-2',
         className,
       )}
     >
@@ -68,7 +68,7 @@ export function StatusCell({
   className?: string;
 }) {
   return (
-    <span className={cn('flex flex-wrap items-center gap-1.5', className)}>
+    <span className={cn('inline-flex flex-col items-start gap-1', className)}>
       <StatusBadge status={status} />
       <CycleBadge cycle={cycle} />
     </span>
@@ -78,7 +78,7 @@ export function StatusCell({
 /** Emphasised date, as the grids draw the Created column. */
 export function DateCell({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <span className={cn('text-sm font-medium text-brand-blue-700', className)}>{children}</span>
+    <span className={cn('text-sm font-medium whitespace-nowrap text-brand-blue-700', className)}>{children}</span>
   );
 }
 

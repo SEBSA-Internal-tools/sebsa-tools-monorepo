@@ -126,7 +126,7 @@ describe('reviewer hands a task back', () => {
     // Reviewer cleared, and the cycle is untouched — BLOM-010 is on cycle 1 and
     // a handover is not a completed review round.
     expect(within(row).getByText('Unassigned')).toBeInTheDocument();
-    expect(within(row).getByText('1')).toBeInTheDocument();
+    expect(within(row).getByText(/Cycle 1/)).toBeInTheDocument();
   });
 
   it('keeps the task OUT of the open Available queue while it waits', async () => {

@@ -39,8 +39,8 @@ beforeEach(() => {
   if (task) {
     task.status = 'InReview';
     task.reviewerId = REVIEWER;
-    task.reviewCycle = 1;
-    task.historicalCycle = 1;
+    task.reviewRound = 1;
+    task.countedCycle = 1;
     task.adjustedCycles = [];
     task.isHandedOver = false;
     task.currentReviewSessionId = null;
@@ -121,14 +121,14 @@ describe('POST-HANDOVER REVIEWER UX QA SUITE', () => {
     task.status = 'Submitted';
     task.reviewerId = null;
     task.isHandedOver = true;
-    task.historicalCycle = 2; // Physical Review Round
-    task.reviewCycle = 1; // Counted cycle after adjustment
+    task.reviewRound = 2; // Physical Review Round
+    task.countedCycle = 1; // Counted cycle after adjustment
 
     db.events.push({
       id: 'e-ho-1',
       taskId: TARGET_TASK,
       kind: 'HandedOver',
-      reviewCycle: 1,
+      reviewRound: 1,
       actorId: REVIEWER,
       actorName: 'Pinsara Chandika',
       note: 'Need domain expert on bloom filter hashing',
@@ -142,12 +142,12 @@ describe('POST-HANDOVER REVIEWER UX QA SUITE', () => {
     const summaryCard = screen.getByTestId('handed-over-summary');
     expect(screen.getAllByText('Review Handed Over').length).toBeGreaterThanOrEqual(1);
 
-    // Verify Review Round is Cycle 2 and Counted Cycle is 1 (distinct!)
-    expect(within(summaryCard).getByText('Review Round').nextElementSibling).toHaveTextContent(
-      'Cycle 2',
+    // Verify Round is Round 2 and Counted Cycle is Cycle 1 (distinct!)
+    expect(within(summaryCard).getByText('Round').nextElementSibling).toHaveTextContent(
+      'Round 2',
     );
     expect(within(summaryCard).getByText('Counted Cycle').nextElementSibling).toHaveTextContent(
-      '1',
+      'Cycle 1',
     );
 
     // Verify metadata from HandedOver event
@@ -272,7 +272,7 @@ describe('POST-HANDOVER REVIEWER UX QA SUITE', () => {
     });
 
     // Check review draft in DB
-    const review = db.reviews.find((r) => r.taskId === TARGET_TASK && r.reviewCycle === 1);
+    const review = db.reviews.find((r) => r.taskId === TARGET_TASK && r.reviewRound === 1);
     expect(review).toBeDefined();
     expect(review?.rank).toBeNull();
     expect(review?.comments).toHaveLength(1);

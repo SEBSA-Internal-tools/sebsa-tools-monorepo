@@ -36,6 +36,8 @@ import { RenameScreenshotDialog } from './RenameScreenshotDialog.tsx';
 export interface ReviewerAssessmentProps {
   draft: ReviewDraft;
   taskCode?: string | undefined;
+  reviewRound?: number | undefined;
+  /** Legacy alias for reviewRound */
   reviewCycle?: number | undefined;
   currentUserId?: string | undefined;
   onChange: (draft: ReviewDraft) => void;
@@ -90,6 +92,7 @@ const RANK_CARDS: {
 export function ReviewerAssessment({
   draft,
   taskCode,
+  reviewRound,
   reviewCycle,
   currentUserId,
   currentReviewSessionId,
@@ -106,6 +109,7 @@ export function ReviewerAssessment({
   hasUnresolvedIssues = false,
   readOnly = false,
 }: ReviewerAssessmentProps) {
+  const activeRound = reviewRound ?? reviewCycle ?? 1;
   const currentSaveStatus = saveStatus ?? autosaveStatus;
   const [lightboxShot, setLightboxShot] = useState<ReviewScreenshot | null>(null);
   const [lightboxShots, setLightboxShots] = useState<readonly ReviewScreenshot[]>([]);
@@ -181,7 +185,7 @@ export function ReviewerAssessment({
     setForceValidation(false);
     const newComment: ReviewComment = {
       id: `rc-${Date.now()}-${comments.length + 1}`,
-      reviewCycle: reviewCycle ?? 1,
+      reviewRound: activeRound,
       reviewerId: effectiveUserId,
       reviewerName: currentUser?.name,
       reviewSessionId: effectiveSessionId,

@@ -35,7 +35,7 @@ describe('seed and persisted data', () => {
   it('seeds the formerly Delivered task as Approved with its approving review', () => {
     const task = db.tasks.find((t) => t.id === FORMERLY_DELIVERED)!;
     expect(task.status).toBe('Approved');
-    expect(findReview(task.id, task.reviewCycle)?.decision).toBe('Approved');
+    expect(findReview(task.id, task.reviewRound)?.decision).toBe('Approved');
   });
 
   it('migrates a saved browser snapshot holding a Delivered task instead of discarding it', () => {
@@ -77,11 +77,9 @@ describe('status filters offer only Code Review statuses', () => {
     );
   });
 
-  it('Admin Reports offers no Delivered filter and shows four status count cards', async () => {
-    const { user } = renderApp('/crp/admin/reports', USERS.adminOnly);
-    const options = await statusOptions(user);
-    expect(options).toHaveLength(TASK_STATUSES.length + 1);
-    expect(options.some((o) => /deliver/i.test(o))).toBe(false);
+  it('Admin Reports offers no Delivered or Status filter and shows four status count cards', async () => {
+    renderApp('/crp/admin/reports', USERS.adminOnly);
+    expect(screen.queryByRole('combobox', { name: /^status$/i })).not.toBeInTheDocument();
 
     const page = await screen.findByRole('region', { name: 'Reports & Analytics' });
     const captions = [

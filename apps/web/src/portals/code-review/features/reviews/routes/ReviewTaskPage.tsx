@@ -52,7 +52,9 @@ import { PageContainer } from '@/components/common/PageContainer.tsx';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog.tsx';
 import { ReviewDecisionDialog } from '../components/ReviewDecisionDialog.tsx';
 import { getReviewerReturnDestination } from '../domain/reviewerNavigation.ts';
-import { resolveActiveReviewCycle } from '../domain/reviewRules.ts';
+import {
+  resolveActiveReviewRound,
+} from '../domain/reviewRules.ts';
 
 import {
   AUTOSAVE_DELAY_MS,
@@ -66,6 +68,8 @@ export interface ReviewFormSectionProps {
   currentUserId?: string | undefined;
   currentReviewSessionId?: string | undefined;
   taskCode?: string | undefined;
+  reviewRound?: number | undefined;
+  /** Legacy alias for reviewRound */
   reviewCycle?: number | undefined;
   onSaveDraft?: (draft: ReviewDraft) => Promise<unknown> | void;
   onDraftChange?: (draft: ReviewDraft) => void;
@@ -85,6 +89,7 @@ export function ReviewFormSection({
   currentUserId,
   currentReviewSessionId,
   taskCode,
+  reviewRound,
   reviewCycle,
   onSaveDraft,
   onDraftChange,
@@ -241,7 +246,8 @@ export function ReviewFormSection({
     <ReviewerAssessment
       draft={draft}
       taskCode={taskCode}
-      reviewCycle={reviewCycle ?? review?.reviewCycle ?? 1}
+      reviewRound={reviewRound ?? review?.reviewRound ?? reviewCycle ?? 1}
+      reviewCycle={reviewRound ?? review?.reviewRound ?? reviewCycle ?? 1}
       currentUserId={currentUserId}
       currentReviewSessionId={currentReviewSessionId}
       onChange={handleDraftChange}
@@ -289,7 +295,8 @@ export function ReviewTaskPage() {
   const [decisionToConfirm, setDecisionToConfirm] = useState<{
     decision: ReviewDecision;
     draft: ReviewDraft;
-    reviewCycle: number;
+    reviewRound: number;
+    reviewCycle?: number;
   } | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [lastSavedSnapshot, setLastSavedSnapshot] = useState('');
@@ -305,10 +312,11 @@ export function ReviewTaskPage() {
       setDecisionToConfirm({
         decision,
         draft,
-        reviewCycle: task?.historicalCycle ?? task?.reviewCycle ?? 1,
+        reviewRound: task?.reviewRound ?? 1,
+        reviewCycle: task?.reviewRound ?? 1,
       });
     },
-    [task?.historicalCycle, task?.reviewCycle],
+    [task?.reviewRound],
   );
 
   // A different task starts from a clean slate (adjusted during render).
@@ -487,8 +495,8 @@ export function ReviewTaskPage() {
     return (history ?? [])
       .filter((entry) => entry.decision !== null && entry.decidedAt !== null)
       .sort((a, b) => {
-        if (b.reviewCycle !== a.reviewCycle) {
-          return b.reviewCycle - a.reviewCycle;
+        if (b.reviewRound !== a.reviewRound) {
+          return b.reviewRound - a.reviewRound;
         }
         return (b.decidedAt ?? '').localeCompare(a.decidedAt ?? '');
       });
@@ -498,8 +506,8 @@ export function ReviewTaskPage() {
     return (history ?? [])
       .filter((entry) => entry.decision !== null || (entry.responses && entry.responses.length > 0))
       .sort((a, b) => {
-        if (b.reviewCycle !== a.reviewCycle) {
-          return b.reviewCycle - a.reviewCycle;
+        if (b.reviewRound !== a.reviewRound) {
+          return b.reviewRound - a.reviewRound;
         }
         return (b.decidedAt ?? '').localeCompare(a.decidedAt ?? '');
       });
@@ -536,7 +544,7 @@ export function ReviewTaskPage() {
 
   const isReReview =
     completedHistory.length > 0 ||
-    (task.historicalCycle != null && task.historicalCycle > 1) ||
+    (task.reviewRound != null && task.reviewRound > 1) ||
     task.status === 'ReSubmitted';
 
   const isHandedOver = Boolean(task.isHandedOver) || isTransitioningAfterHandover;
@@ -547,14 +555,14 @@ export function ReviewTaskPage() {
   const isModeD = !isHandedOver && task.status === 'InReview' && Boolean(isEditable) && isReReview;
   const isModeA = !isHandedOver && task.status === 'InReview' && Boolean(isEditable) && !isReReview;
 
-  const activeCycle = resolveActiveReviewCycle(task, history ?? []);
+  const activeRound = resolveActiveReviewRound(task, history ?? []);
   const currentResponses = responses ?? [];
-  const cycleResponses = isReReview
-    ? currentResponses.some((r) => r.reviewCycle === activeCycle)
-      ? currentResponses.filter((r) => r.reviewCycle === activeCycle)
+  const roundResponses = isReReview
+    ? currentResponses.some((r) => r.reviewRound === activeRound)
+      ? currentResponses.filter((r) => r.reviewRound === activeRound)
       : currentResponses.filter((r) => {
           const lastCompleted = completedHistory[0];
-          return lastCompleted ? r.reviewCycle === lastCompleted.reviewCycle : true;
+          return lastCompleted ? r.reviewRound === lastCompleted.reviewRound : true;
         })
     : [];
 
@@ -562,17 +570,17 @@ export function ReviewTaskPage() {
 
   const hasPendingAdjudication =
     isReReview &&
-    cycleResponses.length > 0 &&
-    (cycleResponses.some((r) => !r.verdict || r.verdict === 'Pending') ||
+    roundResponses.length > 0 &&
+    (roundResponses.some((r) => !r.verdict || r.verdict === 'Pending') ||
       hasActiveAdjudicationDrafts);
 
-  const hasUnresolvedIssues = isReReview && cycleResponses.some((r) => r.verdict === 'Overruled');
+  const hasUnresolvedIssues = isReReview && roundResponses.some((r) => r.verdict === 'Overruled');
 
   const allRejectionsAccepted =
     isReReview &&
-    cycleResponses.length > 0 &&
-    cycleResponses.every((r) => r.kind === 'Rejected' && r.verdict === 'Accepted') &&
-    cycleResponses.every((r) => r.kind !== 'Resolved');
+    roundResponses.length > 0 &&
+    roundResponses.every((r) => r.kind === 'Rejected' && r.verdict === 'Accepted') &&
+    roundResponses.every((r) => r.kind !== 'Resolved');
 
   const hasPendingRejections = hasPendingAdjudication;
 
@@ -622,7 +630,8 @@ export function ReviewTaskPage() {
       taskId={task.id}
       history={history ?? []}
       responses={responses ?? []}
-      activeCycle={activeCycle}
+      activeRound={activeRound}
+      activeCycle={activeRound}
       onUpdateVerdict={(responseId, verdict, reviewerComment) => {
         updateVerdict.mutate({ responseId, verdict, reviewerComment });
       }}
@@ -634,14 +643,15 @@ export function ReviewTaskPage() {
 
   const assessmentSection = (
     <ReviewFormSection
-      key={`${task.id}-${String(task.historicalCycle ?? task.reviewCycle)}-${task?.currentReviewSessionId ?? current?.currentReviewSessionId ?? 'open'}`}
+      key={`${task.id}-${String(task.reviewRound)}-${task?.currentReviewSessionId ?? current?.currentReviewSessionId ?? 'open'}`}
       review={current ?? null}
       currentUserId={user?.id}
       currentReviewSessionId={
         task?.currentReviewSessionId ?? current?.currentReviewSessionId ?? undefined
       }
       taskCode={task.taskCode}
-      reviewCycle={task.historicalCycle ?? task.reviewCycle ?? 1}
+      reviewRound={task.reviewRound ?? 1}
+      reviewCycle={task.reviewRound ?? 1}
       onSaveDraft={handleAutoSave}
       onDraftChange={handleDraftChange}
       onManualSaveDraft={handleManualSave}
@@ -667,7 +677,7 @@ export function ReviewTaskPage() {
       collapsible
       defaultExpanded={false}
       resetKey={task.id}
-      summary={`${completedHistory.length} completed ${completedHistory.length === 1 ? 'cycle' : 'cycles'}`}
+      summary={`${completedHistory.length} completed ${completedHistory.length === 1 ? 'round' : 'rounds'}`}
     >
       <CardHeader
         title={reviews.form.historyTitle}
@@ -675,7 +685,7 @@ export function ReviewTaskPage() {
         icon={<History className="size-4" />}
       />
       <CardBody className="pt-4">
-        <ReviewCycleHistory entries={historyEntries} countedCycle={task.reviewCycle} />
+        <ReviewCycleHistory entries={historyEntries} countedCycle={task.countedCycle} />
       </CardBody>
     </Card>
   );
@@ -754,7 +764,8 @@ export function ReviewTaskPage() {
           open={decisionToConfirm !== null}
           decision={decisionToConfirm.decision}
           draft={decisionToConfirm.draft}
-          reviewCycle={decisionToConfirm.reviewCycle}
+          reviewRound={decisionToConfirm.reviewRound}
+          reviewCycle={decisionToConfirm.reviewRound}
           onConfirm={async () => {
             await handleDecide(decisionToConfirm.decision, decisionToConfirm.draft);
           }}

@@ -14,7 +14,7 @@ import { cn } from '@/components/ui';
 import { RankBadge, StatusBadge, Tag } from '@/portals/code-review/components/badges.tsx';
 import { ScreenshotPreviewCard } from '@/portals/code-review/components/ScreenshotPreviewCard.tsx';
 import { ImageLightboxModal } from '@/portals/code-review/components/ImageLightboxModal.tsx';
-import { formatDateTime, interpolate, textOr } from '@/lib/formatters.ts';
+import { formatDateTime, textOr } from '@/lib/formatters.ts';
 import reviews from '@/content/reviews.json';
 
 /**
@@ -84,10 +84,10 @@ export function ReviewCycleHistory({
   defaultAllCollapsed = false,
   className,
 }: ReviewCycleHistoryProps) {
-  // Sort descending: highest cycle number first, then latest decidedAt
+  // Sort descending: highest round number first, then latest decidedAt
   const ordered = [...entries].sort((a, b) => {
-    if (b.reviewCycle !== a.reviewCycle) {
-      return b.reviewCycle - a.reviewCycle;
+    if (b.reviewRound !== a.reviewRound) {
+      return b.reviewRound - a.reviewRound;
     }
     return (b.decidedAt ?? '').localeCompare(a.decidedAt ?? '');
   });
@@ -154,7 +154,7 @@ export function ReviewCycleHistory({
           </Tag>
           {countedCycle !== undefined && (
             <Tag className="bg-violet-100 text-xs font-medium text-violet-800">
-              Counted Cycle: {countedCycle}
+              Counted Cycle: Cycle {countedCycle}
             </Tag>
           )}
         </div>
@@ -260,7 +260,7 @@ export function ReviewCycleHistory({
                 >
                   <div className="flex min-w-0 flex-wrap items-center gap-2">
                     <Tag className="bg-violet-100 text-xs font-bold text-violet-700">
-                      {interpolate(reviews.form.cycleLabel, { cycle: entry.reviewCycle })}
+                      Round {entry.reviewRound}
                     </Tag>
 
                     {entry.decision !== null ? (
@@ -361,7 +361,7 @@ export function ReviewCycleHistory({
                                     )}
                                     {isFollowUp && (
                                       <Tag className="text-2xs border-indigo-200 bg-indigo-50 font-semibold text-indigo-700">
-                                        Follow-Up from Cycle {comment.reviewCycle}
+                                        Follow-Up from Round {comment.reviewRound}
                                       </Tag>
                                     )}
                                     {isPreviousAuthor && !isFollowUp && (
@@ -551,3 +551,7 @@ export function ReviewCycleHistory({
     </div>
   );
 }
+
+/** Canonical domain name alias for ReviewCycleHistory */
+export const ReviewRoundHistory = ReviewCycleHistory;
+

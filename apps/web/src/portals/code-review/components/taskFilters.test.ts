@@ -18,8 +18,8 @@ function task(overrides: Partial<TaskListItem> & { status: TaskStatus }): TaskLi
     version: null,
     customerId: 'c-aasl',
     priority: 'Medium',
-    reviewCycle: 1,
-    historicalCycle: 1,
+    reviewRound: 1,
+    countedCycle: 1,
     adjustedCycles: [],
     developerId: 'u-dev',
     reviewerId: null,
@@ -129,9 +129,9 @@ describe('filterTasks — bucket', () => {
 describe('filterTasks — existing dimensions still hold', () => {
   it('buckets cycle 3 and above together', () => {
     const rows = [
-      task({ id: 'one', status: 'Draft', reviewCycle: 1 }),
-      task({ id: 'three', status: 'Draft', reviewCycle: 3 }),
-      task({ id: 'nine', status: 'Draft', reviewCycle: 9 }),
+      task({ id: 'one', status: 'Draft', reviewRound: 1 }),
+      task({ id: 'three', status: 'Draft', reviewRound: 3 }),
+      task({ id: 'nine', status: 'Draft', reviewRound: 9 }),
     ];
 
     const kept = filterTasks(rows, { ...EMPTY_TASK_FILTERS, cycle: '3+' });

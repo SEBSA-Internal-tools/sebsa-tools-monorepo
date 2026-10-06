@@ -46,10 +46,13 @@ export function TaskInformationCard({
   const reviewerName = 'reviewerName' in task ? task.reviewerName : null;
 
   const round =
-    'historicalCycle' in task && typeof task.historicalCycle === 'number'
-      ? task.historicalCycle
-      : task.reviewCycle;
-  const counted = task.reviewCycle;
+    'reviewRound' in task && typeof task.reviewRound === 'number'
+      ? task.reviewRound
+      : 1;
+  const counted =
+    'countedCycle' in task && typeof task.countedCycle === 'number'
+      ? task.countedCycle
+      : 1;
   const adjustment = Math.max(0, round - counted);
   const peopleFields =
     previousReviewerName === undefined
@@ -149,7 +152,7 @@ export function TaskInformationCard({
                 <span>{tasksContent.detail.fields.reviewRound}</span>
                 <InfoTooltip content={tasksContent.detail.tooltips.reviewRound} />
               </dt>
-              <dd className="mt-1 font-semibold text-ink-900">Cycle {round}</dd>
+              <dd className="mt-1 font-semibold text-ink-900">Round {round}</dd>
             </div>
             <div>
               <dt className="flex items-center gap-1 font-medium text-ink-400">
@@ -157,7 +160,7 @@ export function TaskInformationCard({
                 <InfoTooltip content={tasksContent.detail.tooltips.countedCycle} />
               </dt>
               <dd className="mt-1 flex items-center gap-1.5 font-semibold text-ink-900">
-                <span>{counted}</span>
+                <span>Cycle {counted}</span>
                 {adjustment > 0 ? (
                   <span
                     className="inline-flex items-center rounded-md border border-emerald-200/70 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 shadow-2xs"

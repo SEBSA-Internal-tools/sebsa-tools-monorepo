@@ -15,7 +15,7 @@ function review(overrides: Partial<Review> = {}): Review {
   return {
     id: 'rev-1',
     taskId: 't-1',
-    reviewCycle: 1,
+    reviewRound: 1,
     reviewerId: 'u-rev',
     reviewerName: 'Reviewer',
     comments: [],
@@ -95,7 +95,7 @@ describe('issuesFromReview', () => {
       comments: [
         {
           id: 'c-prev',
-          reviewCycle: 1,
+          reviewRound: 1,
           reviewerId: 'u-initial',
           text: 'Handover comment from first reviewer',
           screenshots: [],
@@ -103,7 +103,7 @@ describe('issuesFromReview', () => {
         },
         {
           id: 'c-final',
-          reviewCycle: 1,
+          reviewRound: 1,
           reviewerId: 'u-final',
           text: 'Actionable defect from final reviewer',
           screenshots: [],
@@ -119,13 +119,13 @@ describe('issuesFromReview', () => {
   });
 
   it('carries forward unresolved findings when reviewer overrules developer fix in a re-review with 0 new comments', () => {
-    const cycle1Review = review({
-      reviewCycle: 1,
+    const round1Review = review({
+      reviewRound: 1,
       decision: 'ChangesRequested',
       comments: [
         {
           id: 'c-1',
-          reviewCycle: 1,
+          reviewRound: 1,
           reviewerId: 'u-rev',
           text: 'Fix JWT expiration',
           screenshots: [],
@@ -134,8 +134,8 @@ describe('issuesFromReview', () => {
       ],
     });
 
-    const cycle2Review = review({
-      reviewCycle: 2,
+    const round2Review = review({
+      reviewRound: 2,
       decision: 'ChangesRequested',
       comments: [], // Reviewer added NO new comments, only marked c-1 Not Resolved
     });
@@ -144,7 +144,7 @@ describe('issuesFromReview', () => {
       {
         id: 'resp-1',
         taskId: 't-1',
-        reviewCycle: 1,
+        reviewRound: 1,
         commentId: 'c-1',
         kind: 'Resolved' as const,
         rejectionReason: null,
@@ -154,7 +154,7 @@ describe('issuesFromReview', () => {
       },
     ];
 
-    const issues = issuesFromReview(cycle2Review, [cycle1Review], responses);
+    const issues = issuesFromReview(round2Review, [round1Review], responses);
     expect(issues).toHaveLength(1);
     expect(issues[0]?.commentId).toBe('c-1');
     expect(issues[0]?.detail).toBe('Fix JWT expiration');
@@ -164,13 +164,13 @@ describe('issuesFromReview', () => {
   });
 
   it('does NOT carry forward findings that were accepted or verified by reviewer', () => {
-    const cycle1Review = review({
-      reviewCycle: 1,
+    const round1Review = review({
+      reviewRound: 1,
       decision: 'ChangesRequested',
       comments: [
         {
           id: 'c-1',
-          reviewCycle: 1,
+          reviewRound: 1,
           reviewerId: 'u-rev',
           text: 'Fix CSS styling',
           screenshots: [],
@@ -179,15 +179,15 @@ describe('issuesFromReview', () => {
       ],
     });
 
-    const cycle2Review = review({
-      reviewCycle: 2,
+    const round2Review = review({
+      reviewRound: 2,
       decision: 'ChangesRequested',
       comments: [
         {
           id: 'c-2',
-          reviewCycle: 2,
+          reviewRound: 2,
           reviewerId: 'u-rev',
-          text: 'New finding in cycle 2',
+          text: 'New finding in round 2',
           screenshots: [],
           createdAt: '2026-09-10T12:00:00Z',
         },
@@ -198,7 +198,7 @@ describe('issuesFromReview', () => {
       {
         id: 'resp-1',
         taskId: 't-1',
-        reviewCycle: 1,
+        reviewRound: 1,
         commentId: 'c-1',
         kind: 'Resolved' as const,
         rejectionReason: null,
@@ -208,15 +208,15 @@ describe('issuesFromReview', () => {
       },
     ];
 
-    const issues = issuesFromReview(cycle2Review, [cycle1Review], responses);
+    const issues = issuesFromReview(round2Review, [round1Review], responses);
     expect(issues).toHaveLength(1);
     expect(issues[0]?.commentId).toBe('c-2');
     expect(issues[0]?.isFollowUp).toBeUndefined();
   });
-  it('follows the LATEST verdict when a finding was adjudicated in more than one cycle', () => {
+  it('follows the LATEST verdict when a finding was adjudicated in more than one round', () => {
     const c1 = {
       id: 'c-1',
-      reviewCycle: 1,
+      reviewRound: 1,
       reviewerId: 'u-rev',
       text: 'Fix the retry loop',
       screenshots: [],
@@ -224,23 +224,23 @@ describe('issuesFromReview', () => {
     };
     // History arrives newest-first; the rule must order it itself.
     const history = [
-      review({ reviewCycle: 2, decision: 'ChangesRequested', comments: [] }),
-      review({ reviewCycle: 1, decision: 'ChangesRequested', comments: [c1] }),
+      review({ reviewRound: 2, decision: 'ChangesRequested', comments: [] }),
+      review({ reviewRound: 1, decision: 'ChangesRequested', comments: [c1] }),
     ];
-    const current = review({ reviewCycle: 3, decision: 'ChangesRequested', comments: [] });
-    const verdict = (reviewCycle: number, v: 'Accepted' | 'Overruled') => ({
-      id: `resp-${String(reviewCycle)}`,
+    const current = review({ reviewRound: 3, decision: 'ChangesRequested', comments: [] });
+    const verdict = (reviewRound: number, v: 'Accepted' | 'Overruled') => ({
+      id: `resp-${String(reviewRound)}`,
       taskId: 't-1',
-      reviewCycle,
+      reviewRound,
       commentId: 'c-1',
       kind: 'Resolved' as const,
       rejectionReason: null,
       verdict: v,
       reviewerComment: v === 'Overruled' ? 'Still loops' : null,
-      respondedAt: `2026-09-1${String(reviewCycle)}T10:00:00Z`,
+      respondedAt: `2026-09-1${String(reviewRound)}T10:00:00Z`,
     });
 
-    // Overruled, then verified in a later cycle: settled, nothing carries forward.
+    // Overruled, then verified in a later round: settled, nothing carries forward.
     expect(
       issuesFromReview(current, history, [verdict(1, 'Overruled'), verdict(2, 'Accepted')]),
     ).toEqual([]);
@@ -252,7 +252,7 @@ describe('issuesFromReview', () => {
     ]);
     expect(reopened.map((issue) => issue.commentId)).toEqual(['c-1']);
     expect(reopened[0]?.isFollowUp).toBe(true);
-    expect(reopened[0]?.originCycle).toBe(1);
+    expect(reopened[0]?.originRound).toBe(1);
   });
 });
 
@@ -343,7 +343,7 @@ describe('resubmitReadiness', () => {
 describe('issuesFromReview — comment selection and history', () => {
   const note = (id: string, extra: Partial<ReviewComment> = {}): ReviewComment => ({
     id,
-    reviewCycle: 1,
+    reviewRound: 1,
     text: `Finding ${id}`,
     screenshots: [],
     createdAt: '2026-09-10T10:00:00Z',
@@ -373,12 +373,12 @@ describe('issuesFromReview — comment selection and history', () => {
   });
 
   it('does not repeat a prior finding the reviewer re-authored in this review', () => {
-    const prior = review({ reviewCycle: 1, comments: [note('c-1')] });
-    const current = review({ reviewCycle: 2, comments: [note('c-1', { reviewCycle: 2 })] });
+    const prior = review({ reviewRound: 1, comments: [note('c-1')] });
+    const current = review({ reviewRound: 2, comments: [note('c-1', { reviewRound: 2 })] });
     const overruled: IssueResponseRecord = {
       id: 'r-1',
       taskId: 't-1',
-      reviewCycle: 1,
+      reviewRound: 1,
       commentId: 'c-1',
       kind: 'Resolved',
       rejectionReason: null,
@@ -390,11 +390,11 @@ describe('issuesFromReview — comment selection and history', () => {
     expect(issues[0]?.isFollowUp).toBeUndefined();
   });
 
-  it('reads verdicts embedded in history entries and breaks same-cycle ties by time', () => {
+  it('reads verdicts embedded in history entries and breaks same-round ties by time', () => {
     const verdict = (id: string, v: 'Accepted' | 'Overruled', at: string): IssueResponseRecord => ({
       id,
       taskId: 't-1',
-      reviewCycle: 1,
+      reviewRound: 1,
       commentId: 'c-1',
       kind: 'Rejected',
       rejectionReason: 'Out of scope',
@@ -402,14 +402,14 @@ describe('issuesFromReview — comment selection and history', () => {
       respondedAt: at,
     });
     const prior = {
-      ...review({ reviewCycle: 1, comments: [note('c-1')] }),
-      // A later Overruled at the same cycle wins over the earlier Accepted.
+      ...review({ reviewRound: 1, comments: [note('c-1')] }),
+      // A later Overruled at the same round wins over the earlier Accepted.
       responses: [
         verdict('a', 'Accepted', '2026-09-11T09:00:00Z'),
         verdict('b', 'Overruled', '2026-09-11T11:00:00Z'),
       ],
     };
-    const issues = issuesFromReview(review({ reviewCycle: 2 }), [prior]);
+    const issues = issuesFromReview(review({ reviewRound: 2 }), [prior]);
     expect(issues.map((issue) => issue.commentId)).toEqual(['c-1']);
     expect(issues[0]?.previousResponseKind).toBe('Rejected');
     expect(issues[0]?.previousRejectionReason).toBe('Out of scope');

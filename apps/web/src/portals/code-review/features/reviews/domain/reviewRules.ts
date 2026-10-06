@@ -222,9 +222,9 @@ export function canApprove(input: ReviewReadinessInput): boolean {
 /* -------------------------------------------------------------------------- */
 
 /**
- * The next review cycle after a decision (effective cycle).
+ * The next counted review cycle after a decision (business / effective cycle).
  */
-export function nextReviewCycle(
+export function nextCountedCycle(
   currentCycle: number,
   decision: ReviewDecision,
   options: { acceptedRejections?: number; countAcceptedRejections?: boolean } = {},
@@ -237,9 +237,15 @@ export function nextReviewCycle(
   return acceptedRejections > 0 ? currentCycle : currentCycle + 1;
 }
 
+/** Legacy alias for nextCountedCycle */
+export const nextReviewCycle = nextCountedCycle;
+
 export {
+  createRoundResponseId,
   createCycleResponseId,
+  nextReviewRound,
   nextHistoricalReviewCycle,
+  resolveActiveReviewRound,
   resolveActiveReviewCycle,
 } from '@/lib/reviewCycles.ts';
 

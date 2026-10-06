@@ -172,8 +172,8 @@ export function RoleBadges({
 /* -------------------------------------------------------------------------- */
 
 /**
- * Secondary badge shown beside the status once a task has been round-tripped.
- * Cycle 1 is the norm and carries no badge — showing it on every row would make
+ * Secondary badge shown beside the status once a task has entered Round 2+.
+ * Round 1 is the norm and carries no badge — showing it on every row would make
  * the meaningful cases harder to spot.
  */
 export function CycleBadge({ cycle, className }: { cycle: number; className?: string }) {
@@ -181,9 +181,9 @@ export function CycleBadge({ cycle, className }: { cycle: number; className?: st
   return (
     <span
       className={cn(BADGE_BASE, 'border-violet-200/60 bg-violet-100/80 text-violet-700', className)}
-      title={`Counted Cycle: ${cycle}`}
+      title={`Round: ${cycle}`}
     >
-      {common.badges.cycle} {cycle}
+      Round {cycle}
     </span>
   );
 }
@@ -200,7 +200,7 @@ export function ReviewRoundBadge({ round, className }: { round: number; classNam
         'border-violet-200/70 bg-violet-100/90 font-semibold text-violet-700',
         className,
       )}
-      title="The current review round. Historical review records preserve their original round numbers."
+      title="The actual chronological review attempt sequence."
     >
       Round {round}
     </span>
@@ -208,7 +208,7 @@ export function ReviewRoundBadge({ round, className }: { round: number; classNam
 }
 
 /**
- * Badge representing the counted cycle used for developer performance.
+ * Badge representing the counted cycle used for business reporting.
  */
 export function CountedCycleBadge({
   counted,
@@ -221,8 +221,8 @@ export function CountedCycleBadge({
 }) {
   const tooltip =
     adjustment > 0
-      ? `The cycle count used for developer performance (${counted}). Reduced by ${adjustment} because all developer rejections were accepted.`
-      : 'The cycle count used for developer performance. This may be lower if a review cycle was excluded after all rejected comments were accepted.';
+      ? `The cycle count used for business reporting (${counted}). Reduced by ${adjustment} because all developer rejections were accepted.`
+      : 'The cycle count used for business reporting. This may be lower if a review round was excluded after all rejected comments were accepted.';
 
   return (
     <span
@@ -233,7 +233,7 @@ export function CountedCycleBadge({
       )}
       title={tooltip}
     >
-      Counted {counted}
+      Cycle {counted}
     </span>
   );
 }

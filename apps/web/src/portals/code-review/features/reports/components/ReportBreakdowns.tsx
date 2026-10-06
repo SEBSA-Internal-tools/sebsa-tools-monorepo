@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import type { Customer, Review, TaskListItem, User } from '@sdp/contracts';
-import { CustomerChip, Tag } from '@/portals/code-review/components/badges.tsx';
+import type { Review, TaskListItem, User } from '@sdp/contracts';
+import { Tag } from '@/portals/code-review/components/badges.tsx';
 import { DonutChart } from '@/components/common/charts/DonutChart.tsx';
 import { MetricBar } from '@/components/common/charts/MetricBar.tsx';
 import { Avatar } from '@/components/common/Avatar.tsx';
@@ -10,16 +10,15 @@ import { interpolate } from '@/lib/formatters.ts';
 import admin from '@/content/admin.json';
 import common from '@/content/common.json';
 import {
-  customerOverview,
   developerPerformance,
   reviewerActivity,
 } from '../domain/reportMetrics.ts';
 import { cycleSlices, rankSlices } from './reportPalette.ts';
 
 /**
- * The three sub-tabs beneath the KPI cards (screens 04, 05, 06).
+ * The performance sub-tabs beneath the KPI cards (screens 04, 05).
  *
- * All three are lists of people or customers with a few metrics each, so they
+ * Both are lists of developers or reviewers with a few metrics each, so they
  * share the card shell and the search box; only the metrics differ. Every number
  * comes from `domain/reportMetrics.ts` — nothing is computed in this file, which
  * is what keeps the figures unit-tested.
@@ -124,7 +123,10 @@ export function DeveloperPanel({
   users: readonly User[];
 }) {
   const [search, setSearch] = useState('');
-  const rows = developerPerformance(tasks, reviews, users);
+  const rows = developerPerformance(tasks, reviews, users, {
+    rank: RANK_LABELS,
+    cycle: labels.cycle,
+  });
   const needle = search.trim().toLowerCase();
   const visible = rows.filter((row) => row.name.toLowerCase().includes(needle));
 
@@ -161,30 +163,57 @@ export function DeveloperPanel({
             {row.standing === 'none' ? (
               <p className="text-sm text-ink-500">{labels.developers.noReviews}</p>
             ) : (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <Metric
-                  label={labels.developers.approvalRate}
-                  value={
-                    <MetricBar
-                      value={row.approvalRate}
-                      label={`${labels.developers.approvalRate} — ${row.name}`}
-                      valueLabel={`${String(row.approvalRate)}%`}
+              <>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <Metric
+                    label={labels.developers.approvalRate}
+                    value={
+                      <MetricBar
+                        value={row.approvalRate}
+                        label={`${labels.developers.approvalRate} — ${row.name}`}
+                        valueLabel={`${String(row.approvalRate)}%`}
+                      />
+                    }
+                  />
+                  <Metric
+                    label={labels.developers.avgRanking}
+                    value={row.avgRank === null ? '—' : row.avgRank.toFixed(2)}
+                  />
+                  <Metric
+                    label={labels.developers.avgCycles}
+                    value={row.avgCycles === null ? '—' : row.avgCycles.toFixed(2)}
+                  />
+                  <Metric
+                    label={labels.developers.changesRequested}
+                    value={row.changesRequestedCount}
+                  />
+                </div>
+
+                <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                  <div className="rounded-card bg-canvas p-4">
+                    <p className="mb-2 text-sm font-semibold text-ink-900">
+                      {labels.developers.rankTitle ?? labels.charts.rankTitle}
+                    </p>
+                    <DonutChart
+                      slices={rankSlices(row.rankSlices)}
+                      emptyLabel={labels.charts.empty}
+                      valueLabel={common.chart.reviews}
+                      size={96}
                     />
-                  }
-                />
-                <Metric
-                  label={labels.developers.avgRanking}
-                  value={row.avgRank === null ? '—' : row.avgRank.toFixed(2)}
-                />
-                <Metric
-                  label={labels.developers.avgCycles}
-                  value={row.avgCycles === null ? '—' : row.avgCycles.toFixed(2)}
-                />
-                <Metric
-                  label={labels.developers.changesRequested}
-                  value={row.changesRequestedCount}
-                />
-              </div>
+                  </div>
+                  <div className="rounded-card bg-canvas p-4">
+                    <p className="mb-2 text-sm font-semibold text-ink-900">
+                      {labels.developers.cycleTitle ?? labels.charts.cycleTitle}
+                    </p>
+                    <DonutChart
+                      slices={cycleSlices(row.cycleSlices)}
+                      emptyLabel={labels.charts.empty}
+                      valueLabel={common.chart.tasks}
+                      size={96}
+                    />
+                  </div>
+                </div>
+              </>
             )}
           </RowShell>
         ))
@@ -270,98 +299,6 @@ export function ReviewerPanel({
               />
             </div>
           </RowShell>
-        ))
-      )}
-    </Panel>
-  );
-}
-
-export function CustomerPanel({
-  tasks,
-  reviews,
-  customers,
-}: {
-  tasks: readonly TaskListItem[];
-  reviews: readonly Review[];
-  customers: readonly Customer[];
-}) {
-  const [search, setSearch] = useState('');
-  const rows = customerOverview(tasks, reviews, customers, {
-    rank: RANK_LABELS,
-    cycle: labels.cycle,
-  });
-  const needle = search.trim().toLowerCase();
-  const visible = rows.filter((row) => row.name.toLowerCase().includes(needle));
-
-  return (
-    <Panel
-      title={labels.customers.title}
-      subtitle={labels.customers.subtitle}
-      searchLabel={labels.customers.searchLabel}
-      searchPlaceholder={labels.customers.searchPlaceholder}
-      search={search}
-      onSearch={setSearch}
-      count={interpolate(labels.customers.count, {
-        shown: visible.length,
-        total: rows.length,
-      })}
-    >
-      {visible.length === 0 ? (
-        <EmptyState title={labels.customers.empty} />
-      ) : (
-        visible.map((row) => (
-          <div key={row.customerId} className="rounded-card border border-line p-4">
-            <div className="flex flex-wrap items-center gap-3">
-              <CustomerChip name={row.name} color={row.color} variant="inline" />
-              <p className="text-xs text-ink-500">
-                {interpolate(labels.customers.tasks, { count: row.taskCount })}
-              </p>
-            </div>
-
-            <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <Metric label={labels.customers.totalTasks} value={row.taskCount} />
-              <Metric label={labels.customers.approved} value={row.approvedCount} />
-              <Metric
-                label={labels.customers.approvalRate}
-                value={
-                  <MetricBar
-                    value={row.approvalRate}
-                    label={`${labels.customers.approvalRate} — ${row.name}`}
-                    valueLabel={`${String(row.approvalRate)}%`}
-                  />
-                }
-              />
-              <Metric
-                label={labels.customers.avgCycles}
-                value={row.avgCycles === null ? '—' : row.avgCycles.toFixed(2)}
-              />
-            </div>
-
-            <div className="mt-4 grid gap-4 lg:grid-cols-2">
-              <div className="rounded-card bg-canvas p-4">
-                <p className="mb-2 text-sm font-semibold text-ink-900">
-                  {labels.customers.rankTitle}
-                </p>
-                <DonutChart
-                  slices={rankSlices(row.rankSlices)}
-                  emptyLabel={labels.charts.empty}
-                  valueLabel={common.chart.reviews}
-                  size={96}
-                />
-              </div>
-              <div className="rounded-card bg-canvas p-4">
-                <p className="mb-2 text-sm font-semibold text-ink-900">
-                  {labels.customers.cycleTitle}
-                </p>
-                <DonutChart
-                  slices={cycleSlices(row.cycleSlices)}
-                  emptyLabel={labels.charts.empty}
-                  valueLabel={common.chart.tasks}
-                  size={96}
-                />
-              </div>
-            </div>
-          </div>
         ))
       )}
     </Panel>

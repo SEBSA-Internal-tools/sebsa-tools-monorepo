@@ -41,7 +41,7 @@ export function PreviousReviewSummaryCard({
               Preceding Review Summary
             </span>
             <Tag className="bg-violet-100 text-xs font-bold text-violet-700">
-              Round {previousReview.reviewCycle}
+              Round {previousReview.reviewRound}
             </Tag>
             {previousReview.decision && (
               <StatusBadge
@@ -51,7 +51,7 @@ export function PreviousReviewSummaryCard({
             {previousReview.rank !== null && <RankBadge rank={previousReview.rank} />}
           </div>
         }
-        description={`Summary of findings and decision from Round ${previousReview.reviewCycle}`}
+        description={`Summary of findings and decision from Round ${previousReview.reviewRound}`}
         icon={<History className="size-4 text-violet-600" />}
       />
 
@@ -97,7 +97,7 @@ export function PreviousReviewSummaryCard({
         </div>
 
         <p className="text-ink-600 rounded-lg border border-line/50 bg-surface/50 p-2.5 text-xs leading-relaxed">
-          The developer has submitted responses to issues from Round {previousReview.reviewCycle}.
+          The developer has submitted responses to issues from Round {previousReview.reviewRound}.
           Review their responses and rejections above, then record your new re-review assessment
           below.
         </p>
