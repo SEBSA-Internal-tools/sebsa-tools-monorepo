@@ -7,12 +7,14 @@ import { RouteError } from '@/app/RouteError';
 import { ScrollRestorationLayout } from '@/app/ScrollRestorationLayout';
 import { codeReviewRoutes } from './codeReviewRoutes';
 import { LegacyWorkspaceRedirect } from './LegacyWorkspaceRedirect';
+import { localAuthRoutes } from '@/features/local-auth/routes/index.tsx';
 
 export const routeTree: RouteObject[] = [
   {
     element: <ScrollRestorationLayout />,
     children: [
       { path: routePaths.login, element: <LoginRoute /> },
+      ...localAuthRoutes,
       { path: 'developer/*', element: <LegacyWorkspaceRedirect /> },
       { path: 'reviewer/*', element: <LegacyWorkspaceRedirect /> },
       { path: 'admin/*', element: <LegacyWorkspaceRedirect /> },

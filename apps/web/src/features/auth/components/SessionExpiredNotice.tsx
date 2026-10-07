@@ -1,5 +1,5 @@
 import auth from '@/content/auth.json';
-import { Hourglass } from './Hourglass.tsx';
+import { Hourglass } from '@/components/common/Hourglass.tsx';
 
 /**
  * Shown above the login form when the previous session timed out.

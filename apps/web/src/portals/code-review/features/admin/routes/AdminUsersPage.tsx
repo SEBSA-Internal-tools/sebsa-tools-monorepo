@@ -1,5 +1,15 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Filter, Lock, Pencil, Power, Trash2, UserPlus, Users as UsersIcon } from 'lucide-react';
+import {
+  Filter,
+  Lock,
+  Mail,
+  MailX,
+  Pencil,
+  Power,
+  Trash2,
+  UserPlus,
+  Users as UsersIcon,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { type Role, type User } from '@sdp/contracts';
 import { ActiveBadge, RoleBadges } from '@/portals/code-review/components/badges.tsx';
@@ -24,7 +34,15 @@ import common from '@/content/common.json';
 import { useDeleteUser, useUpdateUser, useUsers } from '../api/queries.ts';
 import { UserFormDialog } from '../components/UserFormDialog.tsx';
 import { EmptyIllustration } from '@/components/common/EmptyIllustration.tsx';
+import { userKeys } from '@/portals/code-review/hooks/useUsers.ts';
 import { RoleMultiSelect } from '../components/RoleMultiSelect.tsx';
+// Temporary local-auth (invite) UI. Remove these imports and the `isLocalAuthEnabled` branches below.
+import { isLocalAuthEnabled } from '@/features/local-auth/config.ts';
+import { InviteCell, StatusPill } from '@/features/local-auth/admin/InviteCells.tsx';
+import { InviteUserDialog } from '@/features/local-auth/admin/InviteUserDialog.tsx';
+import { userStatus } from '@/features/local-auth/admin/inviteDisplay.ts';
+import { useResendInvite, useRevokeInvite } from '@/features/local-auth/admin/useInviteActions.ts';
+import { invite as inviteCopy } from '@/features/local-auth/content.ts';
 
 /**
  * Admin — Users (screen 02).
@@ -74,6 +92,18 @@ const statusColumn = helper.accessor('isActive', {
   cell: (context) => <ActiveBadge isActive={context.getValue()} />,
 });
 
+const inviteStatusColumn = helper.display({
+  id: 'inviteStatus',
+  header: labels.status,
+  cell: (context) => <StatusPill user={context.row.original} />,
+});
+
+const inviteColumn = helper.display({
+  id: 'invite',
+  header: inviteCopy.columns.invite,
+  cell: (context) => <InviteCell user={context.row.original} />,
+});
+
 export function AdminUsersPage() {
   const { data: actor } = useCurrentUser();
   const { data: users, isPending, isFetching, error, refetch } = useUsers();
@@ -82,6 +112,9 @@ export function AdminUsersPage() {
   // instead of being pinned with a lint suppression.
   const { mutate: mutateUser, isPending: isUpdating } = useUpdateUser();
   const deleteUser = useDeleteUser();
+  const { mutate: mutateResend, isPending: isResending } = useResendInvite(userKeys.all);
+  const revokeInvite = useRevokeInvite(userKeys.all);
+  const [revoking, setRevoking] = useState<User | null>(null);
 
   const [search, setSearch] = useState('');
   const [selectedRoles, setSelectedRoles] = useState<Role[]>([]);
@@ -152,7 +185,7 @@ export function AdminUsersPage() {
       nameColumn,
       emailColumn,
       rolesColumn,
-      statusColumn,
+      ...(isLocalAuthEnabled ? [inviteStatusColumn, inviteColumn] : [statusColumn]),
       helper.display({
         id: 'actions',
         header: '',
@@ -173,6 +206,43 @@ export function AdminUsersPage() {
                     <span>Protected</span>
                   </button>
                 </Tooltip>
+              ) : null}
+              {isLocalAuthEnabled && mayManage && userStatus(user) === 'INVITED' ? (
+                <>
+                  <IconButton
+                    label={interpolate(inviteCopy.resendAction, { name: user.name })}
+                    icon={<Mail className="size-4" />}
+                    size="sm"
+                    disabled={isResending}
+                    onClick={() => {
+                      mutateResend(user.id, {
+                        onSuccess: (sent) => {
+                          if (sent.emailStatus === 'FAILED')
+                            toast.warning(inviteCopy.resentEmailFailed);
+                          else toast.success(interpolate(inviteCopy.resent, { email: user.email }));
+                        },
+                        onError: (cause) => {
+                          toast.error(
+                            cause instanceof ApiError && cause.code === 'RATE_LIMITED'
+                              ? inviteCopy.rateLimited
+                              : cause instanceof ApiError && cause.code === 'NOT_INVITED'
+                                ? inviteCopy.notInvited
+                                : inviteCopy.generic,
+                          );
+                        },
+                      });
+                    }}
+                  />
+                  <IconButton
+                    label={interpolate(inviteCopy.revokeAction, { name: user.name })}
+                    icon={<MailX className="size-4" />}
+                    tone="danger"
+                    size="sm"
+                    onClick={() => {
+                      setRevoking(user);
+                    }}
+                  />
+                </>
               ) : null}
               {mayManage ? (
                 <IconButton
@@ -221,7 +291,7 @@ export function AdminUsersPage() {
         },
       }),
     ],
-    [canManagePrivileged, canPurge, setActive],
+    [canManagePrivileged, canPurge, setActive, mutateResend, isResending],
   );
 
   return (
@@ -339,7 +409,17 @@ export function AdminUsersPage() {
         }
       />
 
-      {isFormOpen ? (
+      {isFormOpen && isLocalAuthEnabled && editing === null ? (
+        <InviteUserDialog
+          canManagePrivileged={canManagePrivileged}
+          usersKey={userKeys.all}
+          onClose={() => {
+            setFormOpen(false);
+          }}
+        />
+      ) : null}
+
+      {isFormOpen && !(isLocalAuthEnabled && editing === null) ? (
         <UserFormDialog
           key={editing?.id ?? 'new'}
           user={editing}
@@ -349,6 +429,35 @@ export function AdminUsersPage() {
           }}
         />
       ) : null}
+
+      <ConfirmDialog
+        open={revoking !== null}
+        onOpenChange={(open) => {
+          if (!open) setRevoking(null);
+        }}
+        title={inviteCopy.revokeTitle}
+        description={interpolate(inviteCopy.revokeText, { name: revoking?.name ?? '' })}
+        confirmLabel={inviteCopy.revokeConfirm}
+        isPending={revokeInvite.isPending}
+        onConfirm={() => {
+          if (revoking === null) return;
+          const target = revoking;
+          revokeInvite.mutate(target.id, {
+            onSuccess: () => {
+              toast.success(interpolate(inviteCopy.revoked, { email: target.email }));
+              setRevoking(null);
+            },
+            onError: (cause) => {
+              toast.error(
+                cause instanceof ApiError && cause.code === 'NOT_INVITED'
+                  ? inviteCopy.notInvited
+                  : inviteCopy.generic,
+              );
+              setRevoking(null);
+            },
+          });
+        }}
+      />
 
       <ConfirmDialog
         open={statusChanging !== null}

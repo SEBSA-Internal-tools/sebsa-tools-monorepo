@@ -18,6 +18,7 @@
     "passwordPlaceholder": "Enter your password",
     "showPassword": "Show password",
     "hidePassword": "Hide password",
+    "forgotPassword": "Forgot password?",
     "remember": "Remember me",
     "submit": "Sign in",
     "submitting": "Signing in…",
@@ -28,6 +29,7 @@
     "invalidCredentials": "Invalid email or password.",
     "success": "Signed in as {name}",
     "signedOut": "You have been signed out.",
+    "passwordSaved": "Password saved. Sign in to continue.",
     "ssoUnavailable": "Single sign-on goes live in Phase 2. Use a demo account for now."
   },
   "demoHint": "Demo · any seeded user · password Sebsa@2026"

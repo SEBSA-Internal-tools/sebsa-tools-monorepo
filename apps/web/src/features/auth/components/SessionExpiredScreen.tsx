@@ -6,7 +6,7 @@ import { ROUTES } from '@/config/routes.ts';
 import { useSession } from '@/hooks/useSession.ts';
 import auth from '@/content/auth.json';
 import common from '@/content/common.json';
-import { Hourglass } from './Hourglass.tsx';
+import { Hourglass } from '@/components/common/Hourglass.tsx';
 
 /**
  * What the user sees the moment their session times out.

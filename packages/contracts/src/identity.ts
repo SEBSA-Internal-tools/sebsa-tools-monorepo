@@ -23,6 +23,13 @@ export const userSchema = z.object({
   roles: userRolesSchema,
   isActive: z.boolean(),
   createdAt: isoDateTimeSchema,
+  /**
+   * Local-auth invite state. Optional so a backend (or mock) that does not send
+   * it still parses; the UI then falls back to `isActive`.
+   */
+  status: z.enum(['INVITED', 'ACTIVE', 'DEACTIVATED']).optional(),
+  inviteExpiresAt: isoDateTimeSchema.nullable().optional(),
+  inviteEmailStatus: z.enum(['SENT', 'FAILED']).nullable().optional(),
 });
 export type User = z.infer<typeof userSchema>;
 
