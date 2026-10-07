@@ -126,6 +126,39 @@ describe('New Review Task wizard', () => {
     });
   });
 
+  it('shows loading only on Save Draft when Save Draft is clicked', async () => {
+    const { user } = renderWizard();
+
+    await chooseCustomer(user, 'AASL');
+    await user.type(await screen.findByLabelText(/crim id/i), 'CRIM-SAVE-LOADING');
+    const next = await screen.findByRole('button', { name: /next: quality checklist/i });
+    await waitFor(() => expect(next).toHaveAttribute('aria-disabled', 'false'));
+    const save = screen.getByRole('button', { name: /save draft/i });
+
+    await user.click(save);
+
+    expect(save).toHaveAttribute('aria-busy', 'true');
+    expect(next).toHaveAttribute('aria-busy', 'false');
+    expect(next).not.toBeDisabled();
+    await waitFor(() => expect(save).toHaveAttribute('aria-busy', 'false'));
+  });
+
+  it('shows loading only on Next when Next is clicked', async () => {
+    const { user } = renderWizard();
+
+    await chooseCustomer(user, 'AASL');
+    await user.type(await screen.findByLabelText(/crim id/i), 'CRIM-NEXT-LOADING');
+    const next = await screen.findByRole('button', { name: /next: quality checklist/i });
+    await waitFor(() => expect(next).toHaveAttribute('aria-disabled', 'false'));
+    const save = screen.getByRole('button', { name: /save draft/i });
+
+    await user.click(next);
+
+    expect(next).toHaveAttribute('aria-busy', 'true');
+    expect(save).toHaveAttribute('aria-busy', 'false');
+    expect(save).not.toBeDisabled();
+  });
+
   it('previews the derived title as the fields are filled (FL 2.5-01)', async () => {
     const { user } = renderWizard();
 

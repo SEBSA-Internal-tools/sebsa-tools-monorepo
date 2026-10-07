@@ -177,8 +177,26 @@ describe('responding to review feedback', () => {
     await user.click(screen.getByRole('button', { name: /resubmit for review/i }));
 
     await waitFor(() => {
-      expect(db.tasks.find((t) => t.id === task.id)?.status).toBe('ReSubmitted');
+      expect(db.tasks.find((t) => t.id === task.id)).toMatchObject({
+        status: 'InReview',
+        reviewerId: REVIEWER,
+      });
     });
+
+    const availableToAnotherReviewer = db.tasks.filter(
+      (candidate) =>
+        candidate.id === task.id &&
+        candidate.reviewerId === null &&
+        (candidate.status === 'Submitted' || candidate.status === 'ReSubmitted'),
+    );
+    expect(availableToAnotherReviewer).toHaveLength(0);
+    expect(db.notifications).toContainEqual(
+      expect.objectContaining({
+        userId: REVIEWER,
+        taskId: task.id,
+        kind: 'TaskResubmitted',
+      }),
+    );
 
     const stored = db.issueResponses.find((r) => r.screenshotId === 'shot-1');
     expect(stored?.kind).toBe('Rejected');

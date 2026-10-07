@@ -4,6 +4,7 @@ import {
   CodeReviewAnswerValue,
   CodeReviewFormStatus,
   DeveloperDecision,
+  NotificationType,
   Prisma,
   ReviewDecision,
   ReviewerDecision,
@@ -81,6 +82,20 @@ export function hasValidDeveloperRejectionReason(
   reason: string | null | undefined,
 ): boolean {
   return kind !== 'Rejected' || Boolean(reason?.trim());
+}
+
+export function unrelatedReviewNotificationWhere(
+  taskId: string,
+  developerId: string,
+  notificationType: NotificationType,
+  existingNotificationIds: string[],
+): Prisma.NotificationWhereInput {
+  return {
+    taskId,
+    notificationType,
+    recipientId: { not: developerId },
+    id: { notIn: existingNotificationIds },
+  };
 }
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -210,6 +225,14 @@ export class ReviewsService {
       const now = new Date();
       const status =
         decision === ReviewDecision.APPROVED ? TaskStatus.APPROVED : TaskStatus.CHANGES_REQUESTED;
+      const notificationType =
+        decision === ReviewDecision.APPROVED
+          ? NotificationType.TASK_APPROVED
+          : NotificationType.CHANGES_REQUESTED;
+      const existingNotifications = await tx.notification.findMany({
+        where: { taskId, notificationType },
+        select: { id: true },
+      });
       await tx.codeReviewForm.update({
         where: { id: review.id },
         data: { status: CodeReviewFormStatus.COMPLETED, decision, completedAt: now },
@@ -221,6 +244,14 @@ export class ReviewsService {
           currentReviewerId: decision === ReviewDecision.CHANGES_REQUESTED ? null : user.id,
           ...(decision === ReviewDecision.APPROVED ? { approvedAt: now } : {}),
         },
+      });
+      await tx.notification.deleteMany({
+        where: unrelatedReviewNotificationWhere(
+          taskId,
+          task.developerId,
+          notificationType,
+          existingNotifications.map(({ id }) => id),
+        ),
       });
       if (decision === ReviewDecision.CHANGES_REQUESTED) {
         await tx.reviewCycle.upsert({

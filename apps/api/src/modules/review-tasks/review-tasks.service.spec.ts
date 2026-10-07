@@ -326,6 +326,125 @@ describe('ReviewTasksService draft discard', () => {
   });
 });
 
+describe('ReviewTasksService resubmission assignment', () => {
+  it('returns a changes-requested task to the reviewer who made that decision', async () => {
+    const developer = actor(['DEVELOPER']);
+    const taskId = '00000000-0000-4000-8000-000000000010';
+    const reviewerId = '00000000-0000-4000-8000-000000000020';
+    const baseTask = {
+      id: taskId,
+      taskCode: 'TEST-01',
+      title: 'Test task',
+      crimId: 'CRIM-1',
+      version: '0',
+      customerId: '00000000-0000-4000-8000-000000000030',
+      priority: 'MEDIUM',
+      status: TaskStatus.CHANGES_REQUESTED,
+      currentReviewCycle: 1,
+      developerId: developer.id,
+      currentReviewerId: null,
+      checklistCompleted: true,
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-01-02T00:00:00.000Z'),
+      submittedAt: new Date('2026-01-01T01:00:00.000Z'),
+      customer: { name: 'Test', code: 'TEST', color: '#123456' },
+      developer: { fullName: developer.name },
+      currentReviewer: null,
+      reviewerAssignments: [],
+      taskTypes: [],
+      developerChecklist: { additionalRemarks: '', answers: [] },
+      codeReviewForms: [{ reviewerId, decision: 'CHANGES_REQUESTED' }],
+      reviewCycles: [{ roundNumber: 1, counted: true, exclusionReason: null }],
+      handovers: [],
+    };
+    const assignedTask = {
+      ...baseTask,
+      status: TaskStatus.IN_REVIEW,
+      currentReviewerId: reviewerId,
+      currentReviewer: { fullName: 'Previous Reviewer' },
+      reviewerAssignments: [{ id: '00000000-0000-4000-8000-000000000040' }],
+    };
+    const tx = {
+      auditLog: { count: vi.fn().mockResolvedValue(1) },
+      taskReviewerAssignment: {
+        updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+        create: vi.fn().mockResolvedValue({ id: assignedTask.reviewerAssignments[0]?.id }),
+      },
+      notification: {
+        findMany: vi.fn().mockResolvedValue([{ id: 'existing-notification' }]),
+        deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+      },
+      task: {
+        update: vi
+          .fn()
+          .mockResolvedValueOnce({
+            ...baseTask,
+            status: TaskStatus.RESUBMITTED,
+          })
+          .mockResolvedValueOnce(assignedTask),
+      },
+    };
+    const prisma = {
+      task: { findUnique: vi.fn().mockResolvedValue(baseTask) },
+      codeReviewForm: {
+        findFirst: vi.fn().mockResolvedValue({
+          reviewerId,
+          reviewer: {
+            status: 'ACTIVE',
+            deletedAt: null,
+            userRoles: [{ roleId: 3 }],
+          },
+          findings: [],
+        }),
+      },
+      developerFindingResponse: { findMany: vi.fn().mockResolvedValue([]) },
+      $transaction: vi.fn((operation: (client: typeof tx) => Promise<unknown>) => operation(tx)),
+    };
+    const service = serviceWith(prisma);
+
+    await expect(service.submit(taskId, developer)).resolves.toMatchObject({
+      id: taskId,
+      status: 'InReview',
+      reviewerId,
+      reviewerName: 'Previous Reviewer',
+    });
+
+    expect(tx.taskReviewerAssignment.create).toHaveBeenCalledWith({
+      data: {
+        taskId,
+        reviewerId,
+        assignedBy: null,
+        assignmentType: ReviewerAssignmentType.ADMIN_REASSIGNED,
+      },
+    });
+    expect(tx.notification.deleteMany).toHaveBeenCalledWith({
+      where: {
+        taskId,
+        notificationType: 'TASK_RESUBMITTED',
+        recipientId: { not: reviewerId },
+        id: { notIn: ['existing-notification'] },
+      },
+    });
+    expect(tx.task.update).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        where: { id: taskId },
+        data: expect.objectContaining({ status: TaskStatus.RESUBMITTED }),
+      }),
+    );
+    expect(tx.task.update).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: { id: taskId },
+        data: expect.objectContaining({
+          status: TaskStatus.IN_REVIEW,
+          currentReviewerId: reviewerId,
+        }),
+      }),
+    );
+  });
+});
+
 describe('ReviewTasksService task picking', () => {
   it('atomically claims an available task and records assignment and status history', async () => {
     const user = actor(['REVIEWER']);

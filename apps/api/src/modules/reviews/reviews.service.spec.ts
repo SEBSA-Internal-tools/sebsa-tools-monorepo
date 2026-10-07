@@ -1,4 +1,4 @@
-import { DeveloperDecision, ReviewerDecision } from '@prisma/client';
+import { DeveloperDecision, NotificationType, ReviewerDecision } from '@prisma/client';
 import { describe, expect, it } from 'vitest';
 import {
   reviewDraftInputSchema,
@@ -6,6 +6,7 @@ import {
   reviewRoundToStart,
   shouldCountReviewCycle,
   stableReviewEntityUuid,
+  unrelatedReviewNotificationWhere,
 } from './reviews.service.js';
 
 const baseDraft = {
@@ -111,4 +112,25 @@ describe('developer rejection validation', () => {
     expect(hasValidDeveloperRejectionReason('Rejected', 'Not applicable to this CRIM')).toBe(true);
     expect(hasValidDeveloperRejectionReason('Resolved', undefined)).toBe(true);
   });
+});
+
+describe('review notification recipients', () => {
+  it.each([NotificationType.TASK_APPROVED, NotificationType.CHANGES_REQUESTED])(
+    'removes current %s notifications for everyone except the relevant Developer',
+    (notificationType) => {
+      expect(
+        unrelatedReviewNotificationWhere(
+          '00000000-0000-4000-8000-000000000010',
+          '00000000-0000-4000-8000-000000000020',
+          notificationType,
+          ['existing-notification'],
+        ),
+      ).toEqual({
+        taskId: '00000000-0000-4000-8000-000000000010',
+        notificationType,
+        recipientId: { not: '00000000-0000-4000-8000-000000000020' },
+        id: { notIn: ['existing-notification'] },
+      });
+    },
+  );
 });

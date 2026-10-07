@@ -255,14 +255,6 @@ export function ReviewCycleBadges({
     <span className={cn('inline-flex items-center gap-1.5', className)}>
       <ReviewRoundBadge round={round} />
       <CountedCycleBadge counted={counted} adjustment={adjustment} />
-      {adjustment > 0 ? (
-        <span
-          className="inline-flex items-center rounded-md border border-emerald-200/70 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 shadow-2xs"
-          title={`A qualifying review round was excluded from the effective count (-${adjustment}). See Task History for cycle adjustment details.`}
-        >
-          Adjusted (-{adjustment})
-        </span>
-      ) : null}
     </span>
   );
 }

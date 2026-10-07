@@ -1115,6 +1115,25 @@ export const handlers: HttpHandler[] = [
       );
     }
 
+    const previousChangesReview = isResubmission
+      ? reviewsForTask(task.id).find((review) => review.decision === 'ChangesRequested')
+      : undefined;
+    const resubmissionReviewer = previousChangesReview?.reviewerId
+      ? findUser(previousChangesReview.reviewerId)
+      : undefined;
+    if (
+      isResubmission &&
+      (!resubmissionReviewer ||
+        !resubmissionReviewer.isActive ||
+        !resubmissionReviewer.roles.includes('Reviewer'))
+    ) {
+      return errorResponse(
+        409,
+        'INVALID_STATE',
+        'The reviewer who requested changes is no longer eligible for assignment.',
+      );
+    }
+
     const checklist = findChecklist(task.id);
     if (!checklist) {
       return errorResponse(
@@ -1198,10 +1217,14 @@ export const handlers: HttpHandler[] = [
     if (isResubmission) {
       const allTaskReviews = reviewsForTask(task.id);
       const activeRound = resolveActiveReviewCycle(task, allTaskReviews);
+      const reviewSessionId = createReviewSessionId(task.id, activeRound);
       task.reviewCycle = activeRound;
       task.historicalCycle = activeRound;
       task.reviewRound = activeRound;
       task.countedCycle = activeRound;
+      task.reviewerId = resubmissionReviewer?.id ?? null;
+      task.currentReviewSessionId = reviewSessionId;
+      task.status = 'InReview';
 
       // Ensure active cycle review record exists in db.reviews, preventing duplicate review cycles
       const existingReview = findReview(task.id, activeRound);
@@ -1210,9 +1233,9 @@ export const handlers: HttpHandler[] = [
           id: `rev-${task.id}-${String(activeRound)}`,
           taskId: task.id,
           reviewRound: activeRound,
-          reviewerId: null,
-          reviewerName: null,
-          currentReviewSessionId: null,
+          reviewerId: resubmissionReviewer?.id ?? null,
+          reviewerName: resubmissionReviewer?.name ?? null,
+          currentReviewSessionId: reviewSessionId,
           comments: [],
           generalCheck: [],
           findings: { incorrectCode: '', incompleteImplementation: '', sourceFormatting: '' },
@@ -1226,13 +1249,17 @@ export const handlers: HttpHandler[] = [
           createdAt: now,
           updatedAt: now,
         });
+      } else if (existingReview.decision === null) {
+        existingReview.reviewerId = resubmissionReviewer?.id ?? null;
+        existingReview.reviewerName = resubmissionReviewer?.name ?? null;
+        existingReview.currentReviewSessionId = reviewSessionId;
+        existingReview.updatedAt = now;
       }
 
-      const lastReview = allTaskReviews.find((review) => review.decision !== null);
-      if (lastReview?.reviewerId) {
+      if (resubmissionReviewer) {
         db.notifications.push({
           id: `n-${String(Date.now())}-${String(db.notifications.length + 1)}`,
-          userId: lastReview.reviewerId,
+          userId: resubmissionReviewer.id,
           kind: 'TaskResubmitted',
           title: `${task.taskCode} resubmitted for review`,
           body: `${user.name} responded to review findings and resubmitted (Round ${task.reviewRound}).`,

@@ -646,13 +646,40 @@ export class ReviewTasksService {
         'Complete the quality checklist before submitting',
       );
     }
+    let resubmissionReviewerId: string | null = null;
     if (isResubmission) {
       const latestChangesReview = await this.prisma.codeReviewForm.findFirst({
         where: { taskId: id, decision: 'CHANGES_REQUESTED' },
-        select: { findings: { select: { id: true } } },
+        select: {
+          reviewerId: true,
+          reviewer: {
+            select: {
+              status: true,
+              deletedAt: true,
+              userRoles: {
+                where: { role: { code: 'REVIEWER', deletedAt: null } },
+                select: { roleId: true },
+              },
+            },
+          },
+          findings: { select: { id: true } },
+        },
         orderBy: [{ reviewCycleNumber: 'desc' }, { completedAt: 'desc' }],
       });
-      const findingIds = latestChangesReview?.findings.map(({ id: findingId }) => findingId) ?? [];
+      if (!latestChangesReview) {
+        throw new ConflictException('No previous changes-requested review was found');
+      }
+      if (
+        latestChangesReview.reviewer.status !== 'ACTIVE' ||
+        latestChangesReview.reviewer.deletedAt !== null ||
+        latestChangesReview.reviewer.userRoles.length === 0
+      ) {
+        throw new ConflictException(
+          'The reviewer who requested changes is no longer eligible for assignment',
+        );
+      }
+      resubmissionReviewerId = latestChangesReview.reviewerId;
+      const findingIds = latestChangesReview.findings.map(({ id: findingId }) => findingId);
       const responses = await this.prisma.developerFindingResponse.findMany({
         where: {
           findingId: { in: findingIds },
@@ -685,7 +712,27 @@ export class ReviewTasksService {
         })) + 1;
       const checklistSubmission = this.toChecklistSubmission(task, submissionVersion, now, user.id);
       const nextStatus = isResubmission ? TaskStatus.RESUBMITTED : TaskStatus.SUBMITTED;
-      const updated = await tx.task.update({
+      const existingResubmissionNotifications = isResubmission
+        ? await tx.notification.findMany({
+            where: { taskId: id, notificationType: NotificationType.TASK_RESUBMITTED },
+            select: { id: true },
+          })
+        : [];
+      if (isResubmission && resubmissionReviewerId !== null) {
+        await tx.taskReviewerAssignment.updateMany({
+          where: { taskId: id, isCurrent: true },
+          data: { isCurrent: false, unassignedAt: now },
+        });
+        await tx.taskReviewerAssignment.create({
+          data: {
+            taskId: id,
+            reviewerId: resubmissionReviewerId,
+            assignedBy: null,
+            assignmentType: ReviewerAssignmentType.ADMIN_REASSIGNED,
+          },
+        });
+      }
+      let updated = await tx.task.update({
         where: { id },
         data: {
           status: nextStatus,
@@ -701,6 +748,32 @@ export class ReviewTasksService {
         },
         include: taskInclude,
       });
+      if (isResubmission && resubmissionReviewerId !== null) {
+        await tx.notification.deleteMany({
+          where: {
+            taskId: id,
+            notificationType: NotificationType.TASK_RESUBMITTED,
+            recipientId: { not: resubmissionReviewerId },
+            id: { notIn: existingResubmissionNotifications.map(({ id }) => id) },
+          },
+        });
+        updated = await tx.task.update({
+          where: { id },
+          data: {
+            status: TaskStatus.IN_REVIEW,
+            currentReviewerId: resubmissionReviewerId,
+            statusHistory: {
+              create: {
+                oldStatus: TaskStatus.RESUBMITTED,
+                newStatus: TaskStatus.IN_REVIEW,
+                changedBy: user.id,
+                remarks: 'Task returned to the reviewer who requested changes',
+              },
+            },
+          },
+          include: taskInclude,
+        });
+      }
       await this.audit.record(tx, user, {
         actionType: isResubmission ? 'TASK_RESUBMITTED' : 'TASK_SUBMITTED',
         entityType: 'TASK',
@@ -708,7 +781,10 @@ export class ReviewTasksService {
         taskId: id,
         description: `${user.name} ${isResubmission ? 'resubmitted' : 'submitted'} task '${task.title}'`,
         oldValue: { status: task.status },
-        newValue: { status: nextStatus },
+        newValue: {
+          status: updated.status,
+          ...(resubmissionReviewerId === null ? {} : { currentReviewerId: resubmissionReviewerId }),
+        },
         metadata: { checklistSubmission: checklistSubmission as Prisma.InputJsonObject },
       });
       if (!isResubmission) {
@@ -738,8 +814,8 @@ export class ReviewTasksService {
           })),
         );
       }
-      // The database status trigger creates the assigned-reviewer notification
-      // for a resubmission in this same transaction.
+      // The RESUBMITTED transition above uses the existing database notification
+      // mechanism after the previous reviewer assignment has been restored.
       return updated;
     });
     return this.toResponse(submitted);
