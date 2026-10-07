@@ -25,7 +25,7 @@ export interface Issue {
   label: string;
   detail: string;
   screenshots: ReviewScreenshot[];
-  /** Whether this issue is carried forward from an earlier cycle due to a negative reviewer verdict */
+  /** Whether this issue is carried forward from an earlier round due to a negative reviewer verdict */
   isFollowUp?: boolean;
   /** Reviewer's explanation from the negative adjudication */
   reviewerExplanation?: string | null;
@@ -33,13 +33,15 @@ export interface Issue {
   previousResponseKind?: IssueResponseKind | null;
   /** Prior developer rejection reason if any */
   previousRejectionReason?: string | null;
-  /** The cycle in which the comment was originally authored */
+  /** The round in which the comment was originally authored */
+  originRound?: number;
+  /** Legacy alias for originRound */
   originCycle?: number;
 }
 
 /**
- * The findings a developer must answer, derived from the reviewer's last cycle
- * and any unresolved carry-forward findings from prior cycles.
+ * The findings a developer must answer, derived from the reviewer's last round
+ * and any unresolved carry-forward findings from prior rounds.
  *
  * Each Review Comment is an independent actionable item that the developer
  * responds to (Resolve or Reject with mandatory reason).
@@ -71,23 +73,24 @@ export function issuesFromReview(
         label: `Review Comment #${index + 1}`,
         detail: comment.text,
         screenshots: comment.screenshots ?? [],
-        originCycle: review.reviewCycle,
+        originRound: review.reviewRound,
+        originCycle: review.reviewRound,
       });
     });
   }
 
-  // 2. Carry-forward workflow: Unresolved findings from prior cycles where reviewer marked Not Resolved / Do Not Accept
+  // 2. Carry-forward workflow: Unresolved findings from prior rounds where reviewer marked Not Resolved / Do Not Accept
   if (allReviews && allReviews.length > 0) {
-    // Collect all unique comments across prior completed cycles (sorted by cycle ascending)
+    // Collect all unique comments across prior completed rounds (sorted by round ascending)
     const priorReviews = [...allReviews]
-      .filter((r) => r.reviewCycle < review.reviewCycle)
-      .sort((a, b) => a.reviewCycle - b.reviewCycle);
+      .filter((r) => r.reviewRound < review.reviewRound)
+      .sort((a, b) => a.reviewRound - b.reviewRound);
 
-    const allPriorComments = new Map<string, { comment: ReviewComment; cycle: number }>();
+    const allPriorComments = new Map<string, { comment: ReviewComment; round: number }>();
     for (const pr of priorReviews) {
       for (const c of pr.comments ?? []) {
         if (!allPriorComments.has(c.id)) {
-          allPriorComments.set(c.id, { comment: c, cycle: pr.reviewCycle });
+          allPriorComments.set(c.id, { comment: c, round: pr.reviewRound });
         }
       }
     }
@@ -98,11 +101,11 @@ export function issuesFromReview(
     );
     const allKnownResponses: IssueResponseRecord[] = [...historyResponses, ...(responses ?? [])];
 
-    for (const [commentId, { comment, cycle }] of allPriorComments.entries()) {
+    for (const [commentId, { comment, round }] of allPriorComments.entries()) {
       // Skip if this comment was re-authored in the latest review
       if (processedCommentIds.has(commentId)) continue;
 
-      // Find all completed reviewer verdicts for this comment across past cycles
+      // Find all completed reviewer verdicts for this comment across past rounds
       const adjudicatedResponses = allKnownResponses
         .filter(
           (r) =>
@@ -110,7 +113,7 @@ export function issuesFromReview(
         )
         .sort(
           (a, b) =>
-            b.reviewCycle - a.reviewCycle ||
+            b.reviewRound - a.reviewRound ||
             (b.respondedAt ?? '').localeCompare(a.respondedAt ?? ''),
         );
 
@@ -128,7 +131,8 @@ export function issuesFromReview(
           reviewerExplanation: latestAdjudicatedResponse.reviewerComment ?? null,
           previousResponseKind: latestAdjudicatedResponse.kind,
           previousRejectionReason: latestAdjudicatedResponse.rejectionReason ?? null,
-          originCycle: cycle,
+          originRound: round,
+          originCycle: round,
         });
       }
     }

@@ -7,7 +7,7 @@ function review(overrides: Partial<Review> = {}): Review {
   return {
     id: `r-${String(Math.random())}`,
     taskId: 't1',
-    reviewCycle: 1,
+    reviewRound: 1,
     reviewerId: 'u-reviewer',
     reviewerName: 'Reviewer',
     comments: [],
@@ -29,9 +29,9 @@ function review(overrides: Partial<Review> = {}): Review {
   };
 }
 
-function task(status: TaskStatus, reviewCycle = 1): TaskListItem {
+function task(status: TaskStatus, cycle = 1): TaskListItem {
   return {
-    id: `t-${status}-${String(reviewCycle)}-${String(Math.random())}`,
+    id: `t-${status}-${String(cycle)}-${String(Math.random())}`,
     taskCode: 'AASL-001',
     title: 'AASL - CRIM-1',
     crimId: 'CRIM-1',
@@ -39,8 +39,8 @@ function task(status: TaskStatus, reviewCycle = 1): TaskListItem {
     customerId: 'c-aasl',
     priority: 'Medium',
     status,
-    reviewCycle,
-    historicalCycle: reviewCycle,
+    reviewRound: cycle,
+    countedCycle: cycle,
     adjustedCycles: [],
     developerId: 'u-dev',
     reviewerId: null,

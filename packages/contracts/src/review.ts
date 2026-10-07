@@ -50,10 +50,16 @@ export type ReviewScreenshot = z.infer<typeof reviewScreenshotSchema>;
 /* Review Comment — unified reviewer feedback entity                         */
 /* -------------------------------------------------------------------------- */
 
-export const reviewCommentSchema = z.object({
+function normalizeReviewRound(input: unknown): unknown {
+  if (typeof input !== 'object' || input === null || Array.isArray(input)) return input;
+  const value = input as Record<string, unknown>;
+  return { ...value, reviewRound: value['reviewRound'] ?? value['reviewCycle'] ?? 1 };
+}
+
+const reviewCommentShape = {
   id: idSchema,
   reviewId: idSchema.optional(),
-  reviewCycle: z.number().int().min(1),
+  reviewRound: z.number().int().min(1),
   reviewerId: idSchema.optional(),
   reviewerName: z.string().optional(),
   reviewSessionId: idSchema.optional(),
@@ -61,11 +67,13 @@ export const reviewCommentSchema = z.object({
   screenshots: z.array(reviewScreenshotSchema).default([]),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema.optional(),
-});
+} as const;
+export const reviewCommentObjectSchema = z.object(reviewCommentShape);
+export const reviewCommentSchema = z.preprocess(normalizeReviewRound, reviewCommentObjectSchema);
 export type ReviewComment = z.infer<typeof reviewCommentSchema>;
 
 /* -------------------------------------------------------------------------- */
-/* Review — one row per cycle                                                  */
+/* Review — one row per round                                                  */
 /* -------------------------------------------------------------------------- */
 
 /** Legacy Detailed Review Findings text areas (preserved for historical compatibility). */
@@ -76,10 +84,10 @@ export const reviewFindingsSchema = z.object({
 });
 export type ReviewFindings = z.infer<typeof reviewFindingsSchema>;
 
-export const reviewSchema = z.object({
+const reviewShape = {
   id: idSchema,
   taskId: idSchema,
-  reviewCycle: z.number().int().min(1),
+  reviewRound: z.number().int().min(1),
   reviewerId: idSchema.nullable(),
   reviewerName: z.string().nullable(),
   currentReviewSessionId: idSchema.optional().nullable(),
@@ -107,7 +115,8 @@ export const reviewSchema = z.object({
   decidedAt: isoDateTimeSchema.nullable(),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
-});
+} as const;
+export const reviewSchema = z.preprocess(normalizeReviewRound, z.object(reviewShape));
 export type Review = z.infer<typeof reviewSchema>;
 
 /**
@@ -136,11 +145,11 @@ export type ReviewDraft = z.infer<typeof reviewDraftSchema>;
 /* Issue responses — the developer's reply to each comment (single source of truth) */
 /* -------------------------------------------------------------------------- */
 
-export const issueResponseRecordSchema = z.object({
+const issueResponseRecordShape = {
   id: idSchema,
   taskId: idSchema,
-  /** The immutable historical cycle whose feedback is being answered. */
-  reviewCycle: z.number().int().min(1),
+  /** The immutable historical review round whose feedback is being answered. */
+  reviewRound: z.number().int().min(1),
   /** Foreign key linking to the ReviewComment. */
   commentId: idSchema.optional().nullable(),
   /** Null when responding to the review as a whole rather than one screenshot. */
@@ -154,7 +163,11 @@ export const issueResponseRecordSchema = z.object({
   reviewerComment: z.string().trim().nullable().optional(),
   respondedAt: isoDateTimeSchema,
   adjudicatedAt: isoDateTimeSchema.optional().nullable(),
-});
+} as const;
+export const issueResponseRecordSchema = z.preprocess(
+  normalizeReviewRound,
+  z.object(issueResponseRecordShape),
+);
 export type IssueResponseRecord = z.infer<typeof issueResponseRecordSchema>;
 
 export const issueResponseDraftSchema = z.object({
@@ -170,7 +183,11 @@ export type IssueResponseDraft = z.infer<typeof issueResponseDraftSchema>;
 /* -------------------------------------------------------------------------- */
 
 /** One past cycle, newest first (spec §1.5 p.11: descending order). */
-export const reviewHistoryEntrySchema = reviewSchema.extend({
-  responses: z.array(issueResponseRecordSchema),
-});
+export const reviewHistoryEntrySchema = z.preprocess(
+  normalizeReviewRound,
+  z.object({
+    ...reviewShape,
+    responses: z.array(issueResponseRecordSchema),
+  }),
+);
 export type ReviewHistoryEntry = z.infer<typeof reviewHistoryEntrySchema>;

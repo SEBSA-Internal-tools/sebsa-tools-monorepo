@@ -219,7 +219,7 @@ export function HandoverDialog({
                 {task.taskCode}
               </span>
               <span className="text-ink-300">•</span>
-              <span className="font-medium text-ink-700">Cycle {task.reviewCycle}</span>
+              <span className="font-medium text-ink-700">Round {task.reviewRound}</span>
             </div>
             <div className="flex items-center gap-1.5 text-ink-500">
               <span>Current reviewer:</span>

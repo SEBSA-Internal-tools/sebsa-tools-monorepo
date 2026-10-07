@@ -87,11 +87,11 @@ export function filterTasks(items: readonly TaskListItem[], filters: TaskFilters
     }
 
     if (filters.cycle !== ALL) {
-      // "3+" is one bucket: past cycle 3 the exact number matters less than the
+      // "3+" is one bucket: past round 3 the exact number matters less than the
       // fact that the task has gone round too many times.
       if (filters.cycle === '3+') {
-        if (task.reviewCycle < 3) return false;
-      } else if (String(task.reviewCycle) !== filters.cycle) {
+        if (task.reviewRound < 3) return false;
+      } else if (String(task.reviewRound) !== filters.cycle) {
         return false;
       }
     }

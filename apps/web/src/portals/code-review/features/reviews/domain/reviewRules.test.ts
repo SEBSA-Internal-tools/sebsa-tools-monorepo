@@ -28,7 +28,7 @@ function comment(
 ): ReviewComment {
   return {
     id,
-    reviewCycle: 1,
+    reviewRound: 1,
     reviewerId,
     reviewerName: reviewerId ? `Reviewer ${reviewerId}` : undefined,
     reviewSessionId,

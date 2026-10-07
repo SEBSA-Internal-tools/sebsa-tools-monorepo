@@ -45,8 +45,8 @@ beforeEach(() => {
   if (task) {
     task.status = 'InReview';
     task.reviewerId = REVIEWER;
-    task.reviewCycle = 1;
-    task.historicalCycle = 1;
+    task.reviewRound = 1;
+    task.countedCycle = 1;
     task.adjustedCycles = [];
     task.isHandedOver = false;
     task.currentReviewSessionId = null;
@@ -332,12 +332,12 @@ describe('COMMENT-FIRST MODERN REVIEW EXPERIENCE QA TEST SUITE', () => {
 
   it('13 & 14. Previous Reviewer Immutability & Access: cannot rename or remove, but can preview and download', async () => {
     // Seed draft containing a comment from previous reviewer
-    let activeReview = db.reviews.find((r) => r.taskId === IN_REVIEW_TASK && r.reviewCycle === 1);
+    let activeReview = db.reviews.find((r) => r.taskId === IN_REVIEW_TASK && r.reviewRound === 1);
     if (!activeReview) {
       activeReview = {
         id: `rev-${IN_REVIEW_TASK}-1`,
         taskId: IN_REVIEW_TASK,
-        reviewCycle: 1,
+        reviewRound: 1,
         reviewerId: OTHER_REVIEWER,
         reviewerName: 'Kavidu Dilshan',
         comments: [],
@@ -360,7 +360,7 @@ describe('COMMENT-FIRST MODERN REVIEW EXPERIENCE QA TEST SUITE', () => {
     activeReview.comments = [
       {
         id: 'c-prev',
-        reviewCycle: 1,
+        reviewRound: 1,
         reviewerId: REVIEWER,
         reviewerName: 'Pinsara Chandika',
         text: 'Previous reviewer feedback item',
@@ -409,14 +409,14 @@ describe('COMMENT-FIRST MODERN REVIEW EXPERIENCE QA TEST SUITE', () => {
     const mockReview: Review = {
       id: 'rev-test-1',
       taskId: 't-1',
-      reviewCycle: 1,
+      reviewRound: 1,
       reviewerId: REVIEWER,
       reviewerName: 'Pinsara Chandika',
       rank: 2,
       comments: [
         {
           id: 'comm-dev-1',
-          reviewCycle: 1,
+          reviewRound: 1,
           reviewerId: REVIEWER,
           reviewerName: 'Pinsara Chandika',
           text: 'Fix the checkout button alignment',
@@ -475,7 +475,7 @@ describe('COMMENT-FIRST MODERN REVIEW EXPERIENCE QA TEST SUITE', () => {
       {
         id: 'hist-1',
         taskId: 't-1',
-        reviewCycle: 1,
+        reviewRound: 1,
         reviewerId: REVIEWER,
         reviewerName: 'Pinsara Chandika',
         rank: 2,
@@ -491,7 +491,7 @@ describe('COMMENT-FIRST MODERN REVIEW EXPERIENCE QA TEST SUITE', () => {
         comments: [
           {
             id: 'c-hist-1',
-            reviewCycle: 1,
+            reviewRound: 1,
             reviewerId: REVIEWER,
             reviewerName: 'Pinsara Chandika',
             text: 'Historical comment',
@@ -571,7 +571,7 @@ describe('COMMENT-FIRST MODERN REVIEW EXPERIENCE QA TEST SUITE', () => {
         return HttpResponse.json({
           id: `rev-${String(params['taskId'])}`,
           taskId: params['taskId'],
-          reviewCycle: 1,
+          reviewRound: 1,
           reviewerId: REVIEWER,
           reviewerName: 'Pinsara Chandika',
           decision: null,

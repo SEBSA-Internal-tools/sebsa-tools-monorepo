@@ -80,16 +80,18 @@ export function taskMetrics(items: readonly TaskListItem[]): TaskMetrics {
   // Approved tasks only — see `byCycle` on the interface above.
   const cycles = { zero: 0, one: 0, two: 0, threePlus: 0 };
   for (const task of approvedTasks) {
-    if (task.reviewCycle === 0) cycles.zero += 1;
-    else if (task.reviewCycle === 1) cycles.one += 1;
-    else if (task.reviewCycle === 2) cycles.two += 1;
+    const cycleCount = task.reviewCycle ?? task.countedCycle;
+    if (cycleCount === 0) cycles.zero += 1;
+    else if (cycleCount === 1) cycles.one += 1;
+    else if (cycleCount === 2) cycles.two += 1;
     else cycles.threePlus += 1;
   }
 
   const averageCycles =
     approvedTasks.length === 0
       ? null
-      : approvedTasks.reduce((sum, task) => sum + task.reviewCycle, 0) / approvedTasks.length;
+      : approvedTasks.reduce((sum, task) => sum + (task.reviewCycle ?? task.countedCycle), 0) /
+        approvedTasks.length;
 
   return {
     total: items.length,
@@ -226,7 +228,7 @@ export function developerQualityMetrics(
          */
         approvalRate: submitted.length === 0 ? null : (approved.length / submitted.length) * 100,
         avgRank: mean(ownRanks),
-        avgCycles: mean(approved.map((task) => task.reviewCycle)),
+        avgCycles: mean(approved.map((task) => task.countedCycle)),
       };
     })
     // Busiest first: the customer a developer works with most is the one they

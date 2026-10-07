@@ -56,8 +56,8 @@ beforeEach(() => {
   if (task) {
     task.status = 'InReview';
     task.reviewerId = REVIEWER;
-    task.reviewCycle = 1;
-    task.historicalCycle = 1;
+    task.reviewRound = 1;
+    task.countedCycle = 1;
     task.adjustedCycles = [];
   }
   db.reviews = db.reviews.filter((r) => r.taskId !== IN_REVIEW_TASK);

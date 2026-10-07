@@ -14,7 +14,9 @@ export interface ReviewDecisionDialogProps {
   onOpenChange: (open: boolean) => void;
   decision: ReviewDecision | null;
   draft: ReviewDraft;
-  reviewCycle: number;
+  reviewRound?: number | undefined;
+  /** Legacy alias for reviewRound */
+  reviewCycle?: number | undefined;
   onConfirm: () => Promise<void> | void;
   onClose: () => void;
   onSuccess?: ((decision: ReviewDecision) => void) | undefined;
@@ -24,11 +26,13 @@ export function ReviewDecisionDialog({
   open,
   decision,
   draft,
+  reviewRound,
   reviewCycle,
   onConfirm,
   onClose,
   onSuccess,
 }: ReviewDecisionDialogProps) {
+  const activeRound = reviewRound ?? reviewCycle ?? 1;
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -250,8 +254,8 @@ export function ReviewDecisionDialog({
             )}
 
             <div className="flex items-center justify-between border-t border-line/60 pt-2.5 text-xs">
-              <span className="font-medium text-ink-500">Review Round</span>
-              <span className="font-semibold text-ink-900">Cycle {reviewCycle}</span>
+              <span className="font-medium text-ink-500">Round</span>
+              <span className="font-semibold text-ink-900">Round {activeRound}</span>
             </div>
           </div>
         </div>

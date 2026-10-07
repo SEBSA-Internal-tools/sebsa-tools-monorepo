@@ -23,6 +23,14 @@ import {
  * `table.state.sorting` does not exist unless `rowSortingFeature` is in this
  * object, and a fresh object per render would rebuild every row model.
  */
+export interface TableColumnMeta {
+  headerClassName?: string;
+  cellClassName?: string;
+  className?: string;
+}
+
+const defaultMeta: TableColumnMeta = {};
+
 export const tableFeaturesInUse = tableFeatures({
   columnFilteringFeature,
   globalFilteringFeature,
@@ -31,6 +39,7 @@ export const tableFeaturesInUse = tableFeatures({
   filteredRowModel: createFilteredRowModel(),
   sortedRowModel: createSortedRowModel(),
   paginatedRowModel: createPaginatedRowModel(),
+  columnMeta: defaultMeta,
 });
 
 export type TableFeaturesInUse = typeof tableFeaturesInUse;

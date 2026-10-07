@@ -51,8 +51,8 @@ function task(overrides: Partial<TaskListItem> = {}): TaskListItem {
     customerId: 'c-aasl',
     priority: 'Medium',
     status: 'Submitted',
-    reviewCycle: 1,
-    historicalCycle: 1,
+    reviewRound: 1,
+    countedCycle: 1,
     adjustedCycles: [],
     developerId: 'u-dev',
     reviewerId: 'u-rev',
@@ -78,7 +78,7 @@ function review(overrides: Partial<Review> = {}): Review {
   return {
     id: `rev-${String(nextId)}`,
     taskId: 't-1',
-    reviewCycle: 1,
+    reviewRound: 1,
     reviewerId: 'u-rev',
     reviewerName: 'Rev One',
     comments: [],
@@ -151,14 +151,15 @@ describe('approval rate', () => {
 });
 
 describe('averages', () => {
-  it('averages review cycles over approved tasks only', () => {
+  it('averages counted cycles over approved tasks only', () => {
     const tasks = [
-      task({ status: 'Approved', reviewCycle: 1 }),
-      task({ status: 'Approved', reviewCycle: 3 }),
+      task({ status: 'Approved', countedCycle: 1 }),
+      task({ status: 'Approved', countedCycle: 3 }),
       // Still going round, so it is not yet "N cycles to approval".
-      task({ status: 'ChangesRequested', reviewCycle: 9 }),
+      task({ status: 'ChangesRequested', countedCycle: 9 }),
     ];
 
+    expect(summarise(tasks, [], []).avgCountedCycles).toBe(2);
     expect(summarise(tasks, [], []).avgReviewCycles).toBe(2);
   });
 
@@ -198,11 +199,11 @@ describe('distributions', () => {
 
   it('buckets cycles as 1 / 2 / 3+ over approved tasks', () => {
     const tasks = [
-      task({ status: 'Approved', reviewCycle: 1 }),
-      task({ status: 'Approved', reviewCycle: 2 }),
-      task({ status: 'Approved', reviewCycle: 5 }),
-      task({ status: 'Approved', reviewCycle: 7 }),
-      task({ status: 'ChangesRequested', reviewCycle: 4 }),
+      task({ status: 'Approved', countedCycle: 1 }),
+      task({ status: 'Approved', countedCycle: 2 }),
+      task({ status: 'Approved', countedCycle: 5 }),
+      task({ status: 'Approved', countedCycle: 7 }),
+      task({ status: 'ChangesRequested', countedCycle: 4 }),
     ];
 
     const slices = cycleDistribution(tasks, CYCLE_LABELS);
@@ -333,7 +334,7 @@ describe('customer overview', () => {
     const aaslApproved = task({
       customerId: 'c-aasl',
       status: 'Approved',
-      reviewCycle: 3,
+      countedCycle: 3,
     });
     const tasks = [
       aaslApproved,
@@ -341,7 +342,7 @@ describe('customer overview', () => {
       // Drafts never reached review, so they count towards the customer's task
       // total but must stay out of the approval-rate denominator.
       task({ customerId: 'c-aasl', status: 'Draft' }),
-      task({ customerId: 'c-blom', status: 'Approved', reviewCycle: 1 }),
+      task({ customerId: 'c-blom', status: 'Approved', countedCycle: 1 }),
     ];
 
     const rows = customerOverview(

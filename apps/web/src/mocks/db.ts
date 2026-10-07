@@ -124,9 +124,20 @@ function withDerivedFields(task: Record<string, unknown>): Record<string, unknow
   const customer = seededCustomers.find((c) => c.id === task['customerId']);
   const version = task['version'] as string | null;
   const base = `${customer?.name ?? 'Unknown'} - ${String(task['crimId'])}`;
+  const reviewRound =
+    (task['reviewRound'] as number) ??
+    (task['historicalCycle'] as number) ??
+    (task['reviewCycle'] as number) ??
+    1;
+  const countedCycle =
+    (task['countedCycle'] as number) ??
+    (task['reviewCycle'] as number) ??
+    1;
 
   return {
     ...task,
+    reviewRound,
+    countedCycle,
     title: version === null ? base : `${base} ${version}`,
     updatedAt: task['submittedAt'] ?? task['createdAt'],
   };
@@ -259,20 +270,20 @@ function seedReviews(tasks: Task[]): Review[] {
     if (task.reviewerId === null) continue;
 
     const isApproved = task.status === 'Approved';
-    const decidedCycles = isApproved ? task.reviewCycle : task.reviewCycle - 1;
+    const decidedRounds = isApproved ? task.reviewRound : task.reviewRound - 1;
     const latest = Date.parse(task.submittedAt ?? task.createdAt);
 
-    for (let cycle = 1; cycle <= decidedCycles; cycle += 1) {
-      const isFinalApproval = isApproved && cycle === task.reviewCycle;
-      const id = `rev-${task.id}-${String(cycle)}`;
+    for (let round = 1; round <= decidedRounds; round += 1) {
+      const isFinalApproval = isApproved && round === task.reviewRound;
+      const id = `rev-${task.id}-${String(round)}`;
 
       /*
-       * Walk backwards from the most recent submission: the LAST decided cycle
+       * Walk backwards from the most recent submission: the LAST decided round
        * sits at `submittedAt` and each earlier one is three days before it. That
-       * keeps the cycles in the order they actually happened, which is what
+       * keeps the rounds in the order they actually happened, which is what
        * gives an activity chart a real x-axis.
        */
-      const decidedMs = latest - (decidedCycles - cycle) * CYCLE_GAP_DAYS * DAY_MS;
+      const decidedMs = latest - (decidedRounds - round) * CYCLE_GAP_DAYS * DAY_MS;
       // 2–72 hours from opening the review to deciding it. Wide enough that the
       // turnaround buckets on the reviewer's Analytics tab all have occupants.
       const turnaroundHours = hashedRange(id, 2, 72);
@@ -283,7 +294,7 @@ function seedReviews(tasks: Task[]): Review[] {
       reviews.push({
         id,
         taskId: task.id,
-        reviewCycle: cycle,
+        reviewRound: round,
         reviewerId: task.reviewerId,
         reviewerName: seededUsers.find((u) => u.id === task.reviewerId)?.name ?? 'Unknown',
         currentReviewSessionId: task.id === 't-semco-017' ? `rs-${task.id}-1` : null,
@@ -292,7 +303,7 @@ function seedReviews(tasks: Task[]): Review[] {
             ? [
                 {
                   id: `cm-${id}-1`,
-                  reviewCycle: cycle,
+                  reviewRound: round,
                   text: 'The batch transaction does not properly handle the retry cancellation path when database timeouts occur.',
                   createdAt,
                   reviewerId: task.reviewerId,
@@ -303,7 +314,7 @@ function seedReviews(tasks: Task[]): Review[] {
                 },
                 {
                   id: `cm-${id}-2`,
-                  reviewCycle: cycle,
+                  reviewRound: round,
                   text: 'Please add unit tests covering the error rollback scenario in the worker pool.',
                   createdAt,
                   reviewerId: task.reviewerId,
@@ -327,8 +338,8 @@ function seedReviews(tasks: Task[]): Review[] {
           ? 'Looks good. Approved.'
           : 'Please address the findings above and resubmit.',
         // Rank 1 permits approval; 2 and 3 force the Request Changes path
-        // (FL 2.9.2.5-01), so a Request Changes cycle can never carry rank 1.
-        rank: isFinalApproval ? 1 : cycle % 2 === 0 ? 3 : 2,
+        // (FL 2.9.2.5-01), so a Request Changes round can never carry rank 1.
+        rank: isFinalApproval ? 1 : round % 2 === 0 ? 3 : 2,
         previousFeedbackReviewNote: null,
         screenshots: [],
         decision: isFinalApproval ? 'Approved' : 'ChangesRequested',
@@ -401,7 +412,7 @@ function seedEvents(tasks: Task[], reviews: Review[]): TaskEvent[] {
       id: `ev-${task.id}-created`,
       taskId: task.id,
       kind: 'Created',
-      reviewCycle: 1,
+      reviewRound: 1,
       actorId: task.developerId,
       actorName: '',
       note: null,
@@ -413,7 +424,7 @@ function seedEvents(tasks: Task[], reviews: Review[]): TaskEvent[] {
         id: `ev-${task.id}-submitted`,
         taskId: task.id,
         kind: 'Submitted',
-        reviewCycle: 1,
+        reviewRound: 1,
         actorId: task.developerId,
         actorName: '',
         note: null,
@@ -426,7 +437,7 @@ function seedEvents(tasks: Task[], reviews: Review[]): TaskEvent[] {
         id: `ev-${task.id}-picked`,
         taskId: task.id,
         kind: 'Picked',
-        reviewCycle: task.reviewCycle,
+        reviewRound: task.reviewRound,
         actorId: task.reviewerId,
         actorName: '',
         note: null,
@@ -439,10 +450,10 @@ function seedEvents(tasks: Task[], reviews: Review[]): TaskEvent[] {
     if (review.reviewerId === null) continue;
     if (review.decision === 'ChangesRequested') {
       events.push({
-        id: `ev-${review.taskId}-changes-requested-${String(review.reviewCycle)}`,
+        id: `ev-${review.taskId}-changes-requested-${String(review.reviewRound)}`,
         taskId: review.taskId,
         kind: 'ChangesRequested',
-        reviewCycle: review.reviewCycle,
+        reviewRound: review.reviewRound,
         actorId: review.reviewerId,
         actorName: '',
         note: review.feedbackSummary === '' ? null : review.feedbackSummary,
@@ -450,10 +461,10 @@ function seedEvents(tasks: Task[], reviews: Review[]): TaskEvent[] {
       });
     } else if (review.decision === 'Approved') {
       events.push({
-        id: `ev-${review.taskId}-approved-${String(review.reviewCycle)}`,
+        id: `ev-${review.taskId}-approved-${String(review.reviewRound)}`,
         taskId: review.taskId,
         kind: 'Approved',
-        reviewCycle: review.reviewCycle,
+        reviewRound: review.reviewRound,
         actorId: review.reviewerId,
         actorName: '',
         note: review.feedbackSummary === '' ? null : review.feedbackSummary,
@@ -596,8 +607,8 @@ export function findTask(taskId: string): Task | undefined {
   return db.tasks.find((t) => t.id === taskId);
 }
 
-export function findReview(taskId: string, cycle: number): Review | undefined {
-  return db.reviews.find((r) => r.taskId === taskId && r.reviewCycle === cycle);
+export function findReview(taskId: string, round: number): Review | undefined {
+  return db.reviews.find((r) => r.taskId === taskId && r.reviewRound === round);
 }
 
 export function attachmentsForTask(taskId: string): TaskAttachment[] {
@@ -606,14 +617,17 @@ export function attachmentsForTask(taskId: string): TaskAttachment[] {
     .sort((a, b) => a.uploadedAt.localeCompare(b.uploadedAt));
 }
 
-export function responsesForCycle(taskId: string, cycle: number): IssueResponseRecord[] {
-  return db.issueResponses.filter((r) => r.taskId === taskId && r.reviewCycle === cycle);
+export function responsesForRound(taskId: string, round: number): IssueResponseRecord[] {
+  return db.issueResponses.filter((r) => r.taskId === taskId && r.reviewRound === round);
 }
+
+/** Legacy alias for responsesForRound */
+export const responsesForCycle = responsesForRound;
 
 export function reviewsForTask(taskId: string): Review[] {
   return db.reviews
     .filter((r) => r.taskId === taskId)
-    .sort((a, b) => b.reviewCycle - a.reviewCycle);
+    .sort((a, b) => b.reviewRound - a.reviewRound);
 }
 
 export function findChecklist(taskId: string): TaskChecklist | undefined {

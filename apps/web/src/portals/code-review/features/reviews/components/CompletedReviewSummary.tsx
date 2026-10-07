@@ -47,7 +47,7 @@ export function CompletedReviewSummary({
       collapsible
       defaultExpanded={false}
       resetKey={review.taskId}
-      summary={`Round ${String(review.reviewCycle)}`}
+      summary={`Round ${String(review.reviewRound)}`}
       className={cn(
         'overflow-hidden border-2 shadow-sm transition-all',
         isApproved ? 'border-emerald-200/90 bg-white' : 'border-amber-200/90 bg-white',
@@ -68,14 +68,14 @@ export function CompletedReviewSummary({
             </Tag>
             {review.rank !== null && <RankBadge rank={review.rank} />}
             <Tag className="bg-violet-100 text-xs font-bold text-violet-700">
-              Round {review.reviewCycle}
+              Round {review.reviewRound}
             </Tag>
           </div>
         }
         description={
           taskCode
-            ? `Finalized assessment for task ${taskCode} (Round ${review.reviewCycle})`
-            : `Finalized assessment for Round ${review.reviewCycle}`
+            ? `Finalized assessment for task ${taskCode} (Round ${review.reviewRound})`
+            : `Finalized assessment for Round ${review.reviewRound}`
         }
         icon={
           isApproved ? (

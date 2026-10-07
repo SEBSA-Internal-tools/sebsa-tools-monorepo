@@ -43,12 +43,13 @@ function seedFeedback() {
 
   task.status = 'ChangesRequested';
   task.reviewerId = null;
-  task.reviewCycle = 2;
+  task.reviewRound = 2;
+  task.countedCycle = 2;
 
   db.reviews.push({
     id: `rev-${task.id}-1`,
     taskId: task.id,
-    reviewCycle: 1,
+    reviewRound: 1,
     reviewerId: REVIEWER,
     reviewerName: 'Pinsara Chandika',
     comments: [],

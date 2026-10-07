@@ -6,7 +6,7 @@ import { prioritySchema, taskStatusSchema, taskTypeIdSchema, MAX_VERSION_CHARS }
 /* Task                                                                        */
 /* -------------------------------------------------------------------------- */
 
-export const taskSchema = z.object({
+const taskShape = {
   id: idSchema,
 
   /**
@@ -28,12 +28,18 @@ export const taskSchema = z.object({
   status: taskStatusSchema,
 
   /** Number of persisted business cycles whose `counted` flag is true. */
-  reviewCycle: z.number().int().min(0),
+  reviewCycle: z.number().int().min(0).optional(),
 
   /** Monotonic immutable review round (zero until a reviewer starts reviewing). */
-  historicalCycle: z.number().int().min(0).default(0),
+  historicalCycle: z.number().int().min(0).optional(),
 
-  /** Tracks which historical cycles have received an accepted-rejection decrement (idempotency). */
+  /** The actual chronological / historical review attempt sequence (monotonic, never decrements). */
+  reviewRound: z.number().int().min(1).default(1),
+
+  /** Presentation alias for `reviewCycle`; kept synchronized at the contract boundary. */
+  countedCycle: z.number().int().min(0).default(0),
+
+  /** Tracks which historical review rounds have received an accepted-rejection decrement (idempotency). */
   adjustedCycles: z.array(z.number().int()).default([]),
 
   developerId: idSchema,
@@ -64,22 +70,46 @@ export const taskSchema = z.object({
   createdAt: isoDateTimeSchema,
   submittedAt: isoDateTimeSchema.nullable(),
   updatedAt: isoDateTimeSchema,
-});
+} as const;
+
+function normalizeTaskCycles(input: unknown): unknown {
+  if (typeof input !== 'object' || input === null || Array.isArray(input)) return input;
+
+  const task = input as Record<string, unknown>;
+  const reviewCycle = task['countedCycle'] ?? task['reviewCycle'] ?? 0;
+  const historicalCycle = task['reviewRound'] ?? task['historicalCycle'] ?? reviewCycle;
+  const reviewRound =
+    typeof historicalCycle === 'number' ? Math.max(1, historicalCycle) : historicalCycle;
+
+  return {
+    ...task,
+    reviewCycle,
+    historicalCycle,
+    reviewRound,
+    countedCycle: reviewCycle,
+  };
+}
+
+export const taskSchema = z.preprocess(normalizeTaskCycles, z.object(taskShape));
 export type Task = z.infer<typeof taskSchema>;
 
 /**
  * A task joined with the display fields every grid needs. Returned by list
  * endpoints so the frontend never has to fan out N+1 lookups to render a row.
  */
-export const taskListItemSchema = taskSchema.extend({
-  /** Previous reviewer shown beside tasks that have been handed over. */
-  handedOverByName: z.string().nullable().optional(),
-  customerName: z.string(),
-  customerCode: z.string(),
-  customerColor: z.string(),
-  developerName: z.string(),
-  reviewerName: z.string().nullable(),
-});
+export const taskListItemSchema = z.preprocess(
+  normalizeTaskCycles,
+  z.object({
+    ...taskShape,
+    /** Previous reviewer shown beside tasks that have been handed over. */
+    handedOverByName: z.string().nullable().optional(),
+    customerName: z.string(),
+    customerCode: z.string(),
+    customerColor: z.string(),
+    developerName: z.string(),
+    reviewerName: z.string().nullable(),
+  }),
+);
 export type TaskListItem = z.infer<typeof taskListItemSchema>;
 
 export const nextTaskVersionSchema = z.object({
@@ -144,7 +174,8 @@ export const taskFilterSchema = z.object({
   customerId: z.array(idSchema).optional(),
   developerId: z.array(idSchema).optional(),
   reviewerId: z.array(idSchema).optional(),
-  reviewCycle: z.array(z.number().int()).optional(),
+  reviewRound: z.array(z.number().int()).optional(),
+  countedCycle: z.array(z.number().int()).optional(),
   page: z.number().int().min(1).default(1),
   pageSize: z.number().int().min(1).max(200).default(25),
   sortBy: z.string().optional(),
@@ -153,7 +184,7 @@ export const taskFilterSchema = z.object({
 export type TaskFilter = z.infer<typeof taskFilterSchema>;
 
 /* -------------------------------------------------------------------------- */
-/* Task event — the append-only audit trail behind cycle history (screen 14)   */
+/* Task event — the append-only audit trail behind round history (screen 14)   */
 /* and the "log of which reviewers worked on the task" the spec asks for (p.10)*/
 /* -------------------------------------------------------------------------- */
 
@@ -175,22 +206,31 @@ export const TASK_EVENT_KINDS = [
 export const taskEventKindSchema = z.enum(TASK_EVENT_KINDS);
 export type TaskEventKind = z.infer<typeof taskEventKindSchema>;
 
-export const taskEventSchema = z.object({
-  id: idSchema,
-  taskId: idSchema,
-  kind: taskEventKindSchema,
-  /** Cycle the event belongs to, so history can be grouped by cycle. */
-  reviewCycle: z.number().int().min(1),
-  actorId: idSchema,
-  actorName: z.string(),
-  note: z.string().nullable(),
-  occurredAt: isoDateTimeSchema,
-  qualifyingReviewRound: z.number().int().min(1).optional(),
-  previousCountedCycle: z.number().int().min(1).optional(),
-  newCountedCycle: z.number().int().min(0).optional(),
-  adjustmentAmount: z.number().int().min(1).optional(),
-  reason: z.string().optional(),
-});
+function normalizeReviewRound(input: unknown): unknown {
+  if (typeof input !== 'object' || input === null || Array.isArray(input)) return input;
+  const value = input as Record<string, unknown>;
+  return { ...value, reviewRound: value['reviewRound'] ?? value['reviewCycle'] ?? 1 };
+}
+
+export const taskEventSchema = z.preprocess(
+  normalizeReviewRound,
+  z.object({
+    id: idSchema,
+    taskId: idSchema,
+    kind: taskEventKindSchema,
+    /** Review round the event belongs to, so history can be grouped by round. */
+    reviewRound: z.number().int().min(1),
+    actorId: idSchema,
+    actorName: z.string(),
+    note: z.string().nullable(),
+    occurredAt: isoDateTimeSchema,
+    qualifyingReviewRound: z.number().int().min(1).optional(),
+    previousCountedCycle: z.number().int().min(1).optional(),
+    newCountedCycle: z.number().int().min(0).optional(),
+    adjustmentAmount: z.number().int().min(1).optional(),
+    reason: z.string().optional(),
+  }),
+);
 export type TaskEvent = z.infer<typeof taskEventSchema>;
 
 /* -------------------------------------------------------------------------- */

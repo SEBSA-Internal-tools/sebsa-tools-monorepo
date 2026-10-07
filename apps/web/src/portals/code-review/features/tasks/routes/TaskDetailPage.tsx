@@ -40,7 +40,7 @@ import { ReviewFeedbackPanel } from '../components/ReviewFeedbackPanel.tsx';
 import { ReviewCycleHistory } from '@/portals/code-review/components/ReviewCycleHistory.tsx';
 import { PageContainer } from '@/components/common/PageContainer.tsx';
 import { TaskActivityTimeline } from '@/portals/code-review/components/TaskActivityTimeline.tsx';
-import { resolveActiveReviewCycle } from '@/lib/reviewCycles.ts';
+import { resolveActiveReviewRound } from '@/lib/reviewCycles.ts';
 import {
   buildDetailUrl,
   safeListReturnTo,
@@ -224,15 +224,16 @@ export function TaskDetailPage({
                 const lastReview =
                   (reviewHistory ?? [])
                     .filter((entry) => entry.decision === 'ChangesRequested')
-                    .sort((a, b) => b.reviewCycle - a.reviewCycle)[0] ?? null;
-                const activeCycle = resolveActiveReviewCycle(task, reviewHistory ?? []);
+                    .sort((a, b) => b.reviewRound - a.reviewRound)[0] ?? null;
+                const activeRound = resolveActiveReviewRound(task, reviewHistory ?? []);
 
                 return (
                   <ReviewFeedbackPanel
                     review={lastReview}
                     allReviews={reviewHistory ?? []}
                     responses={responses ?? []}
-                    activeCycle={activeCycle}
+                    activeRound={activeRound}
+                    activeCycle={activeRound}
                     onRespond={(input) => {
                       respond.mutate(input, {
                         onError: (cause) => {
@@ -288,7 +289,7 @@ export function TaskDetailPage({
                 collapsible
                 defaultExpanded={false}
                 resetKey={task.id}
-                summary={`${visibleHistory.filter((entry) => entry.decision !== null).length} completed ${visibleHistory.filter((entry) => entry.decision !== null).length === 1 ? 'cycle' : 'cycles'}`}
+                summary={`${visibleHistory.filter((entry) => entry.decision !== null).length} completed ${visibleHistory.filter((entry) => entry.decision !== null).length === 1 ? 'round' : 'rounds'}`}
                 data-testid="review-feedback-history"
               >
                 <CardHeader
@@ -297,7 +298,7 @@ export function TaskDetailPage({
                   icon={<History className="size-4 text-violet-600" />}
                 />
                 <CardBody className="pt-3">
-                  <ReviewCycleHistory entries={visibleHistory} />
+                  <ReviewCycleHistory entries={visibleHistory} countedCycle={task.countedCycle} />
                 </CardBody>
               </Card>
             );

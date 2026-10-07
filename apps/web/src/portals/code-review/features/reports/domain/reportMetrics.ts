@@ -29,7 +29,7 @@ export interface ReportFilters {
   /** ISO date, inclusive. Empty means no lower bound. */
   from: string;
   customerId: string;
-  status: string;
+  status?: string;
 }
 
 export const ALL_REPORT_VALUES = 'all';
@@ -48,7 +48,9 @@ export function applyReportFilters(
     if (filters.customerId !== ALL_REPORT_VALUES && task.customerId !== filters.customerId) {
       return false;
     }
-    if (filters.status !== ALL_REPORT_VALUES && task.status !== filters.status) return false;
+    if (filters.status && filters.status !== ALL_REPORT_VALUES && task.status !== filters.status) {
+      return false;
+    }
     if (filters.from !== '' && task.createdAt < filters.from) return false;
     return true;
   });
@@ -143,13 +145,13 @@ export function cycleDistribution(
      * `<= 1`, not `=== 1`, and it matches `taskMetrics.byCycle` deliberately.
      *
      * These two functions draw the SAME chart on two screens. While this one
-     * tested `=== 1` a `reviewCycle` of 0 fell through to `3+` here and to `1`
+     * tested `=== 1` a `countedCycle` of 0 fell through to `3+` here and to `1`
      * there, so an admin and the developer whose work it was would have read
      * opposite things off one number. Nothing in the seed carries a 0 today,
      * which is precisely why the divergence would have shipped.
      */
-    const key =
-      task.reviewCycle === 0 ? '0' : task.reviewCycle === 1 ? '1' : task.reviewCycle === 2 ? '2' : '3+';
+    const cycleCount = task.reviewCycle ?? task.countedCycle;
+    const key = cycleCount === 0 ? '0' : cycleCount === 1 ? '1' : cycleCount === 2 ? '2' : '3+';
     const entry = counts.get(key);
     if (entry) entry.value += 1;
   }
@@ -169,6 +171,7 @@ export interface ReportSummary {
   /** Percent of tasks that reached review and were approved. */
   approvalRate: number;
   isApprovalOnTarget: boolean;
+  avgCountedCycles: number;
   avgReviewCycles: number;
   isCycleCountHigh: boolean;
   avgQualityRank: number;
@@ -199,8 +202,8 @@ export function summarise(
   const ranked = decidedReviews(reviews).filter((review) => review.rank !== null);
 
   const approvalRate = reviewed === 0 ? 0 : round1((approved.length / reviewed) * 100);
-  const avgReviewCycles =
-    approved.length === 0 ? 0 : round2(mean(approved.map((task) => task.reviewCycle)));
+  const avgCountedCycles =
+    approved.length === 0 ? 0 : round2(mean(approved.map((task) => task.countedCycle)));
   const avgQualityRank =
     ranked.length === 0 ? 0 : round2(mean(ranked.map((review) => review.rank ?? 0)));
 
@@ -213,10 +216,11 @@ export function summarise(
     cancelled: tasks.filter((task) => task.status === 'Cancelled').length,
     approvalRate,
     isApprovalOnTarget: approvalRate >= APPROVAL_RATE_TARGET,
-    avgReviewCycles,
+    avgCountedCycles,
+    avgReviewCycles: avgCountedCycles,
     // Zero means "nothing approved yet", not "excellent" — an empty dataset must
     // not read as a perfect score.
-    isCycleCountHigh: avgReviewCycles > HIGH_CYCLE_THRESHOLD,
+    isCycleCountHigh: avgCountedCycles > HIGH_CYCLE_THRESHOLD,
     avgQualityRank,
     isQualityGood: ranked.length > 0 && avgQualityRank <= GOOD_RANK_THRESHOLD,
     team: {
@@ -242,14 +246,34 @@ export interface DeveloperPerformance {
   changesRequestedCount: number;
   /** Coarse label the wireframe shows as a chip. */
   standing: 'good' | 'fair' | 'poor' | 'none';
+  rankSlices: Slice[];
+  cycleSlices: Slice[];
 }
+
+const DEFAULT_DEV_RANK_LABELS: Readonly<Record<1 | 2 | 3, string>> = {
+  1: 'Rank 1',
+  2: 'Rank 2',
+  3: 'Rank 3',
+};
+
+const DEFAULT_DEV_CYCLE_LABELS = {
+  one: 'Cycle 1',
+  two: 'Cycle 2',
+  threePlus: 'Cycle 3+',
+};
 
 export function developerPerformance(
   tasks: readonly TaskListItem[],
   reviews: readonly Review[],
   users: readonly User[],
+  labels?: {
+    rank: Readonly<Record<1 | 2 | 3, string>>;
+    cycle: { one: string; two: string; threePlus: string };
+  },
 ): DeveloperPerformance[] {
   const byTask = new Map(tasks.map((task) => [task.id, task]));
+  const rankLabels = labels?.rank ?? DEFAULT_DEV_RANK_LABELS;
+  const cycleLabels = labels?.cycle ?? DEFAULT_DEV_CYCLE_LABELS;
 
   return users
     .filter((user) => user.roles.includes('Developer'))
@@ -273,9 +297,11 @@ export function developerPerformance(
         approvalRate,
         avgRank: ranks.length === 0 ? null : round2(mean(ranks)),
         avgCycles:
-          approved.length === 0 ? null : round2(mean(approved.map((task) => task.reviewCycle))),
+          approved.length === 0 ? null : round2(mean(approved.map((task) => task.countedCycle))),
         changesRequestedCount: ownReviews.filter((r) => r.decision === 'ChangesRequested').length,
         standing: standingFor(reviewed, approvalRate),
+        rankSlices: rankDistribution(ownReviews, rankLabels),
+        cycleSlices: cycleDistribution(own, cycleLabels),
       };
     })
     .filter((row) => row.taskCount > 0)
@@ -364,7 +390,7 @@ export function customerOverview(
         approvedCount: approved.length,
         approvalRate: reviewed === 0 ? 0 : round1((approved.length / reviewed) * 100),
         avgCycles:
-          approved.length === 0 ? null : round2(mean(approved.map((task) => task.reviewCycle))),
+          approved.length === 0 ? null : round2(mean(approved.map((task) => task.countedCycle))),
         rankSlices: rankDistribution(ownReviews, labels.rank),
         cycleSlices: cycleDistribution(own, labels.cycle),
       };

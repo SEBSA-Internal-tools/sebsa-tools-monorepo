@@ -217,11 +217,11 @@ describe('Developer Dashboard Summary Cards & Filter Interconnection', () => {
     expect(screen.getByRole('combobox', { name: /^priority$/i })).toHaveTextContent(
       'All Priorities',
     );
-    expect(screen.getByRole('combobox', { name: /^cycle$/i })).toHaveTextContent('All Cycles');
+    expect(screen.getByRole('combobox', { name: /^round$/i })).toHaveTextContent('All Rounds');
     expect(getRows().length).toBe(initialRowCount);
   });
 
-  it('combines summary card filter with search, priority, and cycle filters', async () => {
+  it('combines summary card filter with search, priority, and round filters', async () => {
     const user = userEvent.setup();
     renderMyTasks();
     await screen.findByRole('table');

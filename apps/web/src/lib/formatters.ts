@@ -86,3 +86,14 @@ export function textOr(value: string | null | undefined, fallback: string): stri
 export function formatBadgeCount(count: number, max = 9): string {
   return count > max ? `${max}+` : String(count);
 }
+
+/** Canonical Review Round presentation: "Round 2". */
+export function formatReviewRound(round: number): string {
+  return `Round ${round}`;
+}
+
+/** Canonical Counted Cycle presentation: "Cycle 1". */
+export function formatCountedCycle(cycle: number): string {
+  return `Cycle ${cycle}`;
+}
+

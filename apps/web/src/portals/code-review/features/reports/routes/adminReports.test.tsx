@@ -7,6 +7,7 @@ import { signInForTest } from '@/test/setup.ts';
 import { routes } from '@/app/routes.tsx';
 import { db } from '@/mocks/db.ts';
 import { APPROVAL_RATE_TARGET } from '@/lib/analyticsTargets.ts';
+import { cycleDistribution } from '../domain/reportMetrics.ts';
 
 /**
  * Admin Reports, rendered — which nothing tested before this file.
@@ -227,4 +228,190 @@ describe('Admin Reports', () => {
     const rows = await statusLegend();
     expect(rows).toHaveLength(new Set(theirs.map((task) => task.status)).size);
   });
+
+  it('contains only Date and Customer filters with no Status filter', async () => {
+    renderReports();
+
+    await card(/^All review tasks$/);
+
+    expect(screen.getByRole('combobox', { name: 'Date' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Customer' })).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: /^status$/i })).not.toBeInTheDocument();
+
+    expect(screen.getByText('Date: All Time')).toBeInTheDocument();
+    expect(screen.getByText('Customer: All Customers')).toBeInTheDocument();
+  });
+
+  it('displays distribution charts in the required order and uses Counted Cycle terminology', async () => {
+    renderReports();
+
+    await card(/^All review tasks$/);
+
+    const qHeading = await screen.findByRole('heading', { name: 'Quality Ranking Distribution' });
+    const cHeading = await screen.findByRole('heading', { name: 'Counted Cycle Distribution' });
+    const sHeading = await screen.findByRole('heading', { name: 'Task Status Distribution' });
+
+    expect(qHeading).toBeInTheDocument();
+    expect(cHeading).toBeInTheDocument();
+    expect(sHeading).toBeInTheDocument();
+
+    // Verify ordering in the document: Quality Ranking first, Counted Cycle second, Task Status last
+    expect(qHeading.compareDocumentPosition(cHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(cHeading.compareDocumentPosition(sHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    // Verify Review Cycle Distribution is gone
+    expect(screen.queryByText(/Review Cycle Distribution/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Avg Review Cycles/i)).not.toBeInTheDocument();
+    expect(screen.getAllByText('Avg Counted Cycles').length).toBeGreaterThan(0);
+  });
+
+  it('provides Developers and Reviewers tabs and removes the Customers tab and Customer Overview section', async () => {
+    renderReports();
+
+    await card(/^All review tasks$/);
+
+    expect(screen.getByRole('tab', { name: 'Developers' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Reviewers' })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Customers' })).not.toBeInTheDocument();
+
+    expect(screen.queryByText(/Customer Overview/i)).not.toBeInTheDocument();
+  });
+
+  it('renders Rank Distribution and Counted Cycle Distribution charts in Developer Performance without review cycle terminology', async () => {
+    renderReports();
+
+    await card(/^All review tasks$/);
+
+    // Developers tab is active by default
+    const rankTitles = await screen.findAllByText('Rank Distribution');
+    const cycleTitles = await screen.findAllByText('Counted Cycle Distribution');
+
+    expect(rankTitles.length).toBeGreaterThan(0);
+    expect(cycleTitles.length).toBeGreaterThan(0);
+
+    const devAvgCycles = screen.getAllByText('Avg Counted Cycles');
+    expect(devAvgCycles.length).toBeGreaterThan(0);
+
+    expect(screen.queryByText(/Avg Review Cycles/i)).not.toBeInTheDocument();
+  });
+
+  it('renders Reviewer Performance without pie or donut charts', async () => {
+    const { user } = renderReports();
+
+    await card(/^All review tasks$/);
+
+    const reviewerTab = await screen.findByRole('tab', { name: 'Reviewers' });
+    await user.click(reviewerTab);
+
+    // Verify Reviewer tab content is shown
+    const avgRankGiven = await screen.findAllByText('Avg Rank Given');
+    expect(avgRankGiven.length).toBeGreaterThan(0);
+
+    // Verify there are no pie/donut charts in the reviewer tabpanel
+    const tabpanel = screen.getByRole('tabpanel');
+    expect(within(tabpanel).queryByText(/Rank Distribution/i)).not.toBeInTheDocument();
+    expect(within(tabpanel).queryByText(/Counted Cycle Distribution/i)).not.toBeInTheDocument();
+  });
+
+  it('scopes all metrics and charts to SEMCO when SEMCO is selected', async () => {
+    const { user } = renderReports();
+
+    await card(/^All review tasks$/);
+
+    const semco = db.customers.find((c) => c.name === 'SEMCO');
+    if (!semco) throw new Error('SEMCO not found in seed');
+
+    const semcoTasks = adminTasks().filter((t) => t.customerId === semco.id);
+    const semcoApproved = semcoTasks.filter((t) => t.status === 'Approved').length;
+    const semcoReviewed = semcoTasks.length - semcoTasks.filter((t) => t.status === 'Cancelled').length;
+    const semcoRate = Math.round((semcoApproved / semcoReviewed) * 1000) / 10;
+
+    await user.click(screen.getByRole('combobox', { name: 'Customer' }));
+    await user.click(await screen.findByRole('option', { name: 'SEMCO' }));
+
+    const totalCard = await card(/^All review tasks$/);
+    expect(within(totalCard).getByText(String(semcoTasks.length))).toBeInTheDocument();
+
+    const approvedCard = await card(new RegExp(`^${String(semcoRate)}% approval rate$`));
+    expect(within(approvedCard).getByText(String(semcoApproved))).toBeInTheDocument();
+
+    const rateCard = await card(/^Of submitted tasks$/);
+    expect(within(rateCard).getByText(`${String(semcoRate)}%`)).toBeInTheDocument();
+  });
+
+  it('shows a clean empty state with Reset Filters button when no report data matches filters', async () => {
+    const { user } = renderReports();
+
+    await card(/^All review tasks$/);
+
+    const emptyCustomer = db.customers.find(
+      (c) => !adminTasks().some((t) => t.customerId === c.id),
+    );
+    if (!emptyCustomer) throw new Error('No empty customer in seed');
+
+    await user.click(screen.getByRole('combobox', { name: 'Customer' }));
+    await user.click(await screen.findByRole('option', { name: emptyCustomer.name }));
+
+    expect(
+      await screen.findByText('No report data found for the selected filters.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Try adjusting your date range or customer selection to view reports.'),
+    ).toBeInTheDocument();
+
+    // Reset Filters button should be present in both the filter bar and the empty state card
+    const resetBtns = screen.getAllByRole('button', { name: /Reset Filters/i });
+    expect(resetBtns.length).toBe(2);
+
+    const emptyStateReset = resetBtns[1];
+    if (!emptyStateReset) throw new Error('Missing empty state reset button');
+
+    // Clicking Reset Filters in the empty state restores full default reporting
+    await user.click(emptyStateReset);
+
+    expect(await screen.findByRole('heading', { name: 'Quality Ranking Distribution' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Task Status Distribution' })).toBeInTheDocument();
+    expect(screen.getByText('Customer: All Customers')).toBeInTheDocument();
+  });
+
+  it('restores default state when Reset Filters in filter bar is clicked', async () => {
+    const { user } = renderReports();
+
+    await card(/^All review tasks$/);
+
+    const semco = db.customers.find((c) => c.name === 'SEMCO')!;
+    await user.click(screen.getByRole('combobox', { name: 'Customer' }));
+    await user.click(await screen.findByRole('option', { name: semco.name }));
+
+    // Reset button should now be visible in filter bar
+    const resetBtn = await screen.findByRole('button', { name: /Reset Filters/i });
+    await user.click(resetBtn);
+
+    // Filter resets back to All Customers
+    expect(screen.getByText('Customer: All Customers')).toBeInTheDocument();
+    const totalCard = await card(/^All review tasks$/);
+    expect(within(totalCard).getByText(String(adminTasks().length))).toBeInTheDocument();
+  });
+
+  it('correctly handles the cycle-decrement case (reviewRound=2, countedCycle=1) contributing to Cycle 1', () => {
+    const baseTask = adminTasks().find((t) => t.status === 'Approved');
+    if (!baseTask) throw new Error('No approved task in seed');
+
+    // Directly test cycleDistribution with a cycle-decremented task
+    const mockTask = { ...baseTask, reviewRound: 2, countedCycle: 1 };
+
+    const distribution = cycleDistribution([mockTask as never], {
+      one: 'Cycle 1',
+      two: 'Cycle 2',
+      threePlus: 'Cycle 3+',
+    });
+
+    const cycle1 = distribution.find((s) => s.key === '1');
+    const cycle2 = distribution.find((s) => s.key === '2');
+
+    // Crucial check: Must contribute to Cycle 1, NOT Cycle 2
+    expect(cycle1?.value).toBe(1);
+    expect(cycle2).toBeUndefined();
+  });
 });
+

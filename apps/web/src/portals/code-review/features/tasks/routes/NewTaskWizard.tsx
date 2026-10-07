@@ -426,7 +426,8 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
           taskId: submitted.id,
           taskCode: submitted.taskCode,
           title: submitted.title,
-          reviewCycle: submitted.reviewCycle,
+          reviewRound: submitted.reviewRound,
+          reviewCycle: submitted.reviewRound,
         },
       });
     } catch (cause) {

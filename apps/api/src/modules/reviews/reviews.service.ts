@@ -11,7 +11,7 @@ import {
 } from '@prisma/client';
 import {
   issueResponseDraftSchema,
-  reviewCommentSchema,
+  reviewCommentObjectSchema,
   reviewDraftSchema,
   reviewScopeSchema,
 } from '@sdp/contracts';
@@ -42,7 +42,15 @@ type ReviewRow = Prisma.CodeReviewFormGetPayload<{ include: typeof reviewInclude
 // this relaxed input shape only while saving a draft and applies completion rules
 // in assertDecisionAllowed before a decision can be recorded.
 export const reviewDraftInputSchema = reviewDraftSchema.extend({
-  comments: z.array(reviewCommentSchema.extend({ text: z.string() })).default([]),
+  comments: z
+    .array(
+      reviewCommentObjectSchema.extend({
+        reviewRound: z.number().int().min(1).optional(),
+        reviewCycle: z.number().int().min(1).optional(),
+        text: z.string(),
+      }),
+    )
+    .default([]),
 });
 
 type ReviewDraftInput = z.infer<typeof reviewDraftInputSchema>;
@@ -198,13 +206,7 @@ export class ReviewsService {
     );
     await this.prisma.$transaction(async (tx) => {
       const round = await this.ensureReviewRoundStarted(tx, taskId);
-      const review = await this.persistDraft(
-        tx,
-        taskId,
-        round,
-        decisionInput.data.draft,
-        user,
-      );
+      const review = await this.persistDraft(tx, taskId, round, decisionInput.data.draft, user);
       const now = new Date();
       const status =
         decision === ReviewDecision.APPROVED ? TaskStatus.APPROVED : TaskStatus.CHANGES_REQUESTED;
@@ -355,20 +357,23 @@ export class ReviewsService {
     return this.prisma.$transaction(async (tx) => {
       const response = await tx.developerFindingResponse.findFirst({
         where: { id: responseId, finding: { reviewForm: { taskId } } },
-        select: { cycleId: true, finding: { select: { reviewForm: { select: { reviewCycleNumber: true } } } } },
+        select: {
+          cycleId: true,
+          finding: { select: { reviewForm: { select: { reviewCycleNumber: true } } } },
+        },
       });
       if (!response) throw new NotFoundException(`Response ${responseId} was not found`);
       await tx.developerFindingResponse.update({
         where: { id: responseId },
         data: {
-        reviewerDecision: {
-          Pending: ReviewerDecision.PENDING,
-          Accepted: ReviewerDecision.ACCEPTED,
-          Overruled: ReviewerDecision.REJECTED,
-        }[parsed.data.verdict],
-        reviewerComment: parsed.data.reviewerComment ?? null,
-        reviewedBy: user.id,
-        reviewedAt: new Date(),
+          reviewerDecision: {
+            Pending: ReviewerDecision.PENDING,
+            Accepted: ReviewerDecision.ACCEPTED,
+            Overruled: ReviewerDecision.REJECTED,
+          }[parsed.data.verdict],
+          reviewerComment: parsed.data.reviewerComment ?? null,
+          reviewedBy: user.id,
+          reviewedAt: new Date(),
         },
       });
       await this.evaluateOriginalCycleCounted(
@@ -444,7 +449,9 @@ export class ReviewsService {
         },
       },
     });
-    const latest = findings.map(({ responses }) => responses[0]).filter((entry) => entry !== undefined);
+    const latest = findings
+      .map(({ responses }) => responses[0])
+      .filter((entry) => entry !== undefined);
     const counted = shouldCountReviewCycle(
       findings.length,
       latest.map((response) => ({

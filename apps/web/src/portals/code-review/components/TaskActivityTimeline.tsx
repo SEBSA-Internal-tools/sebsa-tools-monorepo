@@ -66,6 +66,8 @@ export interface TaskActivityTimelineProps {
   subtitle?: ReactNode | undefined;
   events: readonly TaskEvent[];
   showActor?: boolean | undefined;
+  showReviewRound?: boolean | undefined;
+  /** Legacy alias for showReviewRound */
   showReviewCycle?: boolean | undefined;
   emptyStateText?: string | undefined;
   order?: 'asc' | 'desc' | undefined;
@@ -79,13 +81,14 @@ export interface TaskActivityTimelineProps {
  *
  * Used across Developer Task Overview (`TaskDetailPage`) and Reviewer Review Task (`ReviewSidebar`)
  * to present a chronological timeline of important task lifecycle events with status-aware
- * markers, actor identification, timestamps, and optional review cycle badges.
+ * markers, actor identification, timestamps, and optional review round badges.
  */
 export function TaskActivityTimeline({
   title = tasksContent.detail.historyTitle,
   subtitle = tasksContent.detail.historySubtitle,
   events,
   showActor = true,
+  showReviewRound,
   showReviewCycle = true,
   emptyStateText = 'No events recorded.',
   order = 'asc',
@@ -164,9 +167,9 @@ export function TaskActivityTimeline({
                                 </span>
                               ) : null}
                             </div>
-                            {!isAdjustment && showReviewCycle && event.reviewCycle ? (
+                            {!isAdjustment && (showReviewRound ?? showReviewCycle) && (event.reviewRound ?? (event as Record<string, unknown>)['reviewCycle']) ? (
                               <span className="py-0.2 inline-flex items-center rounded border border-violet-200/60 bg-violet-50 px-1.5 text-[10px] leading-none font-semibold text-violet-700">
-                                Cycle {event.reviewCycle}
+                                Round {String(event.reviewRound ?? (event as Record<string, unknown>)['reviewCycle'])}
                               </span>
                             ) : null}
                           </div>

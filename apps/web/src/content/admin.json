@@ -403,6 +403,8 @@
   "reports": {
     "title": "Reports & Analytics",
     "subtitle": "Comprehensive insights into code review performance",
+    "emptyFiltered": "No report data found for the selected filters.",
+    "emptyFilteredHint": "Try adjusting your date range or customer selection to view reports.",
     "filters": {
       "heading": "Report Filters",
       "date": "Date",
@@ -411,17 +413,16 @@
       "date90": "Last 90 days",
       "date365": "Last 12 months",
       "customer": "Customer",
-      "customerAll": "Customer: All",
-      "status": "Status",
-      "statusAll": "Status: All"
+      "customerAll": "Customer: All Customers",
+      "reset": "Reset Filters"
     },
     "charts": {
-      "statusTitle": "Task Status Distribution",
-      "statusSubtitle": "Current status of all review tasks",
       "rankTitle": "Quality Ranking Distribution",
       "rankSubtitle": "Code quality based on review outcomes",
-      "cycleTitle": "Review Cycle Distribution",
-      "cycleSubtitle": "Number of review iterations to approval",
+      "cycleTitle": "Counted Cycle Distribution",
+      "cycleSubtitle": "Distribution of counted cycles to approval",
+      "statusTitle": "Task Status Distribution",
+      "statusSubtitle": "Current status of all review tasks",
       "empty": "No data for the selected filters"
     },
     "rank": {
@@ -445,7 +446,7 @@
       "cancelledCaption": "Tasks cancelled",
       "approvalRate": "Approval Rate",
       "approvalRateCaption": "Of submitted tasks",
-      "avgCycles": "Avg Review Cycles",
+      "avgCycles": "Avg Counted Cycles",
       "avgCyclesCaption": "Per approved task",
       "avgCyclesHigh": "High iterations",
       "avgCyclesEfficient": "Efficient",
@@ -461,8 +462,7 @@
     },
     "tabs": {
       "developers": "Developers",
-      "reviewers": "Reviewers",
-      "customers": "Customers"
+      "reviewers": "Reviewers"
     },
     "developers": {
       "title": "Developer Performance",
@@ -474,8 +474,10 @@
       "tasks": "{count} tasks · {approved} approved",
       "approvalRate": "Approval Rate",
       "avgRanking": "Avg Ranking",
-      "avgCycles": "Avg Cycles",
+      "avgCycles": "Avg Counted Cycles",
       "changesRequested": "Changes Req.",
+      "rankTitle": "Rank Distribution",
+      "cycleTitle": "Counted Cycle Distribution",
       "noReviews": "No completed reviews yet",
       "standing": {
         "good": "Good",
@@ -501,21 +503,6 @@
         "lenient": "Lenient",
         "none": "No reviews"
       }
-    },
-    "customers": {
-      "title": "Customer Overview",
-      "subtitle": "Task distribution and quality metrics by customer",
-      "searchLabel": "Search customers",
-      "searchPlaceholder": "Search customers…",
-      "count": "Showing {shown} of {total} customers",
-      "empty": "No customer has tasks under these filters.",
-      "totalTasks": "Total Tasks",
-      "approved": "Approved",
-      "approvalRate": "Approval Rate",
-      "avgCycles": "Avg Cycles",
-      "tasks": "{count} total tasks",
-      "rankTitle": "Rank Distribution",
-      "cycleTitle": "Review Cycle Distribution"
     }
   },
   "customers": {

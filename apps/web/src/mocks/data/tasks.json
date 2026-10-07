@@ -7,7 +7,6 @@
     "customerId": "c-blom",
     "priority": "Medium",
     "status": "InReview",
-    "reviewCycle": 1,
     "developerId": "u-hiruni",
     "reviewerId": "u-pinsara",
     "isChecklistComplete": true,
@@ -15,7 +14,11 @@
     "createdAt": "2026-07-03T09:12:00.000Z",
     "submittedAt": "2026-07-03T10:02:00.000Z",
     "noteToReviewer": null,
-    "taskTypeIds": ["tt-customization"]
+    "taskTypeIds": [
+      "tt-customization"
+    ],
+    "reviewRound": 1,
+    "countedCycle": 1
   },
   {
     "id": "t-blom-009",
@@ -25,7 +28,6 @@
     "customerId": "c-blom",
     "priority": "Medium",
     "status": "Submitted",
-    "reviewCycle": 1,
     "developerId": "u-hiruni",
     "reviewerId": null,
     "isChecklistComplete": true,
@@ -33,7 +35,11 @@
     "createdAt": "2026-07-03T08:40:00.000Z",
     "submittedAt": "2026-07-03T08:55:00.000Z",
     "noteToReviewer": null,
-    "taskTypeIds": ["tt-configuration"]
+    "taskTypeIds": [
+      "tt-configuration"
+    ],
+    "reviewRound": 1,
+    "countedCycle": 1
   },
   {
     "id": "t-semco-014",
@@ -43,7 +49,6 @@
     "customerId": "c-semco",
     "priority": "Low",
     "status": "Draft",
-    "reviewCycle": 1,
     "developerId": "u-pinsara",
     "reviewerId": null,
     "isChecklistComplete": false,
@@ -51,7 +56,9 @@
     "createdAt": "2026-07-02T14:20:00.000Z",
     "submittedAt": null,
     "noteToReviewer": null,
-    "taskTypeIds": []
+    "taskTypeIds": [],
+    "reviewRound": 1,
+    "countedCycle": 1
   },
   {
     "id": "t-semco-013",
@@ -61,7 +68,6 @@
     "customerId": "c-semco",
     "priority": "Medium",
     "status": "Submitted",
-    "reviewCycle": 1,
     "developerId": "u-pinsara",
     "reviewerId": null,
     "isChecklistComplete": true,
@@ -69,7 +75,11 @@
     "createdAt": "2026-07-02T11:05:00.000Z",
     "submittedAt": "2026-07-02T11:44:00.000Z",
     "noteToReviewer": null,
-    "taskTypeIds": ["tt-quick-report"]
+    "taskTypeIds": [
+      "tt-quick-report"
+    ],
+    "reviewRound": 1,
+    "countedCycle": 1
   },
   {
     "id": "t-aasl-014",
@@ -79,7 +89,6 @@
     "customerId": "c-aasl",
     "priority": "Medium",
     "status": "Draft",
-    "reviewCycle": 1,
     "developerId": "u-hiruni",
     "reviewerId": null,
     "isChecklistComplete": false,
@@ -87,7 +96,9 @@
     "createdAt": "2026-06-11T10:15:00.000Z",
     "submittedAt": null,
     "noteToReviewer": null,
-    "taskTypeIds": []
+    "taskTypeIds": [],
+    "reviewRound": 1,
+    "countedCycle": 1
   },
   {
     "id": "t-blom-008",
@@ -97,7 +108,6 @@
     "customerId": "c-blom",
     "priority": "Low",
     "status": "Draft",
-    "reviewCycle": 1,
     "developerId": "u-kavidu",
     "reviewerId": null,
     "isChecklistComplete": false,
@@ -105,7 +115,9 @@
     "createdAt": "2026-05-29T13:30:00.000Z",
     "submittedAt": null,
     "noteToReviewer": null,
-    "taskTypeIds": []
+    "taskTypeIds": [],
+    "reviewRound": 1,
+    "countedCycle": 1
   },
   {
     "id": "t-blom-007",
@@ -115,7 +127,6 @@
     "customerId": "c-blom",
     "priority": "High",
     "status": "ReSubmitted",
-    "reviewCycle": 2,
     "developerId": "u-hiruni",
     "reviewerId": "u-pinsara",
     "isChecklistComplete": true,
@@ -123,7 +134,12 @@
     "createdAt": "2026-05-20T09:00:00.000Z",
     "submittedAt": "2026-05-20T09:30:00.000Z",
     "noteToReviewer": null,
-    "taskTypeIds": ["tt-customization", "tt-upgrade-service"]
+    "taskTypeIds": [
+      "tt-customization",
+      "tt-upgrade-service"
+    ],
+    "reviewRound": 2,
+    "countedCycle": 2
   },
   {
     "id": "t-aasl-013",
@@ -133,7 +149,6 @@
     "customerId": "c-aasl",
     "priority": "Medium",
     "status": "Approved",
-    "reviewCycle": 1,
     "developerId": "u-hiruni",
     "reviewerId": "u-pinsara",
     "isChecklistComplete": true,
@@ -141,7 +156,11 @@
     "createdAt": "2026-05-20T08:10:00.000Z",
     "submittedAt": "2026-05-20T08:45:00.000Z",
     "noteToReviewer": null,
-    "taskTypeIds": ["tt-quick-report"]
+    "taskTypeIds": [
+      "tt-quick-report"
+    ],
+    "reviewRound": 1,
+    "countedCycle": 1
   },
   {
     "id": "t-semco-012",
@@ -151,7 +170,6 @@
     "customerId": "c-semco",
     "priority": "Low",
     "status": "Submitted",
-    "reviewCycle": 1,
     "developerId": "u-pinsara",
     "reviewerId": null,
     "isChecklistComplete": true,
@@ -159,7 +177,11 @@
     "createdAt": "2026-05-19T15:22:00.000Z",
     "submittedAt": "2026-05-19T15:50:00.000Z",
     "noteToReviewer": null,
-    "taskTypeIds": ["tt-lobby"]
+    "taskTypeIds": [
+      "tt-lobby"
+    ],
+    "reviewRound": 1,
+    "countedCycle": 1
   },
   {
     "id": "t-aasl-012",
@@ -169,7 +191,6 @@
     "customerId": "c-aasl",
     "priority": "Medium",
     "status": "Cancelled",
-    "reviewCycle": 2,
     "developerId": "u-janith",
     "reviewerId": "u-kavidu",
     "isChecklistComplete": true,
@@ -177,7 +198,11 @@
     "createdAt": "2026-05-19T09:00:00.000Z",
     "submittedAt": "2026-05-19T09:40:00.000Z",
     "noteToReviewer": null,
-    "taskTypeIds": ["tt-customization"]
+    "taskTypeIds": [
+      "tt-customization"
+    ],
+    "reviewRound": 2,
+    "countedCycle": 2
   },
   {
     "id": "t-blom-005",
@@ -187,7 +212,6 @@
     "customerId": "c-blom",
     "priority": "High",
     "status": "ChangesRequested",
-    "reviewCycle": 2,
     "developerId": "u-dheliya",
     "reviewerId": "u-kavidu",
     "isChecklistComplete": true,
@@ -195,7 +219,11 @@
     "createdAt": "2026-05-18T10:00:00.000Z",
     "submittedAt": "2026-05-18T10:35:00.000Z",
     "noteToReviewer": null,
-    "taskTypeIds": ["tt-customization"]
+    "taskTypeIds": [
+      "tt-customization"
+    ],
+    "reviewRound": 2,
+    "countedCycle": 2
   },
   {
     "id": "t-semco-011",
@@ -205,7 +233,6 @@
     "customerId": "c-semco",
     "priority": "Medium",
     "status": "ChangesRequested",
-    "reviewCycle": 1,
     "developerId": "u-dheliya",
     "reviewerId": "u-kavidu",
     "isChecklistComplete": true,
@@ -213,7 +240,11 @@
     "createdAt": "2026-05-18T08:30:00.000Z",
     "submittedAt": "2026-05-18T09:10:00.000Z",
     "noteToReviewer": null,
-    "taskTypeIds": ["tt-configuration"]
+    "taskTypeIds": [
+      "tt-configuration"
+    ],
+    "reviewRound": 1,
+    "countedCycle": 1
   },
   {
     "id": "t-aasl-009",
@@ -223,7 +254,6 @@
     "customerId": "c-aasl",
     "priority": "Medium",
     "status": "Cancelled",
-    "reviewCycle": 3,
     "developerId": "u-hiruni",
     "reviewerId": "u-pinsara",
     "isChecklistComplete": true,
@@ -231,7 +261,11 @@
     "createdAt": "2026-05-14T14:00:00.000Z",
     "submittedAt": "2026-05-14T14:30:00.000Z",
     "noteToReviewer": null,
-    "taskTypeIds": ["tt-customization"]
+    "taskTypeIds": [
+      "tt-customization"
+    ],
+    "reviewRound": 3,
+    "countedCycle": 3
   },
   {
     "id": "t-aasl-008",
@@ -241,7 +275,6 @@
     "customerId": "c-aasl",
     "priority": "Medium",
     "status": "ReSubmitted",
-    "reviewCycle": 2,
     "developerId": "u-hiruni",
     "reviewerId": "u-kavidu",
     "isChecklistComplete": true,
@@ -249,7 +282,11 @@
     "createdAt": "2026-05-14T13:00:00.000Z",
     "submittedAt": "2026-05-14T13:20:00.000Z",
     "noteToReviewer": null,
-    "taskTypeIds": ["tt-lobby"]
+    "taskTypeIds": [
+      "tt-lobby"
+    ],
+    "reviewRound": 2,
+    "countedCycle": 2
   },
   {
     "id": "t-semco-010",
@@ -259,7 +296,6 @@
     "customerId": "c-semco",
     "priority": "Medium",
     "status": "ChangesRequested",
-    "reviewCycle": 6,
     "developerId": "u-hiruni",
     "reviewerId": "u-pinsara",
     "isChecklistComplete": true,
@@ -267,7 +303,12 @@
     "createdAt": "2026-05-14T11:00:00.000Z",
     "submittedAt": "2026-05-14T11:30:00.000Z",
     "noteToReviewer": null,
-    "taskTypeIds": ["tt-customization", "tt-configuration"]
+    "taskTypeIds": [
+      "tt-customization",
+      "tt-configuration"
+    ],
+    "reviewRound": 6,
+    "countedCycle": 6
   },
   {
     "id": "t-blom-004",
@@ -277,7 +318,6 @@
     "customerId": "c-blom",
     "priority": "Medium",
     "status": "Approved",
-    "reviewCycle": 3,
     "developerId": "u-hiruni",
     "reviewerId": "u-pinsara",
     "isChecklistComplete": true,
@@ -285,7 +325,11 @@
     "createdAt": "2026-05-14T09:00:00.000Z",
     "submittedAt": "2026-05-14T09:25:00.000Z",
     "noteToReviewer": null,
-    "taskTypeIds": ["tt-upgrade-service"]
+    "taskTypeIds": [
+      "tt-upgrade-service"
+    ],
+    "reviewRound": 3,
+    "countedCycle": 3
   },
   {
     "id": "t-aasl-007",
@@ -295,7 +339,6 @@
     "customerId": "c-aasl",
     "priority": "Medium",
     "status": "ChangesRequested",
-    "reviewCycle": 3,
     "developerId": "u-hiruni",
     "reviewerId": "u-pinsara",
     "isChecklistComplete": true,
@@ -303,7 +346,11 @@
     "createdAt": "2026-05-14T08:00:00.000Z",
     "submittedAt": "2026-05-14T08:30:00.000Z",
     "noteToReviewer": null,
-    "taskTypeIds": ["tt-customization"]
+    "taskTypeIds": [
+      "tt-customization"
+    ],
+    "reviewRound": 3,
+    "countedCycle": 3
   },
   {
     "id": "t-blom-003",
@@ -313,7 +360,6 @@
     "customerId": "c-blom",
     "priority": "Medium",
     "status": "ChangesRequested",
-    "reviewCycle": 4,
     "developerId": "u-dheliya",
     "reviewerId": "u-pinsara",
     "isChecklistComplete": true,
@@ -321,7 +367,11 @@
     "createdAt": "2026-05-13T14:00:00.000Z",
     "submittedAt": "2026-05-13T14:30:00.000Z",
     "noteToReviewer": null,
-    "taskTypeIds": ["tt-configuration"]
+    "taskTypeIds": [
+      "tt-configuration"
+    ],
+    "reviewRound": 4,
+    "countedCycle": 4
   },
   {
     "id": "t-blom-002",
@@ -331,7 +381,6 @@
     "customerId": "c-blom",
     "priority": "Medium",
     "status": "ChangesRequested",
-    "reviewCycle": 1,
     "developerId": "u-kavidu",
     "reviewerId": "u-pinsara",
     "isChecklistComplete": true,
@@ -339,7 +388,11 @@
     "createdAt": "2026-05-13T10:00:00.000Z",
     "submittedAt": "2026-05-13T10:30:00.000Z",
     "noteToReviewer": null,
-    "taskTypeIds": ["tt-customization"]
+    "taskTypeIds": [
+      "tt-customization"
+    ],
+    "reviewRound": 1,
+    "countedCycle": 1
   },
   {
     "id": "t-blom-001",
@@ -349,7 +402,6 @@
     "customerId": "c-blom",
     "priority": "Medium",
     "status": "Cancelled",
-    "reviewCycle": 1,
     "developerId": "u-kavidu",
     "reviewerId": "u-pinsara",
     "isChecklistComplete": true,
@@ -357,7 +409,11 @@
     "createdAt": "2026-05-13T09:00:00.000Z",
     "submittedAt": "2026-05-13T09:20:00.000Z",
     "noteToReviewer": null,
-    "taskTypeIds": ["tt-lobby"]
+    "taskTypeIds": [
+      "tt-lobby"
+    ],
+    "reviewRound": 1,
+    "countedCycle": 1
   },
   {
     "id": "t-semco-004",
@@ -367,7 +423,6 @@
     "customerId": "c-semco",
     "priority": "Medium",
     "status": "Cancelled",
-    "reviewCycle": 4,
     "developerId": "u-dheliya",
     "reviewerId": "u-kavidu",
     "isChecklistComplete": true,
@@ -375,7 +430,11 @@
     "createdAt": "2026-05-12T15:00:00.000Z",
     "submittedAt": "2026-05-12T15:30:00.000Z",
     "noteToReviewer": null,
-    "taskTypeIds": ["tt-customization"]
+    "taskTypeIds": [
+      "tt-customization"
+    ],
+    "reviewRound": 4,
+    "countedCycle": 4
   },
   {
     "id": "t-semco-002",
@@ -385,7 +444,6 @@
     "customerId": "c-semco",
     "priority": "Medium",
     "status": "Cancelled",
-    "reviewCycle": 1,
     "developerId": "u-pinsara",
     "reviewerId": "u-kavidu",
     "isChecklistComplete": true,
@@ -393,7 +451,11 @@
     "createdAt": "2026-05-12T11:00:00.000Z",
     "submittedAt": "2026-05-12T11:30:00.000Z",
     "noteToReviewer": null,
-    "taskTypeIds": ["tt-quick-report"]
+    "taskTypeIds": [
+      "tt-quick-report"
+    ],
+    "reviewRound": 1,
+    "countedCycle": 1
   },
   {
     "id": "t-aasl-003",
@@ -403,7 +465,6 @@
     "customerId": "c-aasl",
     "priority": "Medium",
     "status": "Cancelled",
-    "reviewCycle": 1,
     "developerId": "u-kavidu",
     "reviewerId": "u-pinsara",
     "isChecklistComplete": true,
@@ -411,7 +472,11 @@
     "createdAt": "2026-05-12T09:00:00.000Z",
     "submittedAt": "2026-05-12T09:30:00.000Z",
     "noteToReviewer": null,
-    "taskTypeIds": ["tt-configuration"]
+    "taskTypeIds": [
+      "tt-configuration"
+    ],
+    "reviewRound": 1,
+    "countedCycle": 1
   },
   {
     "id": "t-aasl-002",
@@ -421,7 +486,6 @@
     "customerId": "c-aasl",
     "priority": "Medium",
     "status": "Cancelled",
-    "reviewCycle": 6,
     "developerId": "u-pinsara",
     "reviewerId": "u-hiruni",
     "isChecklistComplete": true,
@@ -429,7 +493,11 @@
     "createdAt": "2026-05-11T14:00:00.000Z",
     "submittedAt": "2026-05-11T14:30:00.000Z",
     "noteToReviewer": null,
-    "taskTypeIds": ["tt-customization"]
+    "taskTypeIds": [
+      "tt-customization"
+    ],
+    "reviewRound": 6,
+    "countedCycle": 6
   },
   {
     "id": "t-semco-001",
@@ -439,7 +507,6 @@
     "customerId": "c-semco",
     "priority": "Medium",
     "status": "Cancelled",
-    "reviewCycle": 1,
     "developerId": "u-pinsara",
     "reviewerId": "u-hiruni",
     "isChecklistComplete": true,
@@ -447,7 +514,11 @@
     "createdAt": "2026-05-11T09:00:00.000Z",
     "submittedAt": "2026-05-11T09:30:00.000Z",
     "noteToReviewer": null,
-    "taskTypeIds": ["tt-lobby"]
+    "taskTypeIds": [
+      "tt-lobby"
+    ],
+    "reviewRound": 1,
+    "countedCycle": 1
   },
   {
     "id": "t-aasl-001",
@@ -457,7 +528,6 @@
     "customerId": "c-aasl",
     "priority": "Medium",
     "status": "Cancelled",
-    "reviewCycle": 2,
     "developerId": "u-pinsara",
     "reviewerId": "u-kavidu",
     "isChecklistComplete": true,
@@ -465,7 +535,11 @@
     "createdAt": "2026-05-08T14:00:00.000Z",
     "submittedAt": "2026-05-08T14:30:00.000Z",
     "noteToReviewer": null,
-    "taskTypeIds": ["tt-customization"]
+    "taskTypeIds": [
+      "tt-customization"
+    ],
+    "reviewRound": 2,
+    "countedCycle": 2
   },
   {
     "id": "t-aim-004",
@@ -475,7 +549,6 @@
     "customerId": "c-aim",
     "priority": "Medium",
     "status": "Submitted",
-    "reviewCycle": 1,
     "developerId": "u-hiruni",
     "reviewerId": null,
     "isChecklistComplete": true,
@@ -483,7 +556,11 @@
     "createdAt": "2026-08-05T09:00:00.000Z",
     "submittedAt": "2026-08-05T09:45:00.000Z",
     "noteToReviewer": null,
-    "taskTypeIds": ["tt-customization"]
+    "taskTypeIds": [
+      "tt-customization"
+    ],
+    "reviewRound": 1,
+    "countedCycle": 1
   },
   {
     "id": "t-aim-003",
@@ -493,7 +570,6 @@
     "customerId": "c-aim",
     "priority": "Medium",
     "status": "Draft",
-    "reviewCycle": 1,
     "developerId": "u-pinsara",
     "reviewerId": null,
     "isChecklistComplete": false,
@@ -501,7 +577,9 @@
     "createdAt": "2026-07-31T09:00:00.000Z",
     "submittedAt": null,
     "noteToReviewer": null,
-    "taskTypeIds": []
+    "taskTypeIds": [],
+    "reviewRound": 1,
+    "countedCycle": 1
   },
   {
     "id": "t-aim-002",
@@ -511,7 +589,6 @@
     "customerId": "c-aim",
     "priority": "Medium",
     "status": "Draft",
-    "reviewCycle": 1,
     "developerId": "u-hiruni",
     "reviewerId": null,
     "isChecklistComplete": false,
@@ -519,7 +596,9 @@
     "createdAt": "2026-07-31T08:00:00.000Z",
     "submittedAt": null,
     "noteToReviewer": null,
-    "taskTypeIds": []
+    "taskTypeIds": [],
+    "reviewRound": 1,
+    "countedCycle": 1
   },
   {
     "id": "t-aim-001",
@@ -529,7 +608,6 @@
     "customerId": "c-aim",
     "priority": "Medium",
     "status": "Draft",
-    "reviewCycle": 1,
     "developerId": "u-hiruni",
     "reviewerId": null,
     "isChecklistComplete": false,
@@ -537,7 +615,9 @@
     "createdAt": "2026-07-20T09:00:00.000Z",
     "submittedAt": null,
     "noteToReviewer": null,
-    "taskTypeIds": []
+    "taskTypeIds": [],
+    "reviewRound": 1,
+    "countedCycle": 1
   },
   {
     "id": "t-aasl-019",
@@ -547,7 +627,6 @@
     "customerId": "c-aasl",
     "priority": "Medium",
     "status": "Submitted",
-    "reviewCycle": 1,
     "developerId": "u-udari",
     "reviewerId": null,
     "isChecklistComplete": true,
@@ -555,7 +634,11 @@
     "createdAt": "2026-07-23T12:20:00.000Z",
     "submittedAt": "2026-07-23T12:31:00.000Z",
     "noteToReviewer": null,
-    "taskTypeIds": ["tt-lobby"]
+    "taskTypeIds": [
+      "tt-lobby"
+    ],
+    "reviewRound": 1,
+    "countedCycle": 1
   },
   {
     "id": "t-aasl-018",
@@ -565,7 +648,6 @@
     "customerId": "c-aasl",
     "priority": "Medium",
     "status": "InReview",
-    "reviewCycle": 1,
     "developerId": "u-kavidu",
     "reviewerId": "u-hiruni",
     "isChecklistComplete": true,
@@ -573,7 +655,11 @@
     "createdAt": "2026-07-22T12:43:00.000Z",
     "submittedAt": "2026-07-22T14:23:00.000Z",
     "noteToReviewer": null,
-    "taskTypeIds": ["tt-quick-report"]
+    "taskTypeIds": [
+      "tt-quick-report"
+    ],
+    "reviewRound": 1,
+    "countedCycle": 1
   },
   {
     "id": "t-semco-016",
@@ -583,7 +669,6 @@
     "customerId": "c-semco",
     "priority": "High",
     "status": "Approved",
-    "reviewCycle": 1,
     "developerId": "u-hiruni",
     "reviewerId": "u-udari",
     "isChecklistComplete": true,
@@ -591,7 +676,11 @@
     "createdAt": "2026-07-24T13:33:00.000Z",
     "submittedAt": "2026-07-24T13:34:00.000Z",
     "noteToReviewer": null,
-    "taskTypeIds": ["tt-upgrade-service"]
+    "taskTypeIds": [
+      "tt-upgrade-service"
+    ],
+    "reviewRound": 1,
+    "countedCycle": 1
   },
   {
     "id": "t-semco-015",
@@ -601,7 +690,6 @@
     "customerId": "c-semco",
     "priority": "Medium",
     "status": "Draft",
-    "reviewCycle": 1,
     "developerId": "u-udari",
     "reviewerId": null,
     "isChecklistComplete": false,
@@ -609,7 +697,9 @@
     "createdAt": "2026-07-24T09:00:00.000Z",
     "submittedAt": null,
     "noteToReviewer": null,
-    "taskTypeIds": []
+    "taskTypeIds": [],
+    "reviewRound": 1,
+    "countedCycle": 1
   },
   {
     "id": "t-blom-011",
@@ -619,7 +709,6 @@
     "customerId": "c-blom",
     "priority": "High",
     "status": "InReview",
-    "reviewCycle": 2,
     "developerId": "u-janukshan",
     "reviewerId": "u-charith",
     "isChecklistComplete": true,
@@ -627,7 +716,11 @@
     "createdAt": "2026-08-01T09:00:00.000Z",
     "submittedAt": "2026-08-01T10:15:00.000Z",
     "noteToReviewer": null,
-    "taskTypeIds": ["tt-customization"]
+    "taskTypeIds": [
+      "tt-customization"
+    ],
+    "reviewRound": 2,
+    "countedCycle": 2
   },
   {
     "id": "t-aasl-004",
@@ -637,7 +730,6 @@
     "customerId": "c-aasl",
     "priority": "Medium",
     "status": "Submitted",
-    "reviewCycle": 1,
     "developerId": "u-charith",
     "reviewerId": null,
     "isChecklistComplete": true,
@@ -645,7 +737,11 @@
     "createdAt": "2026-08-05T08:30:00.000Z",
     "submittedAt": "2026-08-05T11:20:00.000Z",
     "noteToReviewer": "New arrivals quick report. Views only, no direct table access.",
-    "taskTypeIds": ["tt-quick-report"]
+    "taskTypeIds": [
+      "tt-quick-report"
+    ],
+    "reviewRound": 1,
+    "countedCycle": 1
   },
   {
     "id": "t-aim-005",
@@ -655,7 +751,6 @@
     "customerId": "c-aim",
     "priority": "High",
     "status": "Submitted",
-    "reviewCycle": 1,
     "developerId": "u-charith",
     "reviewerId": null,
     "isChecklistComplete": true,
@@ -663,7 +758,11 @@
     "createdAt": "2026-08-07T09:05:00.000Z",
     "submittedAt": "2026-08-07T15:40:00.000Z",
     "noteToReviewer": null,
-    "taskTypeIds": ["tt-customization"]
+    "taskTypeIds": [
+      "tt-customization"
+    ],
+    "reviewRound": 1,
+    "countedCycle": 1
   },
   {
     "id": "t-blom-006",
@@ -673,7 +772,6 @@
     "customerId": "c-blom",
     "priority": "Low",
     "status": "Submitted",
-    "reviewCycle": 1,
     "developerId": "u-charith",
     "reviewerId": null,
     "isChecklistComplete": true,
@@ -681,7 +779,11 @@
     "createdAt": "2026-08-11T10:15:00.000Z",
     "submittedAt": "2026-08-11T13:05:00.000Z",
     "noteToReviewer": null,
-    "taskTypeIds": ["tt-configuration"]
+    "taskTypeIds": [
+      "tt-configuration"
+    ],
+    "reviewRound": 1,
+    "countedCycle": 1
   },
   {
     "id": "t-semco-005",
@@ -691,7 +793,6 @@
     "customerId": "c-semco",
     "priority": "High",
     "status": "Submitted",
-    "reviewCycle": 1,
     "developerId": "u-charith",
     "reviewerId": null,
     "isChecklistComplete": true,
@@ -699,7 +800,12 @@
     "createdAt": "2026-08-14T08:50:00.000Z",
     "submittedAt": "2026-08-14T16:30:00.000Z",
     "noteToReviewer": "Lobby rework plus the upgrade service step. Tested on the 24R2 sandbox.",
-    "taskTypeIds": ["tt-lobby", "tt-upgrade-service"]
+    "taskTypeIds": [
+      "tt-lobby",
+      "tt-upgrade-service"
+    ],
+    "reviewRound": 1,
+    "countedCycle": 1
   },
   {
     "id": "t-aasl-005",
@@ -709,7 +815,6 @@
     "customerId": "c-aasl",
     "priority": "Medium",
     "status": "Approved",
-    "reviewCycle": 1,
     "developerId": "u-charith",
     "reviewerId": "u-pinsara",
     "isChecklistComplete": true,
@@ -717,7 +822,11 @@
     "createdAt": "2026-08-06T09:40:00.000Z",
     "submittedAt": "2026-08-06T12:10:00.000Z",
     "noteToReviewer": null,
-    "taskTypeIds": ["tt-configuration"]
+    "taskTypeIds": [
+      "tt-configuration"
+    ],
+    "reviewRound": 1,
+    "countedCycle": 1
   },
   {
     "id": "t-semco-006",
@@ -727,7 +836,6 @@
     "customerId": "c-semco",
     "priority": "Medium",
     "status": "Approved",
-    "reviewCycle": 2,
     "developerId": "u-charith",
     "reviewerId": "u-kavidu",
     "isChecklistComplete": true,
@@ -735,7 +843,11 @@
     "createdAt": "2026-08-08T08:20:00.000Z",
     "submittedAt": "2026-08-12T09:35:00.000Z",
     "noteToReviewer": null,
-    "taskTypeIds": ["tt-customization"]
+    "taskTypeIds": [
+      "tt-customization"
+    ],
+    "reviewRound": 2,
+    "countedCycle": 2
   },
   {
     "id": "t-aim-006",
@@ -745,7 +857,6 @@
     "customerId": "c-aim",
     "priority": "High",
     "status": "ChangesRequested",
-    "reviewCycle": 3,
     "developerId": "u-charith",
     "reviewerId": "u-hiruni",
     "isChecklistComplete": true,
@@ -753,7 +864,12 @@
     "createdAt": "2026-08-09T10:00:00.000Z",
     "submittedAt": "2026-08-18T14:25:00.000Z",
     "noteToReviewer": null,
-    "taskTypeIds": ["tt-customization", "tt-quick-report"]
+    "taskTypeIds": [
+      "tt-customization",
+      "tt-quick-report"
+    ],
+    "reviewRound": 3,
+    "countedCycle": 3
   },
   {
     "id": "t-aim-007",
@@ -763,7 +879,6 @@
     "customerId": "c-aim",
     "priority": "Low",
     "status": "Draft",
-    "reviewCycle": 1,
     "developerId": "u-charith",
     "reviewerId": null,
     "isChecklistComplete": false,
@@ -771,7 +886,11 @@
     "createdAt": "2026-08-20T14:10:00.000Z",
     "submittedAt": null,
     "noteToReviewer": null,
-    "taskTypeIds": ["tt-configuration"]
+    "taskTypeIds": [
+      "tt-configuration"
+    ],
+    "reviewRound": 1,
+    "countedCycle": 1
   },
   {
     "id": "t-aasl-006",
@@ -781,7 +900,6 @@
     "customerId": "c-aasl",
     "priority": "Low",
     "status": "InReview",
-    "reviewCycle": 1,
     "developerId": "u-charith",
     "reviewerId": "u-udari",
     "isChecklistComplete": true,
@@ -789,7 +907,11 @@
     "createdAt": "2026-08-17T09:15:00.000Z",
     "submittedAt": "2026-08-19T10:45:00.000Z",
     "noteToReviewer": null,
-    "taskTypeIds": ["tt-lobby"]
+    "taskTypeIds": [
+      "tt-lobby"
+    ],
+    "reviewRound": 1,
+    "countedCycle": 1
   },
   {
     "id": "t-aim-008",
@@ -799,7 +921,6 @@
     "customerId": "c-aim",
     "priority": "Medium",
     "status": "Approved",
-    "reviewCycle": 1,
     "developerId": "u-dheliya",
     "reviewerId": "u-charith",
     "isChecklistComplete": true,
@@ -807,7 +928,11 @@
     "createdAt": "2026-07-06T08:40:00.000Z",
     "submittedAt": "2026-07-08T11:15:00.000Z",
     "noteToReviewer": null,
-    "taskTypeIds": ["tt-configuration"]
+    "taskTypeIds": [
+      "tt-configuration"
+    ],
+    "reviewRound": 1,
+    "countedCycle": 1
   },
   {
     "id": "t-blom-013",
@@ -817,7 +942,6 @@
     "customerId": "c-blom",
     "priority": "High",
     "status": "ChangesRequested",
-    "reviewCycle": 2,
     "developerId": "u-kavidu",
     "reviewerId": "u-charith",
     "isChecklistComplete": true,
@@ -825,7 +949,11 @@
     "createdAt": "2026-07-13T09:05:00.000Z",
     "submittedAt": "2026-07-16T14:30:00.000Z",
     "noteToReviewer": null,
-    "taskTypeIds": ["tt-customization"]
+    "taskTypeIds": [
+      "tt-customization"
+    ],
+    "reviewRound": 2,
+    "countedCycle": 2
   },
   {
     "id": "t-semco-007",
@@ -835,7 +963,6 @@
     "customerId": "c-semco",
     "priority": "Medium",
     "status": "Approved",
-    "reviewCycle": 2,
     "developerId": "u-udari",
     "reviewerId": "u-charith",
     "isChecklistComplete": true,
@@ -843,7 +970,11 @@
     "createdAt": "2026-07-20T08:15:00.000Z",
     "submittedAt": "2026-07-24T10:05:00.000Z",
     "noteToReviewer": null,
-    "taskTypeIds": ["tt-upgrade-service"]
+    "taskTypeIds": [
+      "tt-upgrade-service"
+    ],
+    "reviewRound": 2,
+    "countedCycle": 2
   },
   {
     "id": "t-aasl-010",
@@ -853,7 +984,6 @@
     "customerId": "c-aasl",
     "priority": "Low",
     "status": "Approved",
-    "reviewCycle": 3,
     "developerId": "u-janukshan",
     "reviewerId": "u-charith",
     "isChecklistComplete": true,
@@ -861,7 +991,11 @@
     "createdAt": "2026-07-27T09:30:00.000Z",
     "submittedAt": "2026-08-04T15:20:00.000Z",
     "noteToReviewer": null,
-    "taskTypeIds": ["tt-quick-report"]
+    "taskTypeIds": [
+      "tt-quick-report"
+    ],
+    "reviewRound": 3,
+    "countedCycle": 3
   },
   {
     "id": "t-semco-008",
@@ -871,7 +1005,6 @@
     "customerId": "c-semco",
     "priority": "High",
     "status": "ChangesRequested",
-    "reviewCycle": 2,
     "developerId": "u-hiruni",
     "reviewerId": "u-charith",
     "isChecklistComplete": true,
@@ -879,7 +1012,11 @@
     "createdAt": "2026-08-05T10:20:00.000Z",
     "submittedAt": "2026-08-10T09:45:00.000Z",
     "noteToReviewer": null,
-    "taskTypeIds": ["tt-lobby"]
+    "taskTypeIds": [
+      "tt-lobby"
+    ],
+    "reviewRound": 2,
+    "countedCycle": 2
   },
   {
     "id": "t-blom-014",
@@ -889,7 +1026,6 @@
     "customerId": "c-blom",
     "priority": "Medium",
     "status": "Approved",
-    "reviewCycle": 1,
     "developerId": "u-dheliya",
     "reviewerId": "u-charith",
     "isChecklistComplete": true,
@@ -897,7 +1033,11 @@
     "createdAt": "2026-08-12T08:50:00.000Z",
     "submittedAt": "2026-08-14T13:10:00.000Z",
     "noteToReviewer": null,
-    "taskTypeIds": ["tt-customization"]
+    "taskTypeIds": [
+      "tt-customization"
+    ],
+    "reviewRound": 1,
+    "countedCycle": 1
   },
   {
     "id": "t-aim-009",
@@ -907,7 +1047,6 @@
     "customerId": "c-aim",
     "priority": "Medium",
     "status": "InReview",
-    "reviewCycle": 1,
     "developerId": "u-kavidu",
     "reviewerId": "u-charith",
     "isChecklistComplete": true,
@@ -915,7 +1054,11 @@
     "createdAt": "2026-08-18T09:00:00.000Z",
     "submittedAt": "2026-08-20T11:35:00.000Z",
     "noteToReviewer": null,
-    "taskTypeIds": ["tt-configuration"]
+    "taskTypeIds": [
+      "tt-configuration"
+    ],
+    "reviewRound": 1,
+    "countedCycle": 1
   },
   {
     "id": "t-semco-017",
@@ -925,8 +1068,6 @@
     "customerId": "c-semco",
     "priority": "High",
     "status": "ChangesRequested",
-    "reviewCycle": 2,
-    "historicalCycle": 2,
     "developerId": "u-pinsara",
     "reviewerId": "u-hiruni",
     "isChecklistComplete": true,
@@ -934,6 +1075,10 @@
     "createdAt": "2026-08-05T08:30:00.000Z",
     "submittedAt": "2026-08-05T09:15:00.000Z",
     "noteToReviewer": "Please review the updated batch processing handlers and rollback logic.",
-    "taskTypeIds": ["tt-customization"]
+    "taskTypeIds": [
+      "tt-customization"
+    ],
+    "reviewRound": 2,
+    "countedCycle": 2
   }
 ]

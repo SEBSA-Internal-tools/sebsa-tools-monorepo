@@ -24,7 +24,8 @@ interface ConfirmationState {
   taskId: string;
   taskCode: string;
   title: string;
-  reviewCycle: number;
+  reviewRound?: number | undefined;
+  reviewCycle?: number | undefined;
 }
 
 function isConfirmationState(value: unknown): value is ConfirmationState {
@@ -48,7 +49,8 @@ export function SubmissionConfirmedPage() {
     return <Navigate to={ROUTES.developer.root} replace />;
   }
 
-  const { taskId, taskCode, title, reviewCycle } = location.state;
+  const { taskId, taskCode, title, reviewRound, reviewCycle } = location.state;
+  const roundNumber = reviewRound ?? reviewCycle ?? 1;
 
   return (
     <PageContainer className="max-w-3xl space-y-4">
@@ -73,7 +75,8 @@ export function SubmissionConfirmedPage() {
             <StatusBadge status="Submitted" />
             <Tag className="bg-violet-100 text-violet-700">
               {interpolate(tasks.wizard.confirmed.cycle, {
-                cycle: reviewCycle,
+                round: roundNumber,
+                cycle: roundNumber,
               })}
             </Tag>
           </div>
