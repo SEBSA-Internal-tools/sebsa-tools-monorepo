@@ -1,9 +1,11 @@
-import { useState, type InputHTMLAttributes } from 'react';
+import { useEffect, useState, type InputHTMLAttributes } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Check, Eye, EyeOff, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
-import { SebsaLogo, cn } from '@/components/ui';
+import { cn } from '@/components/ui';
+import { Alert } from '@/components/ui/Alert.tsx';
 import { Button } from '@/components/ui/Button.tsx';
 import { Field, Input } from '@/components/ui/Field.tsx';
 import { useFieldControlProps } from '@/components/ui/fieldContext.ts';
@@ -11,8 +13,8 @@ import { Divider } from '@/components/ui/Card.tsx';
 import { ApiError } from '@/lib/apiClient.ts';
 import { interpolate } from '@/lib/formatters.ts';
 import { useSession } from '@/hooks/useSession.ts';
-import common from '@/content/common.json';
 import content from '@/content/login.json';
+import { AuthLayout } from '@/components/common/AuthLayout.tsx';
 import { SessionExpiredNotice } from '../components/SessionExpiredNotice.tsx';
 import { useLogin } from '../api/queries.ts';
 import { loginDefaults, loginSchema, type LoginInput } from '../domain/loginSchema.ts';
@@ -64,59 +66,31 @@ function PasswordInput({ placeholder, ...props }: InputHTMLAttributes<HTMLInputE
   );
 }
 
-/**
- * Ambient shapes behind the brand panel.
- *
- * FOUR elements, down from nine.
- *
- * The previous set — three outlined rings, two rounded squares, three filled
- * dots and two glows — read as a pattern rather than as atmosphere, and several
- * of them tracked straight across the copy column, which is the one thing
- * decoration behind text must not do. Nine shapes is also nine animations
- * compositing forever behind a form the user is trying to fill in.
- *
- * What is left is a two-glow depth field plus two outlined shapes, and every one
- * of them is positioned in the panel's outer gutters: the copy sits in a
- * `max-w-md` column against the left edge, so the right third and the extreme
- * corners are free. Nothing overlaps a word.
- *
- * Purely decorative and `aria-hidden`. `prefers-reduced-motion` stops all of it
- * via the global block in `styles/global.css` — which is what makes ambient
- * motion behind a login form acceptable at all.
- *
- * `e2e/login.spec.ts` asserts, in both directions, that these animate and that
- * every duration is over ten seconds. That is a deliberate negative control
- * against a quicker flourish creeping onto a form; keep any replacement inside
- * it.
- */
-function PanelDecoration() {
-  return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
-      {/*
-        Two large soft glows carry the depth. Opacity only — a blurred shape that
-        moves smears, and at this size it would be the most distracting thing on
-        the screen.
-      */}
-      <span className="absolute -top-40 -left-32 size-[32rem] animate-breathe rounded-full bg-white/15 blur-3xl" />
-      <span className="absolute -right-40 -bottom-40 size-[34rem] animate-breathe rounded-full bg-brand-cyan/20 blur-3xl [animation-delay:-6s]" />
-
-      {/*
-        Two outlined shapes drift, in the right-hand gutter beside the copy
-        column. Negative delays start them at different points in their cycles,
-        so they never move in step with each other.
-      */}
-      <span className="absolute top-[14%] -right-16 size-64 animate-drift-slow rounded-full border border-white/20" />
-      <span className="absolute right-[12%] bottom-[16%] size-40 animate-drift-medium rounded-[2.5rem] border border-white/15 [animation-delay:-9s]" />
-    </div>
-  );
-}
-
-export function LoginPage({ onSignedIn }: { onSignedIn: () => void }) {
+export function LoginPage({
+  onSignedIn,
+  forgotPasswordTo,
+}: {
+  onSignedIn: () => void;
+  /** Where "Forgot password?" goes. Omit to hide the link. */
+  forgotPasswordTo?: string | undefined;
+}) {
   const login = useLogin();
   // Set by the session store when a session times out, rather than read from the
   // URL: a query string survives bookmarking and sharing, and "your session
   // expired" is only true for the person it just happened to.
   const didExpire = useSession((state) => state.didExpire);
+
+  // `?reason=password-saved` is a one-shot hand-off from the password screen.
+  // Read into state first, then stripped, so the banner outlives the URL change
+  // and a refresh or a shared link does not repeat it.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [showPasswordSaved] = useState(() => searchParams.get('reason') === 'password-saved');
+  useEffect(() => {
+    if (searchParams.get('reason') !== 'password-saved') return;
+    const next = new URLSearchParams(searchParams);
+    next.delete('reason');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   const {
     register,
@@ -145,28 +119,14 @@ export function LoginPage({ onSignedIn }: { onSignedIn: () => void }) {
   const isBusy = isSubmitting || login.isPending;
 
   return (
-    // `h-dvh` + `overflow-hidden`: a login screen should never scroll. `dvh`
-    // rather than `vh` so mobile browser chrome does not create hidden overflow.
-    <div className="grid h-dvh overflow-hidden lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
-      <section className="relative isolate hidden flex-col justify-between overflow-hidden bg-brand-gradient-deep p-10 text-white lg:flex xl:p-14">
-        <PanelDecoration />
-
-        <div className="relative">
-          <SebsaLogo height={40} tone="inverse" title="" />
-        </div>
-
-        {/*
-          The copy column.
-
-          `max-w-md` is what keeps the decoration's gutters clear, so it is
-          load-bearing rather than a typographic preference — widening it would
-          run the subtitle under the drifting ring on the right.
-
-          Each block arrives on its own short delay. One-shot `reveal-up`, not a
-          loop: the panel settles within ~400ms and is then completely still,
-          which is the correct amount of movement next to a password field.
-        */}
-        <div className="relative max-w-md">
+    <AuthLayout
+      leftPanel={
+        <>
+          {/*
+            Each block arrives on its own short delay. One-shot `reveal-up`, not a
+            loop: the panel settles within ~400ms and is then completely still,
+            which is the correct amount of movement next to a password field.
+          */}
           <p className="animate-reveal-up text-[0.7rem] font-semibold tracking-[0.28em] text-white/70 uppercase">
             {content.brandPanel.eyebrow}
           </p>
@@ -210,103 +170,98 @@ export function LoginPage({ onSignedIn }: { onSignedIn: () => void }) {
               </li>
             ))}
           </ul>
+        </>
+      }
+    >
+      {/* Only after a timeout, and it clears itself once read. */}
+      {didExpire ? <SessionExpiredNotice /> : null}
+
+      {/* After setting a password. The parameter is already gone from the URL. */}
+      {showPasswordSaved ? (
+        <div role="status" aria-live="polite" className="mb-5">
+          <Alert tone="info">{content.messages.passwordSaved}</Alert>
         </div>
+      ) : null}
 
-        {/*
-          The panel is a three-row flex with `justify-between`, and this row used
-          to be an empty div holding the bottom edge open. Giving it the
-          attribution line balances the composition and stops the logo at the top
-          reading as the panel's only anchor.
-        */}
-        <p className="relative animate-reveal-fade text-xs text-white/60 [animation-delay:460ms]">
-          {common.app.poweredBy}{' '}
-          <span className="font-semibold text-white/80">{common.app.organisation}</span>
-        </p>
-      </section>
+      <header>
+        <h2 className="font-display text-2xl font-bold text-ink-900">{content.form.title}</h2>
+        <p className="mt-2 text-sm leading-relaxed text-ink-500">{content.form.subtitle}</p>
+      </header>
 
-      {/* Scrolls INTERNALLY on a short viewport rather than clipping the submit
-          button — a scrollbar on a 500px-tall window beats an unreachable CTA. */}
-      <section className="flex flex-col justify-center overflow-y-auto bg-canvas px-5 py-8 sm:px-8">
-        <div className="mx-auto w-full max-w-sm animate-reveal-up">
-          {/* The gradient panel is hidden below lg, so the brand appears here. */}
-          <div className="mb-8 flex justify-center lg:hidden">
-            <SebsaLogo height={34} />
-          </div>
+      <form onSubmit={(e) => void onSubmit(e)} noValidate className="mt-7 space-y-4">
+        <Field label={content.form.emailLabel} error={errors.email?.message} required>
+          {/* No autoFocus: it would jump past the heading before a screen
+              reader has announced it. */}
+          <Input
+            type="email"
+            autoComplete="username"
+            placeholder={content.form.emailPlaceholder}
+            {...register('email')}
+          />
+        </Field>
 
-          {/* Only after a timeout, and it clears itself once read. */}
-          {didExpire ? <SessionExpiredNotice /> : null}
-
-          <header>
-            <h2 className="font-display text-2xl font-bold text-ink-900">{content.form.title}</h2>
-            <p className="mt-2 text-sm leading-relaxed text-ink-500">{content.form.subtitle}</p>
-          </header>
-
-          <form onSubmit={(e) => void onSubmit(e)} noValidate className="mt-7 space-y-4">
-            <Field label={content.form.emailLabel} error={errors.email?.message} required>
-              {/* No autoFocus: it would jump past the heading before a screen
-                  reader has announced it. */}
-              <Input
-                type="email"
-                autoComplete="username"
-                placeholder={content.form.emailPlaceholder}
-                {...register('email')}
-              />
-            </Field>
-
-            <Field label={content.form.passwordLabel} error={errors.password?.message} required>
-              <PasswordInput
-                placeholder={content.form.passwordPlaceholder}
-                {...register('password')}
-              />
-            </Field>
-
-            <label className="flex w-fit cursor-pointer items-center gap-2 text-sm text-ink-700">
-              <input
-                type="checkbox"
-                className="size-4 rounded border-line-strong accent-violet-600"
-                {...register('remember')}
-              />
-              {content.form.remember}
-            </label>
-
-            {serverError === null ? null : (
-              <p
-                role="alert"
-                className="rounded-control border border-danger/30 bg-danger-surface px-3 py-2 text-sm font-medium text-danger"
-              >
-                {serverError}
-              </p>
-            )}
-
-            <Button
-              type="submit"
-              variant="brand"
-              size="lg"
-              fullWidth
-              isLoading={isBusy}
-              loadingLabel={content.form.submitting}
+        <div>
+          <Field label={content.form.passwordLabel} error={errors.password?.message} required>
+            <PasswordInput
+              placeholder={content.form.passwordPlaceholder}
+              {...register('password')}
+            />
+          </Field>
+          {forgotPasswordTo !== undefined ? (
+            <Link
+              to={forgotPasswordTo}
+              className="mt-2 inline-block rounded-sm text-sm font-medium text-violet-700 hover:underline focus-visible:outline-2 focus-visible:outline-violet-600"
             >
-              {content.form.submit}
-            </Button>
-          </form>
-
-          {/* SSO sits BELOW the credential form and in a secondary style,
-              because credentials are the working path in Phase 1 and this
-              button is inert. Both flip when Keycloak goes live: SSO becomes
-              the primary action and moves above the form. */}
-          <Divider label={content.form.dividerLabel} className="my-5" />
-
-          <Button
-            variant="secondary"
-            size="lg"
-            fullWidth
-            leadingIcon={<ShieldCheck className="size-4" aria-hidden="true" />}
-            onClick={() => toast.info(content.messages.ssoUnavailable)}
-          >
-            {content.form.ssoButton}
-          </Button>
+              {content.form.forgotPassword}
+            </Link>
+          ) : null}
         </div>
-      </section>
-    </div>
+
+        <label className="flex w-fit cursor-pointer items-center gap-2 text-sm text-ink-700">
+          <input
+            type="checkbox"
+            className="size-4 rounded border-line-strong accent-violet-600"
+            {...register('remember')}
+          />
+          {content.form.remember}
+        </label>
+
+        {serverError === null ? null : (
+          <p
+            role="alert"
+            className="rounded-control border border-danger/30 bg-danger-surface px-3 py-2 text-sm font-medium text-danger"
+          >
+            {serverError}
+          </p>
+        )}
+
+        <Button
+          type="submit"
+          variant="brand"
+          size="lg"
+          fullWidth
+          isLoading={isBusy}
+          loadingLabel={content.form.submitting}
+        >
+          {content.form.submit}
+        </Button>
+      </form>
+
+      {/* SSO sits BELOW the credential form and in a secondary style,
+          because credentials are the working path in Phase 1 and this
+          button is inert. Both flip when Keycloak goes live: SSO becomes
+          the primary action and moves above the form. */}
+      <Divider label={content.form.dividerLabel} className="my-5" />
+
+      <Button
+        variant="secondary"
+        size="lg"
+        fullWidth
+        leadingIcon={<ShieldCheck className="size-4" aria-hidden="true" />}
+        onClick={() => toast.info(content.messages.ssoUnavailable)}
+      >
+        {content.form.ssoButton}
+      </Button>
+    </AuthLayout>
   );
 }

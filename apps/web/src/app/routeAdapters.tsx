@@ -2,6 +2,8 @@ import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { ROUTES } from '@/config/routes.ts';
 import { useSession } from '@/hooks/useSession.ts';
 import { LoginPage } from '@/features/auth/routes/LoginPage.tsx';
+// Temporary local-auth link; remove with `features/local-auth`.
+import { isLocalAuthEnabled, LOCAL_AUTH_ROUTES } from '@/features/local-auth/config.ts';
 import { HomePage } from '@/features/home/routes/HomePage.tsx';
 import { useSessionUser } from './session.ts';
 import { PageSkeleton } from '@/components/common/Skeleton.tsx';
@@ -40,6 +42,7 @@ export function LoginRoute() {
 
   return (
     <LoginPage
+      forgotPasswordTo={isLocalAuthEnabled ? LOCAL_AUTH_ROUTES.forgotPassword : undefined}
       onSignedIn={() => {
         // `replace` so Back does not return to the login screen after signing in.
         void navigate(from ?? ROUTES.home, { replace: true });
