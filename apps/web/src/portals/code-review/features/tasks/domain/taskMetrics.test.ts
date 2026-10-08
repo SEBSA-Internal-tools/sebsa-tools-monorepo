@@ -146,6 +146,13 @@ describe('taskMetrics', () => {
     ]);
   });
 
+  it('reports direct approval as zero counted cycles', () => {
+    const metrics = taskMetrics([task('Approved', 0)]);
+
+    expect(metrics.byCycle).toEqual([{ label: '0', count: 1 }]);
+    expect(metrics.averageCycles).toBe(0);
+  });
+
   it('buckets APPROVED tasks only, matching "iterations needed for approval"', () => {
     /*
      * The chart this feeds is captioned "Iterations needed for approval" and its

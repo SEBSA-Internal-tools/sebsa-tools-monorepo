@@ -287,6 +287,8 @@ export function ReviewQueuePage({ variant }: { variant: QueueVariant }) {
     if (variant === 'available') {
       return buildTaskColumns({
         showDeveloper: true,
+        showHandover: true,
+        compactIdentityColumns: true,
         renderAction: (task) => (
           <Button
             variant="workspace"
@@ -309,6 +311,7 @@ export function ReviewQueuePage({ variant }: { variant: QueueVariant }) {
     if (variant === 'history') {
       return buildTaskColumns({
         showDeveloper: true,
+        compactIdentityColumns: true,
         renderAction: (task) =>
           taskArrowAction(
             task,
@@ -323,6 +326,8 @@ export function ReviewQueuePage({ variant }: { variant: QueueVariant }) {
 
     return buildTaskColumns({
       showDeveloper: true,
+      compactIdentityColumns: true,
+      showHandover: true,
       renderAction: (task) =>
         taskArrowAction(task, () => {
           const taskUrl = buildReviewerTaskUrl(task.id, currentReturnPath);

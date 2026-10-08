@@ -67,6 +67,18 @@ beforeEach(() => {
 afterEach(settleRequests);
 
 describe('review form state', () => {
+  it('shows the counted cycle without the removed adjustment label', async () => {
+    const task = db.tasks.find((candidate) => candidate.id === IN_REVIEW_TASK);
+    if (!task) throw new Error('seed has no in-review task');
+    task.reviewRound = 2;
+    task.countedCycle = 1;
+
+    renderReviewForm();
+
+    expect(await screen.findByText('Cycle 1')).toBeInTheDocument();
+    expect(screen.queryByText(/Adjusted \(-1\)/i)).not.toBeInTheDocument();
+  });
+
   it('keeps typed review comments and the chosen rank when attaching a screenshot to a comment', async () => {
     const { user } = renderReviewForm();
 

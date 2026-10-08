@@ -28,7 +28,12 @@ import { userKeys } from '@/portals/code-review/hooks/useUsers.ts';
  * people too, so neither feature owns it. Re-exported here so admin screens
  * import their reads and writes from one place.
  */
-export { useUsers, userKeys } from '@/portals/code-review/hooks/useUsers.ts';
+export {
+  useReplaceUserRoles,
+  useTransferSuperAdmin,
+  useUsers,
+  userKeys,
+} from '@/portals/code-review/hooks/useUsers.ts';
 
 export function useCreateUser() {
   const queryClient = useQueryClient();
@@ -45,7 +50,7 @@ export function useUpdateUser() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ userId, input }: { userId: string; input: UpdateUserInput }) =>
+    mutationFn: ({ userId, input }: { userId: string; input: Omit<UpdateUserInput, 'roles'> }) =>
       api.patch(`/users/${userId}`, userSchema, input),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: userKeys.all });
@@ -57,8 +62,7 @@ export function useDeleteUser() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ userId, reason }: { userId: string; reason: string }) =>
-      api.delete(`/users/${userId}`, z.unknown(), { body: { reason } }),
+    mutationFn: (userId: string) => api.delete(`/users/${userId}`, z.unknown()),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: userKeys.all });
     },
@@ -121,8 +125,13 @@ export function useAssignReviewer() {
     }) => api.post(`/tasks/${taskId}/assign`, taskListItemSchema, { reviewerId, reason }),
     onSuccess: (task) => {
       void queryClient.invalidateQueries({ queryKey: taskKeys.lists() });
-      void queryClient.invalidateQueries({ queryKey: taskKeys.detail(task.id) });
-      void queryClient.invalidateQueries({ queryKey: taskKeys.events(task.id) });
+      void queryClient.invalidateQueries({
+        queryKey: taskKeys.detail(task.id),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: taskKeys.events(task.id),
+      });
+      void queryClient.invalidateQueries({ queryKey: ['notifications'] });
     },
   });
 }

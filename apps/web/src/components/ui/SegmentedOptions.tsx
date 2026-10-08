@@ -33,7 +33,7 @@ export function SegmentedOptions<TValue extends string>({
   size = 'md',
   labelClassName,
 }: {
-  value: TValue;
+  value: TValue | '';
   onValueChange: (value: TValue) => void;
   options: readonly SegmentedOption<TValue>[];
   /** Visible group label. */

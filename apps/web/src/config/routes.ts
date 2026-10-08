@@ -34,6 +34,7 @@ export const ROUTES = {
     handover: routePaths.crp.admin.handover,
     handoverTask: routePaths.crp.admin.handoverTask,
     reports: routePaths.crp.admin.reports,
+    activity: routePaths.crp.admin.activity,
   },
 } as const;
 
@@ -44,7 +45,7 @@ export const ROUTES = {
 export const WORKSPACE_ACCESS = {
   developer: ['Developer'],
   reviewer: ['Reviewer'],
-  admin: ['Admin', 'SuperAdmin'],
+  admin: ['Admin', 'Super Admin'],
 } as const satisfies Record<string, readonly Role[]>;
 
 export type WorkspaceKey = keyof typeof WORKSPACE_ACCESS;

@@ -171,7 +171,7 @@ describe('canCancelTask', () => {
 describe('canDeleteTask', () => {
   it('requires the SuperAdmin role', () => {
     expect(canDeleteTask(actor(ADMIN, 'Admin'), task({ status: 'Draft' }))).toBe(false);
-    expect(canDeleteTask(actor(ADMIN, 'Admin', 'SuperAdmin'), task({ status: 'Draft' }))).toBe(
+    expect(canDeleteTask(actor(ADMIN, 'Admin', 'Super Admin'), task({ status: 'Draft' }))).toBe(
       true,
     );
     expect(canDeleteTask(actor(DEV, 'Developer', 'Reviewer'), task({ status: 'Draft' }))).toBe(
@@ -185,7 +185,7 @@ describe('canDeleteTask', () => {
    */
   it('is narrower than cancel — only Draft and Cancelled may be destroyed', () => {
     const deletable: TaskStatus[] = ['Draft', 'Cancelled'];
-    const admin = actor(ADMIN, 'Admin', 'SuperAdmin');
+    const admin = actor(ADMIN, 'Admin', 'Super Admin');
 
     for (const status of TASK_STATUSES) {
       expect(canDeleteTask(admin, task({ status }))).toBe(deletable.includes(status));
@@ -340,8 +340,8 @@ describe('canPurgeTask', () => {
   it('allows SuperAdmin to purge Draft or Cancelled task with zero evidence', () => {
     const draft = task({ status: 'Draft' });
     const cancelled = task({ status: 'Cancelled' });
-    expect(canPurgeTask(actor(ADMIN, 'SuperAdmin'), draft, {})).toBe(true);
-    expect(canPurgeTask(actor(ADMIN, 'SuperAdmin'), cancelled, {})).toBe(true);
+    expect(canPurgeTask(actor(ADMIN, 'Super Admin'), draft, {})).toBe(true);
+    expect(canPurgeTask(actor(ADMIN, 'Super Admin'), cancelled, {})).toBe(true);
     expect(canPurgeTask(actor(ADMIN, 'Admin'), draft, {})).toBe(false);
     expect(canPurgeTask(actor(DEV, 'Developer'), draft, {})).toBe(false);
   });
@@ -349,8 +349,8 @@ describe('canPurgeTask', () => {
   it('blocks SuperAdmin purge if workflow evidence exists', () => {
     const cancelled = task({ status: 'Cancelled' });
     expect(
-      canPurgeTask(actor(ADMIN, 'SuperAdmin'), cancelled, { hasSubmittedSnapshot: true }),
+      canPurgeTask(actor(ADMIN, 'Super Admin'), cancelled, { hasSubmittedSnapshot: true }),
     ).toBe(false);
-    expect(canPurgeTask(actor(ADMIN, 'SuperAdmin'), cancelled, { hasReviews: true })).toBe(false);
+    expect(canPurgeTask(actor(ADMIN, 'Super Admin'), cancelled, { hasReviews: true })).toBe(false);
   });
 });

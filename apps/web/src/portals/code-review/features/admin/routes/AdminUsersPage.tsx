@@ -19,19 +19,15 @@ import { columnHelper, type ColumnList } from '@/components/common/dataTableColu
 import { EmptyState } from '@/components/common/states.tsx';
 import { Button } from '@/components/ui/Button.tsx';
 import { IconButton, SearchField } from '@/components/ui/controls.tsx';
-import { Textarea } from '@/components/ui/controls.tsx';
-import { Field } from '@/components/ui/Field.tsx';
 import { Select, type SelectOption } from '@/components/ui/Select.tsx';
 import { Tooltip } from '@/components/ui/Tooltip.tsx';
 import { FilterResetButton } from '@/portals/code-review/components/TaskFilterBar.tsx';
 import { ALL } from '@/portals/code-review/components/taskFilters.ts';
 import { ApiError } from '@/lib/apiClient.ts';
-import { hasCapability, isPrivilegedRoleSet } from '@/lib/permissions.ts';
-import { useCurrentUser } from '@/hooks/useCurrentUser.ts';
 import { interpolate } from '@/lib/formatters.ts';
 import admin from '@/content/admin.json';
 import common from '@/content/common.json';
-import { useDeleteUser, useUpdateUser, useUsers } from '../api/queries.ts';
+import { useDeleteUser, useTransferSuperAdmin, useUpdateUser, useUsers } from '../api/queries.ts';
 import { UserFormDialog } from '../components/UserFormDialog.tsx';
 import { EmptyIllustration } from '@/components/common/EmptyIllustration.tsx';
 import { userKeys } from '@/portals/code-review/hooks/useUsers.ts';
@@ -57,7 +53,7 @@ const helper = columnHelper<User>();
 const labels = admin.users.columns;
 
 const STATUS_OPTIONS: SelectOption[] = [
-  { value: ALL, label: 'All Statuses' },
+  { value: ALL, label: admin.users.statusAll },
   { value: 'active', label: admin.users.statusActive },
   { value: 'inactive', label: admin.users.statusInactive },
 ];
@@ -107,6 +103,7 @@ const inviteColumn = helper.display({
 export function AdminUsersPage() {
   const { data: actor } = useCurrentUser();
   const { data: users, isPending, isFetching, error, refetch } = useUsers();
+  const { data: actor } = useCurrentUser();
   // Destructured because `mutate` is referentially stable while the mutation
   // object is not — which is what lets the column definitions memoise honestly
   // instead of being pinned with a lint suppression.
@@ -122,21 +119,21 @@ export function AdminUsersPage() {
 
   const [editing, setEditing] = useState<User | null>(null);
   const [isFormOpen, setFormOpen] = useState(false);
-  const [statusChanging, setStatusChanging] = useState<{ user: User; isActive: boolean } | null>(
-    null,
-  );
+  const [deactivating, setDeactivating] = useState<User | null>(null);
   const [deleting, setDeleting] = useState<User | null>(null);
-  const [reason, setReason] = useState('');
-  const [reasonError, setReasonError] = useState<string | undefined>();
+  const [transferring, setTransferring] = useState<User | null>(null);
 
-  const canManagePrivileged = hasCapability(actor?.roles ?? [], 'users.manage.privileged');
-  const canPurge = hasCapability(actor?.roles ?? [], 'records.purge');
+  const canManage = useCallback(
+    (user: User) =>
+      isSuperAdmin ||
+      !user.roles.some((assigned) => assigned === 'Admin' || assigned === 'Super Admin'),
+    [isSuperAdmin],
+  );
 
   const visible = useMemo(() => {
     const needle = search.trim().toLowerCase();
 
     return (users ?? []).filter((user) => {
-      // MATCH ALL: User must have every single selected role
       if (selectedRoles.length > 0 && !selectedRoles.every((role) => user.roles.includes(role))) {
         return false;
       }
@@ -157,9 +154,9 @@ export function AdminUsersPage() {
   const resetPageTrigger = `${search}:${selectedRoles.slice().sort().join(',')}:${status}`;
 
   const setActive = useCallback(
-    (user: User, isActive: boolean, actionReason?: string) => {
+    (user: User, isActive: boolean) => {
       mutateUser(
-        { userId: user.id, input: { isActive, ...(actionReason ? { reason: actionReason } : {}) } },
+        { userId: user.id, input: { isActive } },
         {
           onSuccess: () => {
             toast.success(
@@ -168,8 +165,7 @@ export function AdminUsersPage() {
                 { name: user.name },
               ),
             );
-            setStatusChanging(null);
-            setReason('');
+            setDeactivating(null);
           },
           onError: (cause) => {
             toast.error(cause instanceof ApiError ? cause.message : common.errors.generic);
@@ -191,8 +187,7 @@ export function AdminUsersPage() {
         header: '',
         cell: (context) => {
           const user = context.row.original;
-          const privileged = isPrivilegedRoleSet(user.roles);
-          const mayManage = !privileged || canManagePrivileged;
+          const mayManage = canManage(user);
           return (
             <div className="flex items-center justify-end gap-1.5">
               {!mayManage ? (
@@ -265,23 +260,37 @@ export function AdminUsersPage() {
                   tone={user.isActive ? 'danger' : 'success'}
                   size="sm"
                   onClick={() => {
-                    if (user.isActive || privileged) {
-                      setReason('');
-                      setReasonError(undefined);
-                      setStatusChanging({ user, isActive: !user.isActive });
-                    } else setActive(user, true);
+                    if (user.isActive) setDeactivating(user);
+                    else setActive(user, true);
                   }}
                 />
               ) : null}
-              {mayManage && canPurge ? (
+              {isSuperAdmin &&
+              user.isActive &&
+              user.id !== actor?.id &&
+              user.roles.includes('Admin') &&
+              !user.roles.includes('Super Admin') ? (
                 <IconButton
-                  label={interpolate(admin.users.actions.delete, { name: user.name })}
+                  label={interpolate(admin.users.actions.transferSuperAdmin, {
+                    name: user.name,
+                  })}
+                  icon={<ShieldCheck className="size-4" />}
+                  size="sm"
+                  onClick={() => {
+                    setTransferring(user);
+                  }}
+                />
+              ) : null}
+              {isSuperAdmin && mayManage ? (
+                <IconButton
+                  label={interpolate(admin.users.actions.delete, {
+                    name: user.name,
+                  })}
                   icon={<Trash2 className="size-4" />}
                   tone="danger"
                   size="sm"
+                  disabled={!canManage(user)}
                   onClick={() => {
-                    setReason('');
-                    setReasonError(undefined);
                     setDeleting(user);
                   }}
                 />
@@ -318,7 +327,6 @@ export function AdminUsersPage() {
         resetPageIndexTrigger={resetPageTrigger}
         toolbar={
           <div className="flex w-full flex-col gap-3.5">
-            {/* Row 1: Search receives majority space, Add User is primary CTA */}
             <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center">
               <div className="min-w-0 flex-1">
                 <SearchField
@@ -341,7 +349,6 @@ export function AdminUsersPage() {
               </Button>
             </div>
 
-            {/* Row 2: Task-filter-style controls, with balanced widths. */}
             <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(18rem,24rem)_minmax(13rem,16rem)_auto]">
               <div className="min-w-0">
                 <RoleMultiSelect
@@ -423,7 +430,8 @@ export function AdminUsersPage() {
         <UserFormDialog
           key={editing?.id ?? 'new'}
           user={editing}
-          canManagePrivileged={canManagePrivileged}
+          availableRoles={assignableRoles}
+          editRoles={editRoles && editing?.roles.includes('Super Admin') !== true}
           onClose={() => {
             setFormOpen(false);
           }}
@@ -462,91 +470,76 @@ export function AdminUsersPage() {
       <ConfirmDialog
         open={statusChanging !== null}
         onOpenChange={(open) => {
-          if (!open) setStatusChanging(null);
+          if (!open) setDeactivating(null);
         }}
-        title={
-          statusChanging?.isActive === true
-            ? admin.users.actions.activate.replace('{name}', statusChanging.user.name)
-            : admin.users.deactivate.title
-        }
+        title={admin.users.deactivate.title}
         description={interpolate(admin.users.deactivate.description, {
-          name: statusChanging?.user.name ?? '',
+          name: deactivating?.name ?? '',
         })}
-        confirmLabel={
-          statusChanging?.isActive === true
-            ? admin.users.statusActive
-            : admin.users.deactivate.confirm
-        }
+        confirmLabel={admin.users.deactivate.confirm}
         isPending={isUpdating}
         onConfirm={() => {
-          if (statusChanging === null) return;
-          const privileged = isPrivilegedRoleSet(statusChanging.user.roles);
-          if (privileged && reason.trim() === '') {
-            setReasonError(admin.users.privileged.reasonRequired);
-            return;
-          }
-          setActive(statusChanging.user, statusChanging.isActive, reason.trim());
+          if (deactivating !== null) setActive(deactivating, false);
         }}
-      >
-        {statusChanging !== null && isPrivilegedRoleSet(statusChanging.user.roles) ? (
-          <Field label={admin.users.privileged.reasonLabel} required error={reasonError}>
-            <Textarea
-              value={reason}
-              onChange={(event) => {
-                setReason(event.target.value);
-                setReasonError(undefined);
-              }}
-              rows={3}
-              placeholder={admin.users.privileged.reasonPlaceholder}
-            />
-          </Field>
-        ) : null}
-      </ConfirmDialog>
+      />
 
-      <ConfirmDialog
-        open={deleting !== null}
-        onOpenChange={(open) => {
-          if (!open) setDeleting(null);
-        }}
-        title={admin.users.delete.title}
-        description={interpolate(admin.users.delete.description, { name: deleting?.name ?? '' })}
-        confirmLabel={admin.users.delete.confirm}
-        isPending={deleteUser.isPending}
-        onConfirm={() => {
-          if (deleting === null) return;
-          if (reason.trim() === '') {
-            setReasonError(admin.users.privileged.reasonRequired);
-            return;
-          }
-          const user = deleting;
-
-          deleteUser.mutate(
-            { userId: user.id, reason: reason.trim() },
-            {
-              onSuccess: () => {
-                toast.success(interpolate(admin.users.delete.success, { name: user.name }));
-                setDeleting(null);
-                setReason('');
-              },
-              onError: (cause) => {
-                toast.error(cause instanceof ApiError ? cause.message : common.errors.generic);
-              },
-            },
-          );
-        }}
-      >
-        <Field label={admin.users.delete.reasonLabel} required error={reasonError}>
-          <Textarea
-            value={reason}
-            onChange={(event) => {
-              setReason(event.target.value);
-              setReasonError(undefined);
+      {isSuperAdmin ? (
+        <>
+          <ConfirmDialog
+            open={transferring !== null}
+            onOpenChange={(open) => {
+              if (!open) setTransferring(null);
             }}
-            rows={3}
-            placeholder={admin.users.delete.reasonPlaceholder}
+            title={admin.users.transferSuperAdmin.title}
+            description={interpolate(admin.users.transferSuperAdmin.description, {
+              name: transferring?.name ?? '',
+            })}
+            confirmLabel={admin.users.transferSuperAdmin.confirm}
+            isPending={transferSuperAdmin.isPending}
+            onConfirm={() => {
+              if (transferring === null) return;
+              const user = transferring;
+              transferSuperAdmin.mutate(user.id, {
+                onSuccess: () => {
+                  toast.success(
+                    interpolate(admin.users.transferSuperAdmin.success, { name: user.name }),
+                  );
+                  setTransferring(null);
+                },
+                onError: (cause) => {
+                  toast.error(cause instanceof ApiError ? cause.message : common.errors.generic);
+                },
+              });
+            }}
           />
-        </Field>
-      </ConfirmDialog>
+          <ConfirmDialog
+            open={deleting !== null}
+            onOpenChange={(open) => {
+              if (!open) setDeleting(null);
+            }}
+            title={admin.users.delete.title}
+            description={interpolate(admin.users.delete.description, {
+              name: deleting?.name ?? '',
+            })}
+            confirmLabel={admin.users.delete.confirm}
+            isPending={deleteUser.isPending}
+            onConfirm={() => {
+              if (deleting === null) return;
+              const user = deleting;
+
+              deleteUser.mutate(user.id, {
+                onSuccess: () => {
+                  toast.success(interpolate(admin.users.delete.success, { name: user.name }));
+                  setDeleting(null);
+                },
+                onError: (cause) => {
+                  toast.error(cause instanceof ApiError ? cause.message : common.errors.generic);
+                },
+              });
+            }}
+          />
+        </>
+      ) : null}
     </section>
   );
 }

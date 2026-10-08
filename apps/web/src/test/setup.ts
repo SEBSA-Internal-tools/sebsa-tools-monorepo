@@ -123,11 +123,6 @@ beforeAll(() => {
 const TEST_USER_ID = 'u-charith';
 
 export function signInForTest(userId: string = TEST_USER_ID): void {
-  try {
-    window.localStorage.setItem('sdp.mock-user-id', userId);
-  } catch {
-    /* jsdom always provides storage; guard is for safety only. */
-  }
   setMockUserId(userId);
   useSession.setState({
     userId,
@@ -139,12 +134,6 @@ export function signInForTest(userId: string = TEST_USER_ID): void {
 }
 
 export function signOutForTest(): void {
-  try {
-    window.localStorage.removeItem('sdp.mock-user-id');
-    window.sessionStorage.removeItem('sdp.mock-user-id');
-  } catch {
-    /* jsdom safety */
-  }
   setMockUserId(null);
   useSession.setState({
     userId: null,

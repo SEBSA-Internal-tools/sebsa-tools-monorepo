@@ -8,8 +8,15 @@
  * collides even after the business `countedCycle` was decremented.
  */
 export function nextReviewRound(
-  task: { reviewRound?: number; reviewCycle?: number; historicalCycle?: number },
-  existingReviews: readonly { reviewRound?: number; reviewCycle?: number }[] = [],
+  task: {
+    reviewRound?: number | undefined;
+    reviewCycle?: number | undefined;
+    historicalCycle?: number | undefined;
+  },
+  existingReviews: readonly {
+    reviewRound?: number | undefined;
+    reviewCycle?: number | undefined;
+  }[] = [],
 ): number {
   const highestExisting =
     existingReviews.length > 0
@@ -37,13 +44,13 @@ export const nextHistoricalReviewCycle = nextReviewRound;
 export function resolveActiveReviewRound(
   task: {
     reviewRound?: number | null;
-    reviewCycle?: number | null;
-    historicalCycle?: number | null;
+    reviewCycle?: number | null | undefined;
+    historicalCycle?: number | null | undefined;
     status?: string | null;
   },
   existingReviews: readonly {
-    reviewRound?: number | null;
-    reviewCycle?: number | null;
+    reviewRound?: number | null | undefined;
+    reviewCycle?: number | null | undefined;
     decision?: string | null;
   }[] = [],
 ): number {
@@ -81,4 +88,3 @@ export function createRoundResponseId(taskId: string, round: number, entityKey: 
 
 /** Legacy alias for createRoundResponseId */
 export const createCycleResponseId = createRoundResponseId;
-

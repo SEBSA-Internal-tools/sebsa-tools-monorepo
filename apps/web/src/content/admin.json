@@ -8,7 +8,8 @@
       "customers": "Customers",
       "checklist": "Quality Checklist",
       "handovers": "Handovers",
-      "reports": "Reports"
+      "reports": "Reports",
+      "activity": "Activity Log"
     }
   },
   "kpis": {
@@ -132,7 +133,8 @@
       "edit": "Edit {name}",
       "activate": "Activate {name}",
       "deactivate": "Deactivate {name}",
-      "delete": "Delete {name}"
+      "delete": "Delete {name}",
+      "transferSuperAdmin": "Transfer Super Admin to {name}"
     },
     "deactivate": {
       "title": "Deactivate this user?",
@@ -145,11 +147,15 @@
     },
     "delete": {
       "title": "Delete this user?",
-      "description": "{name} will be permanently removed. This is only possible for a user with no tasks or reviews.",
+      "description": "{name} will be removed from normal user lists and will no longer be able to sign in. Their database record and history will be kept.",
       "confirm": "Delete User",
-      "success": "{name} deleted.",
-      "reasonLabel": "Reason for permanent deletion",
-      "reasonPlaceholder": "Explain why this account must be permanently deleted"
+      "success": "{name} deleted."
+    },
+    "transferSuperAdmin": {
+      "title": "Transfer Super Admin?",
+      "description": "{name} will become the only Super Admin and all their other roles will be removed. You will lose Super Admin access and remain an Admin.",
+      "confirm": "Transfer Super Admin",
+      "success": "Super Admin ownership transferred to {name}."
     }
   },
   "checklist": {
@@ -338,7 +344,7 @@
     "subtitle": "Reviews handed back for reassignment",
     "caption": "Tasks a reviewer handed back, and what happened to them",
     "noun": "handovers",
-    "pendingNote": "Handed-over tasks stay out of the Available queue until they are reassigned or returned, preventing multiple reviewers from claiming the same task.",
+    "pendingNote": "A handed-over task remains in Available Tasks until a Reviewer picks it or an Admin reassigns it.",
     "emptyTitle": "No handovers",
     "emptyHint": "A reviewer who cannot finish a review hands it back here.",
     "columns": {
@@ -379,26 +385,19 @@
     "returned": "Returned to the open queue",
     "actions": {
       "view": "View {taskCode}",
-      "reassign": "Reassign {taskCode}",
-      "return": "Return {taskCode} to the open queue"
+      "reassign": "Reassign {taskCode}"
     },
     "reassign": {
       "title": "Reassign this review",
       "description": "{taskCode} was handed back by {name}. Choose who picks it up.",
       "label": "Reviewer",
       "placeholder": "Select a reviewer",
-      "hint": "The reviewer who handed it over and the developer who raised it are both excluded.",
+      "hint": "The developer who raised the task is excluded.",
       "reasonLabel": "Their reason",
       "submit": "Reassign",
       "submitting": "Reassigning…",
       "success": "{taskCode} reassigned to {name}.",
       "noReviewers": "No other active reviewer is eligible for this task."
-    },
-    "return": {
-      "title": "Return this task to the queue?",
-      "description": "{taskCode} becomes available for any reviewer to pick up. No one is assigned.",
-      "confirm": "Return to Queue",
-      "success": "{taskCode} returned to the open queue."
     }
   },
   "reports": {

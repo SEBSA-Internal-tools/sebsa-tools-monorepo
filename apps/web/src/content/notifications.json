@@ -14,7 +14,9 @@
     "TaskApproved": "Approved",
     "ChangesRequested": "Changes requested",
     "TaskResubmitted": "Resubmitted",
+    "TaskSubmitted": "Submitted",
     "TaskAssigned": "Assigned to you",
+    "TaskReassigned": "Reassigned to you",
     "TaskHandedOver": "Handed over",
     "TaskCancelled": "Cancelled"
   }

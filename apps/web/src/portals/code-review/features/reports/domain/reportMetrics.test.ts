@@ -214,6 +214,21 @@ describe('distributions', () => {
     ]);
   });
 
+  it('keeps zero counted cycles separate from cycle one', () => {
+    const slices = cycleDistribution(
+      [
+        task({ status: 'Approved', reviewCycle: 0 }),
+        task({ status: 'Approved', reviewCycle: 1 }),
+      ],
+      CYCLE_LABELS,
+    );
+
+    expect(slices.map((slice) => [slice.key, slice.value])).toEqual([
+      ['0', 1],
+      ['1', 1],
+    ]);
+  });
+
   it('ignores undecided reviews in the rank donut', () => {
     const slices = rankDistribution(
       [review({ rank: 1 }), review({ rank: 2, decision: null, decidedAt: null })],

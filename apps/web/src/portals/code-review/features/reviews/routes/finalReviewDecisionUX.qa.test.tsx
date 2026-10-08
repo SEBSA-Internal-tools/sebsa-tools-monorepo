@@ -126,6 +126,7 @@ describe('FINAL REVIEW DECISION UX QA SUITE', () => {
   });
 
   it('3. Confirm approval displays Approving... state, fires API, shows success state, and navigates', async () => {
+    const existingNotificationIds = new Set(db.notifications.map(({ id }) => id));
     const { user, router } = setupEnvironment();
     await screen.findByRole('heading', { name: /Reviewer Assessment/i });
 
@@ -160,6 +161,11 @@ describe('FINAL REVIEW DECISION UX QA SUITE', () => {
     // DB state updated
     const task = db.tasks.find((t) => t.id === IN_REVIEW_TASK);
     expect(task?.status).toBe('Approved');
+    expect(
+      db.notifications
+        .filter(({ id }) => !existingNotificationIds.has(id))
+        .map(({ userId, kind }) => ({ userId, kind })),
+    ).toEqual([{ userId: task?.developerId, kind: 'TaskApproved' }]);
   });
 
   it('4. Rank 2 + valid comments -> Request Changes confirmation summary displays correct live counts', async () => {
@@ -229,6 +235,7 @@ describe('FINAL REVIEW DECISION UX QA SUITE', () => {
   });
 
   it('6. Confirm Request Changes sends exactly one API request, shows success state, and transitions', async () => {
+    const existingNotificationIds = new Set(db.notifications.map(({ id }) => id));
     const { user, router } = setupEnvironment();
     await screen.findByRole('heading', { name: /Reviewer Assessment/i });
 
@@ -260,6 +267,11 @@ describe('FINAL REVIEW DECISION UX QA SUITE', () => {
 
     const task = db.tasks.find((t) => t.id === IN_REVIEW_TASK);
     expect(task?.status).toBe('ChangesRequested');
+    expect(
+      db.notifications
+        .filter(({ id }) => !existingNotificationIds.has(id))
+        .map(({ userId, kind }) => ({ userId, kind })),
+    ).toEqual([{ userId: task?.developerId, kind: 'ChangesRequested' }]);
   });
 
   it('7. Invalid review prevents confirmation dialog from opening and shows existing validation', async () => {

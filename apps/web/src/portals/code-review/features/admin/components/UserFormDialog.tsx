@@ -2,14 +2,14 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { ROLES, createUserInputSchema, type Role, type User } from '@sdp/contracts';
 import { Button } from '@/components/ui/Button.tsx';
-import { Checkbox, Textarea } from '@/components/ui/controls.tsx';
+import { Checkbox } from '@/components/ui/controls.tsx';
 import { Dialog } from '@/components/ui/Dialog.tsx';
 import { Field, Input } from '@/components/ui/Field.tsx';
 import { ApiError } from '@/lib/apiClient.ts';
 import { interpolate } from '@/lib/formatters.ts';
 import admin from '@/content/admin.json';
 import common from '@/content/common.json';
-import { useCreateUser, useUpdateUser } from '../api/queries.ts';
+import { useCreateUser, useReplaceUserRoles, useUpdateUser } from '../api/queries.ts';
 
 /**
  * Add User (screen 02's modal) and Edit User, which is the same three fields.
@@ -27,11 +27,9 @@ interface FormState {
   name: string;
   email: string;
   roles: Role[];
-  reason: string;
 }
 
-const EMPTY: FormState = { name: '', email: '', roles: [], reason: '' };
-const PRIVILEGED_ROLES: readonly Role[] = ['Admin', 'SuperAdmin'];
+const EMPTY: FormState = { name: '', email: '', roles: [] };
 
 /**
  * Mounted only while open, and keyed on the subject by the caller.
@@ -43,46 +41,35 @@ const PRIVILEGED_ROLES: readonly Role[] = ['Admin', 'SuperAdmin'];
  */
 export function UserFormDialog({
   user,
-  canManagePrivileged,
   onClose,
+  availableRoles = ['Developer', 'Reviewer'],
+  editRoles = true,
 }: {
   /** `null` creates; a user edits that user. */
   user: User | null;
-  canManagePrivileged: boolean;
   onClose: () => void;
+  availableRoles?: readonly Role[];
+  /** Allows callers to limit role changes while preserving the shared user form. */
+  editRoles?: boolean;
 }) {
   const createUser = useCreateUser();
   const updateUser = useUpdateUser();
+  const replaceRoles = useReplaceUserRoles();
 
   const [form, setForm] = useState<FormState>(() =>
-    user === null
-      ? EMPTY
-      : { name: user.name, email: user.email, roles: [...user.roles], reason: '' },
+    user === null ? EMPTY : { name: user.name, email: user.email, roles: [...user.roles] },
   );
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
 
-  const isPending = createUser.isPending || updateUser.isPending;
-  const availableRoles = canManagePrivileged
-    ? ROLES
-    : ROLES.filter((role) => role === 'Developer' || role === 'Reviewer');
-  const privilegedChange =
-    user === null
-      ? form.roles.some((role) => PRIVILEGED_ROLES.includes(role))
-      : PRIVILEGED_ROLES.some((role) => user.roles.includes(role) !== form.roles.includes(role));
+  const isPending = createUser.isPending || updateUser.isPending || replaceRoles.isPending;
 
-  function submit() {
-    if (privilegedChange && form.reason.trim() === '') {
-      setErrors((current) => ({ ...current, reason: admin.users.privileged.reasonRequired }));
-      return;
-    }
+  async function submit() {
     const parsed = createUserInputSchema.safeParse(form);
     if (!parsed.success) {
       const next: Partial<Record<keyof FormState, string>> = {};
       for (const issue of parsed.error.issues) {
         const key = issue.path[0];
-        if (key === 'name' || key === 'email' || key === 'roles' || key === 'reason') {
-          next[key] ??= issue.message;
-        }
+        if (key === 'name' || key === 'email' || key === 'roles') next[key] ??= issue.message;
       }
       setErrors(next);
       return;
@@ -93,24 +80,27 @@ export function UserFormDialog({
     };
 
     if (user === null) {
-      createUser.mutate(parsed.data, {
-        onSuccess: (created) => {
-          toast.success(interpolate(admin.users.created, { name: created.name }));
-          onClose();
-        },
-        onError,
-      });
+      try {
+        const created = await createUser.mutateAsync(parsed.data);
+        toast.success(interpolate(admin.users.created, { name: created.name }));
+        onClose();
+      } catch (cause) {
+        onError(cause);
+      }
     } else {
-      updateUser.mutate(
-        { userId: user.id, input: parsed.data },
-        {
-          onSuccess: (updated) => {
-            toast.success(interpolate(admin.users.updated, { name: updated.name }));
-            onClose();
-          },
-          onError,
-        },
-      );
+      try {
+        const updated = await updateUser.mutateAsync({
+          userId: user.id,
+          input: { name: parsed.data.name, email: parsed.data.email },
+        });
+        if (editRoles) {
+          await replaceRoles.mutateAsync({ userId: user.id, roles: parsed.data.roles });
+        }
+        toast.success(interpolate(admin.users.updated, { name: updated.name }));
+        onClose();
+      } catch (cause) {
+        onError(cause);
+      }
     }
   }
 
@@ -127,7 +117,7 @@ export function UserFormDialog({
           <Button variant="secondary" onClick={onClose}>
             {common.actions.cancel}
           </Button>
-          <Button variant="adminPrimary" onClick={submit} isLoading={isPending}>
+          <Button variant="adminPrimary" onClick={() => void submit()} isLoading={isPending}>
             {user === null
               ? isPending
                 ? admin.users.creating
@@ -161,59 +151,35 @@ export function UserFormDialog({
           />
         </Field>
 
-        <fieldset>
-          <legend className="mb-2 text-sm font-medium text-ink-900">
-            {admin.users.rolesLabel}
-          </legend>
-          <div className="flex flex-wrap gap-4">
-            {availableRoles.map((role) => (
-              <Checkbox
-                key={role}
-                label={common.role[role]}
-                checked={form.roles.includes(role)}
-                onCheckedChange={(checked) => {
-                  setForm({
-                    ...form,
-                    roles: checked
-                      ? [
-                          ...form.roles,
-                          ...(role === 'SuperAdmin' && !form.roles.includes('Admin')
-                            ? (['Admin'] as Role[])
-                            : []),
-                          role,
-                        ]
-                      : form.roles.filter(
-                          (current) =>
-                            current !== role && !(role === 'Admin' && current === 'SuperAdmin'),
-                        ),
-                  });
-                }}
-              />
-            ))}
-          </div>
-          {errors.roles === undefined ? null : (
-            <p role="alert" className="mt-2 text-xs font-medium text-danger">
-              {errors.roles}
-            </p>
-          )}
-        </fieldset>
-
-        {privilegedChange ? (
-          <Field label={admin.users.privileged.reasonLabel} required error={errors.reason}>
-            <Textarea
-              value={form.reason}
-              onChange={(event) => {
-                setForm({ ...form, reason: event.target.value });
-                setErrors((current) => {
-                  const { reason: _reason, ...remaining } = current;
-                  return remaining;
-                });
-              }}
-              rows={3}
-              placeholder={admin.users.privileged.reasonPlaceholder}
-            />
-          </Field>
-        ) : null}
+        {user !== null && !editRoles ? null : (
+          <fieldset>
+            <legend className="mb-2 text-sm font-medium text-ink-900">
+              {admin.users.rolesLabel}
+            </legend>
+            <div className="flex flex-wrap gap-4">
+              {ROLES.filter((role) => availableRoles.includes(role)).map((role) => (
+                <Checkbox
+                  key={role}
+                  label={common.role[role]}
+                  checked={form.roles.includes(role)}
+                  onCheckedChange={(checked) => {
+                    setForm({
+                      ...form,
+                      roles: checked
+                        ? [...form.roles, role]
+                        : form.roles.filter((current) => current !== role),
+                    });
+                  }}
+                />
+              ))}
+            </div>
+            {errors.roles === undefined ? null : (
+              <p role="alert" className="mt-2 text-xs font-medium text-danger">
+                {errors.roles}
+              </p>
+            )}
+          </fieldset>
+        )}
       </div>
     </Dialog>
   );

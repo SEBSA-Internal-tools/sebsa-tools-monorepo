@@ -80,7 +80,7 @@ function HeroDecoration() {
  * and, in Phase 2, the API refuses the data regardless of what the UI drew.
  */
 export function HomePage({ user }: { user: User }) {
-  const summary = useTaskSummary();
+  const summary = useTaskSummary(!user.roles.includes('Super Admin'));
   const workspaces = accessibleWorkspaces(user.roles);
 
   return (

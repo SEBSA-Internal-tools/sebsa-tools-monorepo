@@ -1,35 +1,26 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  IsBoolean,
-  IsInt,
-  IsOptional,
-  IsString,
-  IsUUID,
-  Matches,
-  Min,
-} from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, IsUUID, Matches, Min } from 'class-validator';
 
 export class CreateChecklistQuestionDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID()
-  sectionId!: string;
+  categoryId!: string;
 
   @ApiProperty({ example: 'Have all unit tests passed?' })
   @IsString()
   @Matches(/\S/, {
-    message: 'questionText must contain a non-whitespace character',
+    message: 'text must contain a non-whitespace character',
   })
-  questionText!: string;
+  text!: string;
 
   @ApiPropertyOptional({ default: 0, example: 10 })
   @IsOptional()
   @IsInt()
   @Min(0)
-  displayOrder?: number;
+  order?: number;
 
-  @ApiPropertyOptional({ default: true })
+  @ApiPropertyOptional({ enum: ['replace', 'shift'] })
   @IsOptional()
-  @IsBoolean()
-  isActive?: boolean;
+  @IsIn(['replace', 'shift'])
+  onDuplicateOrder?: 'replace' | 'shift';
 }
-

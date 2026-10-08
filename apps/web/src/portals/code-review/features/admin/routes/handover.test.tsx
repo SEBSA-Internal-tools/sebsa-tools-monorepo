@@ -13,11 +13,10 @@ import { routes } from '@/app/routes.tsx';
  * paragraph and no wireframe exists. That makes the tests the specification, so
  * they assert the properties the design rests on rather than its pixels:
  *
- *  1. a handed-over task LEAVES the open Available queue (otherwise two people
- *     can claim one task);
+ *  1. a handed-over task returns to Available Tasks with its handover context;
  *  2. the review cycle does NOT increment (a cycle is a completed review, and
  *     handing over is the absence of one — inflating it would corrupt Reports);
- *  3. it cannot be handed straight back to the person who handed it over.
+ *  3. the previous reviewer remains eligible to pick it or receive reassignment.
  */
 
 const ADMIN = 'u-charith';
@@ -30,7 +29,10 @@ const IN_REVIEW_TASK = 't-blom-010';
 
 function renderAt(path: string) {
   const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } },
+    defaultOptions: {
+      queries: { retry: false, gcTime: 0 },
+      mutations: { retry: false },
+    },
   });
 
   const router = createMemoryRouter(routes, { initialEntries: [path] });
@@ -62,7 +64,7 @@ async function handOver(reason = 'On leave from Friday.') {
 
   const dialog = await screen.findByRole('dialog');
   await user.type(within(dialog).getByRole('textbox', { name: /^reason/i }), reason);
-  await user.click(within(dialog).getByRole('button', { name: /hand over/i }));
+  await user.click(within(dialog).getByRole('button', { name: /^hand over$/i }));
 
   await waitFor(() => {
     expect(screen.queryByRole('dialog')).toBeNull();
@@ -92,15 +94,11 @@ describe('reviewer hands a task back', () => {
 
     await user.click(await screen.findByRole('button', { name: /hand over/i }));
     const dialog = await screen.findByRole('dialog');
-    await user.click(within(dialog).getByRole('button', { name: /hand over/i }));
+    await user.click(within(dialog).getByRole('button', { name: /^hand over$/i }));
 
     // The reason is the only thing the admin has to go on when choosing who
     // picks the task up, so an empty one is refused rather than stored.
-    expect(
-      await screen.findByText(
-        /(explain why this review is being handed over|please provide a reason for handing over this review)/i,
-      ),
-    ).toBeVisible();
+    expect(await screen.findByText(/explain why this review is being handed over/i)).toBeVisible();
     expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 
@@ -113,7 +111,9 @@ describe('reviewer hands a task back', () => {
     // Filtered to the code rather than read off page 1: the admin grid pages at
     // 15 over a seed with more tasks than that, so which rows are visible
     // depends on the fixture dates rather than on anything under test here.
-    const search = await screen.findByRole('searchbox', { name: /search tasks/i });
+    const search = await screen.findByRole('searchbox', {
+      name: /search tasks/i,
+    });
     await user.type(search, 'BLOM-010');
 
     const cell = await screen.findByText('BLOM-010');
@@ -129,19 +129,22 @@ describe('reviewer hands a task back', () => {
     expect(within(row).getByText(/Cycle 1/)).toBeInTheDocument();
   });
 
-  it('keeps the task OUT of the open Available queue while it waits', async () => {
+  it('shows the task in Available Tasks and lets the previous reviewer retake it', async () => {
     await handOver();
 
-    // A different reviewer, who would otherwise be free to pick it up.
-    signInForTest(OTHER_REVIEWER);
-    renderAt('/crp/reviewer');
+    signInForTest(ASSIGNED_REVIEWER);
+    const { router, user } = renderAt('/crp/reviewer');
 
-    await screen.findByRole('table');
-    // The control: a handed-over task is waiting for the admin's decision, not
-    // for whoever refreshes first. Two claims on one row is the failure this
-    // prevents.
+    const cell = await screen.findByText('BLOM-010');
+    const row = cell.closest('tr');
+    if (row === null) throw new Error('No BLOM-010 row');
+
+    const label = within(row).getByText('Prev. Pinsara');
+    expect(label).toHaveClass('text-[10px]', 'italic', 'text-status-handover');
+    await user.click(within(row).getByRole('button', { name: /pick BLOM-010 for review/i }));
+
     await waitFor(() => {
-      expect(screen.queryByText('BLOM-010')).toBeNull();
+      expect(router.state.location.pathname).toBe(`/crp/reviewer/tasks/${IN_REVIEW_TASK}`);
     });
   });
 });
@@ -151,25 +154,20 @@ describe('admin handover queue', () => {
     await handOver('Needs someone with Lobby experience.');
 
     signInForTest(ADMIN);
-    const { user } = renderAt('/crp/admin/handovers');
+    renderAt('/crp/admin/handovers');
 
-    const taskCode = await screen.findByText('BLOM-010');
-    const row = taskCode.closest('tr');
-    if (row === null) throw new Error('No handover row');
-
-    expect(screen.getByText(/needs someone with lobby experience/i)).toBeInTheDocument();
+    const taskCell = await screen.findByText('BLOM-010');
+    const row = taskCell.closest('tr');
+    if (row === null) throw new Error('No BLOM-010 handover row');
+    expect(within(row).getByText(/needs someone with lobby experience/i)).toBeInTheDocument();
     expect(within(row).getByText('Awaiting action')).toBeInTheDocument();
-
-    await user.click(within(row).getByRole('button', { name: /view reason/i }));
-    const dialog = await screen.findByRole('dialog', { name: 'Handover Reason' });
-    expect(within(dialog).getByText(/needs someone with lobby experience/i)).toBeInTheDocument();
   });
 
-  it('reassigns to another reviewer and puts the task back in review', async () => {
+  it('keeps the previous-reviewer label after admin reassignment', async () => {
     await handOver();
 
     signInForTest(ADMIN);
-    const { user } = renderAt('/crp/admin/handovers');
+    const { user, unmount } = renderAt('/crp/admin/handovers');
 
     const cell = await screen.findByText('BLOM-010');
     const row = cell.closest('tr');
@@ -179,10 +177,6 @@ describe('admin handover queue', () => {
 
     const dialog = await screen.findByRole('dialog');
     await user.click(within(dialog).getByRole('combobox', { name: /reviewer/i }));
-
-    // Handing it straight back to the person who gave it up defeats the purpose,
-    // so they are not offered. The handler refuses the same pairing.
-    expect(screen.queryByRole('option', { name: 'Pinsara Chandika' })).toBeNull();
 
     await user.click(await screen.findByRole('option', { name: 'Kavidu Dilshan' }));
     await user.click(within(dialog).getByRole('button', { name: /^reassign$/i }));
@@ -194,26 +188,15 @@ describe('admin handover queue', () => {
     // The row stays listed as history, now resolved.
     expect(await screen.findByText('Reassigned')).toBeInTheDocument();
     expect(screen.getByText(/reassigned to kavidu dilshan/i)).toBeInTheDocument();
-  });
 
-  it('returns a task to the open queue instead, when no one is named', async () => {
-    await handOver();
+    unmount();
+    signInForTest(OTHER_REVIEWER);
+    renderAt('/crp/reviewer/my-tasks');
 
-    signInForTest(ADMIN);
-    const { user } = renderAt('/crp/admin/handovers');
-
-    const cell = await screen.findByText('BLOM-010');
-    const row = cell.closest('tr');
-    if (row === null) throw new Error('No handover row');
-
-    await user.click(
-      within(row).getByRole('button', { name: /return BLOM-010 to the open queue/i }),
-    );
-    await user.click(await screen.findByRole('button', { name: /^return to queue$/i }));
-
-    await waitFor(() => {
-      expect(screen.getByText('Returned to queue')).toBeInTheDocument();
-    });
+    const reassignedTask = await screen.findByText('BLOM-010');
+    const reassignedRow = reassignedTask.closest('tr');
+    if (reassignedRow === null) throw new Error('No reassigned BLOM-010 row');
+    expect(within(reassignedRow).getByText('Prev. Pinsara')).toBeInTheDocument();
   });
 
   it('is closed to a non-admin', async () => {

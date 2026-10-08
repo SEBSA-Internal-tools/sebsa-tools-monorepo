@@ -1,5 +1,5 @@
 import { delay, http, HttpResponse, type HttpHandler } from 'msw';
-import type { z } from 'zod';
+import { z } from 'zod';
 import {
   checklistDraftSchema,
   checklistSubmissionSchema,
@@ -32,8 +32,10 @@ import {
   type IssueResponseRecord,
   type Review,
   type ReviewComment,
+  type Role,
   type TaskChecklist,
   type ChecklistSubmission,
+  type ChecklistDraft,
   type TaskTypeRecord,
   type User,
 } from '@sdp/contracts';
@@ -56,10 +58,11 @@ import {
   recordSystemAuditEvent,
   toListItem,
 } from './db.ts';
+import { recordMockAudit } from './audit.ts';
 import {
   createCycleResponseId,
-  nextReviewRound,
-  nextCountedCycle,
+  nextReviewCycle,
+  resolveActiveReviewCycle,
   resolveActiveReviewRound,
   reviewBlockers,
 } from '@/portals/code-review/features/reviews/domain/reviewRules.ts';
@@ -90,12 +93,7 @@ import {
 } from '@/lib/checklistOrdering.ts';
 import credentials from './data/credentials.json';
 import { generateHandoverId } from './handoverId.ts';
-import {
-  canAccessWorkspace,
-  hasCapability,
-  isPrivilegedRoleSet,
-  type Capability,
-} from '@/lib/permissions.ts';
+import { canAccessWorkspace, hasCapability, type Capability } from '@/lib/permissions.ts';
 
 /** Phase 1 demo credentials. See `data/credentials.json`. */
 export const DEMO_PASSWORD = credentials.password;
@@ -165,8 +163,8 @@ export function createReviewSessionId(taskId: string, reviewRound: number): stri
  * row has to exist before the decision does.
  */
 function ensureReview(task: Task, reviewerId: string, reviewerName: string): Review {
-  const currentHistoricalRound = task.reviewRound;
-  const existing = findReview(task.id, currentHistoricalRound);
+  let currentHistoricalCycle = task.historicalCycle ?? 0;
+  const existing = findReview(task.id, currentHistoricalCycle);
   if (existing) {
     if (
       existing.decision === null &&
@@ -184,21 +182,30 @@ function ensureReview(task: Task, reviewerId: string, reviewerName: string): Rev
       !task.currentReviewSessionId &&
       task.status === 'InReview'
     ) {
-      const newSessionId = createReviewSessionId(task.id, currentHistoricalRound);
+      const newSessionId = createReviewSessionId(task.id, currentHistoricalCycle);
       task.currentReviewSessionId = newSessionId;
       existing.currentReviewSessionId = newSessionId;
     }
     return existing;
   }
 
+  const currentWasCompleted = reviewsForTask(task.id).some(
+    (review) => review.reviewRound === currentHistoricalCycle && review.decision !== null,
+  );
+  if (currentHistoricalCycle === 0 || currentWasCompleted) {
+    currentHistoricalCycle += 1;
+    task.historicalCycle = currentHistoricalCycle;
+    task.reviewRound = currentHistoricalCycle;
+  }
+
   const now = new Date().toISOString();
   if (!task.currentReviewSessionId && task.status === 'InReview') {
-    task.currentReviewSessionId = createReviewSessionId(task.id, currentHistoricalRound);
+    task.currentReviewSessionId = createReviewSessionId(task.id, currentHistoricalCycle);
   }
   const review: Review = {
-    id: `rev-${task.id}-${String(currentHistoricalRound)}`,
+    id: `rev-${task.id}-${String(currentHistoricalCycle)}`,
     taskId: task.id,
-    reviewRound: currentHistoricalRound,
+    reviewRound: currentHistoricalCycle,
     reviewerId,
     reviewerName,
     currentReviewSessionId: task.currentReviewSessionId ?? null,
@@ -221,6 +228,56 @@ function ensureReview(task: Task, reviewerId: string, reviewerName: string): Rev
 
 function touch(task: Task): void {
   task.updatedAt = new Date().toISOString();
+}
+
+function persistTaskChecklist(
+  task: Task,
+  developerId: string,
+  draft: ChecklistDraft,
+): TaskChecklist {
+  const applicable = db.checklistTemplate
+    .filter(
+      (category) =>
+        category.isActive &&
+        category.applicableTaskTypeIds.some((id) => draft.taskTypeIds.includes(id)),
+    )
+    .sort((a, b) => a.order - b.order)
+    .flatMap((category) =>
+      category.questions
+        .filter((question) => question.isActive)
+        .sort((a, b) => a.order - b.order)
+        .map((question) => ({ question, categoryName: category.name })),
+    );
+
+  const answered = new Map(draft.answers.map((entry) => [entry.questionId, entry.answer]));
+  const stored: TaskChecklist = {
+    id: findChecklist(task.id)?.id ?? `cl-${task.id}`,
+    taskId: task.id,
+    taskTypeIds: draft.taskTypeIds,
+    answers: applicable
+      .filter(({ question }) => answered.has(question.id))
+      .map(({ question, categoryName }, index) => ({
+        questionId: question.id,
+        answer: answered.get(question.id) ?? 'NA',
+        questionText: question.text,
+        categoryName,
+        order: index,
+      })),
+    remarks: draft.remarks,
+    isComplete:
+      applicable.length > 0 && applicable.every(({ question }) => answered.has(question.id)),
+    checkedDate: new Date().toISOString(),
+    developerId,
+  };
+
+  const index = db.checklists.findIndex((checklist) => checklist.taskId === task.id);
+  if (index === -1) db.checklists.push(stored);
+  else db.checklists[index] = stored;
+
+  task.taskTypeIds = draft.taskTypeIds;
+  task.isChecklistComplete = stored.isComplete;
+  touch(task);
+  return stored;
 }
 
 /**
@@ -315,6 +372,31 @@ function requireAdmin(request: Request) {
   return requireCapability(request, 'admin.access');
 }
 
+const ROLE_LABEL_BY_CODE = {
+  DEVELOPER: 'Developer',
+  REVIEWER: 'Reviewer',
+  ADMIN: 'Admin',
+  SUPER_ADMIN: 'Super Admin',
+} as const satisfies Record<string, Role>;
+const replaceRolesSchema = z.object({
+  roles: z.array(z.enum(['DEVELOPER', 'REVIEWER', 'ADMIN', 'SUPER_ADMIN'])).min(1),
+});
+
+function isSuperAdmin(user: User): boolean {
+  return user.roles.includes('Super Admin');
+}
+
+function adminMayManage(user: User): boolean {
+  return !user.roles.some((role) => role === 'Admin' || role === 'Super Admin');
+}
+
+function mayAssignRoles(actor: User, roles: readonly Role[]): boolean {
+  const allowed: readonly Role[] = isSuperAdmin(actor)
+    ? ['Developer', 'Reviewer', 'Admin']
+    : ['Developer', 'Reviewer'];
+  return roles.every((role) => allowed.includes(role));
+}
+
 function requireCapability(request: Request, capability: Capability) {
   const user = currentUser(request);
   if (!user) return errorResponse(401, 'NOT_AUTHENTICATED', 'Not authenticated.');
@@ -326,13 +408,6 @@ function requireCapability(request: Request, capability: Capability) {
 
 function requiredReason(value: unknown): string | null {
   return typeof value === 'string' && value.trim() !== '' ? value.trim() : null;
-}
-
-function activeSuperAdminCountAfter(target: User, roles: User['roles'], isActive: boolean): number {
-  return db.users.filter((user) => {
-    if (user.id === target.id) return isActive && roles.includes('SuperAdmin');
-    return user.isActive && user.roles.includes('SuperAdmin');
-  }).length;
 }
 
 /** Id-safe fragment of a name, so generated ids stay readable in the store. */
@@ -478,6 +553,33 @@ export const handlers: HttpHandler[] = [
     return HttpResponse.json(db.customers);
   }),
 
+  http.get('/api/customers/:customerId/next-task-id', async ({ params }) => {
+    await delay(LATENCY_MS);
+    const customer = findCustomer(String(params['customerId']));
+    if (!customer) return errorResponse(404, 'NOT_FOUND', 'Customer not found.');
+    const sequence = (db.sequences[customer.id] ?? 0) + 1;
+    const normalized = customer.name
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, '');
+    return HttpResponse.json({
+      taskCode: `${normalized === '' ? 'TASK' : normalized}-${String(sequence).padStart(2, '0')}`,
+      sequence,
+    });
+  }),
+
+  http.get('/api/tasks/next-version', async ({ request }) => {
+    await delay(LATENCY_MS);
+    const user = currentUser(request);
+    if (!user) return errorResponse(401, 'NOT_AUTHENTICATED', 'Not authenticated.');
+    const searchParams = new URL(request.url).searchParams;
+    const customerId = searchParams.get('customerId')?.trim() ?? '';
+    const crimId = searchParams.get('crimId')?.trim() ?? '';
+    if (customerId === '') return errorResponse(422, 'VALIDATION_FAILED', 'Select a customer.');
+    if (crimId === '') return errorResponse(422, 'VALIDATION_FAILED', 'Enter the CRIM ID.');
+    return HttpResponse.json({ version: peekNextTaskVersion(customerId, crimId) });
+  }),
+
   /* ----------------------------------------------------------------- tasks */
 
   /**
@@ -524,13 +626,6 @@ export const handlers: HttpHandler[] = [
           (t) =>
             t.reviewerId === null &&
             t.developerId !== user.id &&
-            /*
-             * A handed-over task waits for the admin, not for whoever refreshes
-             * first. Leaving it in the open queue would let a reviewer pick the
-             * same task the admin is reassigning — two claims on one row, and a
-             * handover queue listing work already taken.
-             */
-            !t.isHandedOver &&
             (t.status === 'Submitted' || t.status === 'ReSubmitted'),
         );
       } else if (scope === 'assigned') {
@@ -696,9 +791,26 @@ export const handlers: HttpHandler[] = [
       return errorResponse(403, 'FORBIDDEN', 'You do not have access to this workspace.');
     }
 
-    const parsed = taskDraftSchema.safeParse(await request.json());
+    const body: unknown = await request.json();
+    const parsed = taskDraftSchema.safeParse(body);
     if (!parsed.success) {
       return errorResponse(422, 'VALIDATION_FAILED', 'Check the highlighted fields.');
+    }
+
+    const embeddedChecklist =
+      typeof body === 'object' && body !== null
+        ? checklistDraftSchema.safeParse({
+            taskTypeIds: Reflect.get(body, 'taskTypeIds') as unknown,
+            answers: Reflect.get(body, 'checklistAnswers') as unknown,
+            remarks: (Reflect.get(body, 'additionalRemarks') as unknown) ?? '',
+          })
+        : null;
+    const hasEmbeddedChecklist =
+      typeof body === 'object' &&
+      body !== null &&
+      ('taskTypeIds' in body || 'checklistAnswers' in body);
+    if (hasEmbeddedChecklist && !embeddedChecklist?.success) {
+      return errorResponse(422, 'VALIDATION_FAILED', 'Check the checklist data and try again.');
     }
 
     const customer = findCustomer(parsed.data.customerId);
@@ -729,6 +841,8 @@ export const handlers: HttpHandler[] = [
       customerId: customer.id,
       priority: parsed.data.priority,
       status: 'Draft',
+      reviewCycle: 1,
+      historicalCycle: 1,
       reviewRound: 1,
       countedCycle: 1,
       adjustedCycles: [],
@@ -744,6 +858,9 @@ export const handlers: HttpHandler[] = [
     };
 
     db.tasks.push(task);
+    if (embeddedChecklist?.success) {
+      persistTaskChecklist(task, user.id, embeddedChecklist.data);
+    }
     recordEvent({
       taskId: task.id,
       kind: 'Created',
@@ -772,9 +889,26 @@ export const handlers: HttpHandler[] = [
       return errorResponse(409, 'INVALID_STATE', 'This task can no longer be edited.');
     }
 
-    const parsed = taskDraftSchema.partial().safeParse(await request.json());
+    const body: unknown = await request.json();
+    const parsed = taskDraftSchema.partial().safeParse(body);
     if (!parsed.success) {
       return errorResponse(422, 'VALIDATION_FAILED', 'Check the highlighted fields.');
+    }
+
+    const embeddedChecklist =
+      typeof body === 'object' && body !== null
+        ? checklistDraftSchema.safeParse({
+            taskTypeIds: Reflect.get(body, 'taskTypeIds') as unknown,
+            answers: Reflect.get(body, 'checklistAnswers') as unknown,
+            remarks: (Reflect.get(body, 'additionalRemarks') as unknown) ?? '',
+          })
+        : null;
+    const hasEmbeddedChecklist =
+      typeof body === 'object' &&
+      body !== null &&
+      ('taskTypeIds' in body || 'checklistAnswers' in body);
+    if (hasEmbeddedChecklist && !embeddedChecklist?.success) {
+      return errorResponse(422, 'VALIDATION_FAILED', 'Check the checklist data and try again.');
     }
 
     if (
@@ -794,6 +928,11 @@ export const handlers: HttpHandler[] = [
       const note = parsed.data.noteToReviewer.trim();
       task.noteToReviewer = note === '' ? null : note;
     }
+    if (embeddedChecklist?.success) {
+      persistTaskChecklist(task, user.id, embeddedChecklist.data);
+    }
+    const customer = findCustomer(task.customerId);
+    if (customer) task.title = deriveTaskTitle(customer.code, task.crimId, task.version);
     touch(task);
 
     return HttpResponse.json(toListItem(task));
@@ -941,64 +1080,7 @@ export const handlers: HttpHandler[] = [
       );
     }
 
-    // The applicable set is recomputed from the template rather than trusted
-    // from the client — it gates submission, so a client-sent `isComplete` would
-    // be a way to bypass FL 2.2-03 entirely. The filter is on QUESTIONS, since
-    // that is where task-type applicability lives.
-    const applicable = db.checklistTemplate
-      .filter(
-        (category) =>
-          category.isActive &&
-          category.applicableTaskTypeIds.some((id) => parsed.data.taskTypeIds.includes(id)),
-      )
-      .sort((a, b) => a.order - b.order)
-      .flatMap((category) =>
-        category.questions
-          .filter((question) => question.isActive)
-          .sort((a, b) => a.order - b.order)
-          .map((question) => ({ question, categoryName: category.name })),
-      );
-
-    const answered = new Map(parsed.data.answers.map((entry) => [entry.questionId, entry.answer]));
-    const isComplete =
-      applicable.length > 0 && applicable.every(({ question }) => answered.has(question.id));
-
-    const now = new Date().toISOString();
-    const stored: TaskChecklist = {
-      id: findChecklist(task.id)?.id ?? `cl-${task.id}`,
-      taskId: task.id,
-      taskTypeIds: parsed.data.taskTypeIds,
-      /*
-       * Built from the APPLICABLE set, not from what the client sent. That does
-       * two jobs at once: answers to questions the selected types no longer
-       * render are dropped, and the stored wording is the server's copy of the
-       * question rather than the client's — a developer cannot record having
-       * answered a different question from the one they were shown.
-       */
-      answers: applicable
-        .filter(({ question }) => answered.has(question.id))
-        .map(({ question, categoryName }, index) => ({
-          questionId: question.id,
-          answer: answered.get(question.id) ?? 'NA',
-          questionText: question.text,
-          categoryName,
-          order: index,
-        })),
-      remarks: parsed.data.remarks,
-      isComplete,
-      checkedDate: now,
-      developerId: user.id,
-    };
-
-    const index = db.checklists.findIndex((c) => c.taskId === task.id);
-    if (index === -1) db.checklists.push(stored);
-    else db.checklists[index] = stored;
-
-    task.taskTypeIds = parsed.data.taskTypeIds;
-    task.isChecklistComplete = isComplete;
-    touch(task);
-
-    return HttpResponse.json(stored);
+    return HttpResponse.json(persistTaskChecklist(task, user.id, parsed.data));
   }),
 
   /**
@@ -1030,6 +1112,25 @@ export const handlers: HttpHandler[] = [
         422,
         'CHECKLIST_INCOMPLETE',
         'Complete the quality checklist before submitting for review.',
+      );
+    }
+
+    const previousChangesReview = isResubmission
+      ? reviewsForTask(task.id).find((review) => review.decision === 'ChangesRequested')
+      : undefined;
+    const resubmissionReviewer = previousChangesReview?.reviewerId
+      ? findUser(previousChangesReview.reviewerId)
+      : undefined;
+    if (
+      isResubmission &&
+      (!resubmissionReviewer ||
+        !resubmissionReviewer.isActive ||
+        !resubmissionReviewer.roles.includes('Reviewer'))
+    ) {
+      return errorResponse(
+        409,
+        'INVALID_STATE',
+        'The reviewer who requested changes is no longer eligible for assignment.',
       );
     }
 
@@ -1115,8 +1216,15 @@ export const handlers: HttpHandler[] = [
 
     if (isResubmission) {
       const allTaskReviews = reviewsForTask(task.id);
-      const activeRound = resolveActiveReviewRound(task, allTaskReviews);
+      const activeRound = resolveActiveReviewCycle(task, allTaskReviews);
+      const reviewSessionId = createReviewSessionId(task.id, activeRound);
+      task.reviewCycle = activeRound;
+      task.historicalCycle = activeRound;
       task.reviewRound = activeRound;
+      task.countedCycle = activeRound;
+      task.reviewerId = resubmissionReviewer?.id ?? null;
+      task.currentReviewSessionId = reviewSessionId;
+      task.status = 'InReview';
 
       // Ensure active cycle review record exists in db.reviews, preventing duplicate review cycles
       const existingReview = findReview(task.id, activeRound);
@@ -1125,9 +1233,9 @@ export const handlers: HttpHandler[] = [
           id: `rev-${task.id}-${String(activeRound)}`,
           taskId: task.id,
           reviewRound: activeRound,
-          reviewerId: null,
-          reviewerName: null,
-          currentReviewSessionId: null,
+          reviewerId: resubmissionReviewer?.id ?? null,
+          reviewerName: resubmissionReviewer?.name ?? null,
+          currentReviewSessionId: reviewSessionId,
           comments: [],
           generalCheck: [],
           findings: { incorrectCode: '', incompleteImplementation: '', sourceFormatting: '' },
@@ -1141,13 +1249,17 @@ export const handlers: HttpHandler[] = [
           createdAt: now,
           updatedAt: now,
         });
+      } else if (existingReview.decision === null) {
+        existingReview.reviewerId = resubmissionReviewer?.id ?? null;
+        existingReview.reviewerName = resubmissionReviewer?.name ?? null;
+        existingReview.currentReviewSessionId = reviewSessionId;
+        existingReview.updatedAt = now;
       }
 
-      const lastReview = allTaskReviews.find((review) => review.decision !== null);
-      if (lastReview?.reviewerId) {
+      if (resubmissionReviewer) {
         db.notifications.push({
           id: `n-${String(Date.now())}-${String(db.notifications.length + 1)}`,
-          userId: lastReview.reviewerId,
+          userId: resubmissionReviewer.id,
           kind: 'TaskResubmitted',
           title: `${task.taskCode} resubmitted for review`,
           body: `${user.name} responded to review findings and resubmitted (Round ${task.reviewRound}).`,
@@ -1208,17 +1320,6 @@ export const handlers: HttpHandler[] = [
       return errorResponse(409, 'INVALID_STATE', 'Terminal tasks cannot be picked.');
     }
 
-    if (
-      task.isHandedOver ||
-      db.handovers.some((h) => h.taskId === task.id && h.status === 'Pending')
-    ) {
-      return errorResponse(
-        409,
-        'HANDOVER_REQUIRES_RESOLUTION',
-        'This task has an active handover request. Resolve the handover instead.',
-      );
-    }
-
     // Server-side self-review bar. A reviewer must never review their own work,
     // whatever the queue happened to show them.
     if (task.developerId === user.id) {
@@ -1240,14 +1341,28 @@ export const handlers: HttpHandler[] = [
     }
 
     const now = new Date().toISOString();
-    const currentHistoricalRound = task.reviewRound;
-    const newSessionId = createReviewSessionId(task.id, currentHistoricalRound);
+    const pendingHandovers = db.handovers.filter(
+      (handover) => handover.taskId === task.id && handover.status === 'Pending',
+    );
+    const latestHandover = pendingHandovers.at(-1);
+    const currentHistoricalCycle =
+      task.historicalCycle ?? task.reviewRound ?? task.reviewCycle ?? 1;
+    const newSessionId = createReviewSessionId(task.id, currentHistoricalCycle);
     task.reviewerId = user.id;
     task.status = 'InReview';
+    task.isHandedOver = false;
     task.currentReviewSessionId = newSessionId;
     touch(task);
 
-    const activeDraft = findReview(task.id, currentHistoricalRound);
+    for (const handover of pendingHandovers) {
+      handover.status = 'Reassigned';
+      handover.reassignedToId = user.id;
+      handover.reassignedToName = user.name;
+      handover.reassignedById = user.id;
+      handover.resolvedAt = now;
+    }
+
+    const activeDraft = findReview(task.id, currentHistoricalCycle);
     if (activeDraft?.decision === null) {
       activeDraft.reviewerId = user.id;
       activeDraft.reviewerName = user.name;
@@ -1265,6 +1380,43 @@ export const handlers: HttpHandler[] = [
       note: null,
       occurredAt: now,
     });
+
+    db.notifications.push({
+      id: `n-${String(Date.now())}-${String(db.notifications.length + 1)}`,
+      userId: task.developerId,
+      kind: 'TaskAssigned',
+      title: `${task.taskCode} picked for review`,
+      body: `${user.name} picked up your review task.`,
+      href: `/developer/tasks/${task.id}`,
+      taskId: task.id,
+      isRead: false,
+      createdAt: now,
+    });
+
+    if (latestHandover && latestHandover.fromReviewerId !== user.id) {
+      const recipients = db.users.filter(
+        (candidate) =>
+          candidate.isActive &&
+          (candidate.id === latestHandover.fromReviewerId ||
+            candidate.roles.includes('Admin') ||
+            candidate.roles.includes('Super Admin')) &&
+          candidate.id !== user.id &&
+          candidate.id !== task.developerId,
+      );
+      for (const recipient of recipients) {
+        db.notifications.push({
+          id: `n-${String(Date.now())}-${String(db.notifications.length + 1)}`,
+          userId: recipient.id,
+          kind: 'TaskHandedOver',
+          title: `${task.taskCode} handover picked up`,
+          body: `${user.name} picked up the handed-over review task.`,
+          href: '/admin/handovers',
+          taskId: task.id,
+          isRead: false,
+          createdAt: now,
+        });
+      }
+    }
 
     return HttpResponse.json(toListItem(task));
   }),
@@ -1597,8 +1749,8 @@ export const handlers: HttpHandler[] = [
       return errorResponse(422, 'VALIDATION_FAILED', 'Check the highlighted fields.');
     }
 
-    const currentHistoricalRound = task.reviewRound;
     const existingReview = ensureReview(task, user.id, user.name);
+    const currentHistoricalCycle = existingReview.reviewRound;
     const existingComments = [...(existingReview.comments ?? [])];
     const incomingComments = parsed.data.comments ?? [];
     const currentSessionId =
@@ -1712,7 +1864,7 @@ export const handlers: HttpHandler[] = [
     const review: Review = {
       id: existingReview.id,
       taskId: task.id,
-      reviewRound: currentHistoricalRound,
+      reviewRound: currentHistoricalCycle,
       reviewerId: user.id,
       reviewerName: user.name,
       currentReviewSessionId: currentSessionId ?? null,
@@ -1744,9 +1896,10 @@ export const handlers: HttpHandler[] = [
           task.adjustedCycles = [];
         }
         if (!task.adjustedCycles.includes(qualifyingCycle)) {
-          const previousCountedCycle = task.countedCycle;
-          const newCountedCycle = Math.max(1, task.countedCycle - 1);
+          const previousCountedCycle = task.reviewCycle ?? task.countedCycle;
+          const newCountedCycle = Math.max(0, previousCountedCycle - 1);
           if (newCountedCycle < previousCountedCycle) {
+            task.reviewCycle = newCountedCycle;
             task.countedCycle = newCountedCycle;
             task.adjustedCycles.push(qualifyingCycle);
 
@@ -1754,7 +1907,7 @@ export const handlers: HttpHandler[] = [
             recordEvent({
               taskId: task.id,
               kind: 'CountedCycleAdjusted',
-              reviewRound: currentHistoricalRound,
+              reviewRound: currentHistoricalCycle,
               actorId: user.id,
               qualifyingReviewRound: qualifyingCycle,
               previousCountedCycle,
@@ -1780,10 +1933,8 @@ export const handlers: HttpHandler[] = [
       });
     } else {
       task.status = 'ChangesRequested';
-      // Strictly monotonic immutable historicalCycle sequence:
-      const nextHistorical = nextReviewRound(task, reviewsForTask(task.id));
-      task.reviewRound = nextHistorical;
-      task.countedCycle = nextCountedCycle(task.countedCycle, decision);
+      task.reviewCycle = nextReviewCycle(task.reviewCycle ?? task.countedCycle, decision);
+      task.countedCycle = task.reviewCycle;
       task.reviewerId = null;
       task.currentReviewSessionId = null;
 
@@ -2119,36 +2270,25 @@ export const handlers: HttpHandler[] = [
     const denied = requireAdmin(request);
     if (denied) return denied;
 
-    return HttpResponse.json(db.users.slice().sort((a, b) => a.name.localeCompare(b.name)));
+    return HttpResponse.json(
+      db.users
+        .filter((user) => !db.deletedUserIds.has(user.id))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    );
   }),
 
   http.post('/api/users', async ({ request }) => {
     await delay(LATENCY_MS);
     const denied = requireAdmin(request);
     if (denied) return denied;
+    const actor = currentUser(request);
 
     const parsed = createUserInputSchema.safeParse(await request.json());
     if (!parsed.success) {
       return errorResponse(422, 'VALIDATION_FAILED', firstIssue(parsed.error));
     }
-
-    const actor = currentUser(request)!;
-    if (!actor) return errorResponse(401, 'NOT_AUTHENTICATED', 'Not authenticated.');
-    const createsPrivilegedUser = isPrivilegedRoleSet(parsed.data.roles);
-    if (createsPrivilegedUser && !hasCapability(actor.roles, 'users.manage.privileged')) {
-      return errorResponse(
-        403,
-        'PRIVILEGED_ROLE_REQUIRED',
-        'Only a Super Admin can create an Admin or Super Admin account.',
-      );
-    }
-    const reason = requiredReason(parsed.data.reason);
-    if (createsPrivilegedUser && reason === null) {
-      return errorResponse(
-        422,
-        'REASON_REQUIRED',
-        'Provide a reason for granting privileged access.',
-      );
+    if (!actor || !mayAssignRoles(actor, parsed.data.roles)) {
+      return errorResponse(403, 'FORBIDDEN', 'You cannot assign one or more requested roles.');
     }
 
     const email = parsed.data.email.toLowerCase();
@@ -2165,29 +2305,25 @@ export const handlers: HttpHandler[] = [
       createdAt: new Date().toISOString(),
     };
     db.users.push(user);
-
-    if (createsPrivilegedUser && reason !== null) {
-      if (user.roles.includes('Admin')) {
-        recordSystemAuditEvent({
-          action: 'AdminGranted',
-          actorId: actor.id,
-          targetType: 'User',
-          targetId: user.id,
-          targetLabel: user.name,
-          reason,
-        });
-      }
-      if (user.roles.includes('SuperAdmin')) {
-        recordSystemAuditEvent({
-          action: 'SuperAdminGranted',
-          actorId: actor.id,
-          targetType: 'User',
-          targetId: user.id,
-          targetLabel: user.name,
-          reason,
-        });
-      }
-    }
+    recordMockAudit(actor, {
+      actionType: 'USER_CREATED',
+      entityType: 'USER',
+      entityId: user.id,
+      targetUserId: user.id,
+      description: `${actor.name} created user ${user.name}`,
+      newValue: user,
+    });
+    user.roles.forEach((role, index) => {
+      recordMockAudit(actor, {
+        actionType: 'ROLE_GRANTED',
+        entityType: 'ROLE',
+        entityId: role,
+        targetUserId: user.id,
+        description: `${actor.name} granted ${role} role to ${user.name}`,
+        oldValue: user.roles.slice(0, index),
+        newValue: user.roles.slice(0, index + 1),
+      });
+    });
 
     return HttpResponse.json(user, { status: 201 });
   }),
@@ -2198,169 +2334,201 @@ export const handlers: HttpHandler[] = [
     if (denied) return denied;
 
     const user = findUser(String(params['userId']));
-    if (!user) return errorResponse(404, 'NOT_FOUND', 'User not found.');
+    if (!user || db.deletedUserIds.has(user.id)) {
+      return errorResponse(404, 'NOT_FOUND', 'User not found.');
+    }
 
     const parsed = updateUserInputSchema.safeParse(await request.json());
     if (!parsed.success) {
       return errorResponse(422, 'VALIDATION_FAILED', firstIssue(parsed.error));
     }
 
+    // An admin must not be able to lock themselves out, which would leave the
+    // system with one fewer administrator and no way back in through the UI.
     const actor = currentUser(request);
-    if (!actor) return errorResponse(401, 'NOT_AUTHENTICATED', 'Not authenticated.');
-
-    const nextRoles = parsed.data.roles ?? user.roles;
-    const nextActive = parsed.data.isActive ?? user.isActive;
-    const targetIsPrivileged = isPrivilegedRoleSet(user.roles);
-    const resultIsPrivileged = isPrivilegedRoleSet(nextRoles);
-    const privilegedRoleChanged =
-      user.roles.includes('Admin') !== nextRoles.includes('Admin') ||
-      user.roles.includes('SuperAdmin') !== nextRoles.includes('SuperAdmin');
-    const privilegedStatusChanged =
-      parsed.data.isActive !== undefined &&
-      parsed.data.isActive !== user.isActive &&
-      (targetIsPrivileged || resultIsPrivileged);
-    const privilegedMutation = targetIsPrivileged || resultIsPrivileged || privilegedRoleChanged;
-
-    if (privilegedMutation && !hasCapability(actor.roles, 'users.manage.privileged')) {
+    if (!actor || (!isSuperAdmin(actor) && !adminMayManage(user))) {
       return errorResponse(
         403,
-        'PRIVILEGED_ROLE_REQUIRED',
-        'Only a Super Admin can modify a privileged account.',
+        'FORBIDDEN',
+        'Admins may only manage Developer and Reviewer users.',
       );
     }
-
-    if (activeSuperAdminCountAfter(user, nextRoles, nextActive) === 0) {
-      return errorResponse(
-        422,
-        'LAST_SUPER_ADMIN_REQUIRED',
-        'The system must retain at least one active Super Admin.',
-      );
+    if (parsed.data.roles !== undefined && !mayAssignRoles(actor, parsed.data.roles)) {
+      return errorResponse(403, 'FORBIDDEN', 'You cannot assign one or more requested roles.');
+    }
+    const removesOwnAdmin =
+      actor?.id === user.id &&
+      ((parsed.data.roles !== undefined && !parsed.data.roles.includes('Admin')) ||
+        parsed.data.isActive === false);
+    if (removesOwnAdmin) {
+      return errorResponse(422, 'SELF_LOCKOUT', 'You cannot remove your own admin access.');
     }
 
-    if (
-      actor.id === user.id &&
-      (!nextRoles.includes('Admin') || !nextRoles.includes('SuperAdmin') || !nextActive)
-    ) {
-      return errorResponse(
-        422,
-        'SELF_LOCKOUT',
-        'You cannot remove your own Admin or Super Admin access or deactivate yourself.',
-      );
-    }
-
-    const reason = requiredReason(parsed.data.reason);
-    if ((privilegedRoleChanged || privilegedStatusChanged) && reason === null) {
-      return errorResponse(422, 'REASON_REQUIRED', 'Provide a reason for this privileged change.');
-    }
-
-    const previousRoles = [...user.roles];
-    const wasActive = user.isActive;
-
+    const oldValue = { ...user, roles: [...user.roles] };
     if (parsed.data.name !== undefined) user.name = parsed.data.name;
     if (parsed.data.email !== undefined) user.email = parsed.data.email;
     if (parsed.data.roles !== undefined) user.roles = parsed.data.roles;
     if (parsed.data.isActive !== undefined) user.isActive = parsed.data.isActive;
 
-    if (reason !== null) {
-      const roleAudits = [
-        ['Admin', 'AdminGranted', 'AdminRevoked'],
-        ['SuperAdmin', 'SuperAdminGranted', 'SuperAdminRevoked'],
-      ] as const;
-      for (const [role, granted, revoked] of roleAudits) {
-        const hadRole = previousRoles.includes(role);
-        const hasRoleNow = user.roles.includes(role);
-        if (hadRole !== hasRoleNow) {
-          recordSystemAuditEvent({
-            action: hasRoleNow ? granted : revoked,
-            actorId: actor.id,
-            targetType: 'User',
-            targetId: user.id,
-            targetLabel: user.name,
-            reason,
-          });
-        }
-      }
-      if (wasActive !== user.isActive && (targetIsPrivileged || resultIsPrivileged)) {
-        recordSystemAuditEvent({
-          action: user.isActive ? 'PrivilegedUserActivated' : 'PrivilegedUserDeactivated',
-          actorId: actor.id,
-          targetType: 'User',
-          targetId: user.id,
-          targetLabel: user.name,
-          reason,
-        });
-      }
+    recordMockAudit(actor, {
+      actionType:
+        parsed.data.isActive === undefined
+          ? 'USER_UPDATED'
+          : parsed.data.isActive
+            ? 'USER_ACTIVATED'
+            : 'USER_DEACTIVATED',
+      entityType: 'USER',
+      entityId: user.id,
+      targetUserId: user.id,
+      description: `${actor.name} updated user ${user.name}`,
+      oldValue,
+      newValue: user,
+    });
+    if (
+      parsed.data.roles !== undefined &&
+      JSON.stringify(oldValue.roles) !== JSON.stringify(user.roles)
+    ) {
+      recordMockAudit(actor, {
+        actionType: 'ROLES_CHANGED',
+        entityType: 'USER',
+        entityId: user.id,
+        targetUserId: user.id,
+        description: `${actor.name} changed roles for ${user.name}`,
+        oldValue: oldValue.roles,
+        newValue: user.roles,
+      });
     }
 
     return HttpResponse.json(user);
   }),
 
-  /**
-   * Hard delete, permitted only for a user with no history.
-   *
-   * Anyone who has raised or reviewed a task is referenced by task rows, events
-   * and reviews; deleting them would blank the Developer and Reviewer columns
-   * across the audit trail. Those users are deactivated instead — the `isActive`
-   * flag and the power-icon row action already exist for exactly this.
-   */
-  http.delete('/api/users/:userId', async ({ request, params }) => {
+  /** Replaces the complete role set while preserving the role-management policy. */
+  http.put('/api/users/:userId/roles', async ({ request, params }) => {
     await delay(LATENCY_MS);
-    const denied = requireCapability(request, 'records.purge');
+    const denied = requireAdmin(request);
     if (denied) return denied;
 
+    const actor = currentUser(request);
     const user = findUser(String(params['userId']));
-    if (!user) return errorResponse(404, 'NOT_FOUND', 'User not found.');
+    if (!actor || !user || db.deletedUserIds.has(user.id)) {
+      return errorResponse(404, 'NOT_FOUND', 'User not found.');
+    }
+
+    const parsed = replaceRolesSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return errorResponse(422, 'VALIDATION_FAILED', firstIssue(parsed.error));
+    }
+    const roles = parsed.data.roles.map((role) => ROLE_LABEL_BY_CODE[role]);
+    if (
+      (!isSuperAdmin(actor) && (!adminMayManage(user) || !mayAssignRoles(actor, roles))) ||
+      (isSuperAdmin(actor) &&
+        (user.roles.includes('Super Admin') ||
+          roles.includes('Super Admin') ||
+          !mayAssignRoles(actor, roles)))
+    ) {
+      return errorResponse(
+        403,
+        'FORBIDDEN',
+        'You cannot grant or revoke one or more requested roles.',
+      );
+    }
+
+    const oldRoles = [...user.roles];
+    user.roles = roles;
+    recordMockAudit(actor, {
+      actionType: 'ROLES_CHANGED',
+      entityType: 'USER',
+      entityId: user.id,
+      targetUserId: user.id,
+      description: `${actor.name} changed roles for ${user.name}`,
+      oldValue: oldRoles,
+      newValue: roles,
+    });
+    return HttpResponse.json(user);
+  }),
+
+  http.post('/api/users/:userId/roles/transfer-super-admin', async ({ request, params }) => {
+    await delay(LATENCY_MS);
+    const denied = requireAdmin(request);
+    if (denied) return denied;
 
     const actor = currentUser(request);
-    if (!actor) return errorResponse(401, 'NOT_AUTHENTICATED', 'Sign in to continue.');
-    if (actor.id === user.id) {
-      return errorResponse(422, 'SELF_DELETE', 'You cannot delete your own account.');
+    const target = findUser(String(params['userId']));
+    if (!actor || !isSuperAdmin(actor)) {
+      return errorResponse(
+        403,
+        'FORBIDDEN',
+        'Only the current Super Admin may transfer ownership.',
+      );
     }
-
-    const body = (await request.json().catch(() => ({}))) as { reason?: unknown };
-    const reason = requiredReason(body.reason);
-    if (reason === null) {
+    if (!target || db.deletedUserIds.has(target.id) || !target.isActive) {
+      return errorResponse(404, 'NOT_FOUND', 'Active user not found.');
+    }
+    if (target.id === actor.id) {
+      return errorResponse(422, 'VALIDATION_FAILED', 'Choose another Admin user.');
+    }
+    if (!target.roles.includes('Admin')) {
       return errorResponse(
         422,
-        'REASON_REQUIRED',
-        'Provide a reason for permanently deleting this user.',
-      );
-    }
-    if (activeSuperAdminCountAfter(user, [], false) === 0) {
-      return errorResponse(
-        422,
-        'LAST_SUPER_ADMIN_REQUIRED',
-        'The system must retain at least one active Super Admin.',
+        'VALIDATION_FAILED',
+        'Only an existing Admin can become Super Admin.',
       );
     }
 
-    const referenced =
-      db.tasks.some((t) => t.developerId === user.id || t.reviewerId === user.id) ||
-      db.reviews.some((review) => review.reviewerId === user.id) ||
-      db.events.some((event) => event.actorId === user.id) ||
-      db.handovers.some(
-        (handover) =>
-          handover.fromReviewerId === user.id ||
-          handover.reassignedToId === user.id ||
-          handover.reassignedById === user.id,
-      );
-    if (referenced) {
+    const currentSuperAdmins = db.users.filter(
+      (user) => !db.deletedUserIds.has(user.id) && user.roles.includes('Super Admin'),
+    );
+    if (currentSuperAdmins.length !== 1 || currentSuperAdmins[0]?.id !== actor.id) {
       return errorResponse(
         409,
-        'USER_IN_USE',
-        'This user appears in existing workflow history. Deactivate them instead.',
+        'CONFLICT',
+        'The system must have exactly one current Super Admin.',
       );
     }
 
-    recordSystemAuditEvent({
-      action: 'UserDeleted',
-      actorId: actor.id,
-      targetType: 'User',
-      targetId: user.id,
-      targetLabel: user.name,
-      reason,
+    actor.roles = [
+      ...new Set(actor.roles.filter((role) => role !== 'Super Admin').concat('Admin')),
+    ];
+    target.roles = ['Super Admin'];
+    recordMockAudit(actor, {
+      actionType: 'SUPER_ADMIN_TRANSFERRED',
+      entityType: 'USER',
+      entityId: target.id,
+      targetUserId: target.id,
+      description: `${actor.name} transferred Super Admin ownership to ${target.name}`,
+      oldValue: { superAdminUserId: actor.id },
+      newValue: { superAdminUserId: target.id },
     });
-    db.users = db.users.filter((u) => u.id !== user.id);
+    return HttpResponse.json(target);
+  }),
+
+  /** Soft delete: the user remains available to task and audit history. */
+  http.delete('/api/users/:userId', async ({ request, params }) => {
+    await delay(LATENCY_MS);
+    const denied = requireAdmin(request);
+    if (denied) return denied;
+    const actor = currentUser(request);
+    if (!actor || !isSuperAdmin(actor)) {
+      return errorResponse(403, 'FORBIDDEN', 'Only a Super Admin may delete users.');
+    }
+
+    const user = findUser(String(params['userId']));
+    if (!user || db.deletedUserIds.has(user.id)) {
+      return errorResponse(404, 'NOT_FOUND', 'User not found.');
+    }
+
+    const oldValue = { ...user, roles: [...user.roles] };
+    user.isActive = false;
+    db.deletedUserIds.add(user.id);
+    recordMockAudit(actor, {
+      actionType: 'USER_DELETED',
+      entityType: 'USER',
+      entityId: user.id,
+      targetUserId: user.id,
+      description: `${actor.name} deleted user ${user.name}`,
+      oldValue,
+      newValue: { isActive: false, deleted: true },
+    });
     return new HttpResponse(null, { status: 204 });
   }),
 
@@ -3519,8 +3687,7 @@ export const handlers: HttpHandler[] = [
       review.rank = null;
       review.previousFeedbackReviewNote = null;
       if (parsed.data.draft.comments) {
-        const existingComments =
-          findReview(task.id, task.reviewRound)?.comments ?? [];
+        const existingComments = findReview(task.id, task.reviewRound)?.comments ?? [];
         const authorshipError = validateCommentAuthorship(
           existingComments,
           parsed.data.draft.comments,
@@ -3592,15 +3759,35 @@ export const handlers: HttpHandler[] = [
     task.status = getOriginStatus(task.id);
     touch(task);
 
-    const adminUsers = db.users.filter((u) => u.roles.includes('Admin') && u.isActive);
-    for (const admin of adminUsers) {
+    const notificationRecipients = db.users.filter(
+      (candidate) =>
+        candidate.isActive &&
+        candidate.id !== user.id &&
+        (candidate.id === task.developerId ||
+          candidate.roles.includes('Reviewer') ||
+          candidate.roles.includes('Admin') ||
+          candidate.roles.includes('Super Admin')),
+    );
+    for (const recipient of notificationRecipients) {
+      const isDeveloper = recipient.id === task.developerId;
+      const isReviewer = recipient.roles.includes('Reviewer') && !isDeveloper;
       db.notifications.push({
         id: `n-${String(Date.now())}-${String(db.notifications.length + 1)}`,
-        userId: admin.id,
+        userId: recipient.id,
         kind: 'TaskHandedOver',
-        title: `${task.taskCode} review handed over`,
-        body: `${user.name} handed over review for ${task.taskCode}. Reason: ${parsed.data.reason}`,
-        href: `/admin/handovers`,
+        title: isReviewer
+          ? `${task.taskCode} available to pick`
+          : `${task.taskCode} review handed over`,
+        body: isDeveloper
+          ? `${user.name} handed over your review task for reassignment.`
+          : isReviewer
+            ? `${user.name} handed over this task. It is now available to pick.`
+            : `${user.name} handed over review for ${task.taskCode}. Reason: ${parsed.data.reason}`,
+        href: isDeveloper
+          ? `/developer/tasks/${task.id}`
+          : isReviewer
+            ? '/reviewer'
+            : '/admin/handovers',
         taskId: task.id,
         isRead: false,
         createdAt: now,
@@ -3698,14 +3885,6 @@ export const handlers: HttpHandler[] = [
     const reviewer = findUser(parsed.data.reviewerId);
     if (!reviewer || !reviewer.roles.includes('Reviewer') || !reviewer.isActive) {
       return errorResponse(422, 'INVALID_REVIEWER', 'Select an active reviewer.');
-    }
-    // Handing back to the person who handed over defeats the purpose.
-    if (reviewer.id === handover.fromReviewerId) {
-      return errorResponse(
-        422,
-        'SAME_REVIEWER',
-        'Choose someone other than the reviewer who handed the task over.',
-      );
     }
     // The self-review bar holds on this path too.
     if (reviewer.id === task.developerId) {

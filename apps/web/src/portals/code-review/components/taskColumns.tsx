@@ -39,6 +39,23 @@ const taskCodeColumn = helper.accessor('taskCode', {
   cell: (context) => <MonoId value={context.getValue()} />,
 });
 
+const handoverTaskCodeColumn = helper.accessor('taskCode', {
+  header: labels.taskId,
+  cell: (context) => {
+    const task = context.row.original;
+    return (
+      <div className="flex flex-col items-start gap-1">
+        <MonoId value={context.getValue()} />
+        {task.handedOverByName ? (
+          <span className="text-[10px] text-status-handover italic">
+            Prev. {task.handedOverByName.trim().split(/\s+/)[0] ?? task.handedOverByName}
+          </span>
+        ) : null}
+      </div>
+    );
+  },
+});
+
 const titleColumn = helper.accessor('title', {
   header: labels.title,
   meta: {
@@ -46,6 +63,13 @@ const titleColumn = helper.accessor('title', {
     cellClassName: 'min-w-[180px]',
   },
   cell: (context) => <TitleCell title={context.getValue()} />,
+});
+
+const compactTitleColumn = helper.accessor('title', {
+  header: labels.title,
+  cell: (context) => (
+    <TitleCell title={context.getValue()} className="!w-[200px] !max-w-[200px]" />
+  ),
 });
 
 const crimIdColumn = helper.accessor('crimId', {
@@ -148,6 +172,10 @@ export interface TaskColumnOptions {
    * signal; the admin filters by status and people.
    */
   showPriority?: boolean | undefined;
+  /** Identify tasks that have previously been handed over. */
+  showHandover?: boolean | undefined;
+  /** Keep Title close to CRIM ID in Reviewer task queues. */
+  compactIdentityColumns?: boolean | undefined;
 }
 
 export function buildTaskColumns(options: TaskColumnOptions = {}): ColumnList<TaskListItem> {
@@ -156,11 +184,13 @@ export function buildTaskColumns(options: TaskColumnOptions = {}): ColumnList<Ta
     showReviewer = false,
     showDeveloper = false,
     showPriority = true,
+    showHandover = false,
+    compactIdentityColumns = false,
   } = options;
 
   const columns: ColumnList<TaskListItem> = [
-    taskCodeColumn,
-    titleColumn,
+    showHandover ? handoverTaskCodeColumn : taskCodeColumn,
+    compactIdentityColumns ? compactTitleColumn : titleColumn,
     crimIdColumn,
     customerColumn,
   ];

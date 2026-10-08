@@ -109,7 +109,6 @@ describe('Available Tasks', () => {
       (task) =>
         task.reviewerId === null &&
         task.developerId !== REVIEWER &&
-        !task.isHandedOver &&
         (task.status === 'Submitted' || task.status === 'ReSubmitted'),
     );
 

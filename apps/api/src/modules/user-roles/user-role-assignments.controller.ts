@@ -11,12 +11,7 @@ import {
   Post,
   Put,
 } from '@nestjs/common';
-import {
-  ApiCreatedResponse,
-  ApiNoContentResponse,
-  ApiOkResponse,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiCreatedResponse, ApiNoContentResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { AssignUserRoleDto } from './dto/assign-user-role.dto.js';
 import { UserRolesService } from './user-roles.service.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
@@ -26,7 +21,7 @@ import { ReplaceUserRolesDto } from './dto/replace-user-roles.dto.js';
 
 @ApiTags('User Roles')
 @Controller('users/:userId/roles')
-@Roles('ADMIN')
+@Roles('ADMIN', 'SUPER_ADMIN')
 export class UserRoleAssignmentsController {
   constructor(private readonly userRoles: UserRolesService) {}
 
@@ -41,9 +36,9 @@ export class UserRoleAssignmentsController {
   assign(
     @Param('userId', ParseUUIDPipe) userId: string,
     @Body() dto: AssignUserRoleDto,
-    @CurrentUser() admin: AuthenticatedUser,
+    @CurrentUser() actor: AuthenticatedUser,
   ) {
-    return this.userRoles.create({ userId, ...dto, grantedBy: admin.id });
+    return this.userRoles.create({ userId, ...dto }, actor);
   }
 
   @Put()
@@ -51,9 +46,19 @@ export class UserRoleAssignmentsController {
   replace(
     @Param('userId', ParseUUIDPipe) userId: string,
     @Body() dto: ReplaceUserRolesDto,
-    @CurrentUser() admin: AuthenticatedUser,
+    @CurrentUser() actor: AuthenticatedUser,
   ) {
-    return this.userRoles.replaceForUser(userId, dto.roles, admin.id);
+    return this.userRoles.replaceForUser(userId, dto.roles, actor);
+  }
+
+  @Post('transfer-super-admin')
+  @Roles('SUPER_ADMIN')
+  @ApiOkResponse()
+  transferSuperAdmin(
+    @Param('userId', ParseUUIDPipe) userId: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.userRoles.transferSuperAdmin(userId, actor);
   }
 
   @Delete(':roleId')
@@ -62,8 +67,8 @@ export class UserRoleAssignmentsController {
   remove(
     @Param('userId', ParseUUIDPipe) userId: string,
     @Param('roleId', ParseIntPipe) roleId: number,
+    @CurrentUser() actor: AuthenticatedUser,
   ) {
-    return this.userRoles.remove(userId, roleId);
+    return this.userRoles.remove(userId, roleId, actor);
   }
 }
-

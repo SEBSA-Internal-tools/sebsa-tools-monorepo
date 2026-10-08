@@ -7,6 +7,7 @@ import { http, HttpResponse } from 'msw';
 import { server } from '@/test/mswServer.ts';
 import { signOutForTest } from '@/test/setup.ts';
 import { initialiseSession, useSession } from '@/hooks/useSession.ts';
+import { setMockUserId } from '@/lib/apiClient.ts';
 import { routes } from '@/app/routes.tsx';
 import { AppProviders } from '@/app/providers.tsx';
 
@@ -71,7 +72,10 @@ function installServerSession(): void {
 
 /** Boots the real app, signed in from storage, at `path`. */
 function renderSignedInApp(path: string) {
-  window.localStorage.setItem(IDENTITY_KEY, USER_ID);
+  // The real app restores the HttpOnly cookie via /auth/me. The explicit test
+  // identity models that cookie at the MSW boundary; browser storage is not an
+  // authentication source.
+  setMockUserId(USER_ID);
   initialiseSession();
 
   const router = createMemoryRouter(routes, { initialEntries: [path] });

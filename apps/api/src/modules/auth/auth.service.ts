@@ -12,7 +12,9 @@ import type { JwtPayload } from './auth.types.js';
 import type { LoginDto } from './dto/login.dto.js';
 import type { RegisterDto } from './dto/register.dto.js';
 
-const userWithRoles = { userRoles: { include: { role: true } } } as const;
+const userWithRoles = {
+  userRoles: { where: { role: { deletedAt: null } }, include: { role: true } },
+} satisfies Prisma.UserInclude;
 
 type UserWithRoles = Prisma.UserGetPayload<{ include: typeof userWithRoles }>;
 
@@ -46,7 +48,7 @@ export class AuthService {
           fullName: dto.fullName.trim(),
           passwordHash,
           userRoles: {
-            create: { role: { connect: { code: 'DEVELOPER' } } },
+            create: { role: { connect: { code: 'DEVELOPER', deletedAt: null } } },
           },
         },
         include: userWithRoles,
@@ -62,8 +64,8 @@ export class AuthService {
   }
 
   async login(dto: LoginDto, metadata: RequestMetadata) {
-    const user = await this.prisma.user.findUnique({
-      where: { email: dto.email.trim().toLowerCase() },
+    const user = await this.prisma.user.findFirst({
+      where: { email: dto.email.trim().toLowerCase(), deletedAt: null },
       include: userWithRoles,
     });
     if (!user?.passwordHash || user.status !== 'ACTIVE') this.invalidCredentials();
@@ -94,7 +96,13 @@ export class AuthService {
       where: { id: payload.sid },
       include: { user: { include: userWithRoles } },
     });
-    if (!session || session.revokedAt || session.expiresAt <= new Date() || session.user.status !== 'ACTIVE') {
+    if (
+      !session ||
+      session.revokedAt ||
+      session.expiresAt <= new Date() ||
+      session.user.status !== 'ACTIVE' ||
+      session.user.deletedAt !== null
+    ) {
       throw new UnauthorizedException();
     }
     if (!(await verify(session.tokenHash, refreshToken))) {

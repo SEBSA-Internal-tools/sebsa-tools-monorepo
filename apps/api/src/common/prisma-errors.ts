@@ -1,6 +1,27 @@
 import { Prisma } from '@prisma/client';
 import { ApiException } from './api-error.js';
 
+const MAX_TRANSACTION_ATTEMPTS = 3;
+
+export async function retryPrismaTransaction<T>(operation: () => Promise<T>): Promise<T> {
+  for (let attempt = 1; attempt <= MAX_TRANSACTION_ATTEMPTS; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      const isRetryableConflict =
+        error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034';
+      if (!isRetryableConflict) {
+        throw error;
+      }
+      if (attempt === MAX_TRANSACTION_ATTEMPTS) {
+        rethrowPrismaConflict(error);
+      }
+    }
+  }
+
+  throw new Error('Transaction retry loop completed unexpectedly');
+}
+
 export function rethrowPrismaConflict(error: unknown): never {
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     if (error.code === 'P2002') {

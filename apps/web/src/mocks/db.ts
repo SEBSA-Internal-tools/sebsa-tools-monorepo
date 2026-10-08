@@ -27,6 +27,7 @@ import {
   type User,
   type SystemAuditAction,
   type SystemAuditEvent,
+  type AuditLog,
 } from '@sdp/contracts';
 import rawUsers from './data/users.json';
 import rawCustomers from './data/customers.json';
@@ -73,6 +74,7 @@ type StoredNotification = Notification & { userId: string };
 
 interface Database {
   users: User[];
+  deletedUserIds: Set<string>;
   customers: Customer[];
   tasks: Task[];
   notifications: StoredNotification[];
@@ -87,6 +89,7 @@ interface Database {
   checklistSubmissions: ChecklistSubmission[];
   events: TaskEvent[];
   auditEvents: SystemAuditEvent[];
+  auditLogs: AuditLog[];
   /**
    * Per-customer task number, the counter behind `AASL-019` (plan risk R2).
    *
@@ -177,6 +180,7 @@ function buildDatabase(): Database {
 
   return {
     users: seededUsers.map((u) => ({ ...u })),
+    deletedUserIds: new Set<string>(),
     // Cloned so runtime mutations cannot write back into the module-level copy
     // that `withDerivedFields` reads, which would break `resetDb()`.
     customers: seededCustomers.map((c) => ({ ...c })),
@@ -196,6 +200,7 @@ function buildDatabase(): Database {
     checklistSubmissions: seedChecklistSubmissions(allTasks, taskTypes, template, checklists),
     events: [...seedEvents(tasks, reviews), ...qaData.events],
     auditEvents: [],
+    auditLogs: [],
     sequences: seedSequences(tasks),
     versionSequences: versionSequencesFromTasks(allTasks),
   };
@@ -566,6 +571,7 @@ export const db: Database = buildDatabase();
 export function resetDb(): void {
   const fresh = buildDatabase();
   db.users = fresh.users;
+  db.deletedUserIds = fresh.deletedUserIds;
   db.customers = fresh.customers;
   db.tasks = fresh.tasks;
   db.notifications = fresh.notifications;
@@ -580,6 +586,7 @@ export function resetDb(): void {
   db.checklistSubmissions = fresh.checklistSubmissions;
   db.events = fresh.events;
   db.auditEvents = fresh.auditEvents;
+  db.auditLogs = fresh.auditLogs;
   db.sequences = fresh.sequences;
   db.versionSequences = fresh.versionSequences;
 }
@@ -705,9 +712,13 @@ export function toListItem(task: Task): TaskListItem {
   const customer = findCustomer(task.customerId);
   const developer = findUser(task.developerId);
   const reviewer = task.reviewerId === null ? undefined : findUser(task.reviewerId);
+  const latestHandover = db.handovers
+    .filter((handover) => handover.taskId === task.id)
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
 
   return {
     ...task,
+    handedOverByName: latestHandover?.fromReviewerName ?? null,
     customerName: customer?.name ?? 'Unknown',
     customerCode: customer?.code ?? '??',
     customerColor: customer?.color ?? '#6b7591',

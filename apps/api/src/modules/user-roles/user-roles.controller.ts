@@ -12,12 +12,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import {
-  ApiCreatedResponse,
-  ApiNoContentResponse,
-  ApiOkResponse,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiCreatedResponse, ApiNoContentResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { CreateUserRoleDto } from './dto/create-user-role.dto.js';
 import { UpdateUserRoleDto } from './dto/update-user-role.dto.js';
 import { UserRoleQueryDto } from './dto/user-role-query.dto.js';
@@ -28,7 +23,7 @@ import type { AuthenticatedUser } from '../auth/auth.types.js';
 
 @ApiTags('User Roles')
 @Controller('user-roles')
-@Roles('ADMIN')
+@Roles('ADMIN', 'SUPER_ADMIN')
 export class UserRolesController {
   constructor(private readonly userRoles: UserRolesService) {}
 
@@ -49,8 +44,8 @@ export class UserRolesController {
 
   @Post()
   @ApiCreatedResponse()
-  create(@Body() dto: CreateUserRoleDto, @CurrentUser() admin: AuthenticatedUser) {
-    return this.userRoles.create({ ...dto, grantedBy: admin.id });
+  create(@Body() dto: CreateUserRoleDto, @CurrentUser() actor: AuthenticatedUser) {
+    return this.userRoles.create(dto, actor);
   }
 
   @Patch(':userId/:roleId')
@@ -59,10 +54,10 @@ export class UserRolesController {
     @Param('userId', ParseUUIDPipe) userId: string,
     @Param('roleId', ParseIntPipe) roleId: number,
     @Body() dto: UpdateUserRoleDto,
-    @CurrentUser() admin: AuthenticatedUser,
+    @CurrentUser() actor: AuthenticatedUser,
   ) {
     void dto;
-    return this.userRoles.update(userId, roleId, { grantedBy: admin.id });
+    return this.userRoles.update(userId, roleId, { grantedBy: actor.id }, actor);
   }
 
   @Delete(':userId/:roleId')
@@ -71,8 +66,8 @@ export class UserRolesController {
   remove(
     @Param('userId', ParseUUIDPipe) userId: string,
     @Param('roleId', ParseIntPipe) roleId: number,
+    @CurrentUser() actor: AuthenticatedUser,
   ) {
-    return this.userRoles.remove(userId, roleId);
+    return this.userRoles.remove(userId, roleId, actor);
   }
 }
-

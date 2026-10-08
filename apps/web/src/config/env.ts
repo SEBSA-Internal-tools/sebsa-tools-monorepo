@@ -1,6 +1,7 @@
 /**
  * Environment access, resolved once.
  *
- * Reading `import.meta.env` directly from components would scatter defaults and
- * default here, so a fresh clone boots in mock mode with no configuration.
+ * Reading `import.meta.env` directly from components would scatter defaults.
+ * Authentication deliberately has no mock-mode setting: browser builds always
+ * use the real NestJS API through `/api`.
  */
