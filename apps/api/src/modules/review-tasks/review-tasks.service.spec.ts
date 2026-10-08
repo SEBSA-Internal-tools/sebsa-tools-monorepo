@@ -784,6 +784,193 @@ describe('ReviewTasksService task picking', () => {
   });
 });
 
+describe('ReviewTasksService Admin task actions', () => {
+  const taskId = '00000000-0000-4000-8000-000000000010';
+  const developerId = '00000000-0000-4000-8000-000000000020';
+  const oldReviewerId = '00000000-0000-4000-8000-000000000030';
+  const newReviewerId = '00000000-0000-4000-8000-000000000040';
+
+  function taskResponse(overrides: Record<string, unknown> = {}) {
+    return {
+      id: taskId,
+      taskCode: 'TEST-01',
+      title: 'Stored title',
+      crimId: 'CRIM-1',
+      version: '1',
+      customerId: '00000000-0000-4000-8000-000000000050',
+      priority: 'MEDIUM',
+      status: TaskStatus.IN_REVIEW,
+      currentReviewCycle: 1,
+      developerId,
+      currentReviewerId: oldReviewerId,
+      checklistCompleted: true,
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-01-02T00:00:00.000Z'),
+      submittedAt: new Date('2026-01-01T01:00:00.000Z'),
+      customer: { name: 'Test', code: 'TEST', color: '#123456' },
+      developer: { fullName: 'Developer' },
+      currentReviewer: { fullName: 'Old Reviewer' },
+      reviewerAssignments: [{ id: '00000000-0000-4000-8000-000000000060' }],
+      taskTypes: [],
+      developerChecklist: null,
+      codeReviewForms: [],
+      reviewCycles: [{ roundNumber: 1, counted: true, exclusionReason: null }],
+      handovers: [],
+      ...overrides,
+    };
+  }
+
+  it('reassigns the active review and uses the existing assignment notification type', async () => {
+    const admin = actor(['ADMIN']);
+    const candidate = {
+      id: taskId,
+      title: 'Test task',
+      developerId,
+      currentReviewerId: oldReviewerId,
+      currentReviewCycle: 1,
+      status: TaskStatus.IN_REVIEW,
+      handovers: [],
+    };
+    const updated = taskResponse({
+      currentReviewerId: newReviewerId,
+      currentReviewer: { fullName: 'New Reviewer' },
+      reviewerAssignments: [
+        {
+          id: '00000000-0000-4000-8000-000000000070',
+          reviewerId: newReviewerId,
+          assignedBy: admin.id,
+          assignmentType: ReviewerAssignmentType.ADMIN_REASSIGNED,
+          isCurrent: true,
+          reviewer: { fullName: 'New Reviewer' },
+        },
+        {
+          id: '00000000-0000-4000-8000-000000000060',
+          reviewerId: oldReviewerId,
+          assignedBy: null,
+          assignmentType: ReviewerAssignmentType.SELF_PICKED,
+          isCurrent: false,
+          reviewer: { fullName: 'Old Reviewer' },
+        },
+      ],
+    });
+    const tx = {
+      task: {
+        findUnique: vi.fn().mockResolvedValueOnce(candidate).mockResolvedValueOnce(updated),
+        update: vi.fn().mockResolvedValue({}),
+      },
+      user: {
+        findFirst: vi.fn().mockResolvedValue({ id: newReviewerId, fullName: 'New Reviewer' }),
+      },
+      taskReviewerAssignment: {
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        create: vi.fn().mockResolvedValue({ id: '00000000-0000-4000-8000-000000000070' }),
+      },
+      codeReviewForm: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+      taskStatusHistory: { create: vi.fn().mockResolvedValue({}) },
+    };
+    const service = serviceWith({
+      $transaction: vi.fn((operation: (client: typeof tx) => Promise<unknown>) => operation(tx)),
+    });
+
+    await expect(
+      service.assign(taskId, newReviewerId, admin, 'Balance the workload'),
+    ).resolves.toMatchObject({
+      reviewerId: newReviewerId,
+      status: 'InReview',
+      handedOverByName: 'Old Reviewer',
+    });
+
+    expect(tx.codeReviewForm.updateMany).toHaveBeenCalledWith({
+      where: { taskId, reviewCycleNumber: 1, status: 'DRAFT' },
+      data: {
+        reviewerId: newReviewerId,
+        currentReviewSessionId: '00000000-0000-4000-8000-000000000070',
+      },
+    });
+    expect(notifications.create).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        recipientId: newReviewerId,
+        type: 'TASK_ASSIGNED',
+        title: 'Test task reassigned to you',
+      }),
+    );
+  });
+
+  it('cancels an active task while preserving review data and closing its assignment', async () => {
+    const admin = actor(['ADMIN']);
+    const candidate = {
+      id: taskId,
+      title: 'Test task',
+      developerId,
+      currentReviewerId: oldReviewerId,
+      currentReviewCycle: 1,
+      status: TaskStatus.IN_REVIEW,
+    };
+    const updated = taskResponse({
+      status: TaskStatus.CANCELLED,
+      currentReviewerId: null,
+      currentReviewer: null,
+      reviewerAssignments: [],
+    });
+    const tx = {
+      task: {
+        findUnique: vi.fn().mockResolvedValueOnce(candidate).mockResolvedValueOnce(updated),
+        update: vi.fn().mockResolvedValue({}),
+      },
+      taskReviewerAssignment: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+      codeReviewForm: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+      taskStatusHistory: { create: vi.fn().mockResolvedValue({}) },
+    };
+    const service = serviceWith({
+      $transaction: vi.fn((operation: (client: typeof tx) => Promise<unknown>) => operation(tx)),
+    });
+
+    await expect(service.cancel(taskId, 'No longer required', admin)).resolves.toMatchObject({
+      reviewerId: null,
+      status: 'Cancelled',
+    });
+
+    expect(tx.task.update).toHaveBeenCalledWith({
+      where: { id: taskId },
+      data: { status: TaskStatus.CANCELLED, currentReviewerId: null },
+    });
+    expect(tx.codeReviewForm.updateMany).toHaveBeenCalledWith({
+      where: { taskId, reviewCycleNumber: 1, status: 'DRAFT' },
+      data: { currentReviewSessionId: null },
+    });
+    expect(notifications.createMany).toHaveBeenCalledWith(
+      tx,
+      expect.arrayContaining([
+        expect.objectContaining({ recipientId: developerId, type: 'TASK_CANCELLED' }),
+        expect.objectContaining({ recipientId: oldReviewerId, type: 'TASK_CANCELLED' }),
+      ]),
+    );
+  });
+
+  it('rejects cancellation after a task reaches a terminal state', async () => {
+    const tx = {
+      task: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: taskId,
+          title: 'Test task',
+          developerId,
+          currentReviewerId: null,
+          currentReviewCycle: 1,
+          status: TaskStatus.APPROVED,
+        }),
+      },
+    };
+    const service = serviceWith({
+      $transaction: vi.fn((operation: (client: typeof tx) => Promise<unknown>) => operation(tx)),
+    });
+
+    await expect(service.cancel(taskId, 'Too late', actor(['ADMIN']))).rejects.toMatchObject({
+      code: 'INVALID_STATE_TRANSITION',
+    });
+  });
+});
+
 describe('ReviewTasksService handover', () => {
   it('removes the assigned reviewer, records the reason, and returns the task to pickup', async () => {
     const reviewer = actor(['REVIEWER']);

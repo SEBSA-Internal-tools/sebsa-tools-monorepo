@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { CustomerStatus, type Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { rethrowPrismaConflict } from '../../common/prisma-errors.js';
 import type { CreateCustomerDto } from './dto/create-customer.dto.js';
@@ -41,11 +42,13 @@ export class CustomersService {
   async create(dto: CreateCustomerDto, actor: AuthenticatedUser) {
     try {
       const customer = await this.prisma.$transaction(async (tx) => {
+        const name = dto.name.trim();
+        const code = dto.code?.trim().toUpperCase() ?? (await this.nextCode(tx, name));
         const created = await tx.customer.create({
           data: {
             ...dto,
-            code: dto.code.trim().toUpperCase(),
-            name: dto.name.trim(),
+            code,
+            name,
             createdBy: actor.id,
           },
           include: { creator: true },
@@ -64,23 +67,45 @@ export class CustomersService {
       rethrowPrismaConflict(error);
     }
   }
+
+  private async nextCode(tx: Prisma.TransactionClient, name: string): Promise<string> {
+    const base = (name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 6) || 'CUST').toUpperCase();
+    const existing = await tx.customer.findMany({
+      where: { code: { startsWith: base } },
+      select: { code: true },
+    });
+    const used = new Set(existing.map(({ code }) => code));
+    if (!used.has(base)) return base;
+
+    let suffix = 2;
+    while (used.has(`${base}${String(suffix)}`)) suffix += 1;
+    return `${base}${String(suffix)}`;
+  }
   async update(id: string, dto: UpdateCustomerDto, actor: AuthenticatedUser) {
     const existing = await this.findOne(id);
     try {
       const customer = await this.prisma.$transaction(async (tx) => {
+        const { isActive, status, ...changes } = dto;
+        const updatedStatus =
+          isActive === undefined
+            ? status
+            : isActive
+              ? CustomerStatus.ACTIVE
+              : CustomerStatus.INACTIVE;
         const updated = await tx.customer.update({
           where: { id },
           data: {
-            ...dto,
+            ...changes,
+            ...(updatedStatus === undefined ? {} : { status: updatedStatus }),
             ...(dto.code === undefined ? {} : { code: dto.code.trim().toUpperCase() }),
             ...(dto.name === undefined ? {} : { name: dto.name.trim() }),
           },
           include: { creator: true },
         });
         const actionType =
-          dto.status === undefined
+          updatedStatus === undefined
             ? 'CUSTOMER_UPDATED'
-            : dto.status === 'ACTIVE'
+            : updatedStatus === CustomerStatus.ACTIVE
               ? 'CUSTOMER_ACTIVATED'
               : 'CUSTOMER_DEACTIVATED';
         await this.audit.record(tx, actor, {

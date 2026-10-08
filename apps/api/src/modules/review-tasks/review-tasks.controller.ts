@@ -24,6 +24,7 @@ import type { AuthenticatedUser } from '../auth/auth.types.js';
 import { ReviewTaskQueryDto } from './dto/review-task-query.dto.js';
 import { NextTaskVersionQueryDto } from './dto/next-task-version-query.dto.js';
 import { AssignReviewerDto } from './dto/assign-reviewer.dto.js';
+import { CancelReviewTaskDto } from './dto/cancel-review-task.dto.js';
 
 @ApiTags('Review Tasks')
 @Controller(['review-tasks', 'tasks'])
@@ -132,7 +133,14 @@ export class ReviewTasksController {
     @Body() dto: AssignReviewerDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.tasks.assign(id, dto.reviewerId, user);
+    return this.tasks.assign(id, dto.reviewerId, user, dto.reason);
+  }
+  @Post(':id/cancel') @Roles('ADMIN') @ApiOkResponse() cancel(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CancelReviewTaskDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.tasks.cancel(id, dto.reason, user);
   }
   @Delete(':id')
   @Roles('DEVELOPER', 'ADMIN')

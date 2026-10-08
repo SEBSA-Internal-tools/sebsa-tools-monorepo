@@ -1,20 +1,17 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  IsBoolean,
-  IsOptional,
-  IsString,
-  MaxLength,
-  Matches,
-  MinLength,
-} from 'class-validator';
+import { IsBoolean, IsOptional, IsString, MaxLength, Matches, MinLength } from 'class-validator';
 
 export class CreateTaskTypeDto {
-  @ApiProperty({ example: 'CUSTOMIZATION' })
+  @ApiPropertyOptional({
+    example: 'CUSTOMIZATION',
+    description: 'Generated from the task type name when omitted',
+  })
+  @IsOptional()
   @IsString()
   @Matches(/\S/, { message: 'code must contain a non-whitespace character' })
   @MinLength(1)
   @MaxLength(50)
-  code!: string;
+  code?: string;
 
   @ApiProperty({ example: 'Customization' })
   @IsString()
@@ -33,4 +30,3 @@ export class CreateTaskTypeDto {
   @IsBoolean()
   isActive?: boolean;
 }
-

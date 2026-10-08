@@ -58,14 +58,70 @@ describe('counted-cycle decision matrix', () => {
 
   it.each([
     ['scenario 1: direct approval creates no cycle', 0, [], true],
-    ['scenario 2: resolved finding remains counted', 1, [decision(DeveloperDecision.RESOLVED)], true],
-    ['scenario 3: repeated valid changes remain counted', 1, [decision(DeveloperDecision.RESOLVED)], true],
-    ['scenario 4: sole rejection accepted is excluded', 1, [decision(DeveloperDecision.REJECTED)], false],
-    ['scenario 5: sole rejection overruled remains counted', 1, [decision(DeveloperDecision.REJECTED, ReviewerDecision.REJECTED)], true],
-    ['scenario 6: mixed resolve/reject remains counted', 3, [decision(DeveloperDecision.REJECTED), decision(DeveloperDecision.RESOLVED), decision(DeveloperDecision.RESOLVED)], true],
-    ['scenario 7: all rejections accepted is excluded', 3, [decision(DeveloperDecision.REJECTED), decision(DeveloperDecision.REJECTED), decision(DeveloperDecision.REJECTED)], false],
-    ['scenario 8: one rejection overruled remains counted', 3, [decision(DeveloperDecision.REJECTED), decision(DeveloperDecision.REJECTED), decision(DeveloperDecision.REJECTED, ReviewerDecision.REJECTED)], true],
-    ['scenario 9: mixed fixes plus overruled rejection remains counted', 3, [decision(DeveloperDecision.REJECTED, ReviewerDecision.REJECTED), decision(DeveloperDecision.RESOLVED), decision(DeveloperDecision.RESOLVED)], true],
+    [
+      'scenario 2: resolved finding remains counted',
+      1,
+      [decision(DeveloperDecision.RESOLVED)],
+      true,
+    ],
+    [
+      'scenario 3: repeated valid changes remain counted',
+      1,
+      [decision(DeveloperDecision.RESOLVED)],
+      true,
+    ],
+    [
+      'scenario 4: sole rejection accepted is excluded',
+      1,
+      [decision(DeveloperDecision.REJECTED)],
+      false,
+    ],
+    [
+      'scenario 5: sole rejection overruled remains counted',
+      1,
+      [decision(DeveloperDecision.REJECTED, ReviewerDecision.REJECTED)],
+      true,
+    ],
+    [
+      'scenario 6: mixed resolve/reject remains counted',
+      3,
+      [
+        decision(DeveloperDecision.REJECTED),
+        decision(DeveloperDecision.RESOLVED),
+        decision(DeveloperDecision.RESOLVED),
+      ],
+      true,
+    ],
+    [
+      'scenario 7: all rejections accepted is excluded',
+      3,
+      [
+        decision(DeveloperDecision.REJECTED),
+        decision(DeveloperDecision.REJECTED),
+        decision(DeveloperDecision.REJECTED),
+      ],
+      false,
+    ],
+    [
+      'scenario 8: one rejection overruled remains counted',
+      3,
+      [
+        decision(DeveloperDecision.REJECTED),
+        decision(DeveloperDecision.REJECTED),
+        decision(DeveloperDecision.REJECTED, ReviewerDecision.REJECTED),
+      ],
+      true,
+    ],
+    [
+      'scenario 9: mixed fixes plus overruled rejection remains counted',
+      3,
+      [
+        decision(DeveloperDecision.REJECTED, ReviewerDecision.REJECTED),
+        decision(DeveloperDecision.RESOLVED),
+        decision(DeveloperDecision.RESOLVED),
+      ],
+      true,
+    ],
   ])('%s', (_name, findingCount, decisions, expected) => {
     expect(shouldCountReviewCycle(findingCount, decisions)).toBe(expected);
   });
@@ -73,9 +129,7 @@ describe('counted-cycle decision matrix', () => {
   it('preserves the existing state while any response or verdict is missing', () => {
     expect(shouldCountReviewCycle(2, [decision(DeveloperDecision.REJECTED)])).toBe(true);
     expect(
-      shouldCountReviewCycle(1, [
-        decision(DeveloperDecision.REJECTED, ReviewerDecision.PENDING),
-      ]),
+      shouldCountReviewCycle(1, [decision(DeveloperDecision.REJECTED, ReviewerDecision.PENDING)]),
     ).toBe(true);
   });
 });
@@ -115,22 +169,45 @@ describe('developer rejection validation', () => {
 });
 
 describe('review notification recipients', () => {
-  it.each([NotificationType.TASK_APPROVED, NotificationType.CHANGES_REQUESTED])(
-    'removes current %s notifications for everyone except the relevant Developer',
-    (notificationType) => {
-      expect(
-        unrelatedReviewNotificationWhere(
-          '00000000-0000-4000-8000-000000000010',
-          '00000000-0000-4000-8000-000000000020',
-          notificationType,
-          ['existing-notification'],
-        ),
-      ).toEqual({
-        taskId: '00000000-0000-4000-8000-000000000010',
-        notificationType,
-        recipientId: { not: '00000000-0000-4000-8000-000000000020' },
-        id: { notIn: ['existing-notification'] },
-      });
-    },
-  );
+  const taskId = '00000000-0000-4000-8000-000000000010';
+  const developerId = '00000000-0000-4000-8000-000000000020';
+
+  it('keeps approval notifications for the Developer and Admins only', () => {
+    expect(
+      unrelatedReviewNotificationWhere(taskId, developerId, NotificationType.TASK_APPROVED, [
+        'existing-notification',
+      ]),
+    ).toEqual({
+      taskId,
+      notificationType: NotificationType.TASK_APPROVED,
+      NOT: {
+        OR: [
+          { recipientId: developerId },
+          {
+            recipient: {
+              userRoles: {
+                some: {
+                  role: { code: { in: ['ADMIN', 'SUPER_ADMIN'] }, deletedAt: null },
+                },
+              },
+            },
+          },
+        ],
+      },
+      id: { notIn: ['existing-notification'] },
+    });
+  });
+
+  it('keeps Request Changes notifications for the relevant Developer only', () => {
+    expect(
+      unrelatedReviewNotificationWhere(taskId, developerId, NotificationType.CHANGES_REQUESTED, [
+        'existing-notification',
+      ]),
+    ).toEqual({
+      taskId,
+      notificationType: NotificationType.CHANGES_REQUESTED,
+      NOT: { recipientId: developerId },
+      id: { notIn: ['existing-notification'] },
+    });
+  });
 });

@@ -90,10 +90,28 @@ export function unrelatedReviewNotificationWhere(
   notificationType: NotificationType,
   existingNotificationIds: string[],
 ): Prisma.NotificationWhereInput {
+  const allowedRecipient =
+    notificationType === NotificationType.TASK_APPROVED
+      ? {
+          OR: [
+            { recipientId: developerId },
+            {
+              recipient: {
+                userRoles: {
+                  some: {
+                    role: { code: { in: ['ADMIN', 'SUPER_ADMIN'] }, deletedAt: null },
+                  },
+                },
+              },
+            },
+          ],
+        }
+      : { recipientId: developerId };
+
   return {
     taskId,
     notificationType,
-    recipientId: { not: developerId },
+    NOT: allowedRecipient,
     id: { notIn: existingNotificationIds },
   };
 }

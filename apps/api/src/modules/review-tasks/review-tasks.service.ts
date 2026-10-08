@@ -31,20 +31,23 @@ import { formatTaskCode } from './task-code.js';
 import type { ReviewTaskScope } from './dto/review-task-query.dto.js';
 import { AuditService } from '../audit/audit.service.js';
 import type { CreateHandoverDto } from '../handovers/dto/create-handover.dto.js';
-import {
-  NotificationsService,
-  TASK_REASSIGNED_NOTIFICATION,
-} from '../notifications/notifications.service.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
 
 const taskInclude = {
   customer: true,
   developer: true,
   currentReviewer: true,
   reviewerAssignments: {
-    where: { isCurrent: true },
-    select: { id: true },
+    select: {
+      id: true,
+      reviewerId: true,
+      assignedBy: true,
+      assignmentType: true,
+      isCurrent: true,
+      reviewer: { select: { fullName: true } },
+    },
     orderBy: { assignedAt: 'desc' },
-    take: 1,
+    take: 2,
   },
   taskTypes: { include: { taskType: true } },
   developerChecklist: {
@@ -1019,7 +1022,7 @@ export class ReviewTasksService {
     );
   }
 
-  async assign(id: string, reviewerId: string, actor: AuthenticatedUser) {
+  async assign(id: string, reviewerId: string, actor: AuthenticatedUser, reason?: string) {
     return this.prisma.$transaction(async (tx) => {
       const task = await tx.task.findUnique({
         where: { id },
@@ -1030,11 +1033,19 @@ export class ReviewTasksService {
           currentReviewerId: true,
           currentReviewCycle: true,
           status: true,
+          handovers: { where: { status: HandoverStatus.PENDING }, select: { id: true } },
         },
       });
       if (!task) throw new ApiException('TASK_NOT_FOUND', `Review task ${id} was not found`);
-      if (task.status === TaskStatus.DRAFT) {
-        throw new ConflictException('A draft task cannot be assigned for review');
+      if (task.handovers.length > 0) {
+        throw new ConflictException('Use the handover reassignment action for this task');
+      }
+      if (
+        task.status !== TaskStatus.SUBMITTED &&
+        task.status !== TaskStatus.RESUBMITTED &&
+        task.status !== TaskStatus.IN_REVIEW
+      ) {
+        throw new ConflictException('This task cannot be assigned in its current state');
       }
 
       const reviewer = await tx.user.findFirst({
@@ -1079,8 +1090,6 @@ export class ReviewTasksService {
         data: {
           reviewerId: reviewer.id,
           currentReviewSessionId: assignment.id,
-          reviewRank: null,
-          previousFeedbackReviewNote: null,
         },
       });
       await tx.task.update({
@@ -1093,13 +1102,13 @@ export class ReviewTasksService {
           oldStatus: task.status,
           newStatus: TaskStatus.IN_REVIEW,
           changedBy: actor.id,
-          remarks: `${isReassignment ? 'Reassigned' : 'Assigned'} to ${reviewer.fullName}`,
+          remarks: `${isReassignment ? 'Reassigned' : 'Assigned'} to ${reviewer.fullName}${reason?.trim() ? `: ${reason.trim()}` : ''}`,
         },
       });
       await this.notifications.create(tx, {
         taskId: id,
         recipientId: reviewer.id,
-        type: isReassignment ? TASK_REASSIGNED_NOTIFICATION : NotificationType.TASK_ASSIGNED,
+        type: NotificationType.TASK_ASSIGNED,
         title: `${task.title} ${isReassignment ? 'reassigned' : 'assigned'} to you`,
         message: `${actor.name} ${isReassignment ? 'reassigned' : 'assigned'} this review task to ${reviewer.fullName}.`,
       });
@@ -1115,7 +1124,88 @@ export class ReviewTasksService {
           reviewerId: reviewer.id,
           reviewerName: reviewer.fullName,
           status: TaskStatus.IN_REVIEW,
+          ...(reason?.trim() ? { reason: reason.trim() } : {}),
         },
+      });
+
+      const updated = await tx.task.findUnique({ where: { id }, include: taskInclude });
+      if (!updated) throw new ApiException('TASK_NOT_FOUND', `Review task ${id} was not found`);
+      return this.toResponse(updated);
+    });
+  }
+
+  async cancel(id: string, reason: string, actor: AuthenticatedUser) {
+    return this.prisma.$transaction(async (tx) => {
+      const task = await tx.task.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          title: true,
+          developerId: true,
+          currentReviewerId: true,
+          currentReviewCycle: true,
+          status: true,
+        },
+      });
+      if (!task) throw new ApiException('TASK_NOT_FOUND', `Review task ${id} was not found`);
+      if (
+        task.status !== TaskStatus.SUBMITTED &&
+        task.status !== TaskStatus.RESUBMITTED &&
+        task.status !== TaskStatus.IN_REVIEW &&
+        task.status !== TaskStatus.CHANGES_REQUESTED
+      ) {
+        throw new ApiException('INVALID_STATE_TRANSITION', 'This task can no longer be cancelled');
+      }
+
+      const cancellationReason = reason.trim();
+      const now = new Date();
+      await tx.taskReviewerAssignment.updateMany({
+        where: { taskId: id, isCurrent: true },
+        data: { isCurrent: false, unassignedAt: now },
+      });
+      await tx.codeReviewForm.updateMany({
+        where: {
+          taskId: id,
+          reviewCycleNumber: Math.max(task.currentReviewCycle, 1),
+          status: 'DRAFT',
+        },
+        data: { currentReviewSessionId: null },
+      });
+      await tx.task.update({
+        where: { id },
+        data: { status: TaskStatus.CANCELLED, currentReviewerId: null },
+      });
+      await tx.taskStatusHistory.create({
+        data: {
+          taskId: id,
+          oldStatus: task.status,
+          newStatus: TaskStatus.CANCELLED,
+          changedBy: actor.id,
+          remarks: cancellationReason,
+        },
+      });
+
+      const recipients = [...new Set([task.developerId, task.currentReviewerId])].filter(
+        (recipientId): recipientId is string => recipientId !== null && recipientId !== actor.id,
+      );
+      await this.notifications.createMany(
+        tx,
+        recipients.map((recipientId) => ({
+          taskId: id,
+          recipientId,
+          type: NotificationType.TASK_CANCELLED,
+          title: `${task.title} cancelled`,
+          message: `${actor.name} cancelled this task. Reason: ${cancellationReason}`,
+        })),
+      );
+      await this.audit.record(tx, actor, {
+        actionType: 'TASK_CANCELLED',
+        entityType: 'TASK',
+        entityId: id,
+        taskId: id,
+        description: `${actor.name} cancelled task '${task.title}'. Reason: ${cancellationReason}`,
+        oldValue: { status: task.status, reviewerId: task.currentReviewerId },
+        newValue: { status: TaskStatus.CANCELLED, reviewerId: null, reason: cancellationReason },
       });
 
       const updated = await tx.task.findUnique({ where: { id }, include: taskInclude });
@@ -1428,6 +1518,17 @@ export class ReviewTasksService {
 
   private toResponse(task: TaskWithRelations) {
     const cycleSummary = deriveTaskReviewCycles(task.currentReviewCycle, task.reviewCycles ?? []);
+    const reviewerAssignments = task.reviewerAssignments ?? [];
+    const currentAssignment =
+      reviewerAssignments.find(({ isCurrent }) => isCurrent) ??
+      (reviewerAssignments.every(({ isCurrent }) => isCurrent === undefined)
+        ? reviewerAssignments[0]
+        : undefined);
+    const previousAdminAssignedReviewer =
+      currentAssignment?.assignmentType === ReviewerAssignmentType.ADMIN_REASSIGNED &&
+      currentAssignment.assignedBy !== null
+        ? reviewerAssignments.find(({ isCurrent }) => !isCurrent)?.reviewer.fullName
+        : null;
     const status = {
       DRAFT: 'Draft',
       SUBMITTED: 'Submitted',
@@ -1457,11 +1558,12 @@ export class ReviewTasksService {
       adjustedCycles: cycleSummary.adjustedCycles,
       developerId: task.developerId,
       reviewerId: task.currentReviewerId,
-      currentReviewSessionId: task.reviewerAssignments?.[0]?.id ?? null,
+      currentReviewSessionId: currentAssignment?.id ?? null,
       taskTypeIds: task.taskTypes.map(({ taskTypeId }) => String(taskTypeId)),
       isChecklistComplete: task.checklistCompleted,
       isHandedOver: task.handovers.some(({ status }) => status === HandoverStatus.PENDING),
-      handedOverByName: task.handovers[0]?.fromReviewer.fullName ?? null,
+      handedOverByName:
+        previousAdminAssignedReviewer ?? task.handovers[0]?.fromReviewer.fullName ?? null,
       noteToReviewer: null,
       createdAt: task.createdAt.toISOString(),
       submittedAt: task.submittedAt?.toISOString() ?? null,

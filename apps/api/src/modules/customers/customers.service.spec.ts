@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
+import { validate } from 'class-validator';
 import { CustomersService } from './customers.service.js';
+import type { AuthenticatedUser } from '../auth/auth.types.js';
+import { UpdateCustomerDto } from './dto/update-customer.dto.js';
 
 const audit = { record: vi.fn().mockResolvedValue(undefined) };
 
@@ -33,5 +36,112 @@ describe('CustomersService next Task ID', () => {
       taskCode: 'SAMPLECUSTOMERB-01',
       sequence: 1,
     });
+  });
+});
+
+describe('CustomersService creation', () => {
+  it('generates the immutable customer code when the frontend omits it', async () => {
+    const actor: AuthenticatedUser = {
+      id: '00000000-0000-4000-8000-000000000001',
+      email: 'admin@example.com',
+      name: 'Admin',
+      roles: ['ADMIN'],
+      isActive: true,
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      sessionId: 'session-id',
+    };
+    const created = {
+      id: '00000000-0000-4000-8000-000000000002',
+      name: 'Northwind Traders',
+      code: 'NORTHW2',
+      description: 'ERP customer',
+      color: '#0f766e',
+      status: 'ACTIVE',
+      creator: { id: actor.id },
+    };
+    const tx = {
+      customer: {
+        findMany: vi.fn().mockResolvedValue([{ code: 'NORTHW' }]),
+        create: vi.fn().mockResolvedValue(created),
+      },
+    };
+    const prisma = {
+      $transaction: vi.fn((operation: (client: typeof tx) => unknown) => operation(tx)),
+    };
+    const service = new CustomersService(prisma as never, audit as never);
+
+    await expect(
+      service.create(
+        { name: 'Northwind Traders', description: 'ERP customer', color: '#0f766e' },
+        actor,
+      ),
+    ).resolves.toEqual({
+      id: created.id,
+      name: created.name,
+      code: created.code,
+      description: created.description,
+      color: created.color,
+      isActive: true,
+    });
+    expect(tx.customer.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ code: 'NORTHW2', name: 'Northwind Traders' }),
+      }),
+    );
+  });
+});
+
+describe('CustomersService status updates', () => {
+  it('accepts the existing frontend deactivation payload', async () => {
+    const dto = Object.assign(new UpdateCustomerDto(), { isActive: false });
+
+    await expect(validate(dto, { whitelist: true, forbidNonWhitelisted: true })).resolves.toEqual(
+      [],
+    );
+  });
+
+  it('translates the frontend isActive flag into the database customer status', async () => {
+    const actor: AuthenticatedUser = {
+      id: '00000000-0000-4000-8000-000000000001',
+      email: 'admin@example.com',
+      name: 'Admin',
+      roles: ['ADMIN'],
+      isActive: true,
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      sessionId: 'session-id',
+    };
+    const existing = {
+      id: '00000000-0000-4000-8000-000000000002',
+      name: 'Test',
+      code: 'TEST',
+      description: '',
+      color: '#2563eb',
+      status: 'ACTIVE',
+      creator: null,
+    };
+    const updated = { ...existing, status: 'INACTIVE' };
+    const tx = {
+      customer: { update: vi.fn().mockResolvedValue(updated) },
+    };
+    const prisma = {
+      customer: { findUnique: vi.fn().mockResolvedValue(existing) },
+      $transaction: vi.fn((operation: (client: typeof tx) => unknown) => operation(tx)),
+    };
+    const service = new CustomersService(prisma as never, audit as never);
+
+    await expect(service.update(existing.id, { isActive: false }, actor)).resolves.toMatchObject({
+      id: existing.id,
+      isActive: false,
+    });
+    expect(tx.customer.update).toHaveBeenCalledWith({
+      where: { id: existing.id },
+      data: { status: 'INACTIVE' },
+      include: { creator: true },
+    });
+    expect(audit.record).toHaveBeenCalledWith(
+      tx,
+      actor,
+      expect.objectContaining({ actionType: 'CUSTOMER_DEACTIVATED' }),
+    );
   });
 });
