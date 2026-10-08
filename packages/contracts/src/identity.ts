@@ -40,10 +40,27 @@ export const currentUserSchema = userSchema.extend({
 });
 export type CurrentUser = z.infer<typeof currentUserSchema>;
 
-/** Admin "Add User" modal — screen 02. */
+/** RFC 5321's limit on a forward path; anything longer cannot receive mail. */
+export const MAX_EMAIL_LENGTH = 254;
+const EMAIL_MESSAGE = 'Enter a valid email address, for example name@company.com';
+
+/**
+ * A work email as an admin types it: trimmed and lowercased, then checked for a
+ * local part of letters, digits and `. _ ' + -`, one `@`, and a dotted domain
+ * ending in a 2+ letter TLD (zod's email pattern). Lowercasing here means two
+ * spellings of one address can never become two accounts.
+ */
+export const emailAddressSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .max(MAX_EMAIL_LENGTH, EMAIL_MESSAGE)
+  .email(EMAIL_MESSAGE);
+
+/** Admin "Add User" modal — screen 02. Creating a user also sends their invite. */
 export const createUserInputSchema = z.object({
   name: z.string().trim().min(1, 'Name is required'),
-  email: z.string().trim().email('Enter a valid email address'),
+  email: emailAddressSchema,
   roles: userRolesSchema,
   /** Required by policy when this request changes privileged access. */
   reason: z.string().trim().optional(),

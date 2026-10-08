@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { MailCheck } from 'lucide-react';
+import { routePaths } from '@/constants/routePaths';
 import { z } from 'zod';
 import { Alert } from '@/components/ui/Alert.tsx';
 import { Button } from '@/components/ui/Button.tsx';
@@ -10,7 +11,7 @@ import { AuthLayout } from '@/components/common/AuthLayout.tsx';
 import { forgotPassword } from '../api/localAuthApi.ts';
 import { LocalAuthError } from '../api/types.ts';
 import { AuthCard, CardHeading, PanelCopy } from '../components/AuthParts.tsx';
-import { LOCAL_AUTH_ROUTES, RESEND_COOLDOWN_SECONDS } from '../config.ts';
+import { RESEND_COOLDOWN_SECONDS } from '../config.ts';
 import { forgot as copy } from '../content.ts';
 import {
   useCountdown,
@@ -128,7 +129,7 @@ export function ForgotPasswordPage() {
             </form>
 
             <p className="mt-5 text-center">
-              <Link to={LOCAL_AUTH_ROUTES.login} className={backLinkClass}>
+              <Link to={routePaths.login} className={backLinkClass}>
                 {copy.back}
               </Link>
             </p>
@@ -159,7 +160,7 @@ export function ForgotPasswordPage() {
                 size="lg"
                 fullWidth
                 onClick={() => {
-                  void navigate(LOCAL_AUTH_ROUTES.login);
+                  void navigate(routePaths.login);
                 }}
               >
                 {copy.back}

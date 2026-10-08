@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
+import { Toaster } from 'sonner';
 import { signInForTest } from '@/test/setup.ts';
 import { routes } from '@/app/routes.tsx';
 import { db } from '@/mocks/db.ts';
@@ -33,6 +34,8 @@ function renderAdmin(path = '/crp/admin') {
   const utils = render(
     <QueryClientProvider client={queryClient}>
       <RouterProvider router={router} />
+      {/* `Toaster` lives in `App`; mounted here so toast outcomes can be asserted. */}
+      <Toaster />
     </QueryClientProvider>,
   );
 
@@ -239,6 +242,114 @@ describe('admin users tab', () => {
     expect(await screen.findByText(/select at least one role/i)).toBeInTheDocument();
     // The dialog stays open rather than silently discarding the input.
     expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
+  it.each(['name@company', 'name@@company.com', 'name company@x.com', 'name@company.c'])(
+    'rejects the malformed email %j before anything is sent',
+    async (email) => {
+      const { user } = renderAdmin('/crp/admin/users');
+      await user.click(await screen.findByRole('button', { name: /add user/i }));
+      const dialog = await screen.findByRole('dialog');
+      await user.type(within(dialog).getByLabelText(/name/i), 'Bad Email');
+      await user.type(within(dialog).getByLabelText(/email/i), email);
+      await user.tab();
+
+      expect(
+        await within(dialog).findByText(
+          'Enter a valid email address, for example name@company.com',
+        ),
+      ).toBeInTheDocument();
+      await user.click(within(dialog).getByRole('checkbox', { name: 'Developer' }));
+      await user.click(within(dialog).getByRole('button', { name: /^create user$/i }));
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(db.users.some((u) => u.name === 'Bad Email')).toBe(false);
+    },
+  );
+
+  it('creates the user as Invited, with resend and revoke instead of activate', async () => {
+    const { user } = renderAdmin('/crp/admin/users');
+    await user.click(await screen.findByRole('button', { name: /add user/i }));
+    const dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByLabelText(/name/i), 'Invite Person');
+    await user.type(within(dialog).getByLabelText(/email/i), 'invite.person@sebsaworld.com');
+    await user.click(within(dialog).getByRole('checkbox', { name: 'Reviewer' }));
+    await user.click(within(dialog).getByRole('button', { name: /^create user$/i }));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+
+    await user.type(screen.getByRole('searchbox', { name: /search users/i }), 'invite.person');
+    const row = (await screen.findByText('invite.person@sebsaworld.com')).closest('tr')!;
+    expect(within(row).getByText('Invited')).toBeInTheDocument();
+    expect(
+      within(row).getByRole('button', { name: 'Resend invite for Invite Person' }),
+    ).toBeInTheDocument();
+    expect(within(row).queryByRole('button', { name: /^(activate|deactivate)/i })).toBeNull();
+
+    // The invite only just went out, so the server asks the admin to wait.
+    await user.click(within(row).getByRole('button', { name: 'Resend invite for Invite Person' }));
+    expect(await screen.findByText('Please wait a moment before resending.')).toBeInTheDocument();
+
+    await user.click(within(row).getByRole('button', { name: 'Revoke invite for Invite Person' }));
+    await user.click(await screen.findByRole('button', { name: 'Revoke invite' }));
+    expect(
+      await screen.findByText('Invite for invite.person@sebsaworld.com revoked.'),
+    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText('invite.person@sebsaworld.com')).toBeNull();
+    });
+  });
+
+  it('shows invite state in the Status column, with no separate Invite column', async () => {
+    db.users.push({
+      id: 'u-new-starter',
+      name: 'New Starter',
+      email: 'new.starter@sebsaworld.com',
+      roles: ['Developer'],
+      isActive: false,
+      createdAt: '2026-10-01T09:00:00.000Z',
+      status: 'INVITED',
+      inviteExpiresAt: new Date(Date.now() + 23 * 3_600_000).toISOString(),
+      inviteEmailStatus: 'SENT',
+    });
+    renderAdmin('/crp/admin/users');
+    await screen.findByText('dheliya.kankanamge@sebsaworld.com');
+
+    expect(screen.getByRole('columnheader', { name: /status/i })).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: /^invite$/i })).toBeNull();
+    // An invited user is listed as Invited, and keeps its row actions.
+    const row = screen.getByText('new.starter@sebsaworld.com').closest('tr')!;
+    expect(within(row).getByText('Invited')).toBeInTheDocument();
+    expect(
+      within(row).getByRole('button', { name: 'Resend invite for New Starter' }),
+    ).toBeInTheDocument();
+    expect(
+      within(row).getByRole('button', { name: 'Revoke invite for New Starter' }),
+    ).toBeInTheDocument();
+    expect(within(row).getByRole('button', { name: /edit New Starter/i })).toBeInTheDocument();
+  });
+
+  it('filters to invited users', async () => {
+    db.users.push({
+      id: 'u-waiting',
+      name: 'Waiting Person',
+      email: 'waiting@sebsaworld.com',
+      roles: ['Developer'],
+      isActive: false,
+      createdAt: '2026-10-01T09:00:00.000Z',
+      status: 'INVITED',
+      inviteExpiresAt: null,
+      inviteEmailStatus: 'SENT',
+    });
+    const { user } = renderAdmin('/crp/admin/users');
+    await screen.findByText('dheliya.kankanamge@sebsaworld.com');
+
+    await user.click(screen.getByRole('combobox', { name: /status/i }));
+    await user.click(await screen.findByRole('option', { name: 'Invited' }));
+
+    expect(await screen.findByText('waiting@sebsaworld.com')).toBeInTheDocument();
+    expect(screen.queryByText('dheliya.kankanamge@sebsaworld.com')).toBeNull();
+    expect(screen.getByText('Showing 1 of', { exact: false })).toHaveTextContent('Showing 1 of');
   });
 
   it('filters by role', async () => {

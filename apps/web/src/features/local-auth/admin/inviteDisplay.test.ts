@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import {
-  describeInvite,
-  normaliseEmail,
-  userStatus,
-  validateInviteEmail,
-} from './inviteDisplay.ts';
+import { emailAddressSchema } from '@sdp/contracts';
+import { describeInvite, userStatus } from './inviteDisplay.ts';
 
 const NOW = Date.parse('2026-10-06T12:00:00.000Z');
 const inHours = (hours: number) => new Date(NOW + hours * 3_600_000).toISOString();
@@ -65,31 +61,45 @@ describe('describeInvite', () => {
   });
 });
 
-describe('invite email validation', () => {
+describe('Add user email validation (shared with the server)', () => {
+  const MESSAGE = 'Enter a valid email address, for example name@company.com';
+  const check = (email: string) => emailAddressSchema.safeParse(email);
+
   it('trims and lowercases', () => {
-    expect(normaliseEmail('  Name@Company.COM ')).toBe('name@company.com');
+    expect(emailAddressSchema.parse('  Name@Company.COM ')).toBe('name@company.com');
   });
 
-  it.each(['name@company.com', ' Name@Company.com ', 'a.b+c@sub.company.co.uk'])(
-    'accepts %s',
-    (email) => {
-      expect(validateInviteEmail(email)).toBeUndefined();
-    },
-  );
+  it.each([
+    'name@company.com',
+    ' Name@Company.com ',
+    'a.b+c@sub.company.co.uk',
+    'j.doe2@sebsaworld.com',
+  ])('accepts %s', (email) => {
+    expect(check(email).success).toBe(true);
+  });
 
-  it.each(['', '   ', 'name', 'name@', '@company.com', 'name@company', 'a b@company.com'])(
-    'rejects %j with the format message',
-    (email) => {
-      expect(validateInviteEmail(email)).toBe(
-        'Enter a valid email address, for example name@company.com',
-      );
-    },
-  );
+  it.each([
+    '',
+    '   ',
+    'name',
+    'name@',
+    '@company.com',
+    'name@company',
+    'a b@company.com',
+    'name@@company.com',
+    'name@company.c',
+    '.name@company.com',
+    'na..me@company.com',
+  ])('rejects %j with the format message', (email) => {
+    const result = check(email);
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.message).toBe(MESSAGE);
+  });
 
   it('allows 254 characters and rejects 255', () => {
     const at254 = `${'a'.repeat(254 - '@company.com'.length)}@company.com`;
     expect(at254).toHaveLength(254);
-    expect(validateInviteEmail(at254)).toBeUndefined();
-    expect(validateInviteEmail(`a${at254}`)).toBeDefined();
+    expect(check(at254).success).toBe(true);
+    expect(check(`a${at254}`).success).toBe(false);
   });
 });

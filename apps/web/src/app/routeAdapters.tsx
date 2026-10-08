@@ -1,12 +1,10 @@
-import { Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { ROUTES } from '@/config/routes.ts';
-import { useSession } from '@/hooks/useSession.ts';
+import { routePaths } from '@/constants/routePaths';
+import { redirectFromState } from '@/lib/safeRedirect.ts';
 import { LoginPage } from '@/features/auth/routes/LoginPage.tsx';
-// Temporary local-auth link; remove with `features/local-auth`.
-import { isLocalAuthEnabled, LOCAL_AUTH_ROUTES } from '@/features/local-auth/config.ts';
 import { HomePage } from '@/features/home/routes/HomePage.tsx';
 import { useSessionUser } from './session.ts';
-import { PageSkeleton } from '@/components/common/Skeleton.tsx';
 
 /**
  * Thin adapters between the router and feature routes.
@@ -20,29 +18,16 @@ import { PageSkeleton } from '@/components/common/Skeleton.tsx';
  * Fast Refresh needs to reload routes without a full page reload.
  */
 
-interface LocationState {
-  from?: string;
-}
-
+/** Mounted under `RequireGuest`, which already keeps signed-in users out. */
 export function LoginRoute() {
-  const isAuthenticated = useSession((s) => s.isAuthenticated);
-  const isChecking = useSession((s) => s.isChecking);
   const navigate = useNavigate();
   const location = useLocation();
-
-  const from = (location.state as LocationState | null)?.from;
-
-  if (isChecking) return <PageSkeleton className="min-h-screen" />;
-
-  // Already signed in: skip the login screen entirely rather than letting
-  // someone sign in twice.
-  if (isAuthenticated) {
-    return <Navigate to={from ?? ROUTES.home} replace />;
-  }
+  const from = redirectFromState(location.state);
 
   return (
     <LoginPage
-      forgotPasswordTo={isLocalAuthEnabled ? LOCAL_AUTH_ROUTES.forgotPassword : undefined}
+      // Temporary local sign-in; goes when SSO arrives (see features/local-auth/config.ts).
+      forgotPasswordTo={routePaths.forgotPassword}
       onSignedIn={() => {
         // `replace` so Back does not return to the login screen after signing in.
         void navigate(from ?? ROUTES.home, { replace: true });

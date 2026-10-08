@@ -102,3 +102,27 @@ test.describe('portal home accessibility', () => {
     expect(blocking, `\n${report}`).toEqual([]);
   });
 });
+
+test.describe('local sign-in screens accessibility', () => {
+  const screens = [
+    ['set password', '/set-password#token=demo-invite', 'Create your password'],
+    ['forgot password', '/forgot-password', 'Forgot your password?'],
+    ['expired link', '/set-password#token=demo-expired-invite', 'This link has expired'],
+    ['unusable link', '/link-expired', "This link can't be used"],
+  ] as const;
+
+  for (const [name, path, heading] of screens) {
+    for (const width of [1440, 390]) {
+      test(`${name} has no critical or serious violations at ${String(width)}px`, async ({
+        page,
+      }) => {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto(path);
+        await page.getByRole('heading', { name: heading }).waitFor();
+
+        const { blocking, report } = await scan(page);
+        expect(blocking, `\n${report}`).toEqual([]);
+      });
+    }
+  }
+});

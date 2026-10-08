@@ -89,6 +89,13 @@ import {
   shiftOrdersFrom,
 } from '@/lib/checklistOrdering.ts';
 import credentials from './data/credentials.json';
+import {
+  issueLink,
+  passwordFor,
+  passwordLinkHandlers,
+  resendWaitSeconds,
+  revokeLinksFor,
+} from './passwordLinks.ts';
 import { generateHandoverId } from './handoverId.ts';
 import {
   canAccessWorkspace,
@@ -311,6 +318,30 @@ function firstIssue(error: z.ZodError): string {
  * `const denied = requireAdmin(request); if (denied) return denied;` — one line,
  * impossible to write as a no-op by forgetting to negate.
  */
+/**
+ * The INVITED user an invite action targets, or the error response to return:
+ * 401/403 for the caller, 404 for no such user, 409 once they are no longer
+ * invited (they set a password, or the invite was revoked meanwhile).
+ */
+function invitedUserFor(request: Request, userId: string): User | Response {
+  const denied = requireAdmin(request);
+  if (denied) return denied;
+  const actor = currentUser(request)!;
+  const user = findUser(userId);
+  if (!user) return errorResponse(404, 'NOT_FOUND', 'User not found.');
+  if (isPrivilegedRoleSet(user.roles) && !hasCapability(actor.roles, 'users.manage.privileged')) {
+    return errorResponse(
+      403,
+      'PRIVILEGED_ROLE_REQUIRED',
+      'Only a Super Admin can manage a privileged account.',
+    );
+  }
+  if (user.status !== 'INVITED') {
+    return errorResponse(409, 'NOT_INVITED', 'This user is no longer in the invited state.');
+  }
+  return user;
+}
+
 function requireAdmin(request: Request) {
   return requireCapability(request, 'admin.access');
 }
@@ -412,6 +443,9 @@ function nextCustomerCode(name: string): string {
 export const handlers: HttpHandler[] = [
   /* ------------------------------------------------------------------ auth */
 
+  // Set-password, forgot-password and link validation (temporary local auth).
+  ...passwordLinkHandlers,
+
   /**
    * Mock sign-in.
    *
@@ -427,11 +461,17 @@ export const handlers: HttpHandler[] = [
     const password = typeof body.password === 'string' ? body.password : '';
 
     const user = db.users.find((u) => u.email.toLowerCase() === email);
-    const isKnownEmail = DEMO_EMAILS.has(email);
+    // A password set through a set-password link replaces the shared demo one
+    // for that account. An invited user has neither, so cannot sign in yet.
+    const ownPassword = user ? passwordFor(user.id) : undefined;
+    const isCorrect =
+      ownPassword !== undefined
+        ? password === ownPassword
+        : DEMO_EMAILS.has(email) && password === DEMO_PASSWORD;
 
     // One message for every failure mode. Distinguishing "no such account" from
     // "wrong password" would let anyone enumerate who works here.
-    if (!user || !isKnownEmail || password !== DEMO_PASSWORD) {
+    if (!user || !isCorrect) {
       return errorResponse(401, 'INVALID_CREDENTIALS', 'Invalid email or password.');
     }
 
@@ -2156,15 +2196,21 @@ export const handlers: HttpHandler[] = [
       return errorResponse(409, 'EMAIL_TAKEN', 'A user with that email address already exists.');
     }
 
+    // No password is ever chosen by an admin. The account starts INVITED (and
+    // so cannot sign in) until the user sets one through the emailed link.
     const user: User = {
       id: `u-${email.split('@')[0] ?? 'user'}-${String(db.users.length + 1)}`,
       name: parsed.data.name,
       email: parsed.data.email,
       roles: parsed.data.roles,
-      isActive: true,
+      isActive: false,
       createdAt: new Date().toISOString(),
+      status: 'INVITED',
+      inviteExpiresAt: null,
+      inviteEmailStatus: null,
     };
     db.users.push(user);
+    await issueLink(user, 'INVITE');
 
     if (createsPrivilegedUser && reason !== null) {
       if (user.roles.includes('Admin')) {
@@ -2253,13 +2299,28 @@ export const handlers: HttpHandler[] = [
       return errorResponse(422, 'REASON_REQUIRED', 'Provide a reason for this privileged change.');
     }
 
+    // Activation needs a password, which only the user can set. Resend or
+    // revoke the invite instead.
+    if (user.status === 'INVITED' && parsed.data.isActive !== undefined) {
+      return errorResponse(
+        409,
+        'INVITE_PENDING',
+        'This user has not set a password yet. Resend or revoke the invite instead.',
+      );
+    }
+
     const previousRoles = [...user.roles];
     const wasActive = user.isActive;
 
     if (parsed.data.name !== undefined) user.name = parsed.data.name;
     if (parsed.data.email !== undefined) user.email = parsed.data.email;
     if (parsed.data.roles !== undefined) user.roles = parsed.data.roles;
-    if (parsed.data.isActive !== undefined) user.isActive = parsed.data.isActive;
+    if (parsed.data.isActive !== undefined) {
+      user.isActive = parsed.data.isActive;
+      if (user.status !== undefined) user.status = user.isActive ? 'ACTIVE' : 'DEACTIVATED';
+      // A deactivated account must not be revived by a link sent earlier.
+      if (!user.isActive) revokeLinksFor(user.id);
+    }
 
     if (reason !== null) {
       const roleAudits = [
@@ -2293,6 +2354,48 @@ export const handlers: HttpHandler[] = [
     }
 
     return HttpResponse.json(user);
+  }),
+
+  /**
+   * Invite actions on the Users tab (temporary local auth).
+   *
+   * Same authorisation as editing the user: an Admin may act on Developer and
+   * Reviewer invites, and only a Super Admin on a privileged one.
+   */
+  http.post('/api/users/:userId/resend-invite', async ({ request, params }) => {
+    await delay(LATENCY_MS);
+    const target = invitedUserFor(request, String(params['userId']));
+    if (target instanceof Response) return target;
+
+    const wait = resendWaitSeconds(target.id, 'INVITE');
+    if (wait > 0) {
+      return errorResponse(429, 'RATE_LIMITED', `Wait ${String(wait)}s before resending.`);
+    }
+    const { expiresAt } = await issueLink(target, 'INVITE');
+    return HttpResponse.json({ invite: { expiresAt, emailStatus: 'SENT' } });
+  }),
+
+  /**
+   * Withdraws an invite. The account never signed in and owns nothing, so it is
+   * removed outright — which is also what lets the admin invite the address
+   * again later — and the withdrawal is kept in the system audit log.
+   */
+  http.post('/api/users/:userId/revoke-invite', async ({ request, params }) => {
+    await delay(LATENCY_MS);
+    const target = invitedUserFor(request, String(params['userId']));
+    if (target instanceof Response) return target;
+
+    revokeLinksFor(target.id);
+    db.users = db.users.filter((u) => u.id !== target.id);
+    recordSystemAuditEvent({
+      action: 'InviteRevoked',
+      actorId: currentUser(request)!.id,
+      targetType: 'User',
+      targetId: target.id,
+      targetLabel: `${target.name} <${target.email}>`,
+      reason: 'Invite withdrawn before first sign-in.',
+    });
+    return new HttpResponse(null, { status: 204 });
   }),
 
   /**

@@ -94,33 +94,13 @@ export const expired = {
   forgot: 'Forgot password',
 } as const;
 
+/** Users tab: the Invite column and the Resend / Revoke row actions. */
 export const invite = {
-  addTitle: 'Add user',
-  addSubtitle: 'We will email them a link to create their password.',
-  email: 'Email',
-  emailPlaceholder: 'name@company.com',
-  fullName: 'Full name (optional)',
-  role: 'Role',
-  submit: 'Save and send invite',
-  submitting: 'Sending invite…',
-  emailInvalid: 'Enter a valid email address, for example name@company.com',
-  roleRequired: 'Choose a role',
-  sent: 'Invite sent to {email}. Valid for 24 hours.',
-  sentButEmailFailed: 'User saved, but the email could not be sent. Use Resend invite.',
   resent: 'Invite sent again to {email}. Valid for 24 hours.',
   resentEmailFailed:
     'The invite is renewed, but the email could not be sent. Try Resend invite again.',
   revoked: 'Invite for {email} revoked.',
   generic: "We couldn't complete that. Please try again.",
-  errors: {
-    EMAIL_EXISTS: 'A user with this email already exists',
-    INVITE_PENDING: 'This user was already invited. Use Resend invite.',
-    EMAIL_UNDELIVERABLE: "This email domain can't receive mail. Check the spelling.",
-    EMAIL_INVALID: 'Enter a valid email address, for example name@company.com',
-    ROLE_INVALID: 'Choose a role this account can assign.',
-    FORBIDDEN: "You don't have permission to add users.",
-  } as Record<string, string>,
-  columns: { invite: 'Invite' },
   status: { INVITED: 'Invited', ACTIVE: 'Active', DEACTIVATED: 'Deactivated' },
   expiresIn: 'Expires in {hours} h',
   expiresInUnderHour: 'Expires in under 1 h',

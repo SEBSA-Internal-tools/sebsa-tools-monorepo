@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { type Role, type User } from '@sdp/contracts';
-import { ActiveBadge, RoleBadges } from '@/portals/code-review/components/badges.tsx';
+import { RoleBadges } from '@/portals/code-review/components/badges.tsx';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog.tsx';
 import { DataTable } from '@/components/common/DataTable.tsx';
 import { columnHelper, type ColumnList } from '@/components/common/dataTableColumns.ts';
@@ -36,10 +36,9 @@ import { UserFormDialog } from '../components/UserFormDialog.tsx';
 import { EmptyIllustration } from '@/components/common/EmptyIllustration.tsx';
 import { userKeys } from '@/portals/code-review/hooks/useUsers.ts';
 import { RoleMultiSelect } from '../components/RoleMultiSelect.tsx';
-// Temporary local-auth (invite) UI. Remove these imports and the `isLocalAuthEnabled` branches below.
-import { isLocalAuthEnabled } from '@/features/local-auth/config.ts';
-import { InviteCell, StatusPill } from '@/features/local-auth/admin/InviteCells.tsx';
-import { InviteUserDialog } from '@/features/local-auth/admin/InviteUserDialog.tsx';
+// Temporary local-auth (invite) UI: the status pill and the
+// Resend / Revoke actions. Remove with `features/local-auth` when SSO arrives.
+import { StatusPill } from '@/features/local-auth/admin/InviteCells.tsx';
 import { userStatus } from '@/features/local-auth/admin/inviteDisplay.ts';
 import { useResendInvite, useRevokeInvite } from '@/features/local-auth/admin/useInviteActions.ts';
 import { invite as inviteCopy } from '@/features/local-auth/content.ts';
@@ -59,6 +58,7 @@ const labels = admin.users.columns;
 const STATUS_OPTIONS: SelectOption[] = [
   { value: ALL, label: 'All Statuses' },
   { value: 'active', label: admin.users.statusActive },
+  { value: 'invited', label: admin.users.statusInvited },
   { value: 'inactive', label: admin.users.statusInactive },
 ];
 
@@ -87,21 +87,10 @@ const rolesColumn = helper.accessor('roles', {
   cell: (context) => <RoleBadges roles={context.getValue()} />,
 });
 
-const statusColumn = helper.accessor('isActive', {
-  header: labels.status,
-  cell: (context) => <ActiveBadge isActive={context.getValue()} />,
-});
-
 const inviteStatusColumn = helper.display({
   id: 'inviteStatus',
   header: labels.status,
   cell: (context) => <StatusPill user={context.row.original} />,
-});
-
-const inviteColumn = helper.display({
-  id: 'invite',
-  header: inviteCopy.columns.invite,
-  cell: (context) => <InviteCell user={context.row.original} />,
 });
 
 export function AdminUsersPage() {
@@ -140,8 +129,10 @@ export function AdminUsersPage() {
       if (selectedRoles.length > 0 && !selectedRoles.every((role) => user.roles.includes(role))) {
         return false;
       }
-      if (status === 'active' && !user.isActive) return false;
-      if (status === 'inactive' && user.isActive) return false;
+      const current = userStatus(user);
+      if (status === 'active' && current !== 'ACTIVE') return false;
+      if (status === 'invited' && current !== 'INVITED') return false;
+      if (status === 'inactive' && current !== 'DEACTIVATED') return false;
       if (needle === '') return true;
       return user.name.toLowerCase().includes(needle) || user.email.toLowerCase().includes(needle);
     });
@@ -185,7 +176,7 @@ export function AdminUsersPage() {
       nameColumn,
       emailColumn,
       rolesColumn,
-      ...(isLocalAuthEnabled ? [inviteStatusColumn, inviteColumn] : [statusColumn]),
+      inviteStatusColumn,
       helper.display({
         id: 'actions',
         header: '',
@@ -193,6 +184,8 @@ export function AdminUsersPage() {
           const user = context.row.original;
           const privileged = isPrivilegedRoleSet(user.roles);
           const mayManage = !privileged || canManagePrivileged;
+          // An invited user has never signed in: Revoke replaces Deactivate.
+          const isInvited = userStatus(user) === 'INVITED';
           return (
             <div className="flex items-center justify-end gap-1.5">
               {!mayManage ? (
@@ -207,7 +200,7 @@ export function AdminUsersPage() {
                   </button>
                 </Tooltip>
               ) : null}
-              {isLocalAuthEnabled && mayManage && userStatus(user) === 'INVITED' ? (
+              {mayManage && isInvited ? (
                 <>
                   <IconButton
                     label={interpolate(inviteCopy.resendAction, { name: user.name })}
@@ -255,7 +248,7 @@ export function AdminUsersPage() {
                   }}
                 />
               ) : null}
-              {mayManage ? (
+              {mayManage && !isInvited ? (
                 <IconButton
                   label={interpolate(
                     user.isActive ? admin.users.actions.deactivate : admin.users.actions.activate,
@@ -409,17 +402,7 @@ export function AdminUsersPage() {
         }
       />
 
-      {isFormOpen && isLocalAuthEnabled && editing === null ? (
-        <InviteUserDialog
-          canManagePrivileged={canManagePrivileged}
-          usersKey={userKeys.all}
-          onClose={() => {
-            setFormOpen(false);
-          }}
-        />
-      ) : null}
-
-      {isFormOpen && !(isLocalAuthEnabled && editing === null) ? (
+      {isFormOpen ? (
         <UserFormDialog
           key={editing?.id ?? 'new'}
           user={editing}

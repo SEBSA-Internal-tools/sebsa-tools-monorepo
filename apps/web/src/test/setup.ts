@@ -3,6 +3,7 @@ import { cleanup, configure } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll } from 'vitest';
 import { server } from './mswServer.ts';
 import { resetDb } from '@/mocks/db.ts';
+import { resetPasswordLinks } from '@/mocks/passwordLinks.ts';
 import { setMockUserId } from '@/lib/apiClient.ts';
 import { useSession } from '@/hooks/useSession.ts';
 
@@ -165,6 +166,7 @@ afterEach(() => {
   // Handlers mutate the in-memory store, so reset it or one test's "mark all
   // read" silently changes the next test's expected counts.
   resetDb();
+  resetPasswordLinks();
   try {
     window.localStorage.clear();
     window.sessionStorage.clear();

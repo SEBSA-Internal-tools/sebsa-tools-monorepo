@@ -43,20 +43,3 @@ export function describeInvite(
     tone: 'neutral',
   };
 }
-
-/** Trimmed and lowercased, as it is validated and sent. */
-export function normaliseEmail(raw: string): string {
-  return raw.trim().toLowerCase();
-}
-
-export const MAX_EMAIL_LENGTH = 254;
-const EMAIL_SHAPE = /^[^\s@]+@[^\s@.][^\s@]*\.[^\s@.]+$/;
-
-/** Returns the message to show, or undefined when the address is acceptable. */
-export function validateInviteEmail(raw: string): string | undefined {
-  const email = normaliseEmail(raw);
-  if (email === '' || email.length > MAX_EMAIL_LENGTH || !EMAIL_SHAPE.test(email)) {
-    return copy.emailInvalid;
-  }
-  return undefined;
-}

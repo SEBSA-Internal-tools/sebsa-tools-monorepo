@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle2, KeyRound } from 'lucide-react';
+import { routePaths } from '@/constants/routePaths';
 import { Button } from '@/components/ui/Button.tsx';
 import { Skeleton } from '@/components/common/Skeleton.tsx';
 import { Alert } from '@/components/ui/Alert.tsx';
@@ -11,7 +12,7 @@ import { setPassword, validateToken } from '../api/localAuthApi.ts';
 import { LocalAuthError, type LinkPurpose } from '../api/types.ts';
 import { AuthCard, CardHeading, PanelCopy } from '../components/AuthParts.tsx';
 import { PasswordForm } from '../components/PasswordForm.tsx';
-import { LOCAL_AUTH_ROUTES, SUCCESS_REDIRECT_MS } from '../config.ts';
+import { SUCCESS_REDIRECT_MS } from '../config.ts';
 import { TIPS, setPasswordCopy, setPassword as copy } from '../content.ts';
 import type { RuleCode } from '../domain/passwordRules.ts';
 import { useDocumentTitle, useFocusOnChange, useNoReferrer } from '../hooks/useAuthScreen.ts';
@@ -73,7 +74,7 @@ export function SetPasswordPage() {
 
   const goToExpired = useCallback(
     (reason: 'expired' | 'invalid', linkPurpose: LinkPurpose | undefined, token: string | null) => {
-      void navigate(LOCAL_AUTH_ROUTES.linkExpired, {
+      void navigate(routePaths.linkExpired, {
         replace: true,
         state: expiredState({ reason, purpose: linkPurpose, token }),
       });
@@ -129,7 +130,7 @@ export function SetPasswordPage() {
       window.clearTimeout(redirectTimer.current);
       redirectTimer.current = null;
     }
-    void navigate(`${LOCAL_AUTH_ROUTES.login}?reason=password-saved`, { replace: true });
+    void navigate(`${routePaths.login}?reason=password-saved`, { replace: true });
   }, [navigate]);
 
   async function handleSubmit(newPassword: string): Promise<void> {

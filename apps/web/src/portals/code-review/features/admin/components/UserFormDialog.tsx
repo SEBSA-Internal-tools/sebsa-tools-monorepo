@@ -1,6 +1,13 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { ROLES, createUserInputSchema, type Role, type User } from '@sdp/contracts';
+import {
+  MAX_EMAIL_LENGTH,
+  ROLES,
+  createUserInputSchema,
+  emailAddressSchema,
+  type Role,
+  type User,
+} from '@sdp/contracts';
 import { Button } from '@/components/ui/Button.tsx';
 import { Checkbox, Textarea } from '@/components/ui/controls.tsx';
 import { Dialog } from '@/components/ui/Dialog.tsx';
@@ -19,8 +26,10 @@ import { useCreateUser, useUpdateUser } from '../api/queries.ts';
  * what the buttons say. Two dialogs would be two places for the role list to
  * drift.
  *
- * Validation is `createUserInputSchema` from `@sdp/types` — the same schema the
- * handler parses, so a message shown here is the message the server would give.
+ * Validation is `createUserInputSchema` from `@sdp/contracts` — the same schema
+ * the handler parses, so a message shown here is the message the server would
+ * give. Creating a user does not set a password: the server makes the account
+ * INVITED and emails a one-time link to the set-password screen.
  */
 
 interface FormState {
@@ -95,7 +104,9 @@ export function UserFormDialog({
     if (user === null) {
       createUser.mutate(parsed.data, {
         onSuccess: (created) => {
-          toast.success(interpolate(admin.users.created, { name: created.name }));
+          toast.success(
+            interpolate(admin.users.created, { name: created.name, email: created.email }),
+          );
           onClose();
         },
         onError,
@@ -153,9 +164,21 @@ export function UserFormDialog({
         <Field label={admin.users.emailLabel} required error={errors.email}>
           <Input
             type="email"
+            inputMode="email"
+            autoComplete="off"
+            maxLength={MAX_EMAIL_LENGTH + 1}
             value={form.email}
             onChange={(event) => {
               setForm({ ...form, email: event.target.value });
+              setErrors((current) => {
+                const { email: _email, ...remaining } = current;
+                return remaining;
+              });
+            }}
+            onBlur={() => {
+              if (form.email.trim() === '') return;
+              const message = emailAddressSchema.safeParse(form.email).error?.issues[0]?.message;
+              if (message !== undefined) setErrors((current) => ({ ...current, email: message }));
             }}
             placeholder={admin.users.emailPlaceholder}
           />

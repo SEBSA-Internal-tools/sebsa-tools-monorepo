@@ -162,10 +162,79 @@ describe('authenticated routing', () => {
     ).toBeInTheDocument();
   });
 
+  it('ignores an off-site `from` and lands on the CRP home instead', async () => {
+    signInForTest();
+    const router = createMemoryRouter(routes, {
+      initialEntries: [{ pathname: '/login', state: { from: '//evil.example/phish' } }],
+    });
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => expect(router.state.location.pathname).toBe('/crp'));
+  });
+
   it('redirects an unknown path to /404 rather than crashing', async () => {
     signInForTest();
     const { router } = renderApp('/definitely-not-a-route');
 
     await waitFor(() => expect(router.state.location.pathname).toBe('/404'));
+  });
+});
+
+/**
+ * The guest-only screens of the temporary local sign-in. They are public — no
+ * flag, no env file — but only while signed out: `RequireGuest` sends a
+ * signed-in user to the CRP home, the same place signing in lands.
+ */
+describe('guest-only routes', () => {
+  it.each([
+    ['/forgot-password', 'Forgot your password?'],
+    ['/link-expired', "This link can't be used"],
+  ])('renders %s while signed out', async (path, heading) => {
+    signOutForTest();
+    const { router } = renderApp(path);
+
+    expect(await screen.findByRole('heading', { name: heading })).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe(path);
+  });
+
+  it('opens /set-password from an emailed link while signed out', async () => {
+    signOutForTest();
+    window.history.replaceState(null, '', '/set-password#token=demo-invite');
+    const { router } = renderApp('/set-password');
+
+    expect(
+      await screen.findByRole('heading', { name: 'Create your password' }),
+    ).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/set-password');
+    window.history.replaceState(null, '', '/');
+  });
+
+  it.each(['/login', '/set-password', '/forgot-password', '/link-expired'])(
+    'sends a signed-in user from %s to the CRP home',
+    async (path) => {
+      signInForTest();
+      const { router } = renderApp(path);
+
+      await waitFor(() => expect(router.state.location.pathname).toBe('/crp'));
+    },
+  );
+
+  it('sends /signup to sign-in, since admins create accounts', async () => {
+    signOutForTest();
+    const { router } = renderApp('/signup');
+
+    await waitFor(() => expect(router.state.location.pathname).toBe('/login'));
+  });
+
+  it('links to forgot password from the sign-in screen', async () => {
+    signOutForTest();
+    const { router, user } = renderApp('/login');
+
+    await user.click(await screen.findByRole('link', { name: /forgot password/i }));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/forgot-password'));
   });
 });
