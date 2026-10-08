@@ -20,7 +20,10 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const response = ctx.getResponse<Response>();
 
     const { status, code, message, details } = this.toPublicError(exception);
+    const extra = exception instanceof ApiException ? exception.extra : {};
     const payload: ApiErrorResponse = {
+      ...extra,
+      statusCode: status,
       code,
       message,
       details,
@@ -34,7 +37,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     status: number;
     code: string;
     message: string;
-    details: unknown[];
+    details: unknown;
   } {
     if (exception instanceof ApiException) {
       return {
@@ -59,25 +62,34 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const rawMessage =
       typeof body === 'object' && body !== null && 'message' in body ? body.message : body;
     const validationDetails = Array.isArray(rawMessage) ? rawMessage.map(String) : [];
+    // The first validation message is human-readable and is what the web client
+    // shows; every message stays available in `details`.
     const message =
       validationDetails.length > 0
-        ? 'Validation failed'
+        ? (validationDetails[0] ?? 'Validation failed')
         : typeof rawMessage === 'string'
           ? rawMessage
           : 'Request failed';
+    // A Nest exception thrown with `{ code, message }` keeps its own code.
+    const explicitCode =
+      typeof body === 'object' && body !== null && 'code' in body && typeof body.code === 'string'
+        ? body.code
+        : undefined;
 
     const codeByStatus: Partial<Record<number, string>> = {
       [HttpStatus.BAD_REQUEST]: 'VALIDATION_FAILED',
       [HttpStatus.UNAUTHORIZED]: 'AUTH_REQUIRED',
-      [HttpStatus.FORBIDDEN]: 'RESOURCE_FORBIDDEN',
-      [HttpStatus.NOT_FOUND]: 'RESOURCE_NOT_FOUND',
-      [HttpStatus.CONFLICT]: 'VERSION_CONFLICT',
+      [HttpStatus.FORBIDDEN]: 'FORBIDDEN',
+      [HttpStatus.NOT_FOUND]: 'NOT_FOUND',
+      [HttpStatus.CONFLICT]: 'INVALID_STATE',
+      [HttpStatus.UNPROCESSABLE_ENTITY]: 'INVALID_STATE',
+      [HttpStatus.TOO_MANY_REQUESTS]: 'RATE_LIMITED',
     };
     const isServerError = status >= Number(HttpStatus.INTERNAL_SERVER_ERROR);
 
     return {
       status: isServerError ? HttpStatus.INTERNAL_SERVER_ERROR : status,
-      code: codeByStatus[status] ?? 'INTERNAL_ERROR',
+      code: isServerError ? 'INTERNAL_ERROR' : (explicitCode ?? codeByStatus[status] ?? 'INTERNAL_ERROR'),
       message: isServerError ? 'An unexpected server error occurred' : message,
       details: validationDetails,
     };

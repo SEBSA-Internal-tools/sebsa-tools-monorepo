@@ -16,12 +16,11 @@ import { useReassignHandover } from '../api/handovers.ts';
  *
  * ⚠️ Our design — handover has no wireframe. Deliberately the same shape as
  * `AssignReviewerDialog` so the two assignment paths look and behave alike; the
- * differences are the extra exclusion and the reason shown above the picker,
- * which is the whole reason the admin is here.
+ * differences are the self-review exclusion and the reason shown above the
+ * picker, which is the whole reason the admin is here.
  *
- * Two people are excluded: the reviewer who handed it over (handing it straight
- * back defeats the purpose) and the developer who raised it (the self-review
- * bar). Both are re-checked in the handler — this list is a courtesy.
+ * The developer who raised the task is excluded by the self-review rule. The
+ * previous reviewer remains eligible when circumstances have changed.
  */
 
 const labels = admin.handovers.reassign;
@@ -43,13 +42,9 @@ export function ReassignHandoverDialog({
   const eligible = useMemo(
     () =>
       users.filter(
-        (user) =>
-          user.isActive &&
-          user.roles.includes('Reviewer') &&
-          user.id !== handover.fromReviewerId &&
-          user.id !== task?.developerId,
+        (user) => user.isActive && user.roles.includes('Reviewer') && user.id !== task?.developerId,
       ),
-    [users, handover.fromReviewerId, task?.developerId],
+    [users, task?.developerId],
   );
 
   const options: SelectOption[] = eligible.map((user) => ({ value: user.id, label: user.name }));

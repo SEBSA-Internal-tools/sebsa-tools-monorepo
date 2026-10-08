@@ -1,5 +1,14 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { ArrayMinSize, ArrayUnique, IsArray, IsIn } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  ArrayMinSize,
+  ArrayUnique,
+  IsArray,
+  IsIn,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
+import { MAX_REASON_LENGTH } from '../../../common/dto/reason.dto.js';
 import { ROLE_CODES, type RoleCode } from '../../auth/auth.constants.js';
 
 export class ReplaceUserRolesDto {
@@ -9,5 +18,12 @@ export class ReplaceUserRolesDto {
   @ArrayUnique()
   @IsIn(ROLE_CODES, { each: true })
   roles!: RoleCode[];
+
+  /** Justification for a privileged change; audited. */
+  @ApiPropertyOptional({ maxLength: MAX_REASON_LENGTH })
+  @IsOptional()
+  @IsString()
+  @MaxLength(MAX_REASON_LENGTH)
+  reason?: string;
 }
 

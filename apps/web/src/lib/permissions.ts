@@ -31,7 +31,11 @@ const SUPER_ADMIN_CAPABILITIES: readonly Capability[] = [
 
 /** Small capability seam shared by UI affordances and mock API enforcement. */
 export function hasCapability(roles: readonly Role[], capability: Capability): boolean {
-  if (roles.includes('SuperAdmin') && SUPER_ADMIN_CAPABILITIES.includes(capability)) return true;
+  if (
+    roles.includes('SuperAdmin') &&
+    (ADMIN_CAPABILITIES.includes(capability) || SUPER_ADMIN_CAPABILITIES.includes(capability))
+  )
+    return true;
   return roles.includes('Admin') && ADMIN_CAPABILITIES.includes(capability);
 }
 
@@ -50,8 +54,9 @@ export function isPrivilegedRoleSet(roles: readonly Role[]): boolean {
  * Pure functions with no React import, so the same rules can be unit-tested
  * directly and ported to the NestJS `PolicyGuard` in Phase 2.
  *
- * Roles are ADDITIVE. A user holding Developer + Reviewer sees both workspaces;
- * an Admin sees all three. There is no "highest role wins" ranking.
+ * Roles are ADDITIVE and explicit. Each role grants only its matching
+ * workspace, so Admin + Developer grants those two workspaces but does not
+ * silently grant Reviewer access.
  */
 
 export function canAccessWorkspace(roles: readonly Role[], workspace: WorkspaceKey): boolean {

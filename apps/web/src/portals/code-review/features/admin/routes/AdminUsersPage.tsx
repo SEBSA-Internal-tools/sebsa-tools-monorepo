@@ -6,12 +6,13 @@ import {
   MailX,
   Pencil,
   Power,
+  ShieldCheck,
   Trash2,
   UserPlus,
   Users as UsersIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { type Role, type User } from '@sdp/contracts';
+import { type PendingReviewTask, type Role, type User } from '@sdp/contracts';
 import { RoleBadges } from '@/portals/code-review/components/badges.tsx';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog.tsx';
 import { DataTable } from '@/components/common/DataTable.tsx';
@@ -26,13 +27,15 @@ import { Tooltip } from '@/components/ui/Tooltip.tsx';
 import { FilterResetButton } from '@/portals/code-review/components/TaskFilterBar.tsx';
 import { ALL } from '@/portals/code-review/components/taskFilters.ts';
 import { ApiError } from '@/lib/apiClient.ts';
-import { hasCapability, isPrivilegedRoleSet } from '@/lib/permissions.ts';
+import { isPrivilegedRoleSet } from '@/lib/permissions.ts';
 import { useCurrentUser } from '@/hooks/useCurrentUser.ts';
 import { interpolate } from '@/lib/formatters.ts';
 import admin from '@/content/admin.json';
 import common from '@/content/common.json';
-import { useDeleteUser, useUpdateUser, useUsers } from '../api/queries.ts';
+import { useDeleteUser, useTransferSuperAdmin, useUpdateUser, useUsers } from '../api/queries.ts';
 import { UserFormDialog } from '../components/UserFormDialog.tsx';
+import { PendingReviewTasksNotice } from '../components/PendingReviewTasksNotice.tsx';
+import { pendingReviewTasksFrom } from '../components/pendingReviewTasks.ts';
 import { EmptyIllustration } from '@/components/common/EmptyIllustration.tsx';
 import { userKeys } from '@/portals/code-review/hooks/useUsers.ts';
 import { RoleMultiSelect } from '../components/RoleMultiSelect.tsx';
@@ -46,10 +49,13 @@ import { invite as inviteCopy } from '@/features/local-auth/content.ts';
 /**
  * Admin — Users (screen 02).
  *
- * Three row actions, matching the wireframe: edit, activate/deactivate, delete.
- * Deactivate is the everyday one and delete is the exception — the handler
- * refuses to delete anyone who appears on a task, because their name is on rows
- * the audit trail and Reports still count.
+ * Row actions, matching the wireframe: edit, activate/deactivate, delete, plus
+ * Transfer Super Admin. Deactivate is the everyday one; delete is a Super Admin
+ * soft delete that keeps the record for the audit trail and Reports.
+ *
+ * The server owns every rule (role policy, Super Admin exclusivity, a reviewer
+ * with pending review work cannot be deactivated — docs/25). The page only hides
+ * what the actor may not do and shows the server's reason when it refuses.
  */
 
 const helper = columnHelper<User>();
@@ -101,6 +107,7 @@ export function AdminUsersPage() {
   // instead of being pinned with a lint suppression.
   const { mutate: mutateUser, isPending: isUpdating } = useUpdateUser();
   const deleteUser = useDeleteUser();
+  const transferSuperAdmin = useTransferSuperAdmin();
   const { mutate: mutateResend, isPending: isResending } = useResendInvite(userKeys.all);
   const revokeInvite = useRevokeInvite(userKeys.all);
   const [revoking, setRevoking] = useState<User | null>(null);
@@ -117,9 +124,20 @@ export function AdminUsersPage() {
   const [deleting, setDeleting] = useState<User | null>(null);
   const [reason, setReason] = useState('');
   const [reasonError, setReasonError] = useState<string | undefined>();
+  const [transferring, setTransferring] = useState<User | null>(null);
+  /** Tasks the server says block the open deactivate/delete dialog. */
+  const [blockingTasks, setBlockingTasks] = useState<PendingReviewTask[] | null>(null);
 
-  const canManagePrivileged = hasCapability(actor?.roles ?? [], 'users.manage.privileged');
-  const canPurge = hasCapability(actor?.roles ?? [], 'records.purge');
+  // Super Admin is an exclusive role that holds every Admin capability. Admins
+  // manage Developer and Reviewer accounts; only the Super Admin manages Admins.
+  const isSuperAdmin = actor?.roles.includes('SuperAdmin') === true;
+  const assignableRoles: readonly Role[] = isSuperAdmin
+    ? ['Developer', 'Reviewer', 'Admin']
+    : ['Developer', 'Reviewer'];
+  const canManage = useCallback(
+    (user: User) => isSuperAdmin || !isPrivilegedRoleSet(user.roles),
+    [isSuperAdmin],
+  );
 
   const visible = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -161,8 +179,14 @@ export function AdminUsersPage() {
             );
             setStatusChanging(null);
             setReason('');
+            setBlockingTasks(null);
           },
           onError: (cause) => {
+            const blocking = pendingReviewTasksFrom(cause);
+            if (blocking !== null) {
+              setBlockingTasks(blocking);
+              return;
+            }
             toast.error(cause instanceof ApiError ? cause.message : common.errors.generic);
           },
         },
@@ -183,7 +207,7 @@ export function AdminUsersPage() {
         cell: (context) => {
           const user = context.row.original;
           const privileged = isPrivilegedRoleSet(user.roles);
-          const mayManage = !privileged || canManagePrivileged;
+          const mayManage = canManage(user);
           // An invited user has never signed in: Revoke replaces Deactivate.
           const isInvited = userStatus(user) === 'INVITED';
           return (
@@ -261,12 +285,29 @@ export function AdminUsersPage() {
                     if (user.isActive || privileged) {
                       setReason('');
                       setReasonError(undefined);
+                      setBlockingTasks(null);
                       setStatusChanging({ user, isActive: !user.isActive });
                     } else setActive(user, true);
                   }}
                 />
               ) : null}
-              {mayManage && canPurge ? (
+              {isSuperAdmin &&
+              user.isActive &&
+              user.id !== actor?.id &&
+              user.roles.includes('Admin') &&
+              !user.roles.includes('SuperAdmin') ? (
+                <IconButton
+                  label={interpolate(admin.users.actions.transferSuperAdmin, {
+                    name: user.name,
+                  })}
+                  icon={<ShieldCheck className="size-4" />}
+                  size="sm"
+                  onClick={() => {
+                    setTransferring(user);
+                  }}
+                />
+              ) : null}
+              {isSuperAdmin && mayManage && user.id !== actor?.id && !isInvited ? (
                 <IconButton
                   label={interpolate(admin.users.actions.delete, { name: user.name })}
                   icon={<Trash2 className="size-4" />}
@@ -275,6 +316,7 @@ export function AdminUsersPage() {
                   onClick={() => {
                     setReason('');
                     setReasonError(undefined);
+                    setBlockingTasks(null);
                     setDeleting(user);
                   }}
                 />
@@ -284,7 +326,7 @@ export function AdminUsersPage() {
         },
       }),
     ],
-    [canManagePrivileged, canPurge, setActive, mutateResend, isResending],
+    [actor?.id, canManage, isSuperAdmin, setActive, mutateResend, isResending],
   );
 
   return (
@@ -406,7 +448,9 @@ export function AdminUsersPage() {
         <UserFormDialog
           key={editing?.id ?? 'new'}
           user={editing}
-          canManagePrivileged={canManagePrivileged}
+          availableRoles={assignableRoles}
+          // The Super Admin's role set changes only through Transfer.
+          editRoles={editing?.roles.includes('SuperAdmin') !== true}
           onClose={() => {
             setFormOpen(false);
           }}
@@ -484,6 +528,9 @@ export function AdminUsersPage() {
             />
           </Field>
         ) : null}
+        {statusChanging !== null && blockingTasks !== null ? (
+          <PendingReviewTasksNotice name={statusChanging.user.name} tasks={blockingTasks} />
+        ) : null}
       </ConfirmDialog>
 
       <ConfirmDialog
@@ -512,6 +559,11 @@ export function AdminUsersPage() {
                 setReason('');
               },
               onError: (cause) => {
+                const blocking = pendingReviewTasksFrom(cause);
+                if (blocking !== null) {
+                  setBlockingTasks(blocking);
+                  return;
+                }
                 toast.error(cause instanceof ApiError ? cause.message : common.errors.generic);
               },
             },
@@ -529,7 +581,39 @@ export function AdminUsersPage() {
             placeholder={admin.users.delete.reasonPlaceholder}
           />
         </Field>
+        {deleting !== null && blockingTasks !== null ? (
+          <PendingReviewTasksNotice name={deleting.name} tasks={blockingTasks} />
+        ) : null}
       </ConfirmDialog>
+
+      <ConfirmDialog
+        open={transferring !== null}
+        onOpenChange={(open) => {
+          if (!open) setTransferring(null);
+        }}
+        title={admin.users.transferSuperAdmin.title}
+        description={interpolate(admin.users.transferSuperAdmin.description, {
+          name: transferring?.name ?? '',
+        })}
+        confirmLabel={admin.users.transferSuperAdmin.confirm}
+        tone="primary"
+        isPending={transferSuperAdmin.isPending}
+        onConfirm={() => {
+          if (transferring === null) return;
+          const user = transferring;
+          transferSuperAdmin.mutate(user.id, {
+            onSuccess: () => {
+              toast.success(
+                interpolate(admin.users.transferSuperAdmin.success, { name: user.name }),
+              );
+              setTransferring(null);
+            },
+            onError: (cause) => {
+              toast.error(cause instanceof ApiError ? cause.message : common.errors.generic);
+            },
+          });
+        }}
+      />
     </section>
   );
 }

@@ -13,6 +13,7 @@ export class ChecklistsService {
           some: includeInactive ? {} : { taskType: { isActive: true } },
         },
       },
+      orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
       include: {
         taskTypes: {
           where: includeInactive ? {} : { taskType: { isActive: true } },
@@ -26,21 +27,22 @@ export class ChecklistsService {
     });
 
     return sections
-      .map((section) => ({
+      // Developers never see an empty category; admins see every one to fill it.
+      .filter((section) => includeInactive || section.questions.length > 0)
+      .map((section, index) => ({
         id: section.id,
         name: section.name,
-        order: Math.min(...section.taskTypes.map(({ displayOrder }) => displayOrder)),
+        order: index + 1,
         isActive: section.isActive,
         applicableTaskTypeIds: section.taskTypes.map(({ taskTypeId }) => String(taskTypeId)),
-        questions: section.questions.map((question) => ({
+        questions: section.questions.map((question, position) => ({
           id: question.id,
           categoryId: section.id,
           text: question.questionText,
-          order: question.displayOrder,
+          order: position + 1,
           isActive: question.isActive,
         })),
-      }))
-      .sort((left, right) => left.order - right.order || left.name.localeCompare(right.name));
+      }));
   }
 
   async findForTaskTypes(taskTypeIds: number[]) {
@@ -61,7 +63,7 @@ export class ChecklistsService {
           taskTypeId: { in: taskTypeIds },
           section: { isActive: true, questions: { some: { isActive: true } } },
         },
-        orderBy: [{ displayOrder: 'asc' }, { section: { name: 'asc' } }],
+        orderBy: [{ section: { displayOrder: 'asc' } }, { section: { name: 'asc' } }],
         include: {
           taskType: true,
           section: {

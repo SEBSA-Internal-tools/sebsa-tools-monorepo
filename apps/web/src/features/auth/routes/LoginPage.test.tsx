@@ -103,9 +103,7 @@ describe('LoginPage authentication', () => {
 });
 
 describe('LoginPage session persistence', () => {
-  const storedMockIdentity = (store: Storage) => store.getItem('sdp.mock-user-id');
-
-  it('persists to localStorage when Remember me is checked', async () => {
+  it('does not persist authentication data when Remember me is checked', async () => {
     const { user } = renderLogin();
 
     // Checked by default; assert the default rather than assuming it.
@@ -116,11 +114,11 @@ describe('LoginPage session persistence', () => {
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
 
     await waitFor(() => expect(useSession.getState().isAuthenticated).toBe(true));
-    expect(storedMockIdentity(window.localStorage)).toBe('u-hiruni');
-    expect(storedMockIdentity(window.sessionStorage)).toBeNull();
+    expect(window.localStorage.getItem('sdp.mock-user-id')).toBeNull();
+    expect(window.sessionStorage.getItem('sdp.mock-user-id')).toBeNull();
   });
 
-  it('confines the session to sessionStorage when Remember me is cleared', async () => {
+  it('does not persist authentication data when Remember me is cleared', async () => {
     const { user } = renderLogin();
 
     await user.click(screen.getByLabelText(/remember me/i));
@@ -129,9 +127,8 @@ describe('LoginPage session persistence', () => {
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
 
     await waitFor(() => expect(useSession.getState().isAuthenticated).toBe(true));
-    expect(storedMockIdentity(window.sessionStorage)).toBe('u-hiruni');
-    // The critical half: nothing must survive a browser restart.
-    expect(storedMockIdentity(window.localStorage)).toBeNull();
+    expect(window.sessionStorage.getItem('sdp.mock-user-id')).toBeNull();
+    expect(window.localStorage.getItem('sdp.mock-user-id')).toBeNull();
   });
 
   it('never stores a real authentication token in browser storage', async () => {

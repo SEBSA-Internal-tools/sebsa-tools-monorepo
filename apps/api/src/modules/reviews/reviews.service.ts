@@ -163,17 +163,40 @@ export class ReviewsService {
       include: reviewInclude,
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     });
-    return rows.map((row) => this.toReview(row));
+    // A list is for counting and ranking (Reports, dashboards). The reviewer's
+    // written feedback is read on the task, where access is checked per task.
+    return rows.map((row) => ({
+      ...this.toReview(row),
+      findings: { incorrectCode: '', incompleteImplementation: '', sourceFormatting: '' },
+      otherRemarks: '',
+      feedbackSummary: '',
+      screenshots: [],
+    }));
   }
 
+  /**
+   * The current round's review: the open draft while a review is under way,
+   * or — once the task is decided (Approved / ChangesRequested) — the decision
+   * itself, so the decided review stays readable on the task page.
+   */
   async findCurrent(taskId: string, user: AuthenticatedUser) {
     await this.assertTaskVisible(taskId, user);
-    const row = await this.prisma.codeReviewForm.findFirst({
+    const draft = await this.prisma.codeReviewForm.findFirst({
       where: { taskId, status: CodeReviewFormStatus.DRAFT },
       include: reviewInclude,
       orderBy: { reviewCycleNumber: 'desc' },
     });
-    return row ? this.toReview(row) : null;
+    if (draft) return this.toReview(draft);
+    const task = await this.prisma.task.findUnique({ where: { id: taskId }, select: { status: true } });
+    if (task?.status !== TaskStatus.APPROVED && task?.status !== TaskStatus.CHANGES_REQUESTED) {
+      return null;
+    }
+    const decided = await this.prisma.codeReviewForm.findFirst({
+      where: { taskId, decision: { not: null } },
+      include: reviewInclude,
+      orderBy: [{ reviewCycleNumber: 'desc' }, { completedAt: 'desc' }],
+    });
+    return decided ? this.toReview(decided) : null;
   }
 
   async findHistory(taskId: string, user: AuthenticatedUser) {
@@ -381,6 +404,16 @@ export class ReviewsService {
   }
 
   async removeResponse(taskId: string, responseId: string, user: AuthenticatedUser) {
+    // Responses are the developer's draft answer to a round; once resubmitted
+    // (or the task closes) they are the reviewer's record and stay.
+    const task = await this.prisma.task.findUnique({
+      where: { id: taskId },
+      select: { developerId: true, status: true },
+    });
+    if (!task) throw new ApiException('TASK_NOT_FOUND', `Review task ${taskId} was not found`);
+    if (task.developerId !== user.id || task.status !== TaskStatus.CHANGES_REQUESTED) {
+      throw new ApiException('INVALID_STATE', 'Responses can only be withdrawn while you are addressing requested changes.');
+    }
     const removed = await this.prisma.developerFindingResponse.deleteMany({
       where: { id: responseId, developerId: user.id, finding: { reviewForm: { taskId } } },
     });

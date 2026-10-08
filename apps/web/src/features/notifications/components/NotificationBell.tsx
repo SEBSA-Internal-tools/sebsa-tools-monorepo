@@ -17,7 +17,9 @@ const KIND_CLASSES: Record<NotificationKind, string> = {
   TaskApproved: 'bg-status-approved-surface text-status-approved',
   ChangesRequested: 'bg-status-changes-requested-surface text-status-changes-requested',
   TaskResubmitted: 'bg-status-re-submitted-surface text-status-re-submitted',
+  TaskSubmitted: 'bg-status-re-submitted-surface text-status-re-submitted',
   TaskAssigned: 'bg-status-in-review-surface text-status-in-review',
+  TaskReassigned: 'bg-status-in-review-surface text-status-in-review',
   TaskHandedOver: 'bg-status-handover-surface text-status-handover',
   TaskCancelled: 'bg-status-cancelled-surface text-status-cancelled',
 };

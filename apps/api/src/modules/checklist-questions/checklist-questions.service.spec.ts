@@ -1,4 +1,3 @@
-import { ConflictException } from '@nestjs/common';
 import { validate } from 'class-validator';
 import { describe, expect, it, vi } from 'vitest';
 import { ChecklistQuestionsService } from './checklist-questions.service.js';
@@ -156,7 +155,7 @@ describe('ChecklistQuestionsService question management', () => {
     };
     const service = new ChecklistQuestionsService(prisma as never);
 
-    await expect(service.remove(questionId)).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.remove(questionId)).rejects.toMatchObject({ code: 'QUESTION_IN_USE' });
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 });

@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { ApiException } from '../../common/api-error.js';
+import { reasonMetadata } from '../../common/dto/reason.dto.js';
 import { rethrowPrismaConflict } from '../../common/prisma-errors.js';
 import type { AuthenticatedUser } from '../auth/auth.types.js';
 import type { RoleCode } from '../auth/auth.constants.js';
@@ -9,6 +11,8 @@ import {
   assertNotLastActiveRoleHolder,
   lockPrivilegedRoleInvariants,
 } from '../user-roles/role-invariants.js';
+import { PasswordLinksService, type IssuedLink } from '../password-links/password-links.service.js';
+import { ReviewerWorkloadService } from '../reviewer-workload/reviewer-workload.service.js';
 import type { CreateUserDto } from './dto/create-user.dto.js';
 import type { UpdateUserDto } from './dto/update-user.dto.js';
 import { assignedRoleCodes, toUserResponse } from './user-response.js';
@@ -20,11 +24,23 @@ const userInclude = {
 
 type UserWithRoles = Prisma.UserGetPayload<{ include: typeof userInclude }>;
 
+function snapshot(user: UserWithRoles) {
+  return {
+    name: user.fullName,
+    email: user.email,
+    roles: assignedRoleCodes(user),
+    isActive: user.status === 'ACTIVE',
+    status: user.status,
+  };
+}
+
 @Injectable()
 export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly passwordLinks: PasswordLinksService,
+    private readonly workload: ReviewerWorkloadService,
   ) {}
 
   async findAll() {
@@ -33,11 +49,14 @@ export class UsersService {
       include: userInclude,
       orderBy: { fullName: 'asc' },
     });
-    return users.map(toUserResponse);
+    const invites = await this.passwordLinks.inviteStates(
+      users.filter((user) => user.status === 'INVITED').map((user) => user.id),
+    );
+    return users.map((user) => toUserResponse(user, invites.get(user.id)));
   }
 
   async findOne(id: string) {
-    return toUserResponse(await this.getUser(id));
+    return this.respond(await this.getUser(id));
   }
 
   private async getUser(id: string): Promise<UserWithRoles> {
@@ -49,16 +68,42 @@ export class UsersService {
     return user;
   }
 
+  /** The user as the Users tab reads it, with their live invite if still INVITED. */
+  private async respond(user: UserWithRoles) {
+    const invites =
+      user.status === 'INVITED' ? await this.passwordLinks.inviteStates([user.id]) : undefined;
+    return toUserResponse(user, invites?.get(user.id));
+  }
+
+  /**
+   * Creates the account INVITED — no password is ever chosen by an admin — and
+   * emails a one-time set-password link. The link is created in the same
+   * transaction as the user; the email goes out only after that commits.
+   */
   async create(dto: CreateUserDto, actor: AuthenticatedUser) {
     assertCanGrantRoles(actor, [], dto.roles);
     const roles = await this.findRoles(dto.roles);
+    const email = dto.email.trim().toLowerCase();
 
+    // Case-insensitive, matching the web client: two spellings of one address
+    // must never become two accounts.
+    const clash = await this.prisma.user.findFirst({
+      where: { email: { equals: email, mode: 'insensitive' } },
+      select: { id: true },
+    });
+    if (clash) {
+      throw new ApiException('EMAIL_TAKEN', 'A user with that email address already exists.');
+    }
+
+    let created: UserWithRoles;
+    let link: IssuedLink;
     try {
-      const user = await this.prisma.$transaction(async (tx) => {
-        const created = await tx.user.create({
+      ({ created, link } = await this.prisma.$transaction(async (tx) => {
+        const user = await tx.user.create({
           data: {
-            email: dto.email.trim().toLowerCase(),
+            email,
             fullName: dto.name.trim(),
+            status: 'INVITED',
             userRoles: {
               create: roles.map(
                 (role) =>
@@ -74,38 +119,65 @@ export class UsersService {
         await this.audit.record(tx, actor, {
           actionType: 'USER_CREATED',
           entityType: 'USER',
-          entityId: created.id,
-          targetUserId: created.id,
-          description: `${actor.name} created user ${created.fullName}`,
-          newValue: {
-            name: created.fullName,
-            email: created.email,
-            roles: assignedRoleCodes(created),
-            isActive: true,
-          },
+          entityId: user.id,
+          targetUserId: user.id,
+          description: `${actor.name} invited user ${user.fullName}`,
+          newValue: snapshot(user),
+          metadata: { targetLabel: user.fullName, ...reasonMetadata(dto.reason) },
         });
         for (const [index, role] of roles.entries()) {
           await this.audit.record(tx, actor, {
             actionType: 'ROLE_GRANTED',
             entityType: 'ROLE',
             entityId: String(role.id),
-            targetUserId: created.id,
-            description: `${actor.name} granted ${role.code} role to ${created.fullName}`,
+            targetUserId: user.id,
+            description: `${actor.name} granted ${role.code} role to ${user.fullName}`,
             oldValue: roles.slice(0, index).map((assignedRole) => assignedRole.code),
             newValue: roles.slice(0, index + 1).map((assignedRole) => assignedRole.code),
+            metadata: { targetLabel: user.fullName, ...reasonMetadata(dto.reason) },
           });
         }
-        return created;
-      });
-      return toUserResponse(user);
+        return { created: user, link: await this.passwordLinks.createLink(tx, user.id, 'INVITE') };
+      }));
     } catch (error) {
       rethrowPrismaConflict(error);
     }
+
+    const emailStatus = await this.passwordLinks.deliver(link, created, 'INVITE');
+    return toUserResponse(created, { expiresAt: link.expiresAt, emailStatus });
   }
 
   async update(id: string, dto: UpdateUserDto, actor: AuthenticatedUser) {
     const existing = await this.getUser(id);
-    assertCanManageUser(actor, assignedRoleCodes(existing));
+    const existingRoles = assignedRoleCodes(existing);
+    assertCanManageUser(actor, existingRoles);
+
+    // Activation needs a password, which only the user can set: resend or
+    // revoke the invite instead.
+    if (existing.status === 'INVITED' && dto.isActive !== undefined) {
+      throw new ApiException(
+        'INVITE_PENDING',
+        'This user has not set a password yet. Resend or revoke the invite instead.',
+      );
+    }
+    if (dto.isActive === false && actor.id === id) {
+      throw new ApiException('SELF_LOCKOUT', 'You cannot deactivate your own account.');
+    }
+    const deactivating = dto.isActive === false && existing.status === 'ACTIVE';
+    if (deactivating && existingRoles.includes('REVIEWER')) {
+      await this.workload.assertCanRemoveReviewer(existing, actor, 'DEACTIVATE', dto.reason);
+    }
+
+    if (dto.email !== undefined) {
+      const email = dto.email.trim().toLowerCase();
+      const clash = await this.prisma.user.findFirst({
+        where: { id: { not: id }, email: { equals: email, mode: 'insensitive' } },
+        select: { id: true },
+      });
+      if (clash) {
+        throw new ApiException('EMAIL_TAKEN', 'A user with that email address already exists.');
+      }
+    }
 
     const data = {
       ...(dto.email === undefined ? {} : { email: dto.email.trim().toLowerCase() }),
@@ -122,9 +194,11 @@ export class UsersService {
           await assertNotLastActiveRoleHolder(
             tx,
             existing,
-            assignedRoleCodes(existing),
+            existingRoles,
             'deactivated or deleted',
           );
+          // A deactivated account must not be revived by a link sent earlier.
+          await this.passwordLinks.revokeAllFor(tx, id);
         }
         const updated = await tx.user.update({ where: { id }, data, include: userInclude });
         const actionType =
@@ -139,40 +213,35 @@ export class UsersService {
           entityId: id,
           targetUserId: id,
           description: `${actor.name} ${actionType.toLowerCase().replaceAll('_', ' ')} ${existing.fullName}`,
-          oldValue: {
-            name: existing.fullName,
-            email: existing.email,
-            roles: assignedRoleCodes(existing),
-            isActive: existing.status === 'ACTIVE',
-          },
-          newValue: {
-            name: updated.fullName,
-            email: updated.email,
-            roles: assignedRoleCodes(updated),
-            isActive: updated.status === 'ACTIVE',
-          },
+          oldValue: snapshot(existing),
+          newValue: snapshot(updated),
+          metadata: { targetLabel: existing.fullName, ...reasonMetadata(dto.reason) },
         });
         return updated;
       });
-      return toUserResponse(user);
+      return await this.respond(user);
     } catch (error) {
       rethrowPrismaConflict(error);
     }
   }
 
-  async remove(id: string, actor: AuthenticatedUser): Promise<void> {
+  /** Soft delete: the record stays for task history, Reports and the audit trail. */
+  async remove(id: string, actor: AuthenticatedUser, reason?: string): Promise<void> {
     const existing = await this.getUser(id);
-    assertCanManageUser(actor, assignedRoleCodes(existing));
+    const existingRoles = assignedRoleCodes(existing);
+    assertCanManageUser(actor, existingRoles);
+    if (actor.id === id) {
+      throw new ApiException('SELF_LOCKOUT', 'You cannot delete your own account.');
+    }
+    if (existingRoles.includes('REVIEWER')) {
+      await this.workload.assertCanRemoveReviewer(existing, actor, 'DELETE', reason);
+    }
 
     try {
       await this.prisma.$transaction(async (tx) => {
         await lockPrivilegedRoleInvariants(tx);
-        await assertNotLastActiveRoleHolder(
-          tx,
-          existing,
-          assignedRoleCodes(existing),
-          'deactivated or deleted',
-        );
+        await assertNotLastActiveRoleHolder(tx, existing, existingRoles, 'deactivated or deleted');
+        await this.passwordLinks.revokeAllFor(tx, id);
         await tx.user.update({
           where: { id },
           data: { status: 'INACTIVE', deletedAt: new Date() },
@@ -183,13 +252,9 @@ export class UsersService {
           entityId: id,
           targetUserId: id,
           description: `${actor.name} deleted user ${existing.fullName}`,
-          oldValue: {
-            name: existing.fullName,
-            email: existing.email,
-            roles: assignedRoleCodes(existing),
-            isActive: existing.status === 'ACTIVE',
-          },
+          oldValue: snapshot(existing),
           newValue: { isActive: false, deleted: true },
+          metadata: { targetLabel: existing.fullName, ...reasonMetadata(reason) },
         });
       });
     } catch (error) {

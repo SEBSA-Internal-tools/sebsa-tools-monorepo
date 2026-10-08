@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from 'vitest';
 import type { PrismaService } from '../../prisma/prisma.service.js';
 import type { AuditService } from '../audit/audit.service.js';
 import type { AuthenticatedUser } from '../auth/auth.types.js';
+import type { ReviewerWorkloadService } from '../reviewer-workload/reviewer-workload.service.js';
+import { ApiException } from '../../common/api-error.js';
 import { UserRolesService } from './user-roles.service.js';
 
 const actor: AuthenticatedUser = {
@@ -67,9 +69,11 @@ function harness(targetRoles: (typeof adminRole)[]) {
     ),
   };
   const audit = { record: vi.fn().mockResolvedValue(undefined) };
+  const workload = { assertCanRemoveReviewer: vi.fn().mockResolvedValue(undefined) };
   const service = new UserRolesService(
     prisma as unknown as PrismaService,
     audit as unknown as AuditService,
+    workload as unknown as ReviewerWorkloadService,
   );
   return { audit, service, targetId, tx };
 }
@@ -109,5 +113,106 @@ describe('UserRolesService.transferSuperAdmin', () => {
     await expect(service.transferSuperAdmin(targetId, actor)).rejects.toThrow(BadRequestException);
     expect(tx.userRole.delete).not.toHaveBeenCalled();
     expect(tx.userRole.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('UserRolesService.replaceForUser', () => {
+  const developerRole = { id: 1, code: 'DEVELOPER', name: 'Developer', description: null, deletedAt: null };
+  const reviewerRole = { id: 2, code: 'REVIEWER', name: 'Reviewer', description: null, deletedAt: null };
+  const targetId = '00000000-0000-0000-0000-000000000003';
+  const adminActor: AuthenticatedUser = { ...actor, roles: ['ADMIN'], name: 'An Admin' };
+
+  function replaceHarness(heldRoles: (typeof developerRole)[], grantedRoles: (typeof developerRole)[]) {
+    const target = {
+      id: targetId,
+      email: 'dev@example.com',
+      fullName: 'Dev Person',
+      status: 'ACTIVE' as const,
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      userRoles: heldRoles.map((role) => ({ role })),
+    };
+    const tx = {
+      $executeRaw: vi.fn().mockResolvedValue(1),
+      userRole: {
+        findMany: vi.fn().mockResolvedValue([]),
+        deleteMany: vi.fn().mockResolvedValue({ count: heldRoles.length }),
+        createMany: vi.fn().mockResolvedValue({ count: grantedRoles.length }),
+      },
+      user: {
+        findUniqueOrThrow: vi
+          .fn()
+          .mockResolvedValue({ ...target, userRoles: grantedRoles.map((role) => ({ role })) }),
+      },
+    };
+    const prisma = {
+      user: { findFirst: vi.fn().mockResolvedValue(target) },
+      role: { findMany: vi.fn().mockResolvedValue(grantedRoles) },
+      $transaction: vi.fn((callback: (client: typeof tx) => unknown) => Promise.resolve(callback(tx))),
+    };
+    const audit = { record: vi.fn().mockResolvedValue(undefined) };
+    const workload = { assertCanRemoveReviewer: vi.fn().mockResolvedValue(undefined) };
+    const service = new UserRolesService(
+      prisma as unknown as PrismaService,
+      audit as unknown as AuditService,
+      workload as unknown as ReviewerWorkloadService,
+    );
+    return { audit, service, tx, workload, target };
+  }
+
+  it('adds Reviewer to a Developer in one replace', async () => {
+    const { audit, service, tx } = replaceHarness([developerRole], [developerRole, reviewerRole]);
+
+    await expect(
+      service.replaceForUser(targetId, ['DEVELOPER', 'REVIEWER'], adminActor),
+    ).resolves.toMatchObject({ roles: ['Developer', 'Reviewer'] });
+    expect(tx.userRole.createMany).toHaveBeenCalledWith({
+      data: [
+        { userId: targetId, roleId: 1, grantedBy: adminActor.id },
+        { userId: targetId, roleId: 2, grantedBy: adminActor.id },
+      ],
+    });
+    expect(audit.record).toHaveBeenCalledWith(
+      tx,
+      adminActor,
+      expect.objectContaining({
+        actionType: 'ROLES_CHANGED',
+        oldValue: ['DEVELOPER'],
+        newValue: ['DEVELOPER', 'REVIEWER'],
+      }),
+    );
+  });
+
+  it('removes Reviewer from a Developer+Reviewer after the pending-work check', async () => {
+    const { service, workload, target } = replaceHarness([developerRole, reviewerRole], [developerRole]);
+
+    await expect(
+      service.replaceForUser(targetId, ['DEVELOPER'], adminActor, 'Moved team'),
+    ).resolves.toMatchObject({ roles: ['Developer'] });
+    expect(workload.assertCanRemoveReviewer).toHaveBeenCalledWith(
+      target,
+      adminActor,
+      'REMOVE_REVIEWER_ROLE',
+      'Moved team',
+    );
+  });
+
+  it('keeps the roles when the reviewer still has pending work', async () => {
+    const { service, tx, workload } = replaceHarness([developerRole, reviewerRole], [developerRole]);
+    workload.assertCanRemoveReviewer.mockRejectedValue(
+      new ApiException('REVIEWER_HAS_PENDING_TASKS', 'blocked', { tasks: [] }),
+    );
+
+    await expect(service.replaceForUser(targetId, ['DEVELOPER'], adminActor)).rejects.toMatchObject({
+      code: 'REVIEWER_HAS_PENDING_TASKS',
+    });
+    expect(tx.userRole.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('refuses an Admin removing Admin from someone', async () => {
+    const { service } = replaceHarness([developerRole, adminRole], [developerRole]);
+
+    await expect(service.replaceForUser(targetId, ['DEVELOPER'], adminActor)).rejects.toThrow(
+      'Admins may only manage Developer and Reviewer accounts',
+    );
   });
 });

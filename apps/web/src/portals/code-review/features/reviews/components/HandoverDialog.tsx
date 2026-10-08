@@ -54,7 +54,7 @@ export function HandoverDialog({
 
     const trimmed = reason.trim();
     if (!trimmed) {
-      setError('Please provide a reason for handing over this review.');
+      setError('Explain why this review is being handed over.');
       return;
     }
 

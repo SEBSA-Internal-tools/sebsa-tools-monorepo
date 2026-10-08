@@ -1,9 +1,17 @@
 # Mock API
 
-The application runs against a full mock API built on **MSW**, so the frontend
-can be developed, demonstrated and tested with no backend at all. The same
-handlers serve the browser, the component tests and the Playwright suite —
-which is the point: one definition of the API's behaviour, exercised three ways.
+> **Status (2026-10-08): MSW is now the unit-test double only.** The browser
+> always talks to the NestJS API in `apps/api` through the Vite `/api` proxy;
+> MSW starts only under Vitest (`apiClient.ts`: `MODE === 'test'`). Every
+> behaviour the mock specified has been ported to NestJS, and the handlers are
+> kept in step with it so the ~900 unit tests keep describing the real API.
+> When the two disagree, **NestJS is the authority** and the handler is the bug.
+> The sections below describe how the handlers are written; read "the browser"
+> in them as historical.
+
+The application's unit tests run against a full mock API built on **MSW**. It
+was first built so the frontend could be developed with no backend at all —
+which is why it behaves like a server rather than a stub.
 
 ## Behaving like a server, not like a stub
 

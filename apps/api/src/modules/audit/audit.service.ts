@@ -100,6 +100,7 @@ export class AuditService {
             'USER_ACTIVATED',
             'USER_DEACTIVATED',
             'USER_DELETED',
+            'INVITE_REVOKED',
             'TASK_DELETED',
             'CUSTOMER_DELETED',
           ],
@@ -118,8 +119,10 @@ export class AuditService {
         actorId: log.userId,
         actorName: log.actorName,
         targetId,
-        targetLabel: log.description,
-        reason: log.description,
+        // The admin's own words and the target's name, recorded in metadata at
+        // write time; the description is the fallback for older rows.
+        targetLabel: jsonString(log.metadata, 'targetLabel') ?? log.description,
+        reason: jsonString(log.metadata, 'reason') ?? log.description,
         occurredAt: log.createdAt.toISOString(),
       };
       if (log.action === 'SUPER_ADMIN_TRANSFERRED') {
@@ -165,6 +168,7 @@ export class AuditService {
         USER_ACTIVATED: 'PrivilegedUserActivated',
         USER_DEACTIVATED: 'PrivilegedUserDeactivated',
         USER_DELETED: 'UserDeleted',
+        INVITE_REVOKED: 'InviteRevoked',
         TASK_DELETED: 'TaskDeleted',
         CUSTOMER_DELETED: 'CustomerDeleted',
       } as const;
@@ -221,6 +225,13 @@ function jsonStringArray(value: Prisma.JsonValue | null): string[] {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === 'string')
     : [];
+}
+
+/** A non-empty string field of a JSON object, or undefined. */
+function jsonString(value: Prisma.JsonValue | null, key: string): string | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const field = value[key];
+  return typeof field === 'string' && field.trim() !== '' ? field : undefined;
 }
 
 function jsonObjectRoles(value: Prisma.JsonValue | null): string[] {

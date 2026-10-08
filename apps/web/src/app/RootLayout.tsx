@@ -150,7 +150,11 @@ export function RootLayout() {
         {common.actions.skipToContent}
       </a>
 
-      <AppBar user={user} {...(title === undefined ? {} : { title })} />
+      <AppBar
+        user={user}
+        showNotifications
+        {...(title === undefined ? {} : { title })}
+      />
 
       {/*
         `scroll-mt-20` clears the sticky header. Without it the skip link — and

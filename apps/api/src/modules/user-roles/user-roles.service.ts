@@ -16,6 +16,8 @@ import { assertCanGrantRoles, assertCanManageUser } from './role-policy.js';
 import { assertNotLastActiveRoleHolder, lockPrivilegedRoleInvariants } from './role-invariants.js';
 import { assignedRoleCodes, toUserResponse } from '../users/user-response.js';
 import { AuditService } from '../audit/audit.service.js';
+import { ReviewerWorkloadService } from '../reviewer-workload/reviewer-workload.service.js';
+import { reasonMetadata } from '../../common/dto/reason.dto.js';
 
 const safeUserSelect = {
   id: true,
@@ -39,6 +41,7 @@ export class UserRolesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly workload: ReviewerWorkloadService,
   ) {}
 
   findAll(query: UserRoleQueryDto = {}) {
@@ -121,6 +124,9 @@ export class UserRolesService {
       currentRoles,
       currentRoles.filter((code) => code !== roleCode),
     );
+    if (roleCode === 'REVIEWER') {
+      await this.workload.assertCanRemoveReviewer(user, actor, 'REMOVE_REVIEWER_ROLE');
+    }
 
     await this.prisma.$transaction(async (tx) => {
       await lockPrivilegedRoleInvariants(tx);
@@ -149,10 +155,23 @@ export class UserRolesService {
     return this.findAll({ userId });
   }
 
-  async replaceForUser(userId: string, roleCodes: RoleCode[], actor: AuthenticatedUser) {
+  /**
+   * Replaces the whole role set in one step: roles in `roleCodes` but not held
+   * are granted, held roles left out are revoked. Adding a role and removing
+   * one from a multi-role user are both this call.
+   */
+  async replaceForUser(
+    userId: string,
+    roleCodes: RoleCode[],
+    actor: AuthenticatedUser,
+    reason?: string,
+  ) {
     const user = await this.getUser(userId);
     const currentRoles = assignedRoleCodes(user);
     assertCanGrantRoles(actor, currentRoles, roleCodes);
+    if (currentRoles.includes('REVIEWER') && !roleCodes.includes('REVIEWER')) {
+      await this.workload.assertCanRemoveReviewer(user, actor, 'REMOVE_REVIEWER_ROLE', reason);
+    }
 
     const roles = await this.prisma.role.findMany({
       where: { code: { in: roleCodes }, deletedAt: null },
@@ -186,6 +205,7 @@ export class UserRolesService {
         description: `${actor.name} changed roles for ${user.fullName}`,
         oldValue: currentRoles,
         newValue: roleCodes,
+        metadata: { targetLabel: user.fullName, ...reasonMetadata(reason) },
       });
       return result;
     });

@@ -34,6 +34,7 @@ export const ROUTES = {
     handover: routePaths.crp.admin.handover,
     handoverTask: routePaths.crp.admin.handoverTask,
     reports: routePaths.crp.admin.reports,
+    activity: routePaths.crp.admin.activity,
   },
 } as const;
 

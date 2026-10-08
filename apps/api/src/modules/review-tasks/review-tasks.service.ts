@@ -16,11 +16,15 @@ import {
   TaskStatus,
 } from '@prisma/client';
 import {
+  ALLOWED_IMAGE_MIME_TYPES,
+  MAX_SCREENSHOTS_PER_REVIEW,
+  MAX_SCREENSHOT_BYTES,
   checklistDraftSchema,
   checklistSubmissionSchema,
   type ChecklistSubmission,
   type TaskEventKind,
 } from '@sdp/contracts';
+import { reasonMetadata } from '../../common/dto/reason.dto.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { ApiException } from '../../common/api-error.js';
 import { rethrowPrismaConflict, retryPrismaTransaction } from '../../common/prisma-errors.js';
@@ -59,7 +63,10 @@ const taskInclude = {
       },
     },
   },
-  codeReviewForms: { select: { reviewerId: true, decision: true } },
+  codeReviewForms: {
+    select: { reviewerId: true, decision: true },
+    orderBy: [{ reviewCycleNumber: 'asc' }, { completedAt: 'asc' }],
+  },
   reviewCycles: {
     select: { roundNumber: true, counted: true, exclusionReason: true },
     orderBy: { roundNumber: 'asc' },
@@ -90,18 +97,26 @@ export function deriveTaskReviewCycles(
   };
 }
 
+/** A developer's note to the reviewer, trimmed; blank means "no note". */
+function normalizeNote(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed === undefined || trimmed === '' ? null : trimmed;
+}
+
 function hasAdminAccess(user: AuthenticatedUser): boolean {
   return user.roles.includes('ADMIN') || user.roles.includes('SUPER_ADMIN');
 }
 
 function mayReadTask(user: AuthenticatedUser, task: TaskWithRelations): boolean {
+  // A draft is the developer's private work: not even an admin sees it until it
+  // is submitted (frontend taskPolicy.canViewTask, fix 8b9c161).
+  if (task.status === TaskStatus.DRAFT) return task.developerId === user.id;
   const isPendingHandover = task.handovers.some(({ status }) => status === HandoverStatus.PENDING);
   return (
     hasAdminAccess(user) ||
     (user.roles.includes('DEVELOPER') && task.developerId === user.id) ||
     (user.roles.includes('REVIEWER') &&
       !isPendingHandover &&
-      task.status !== TaskStatus.DRAFT &&
       task.developerId !== user.id &&
       (task.currentReviewerId === user.id ||
         task.status === TaskStatus.SUBMITTED ||
@@ -124,16 +139,34 @@ export class ReviewTasksService {
       include: taskInclude,
       orderBy: { createdAt: 'desc' },
     });
+    const visible = scope === 'history' ? this.latestDeciderOnly(tasks, user) : tasks;
     return {
-      items: tasks.map((task) => this.toResponse(task)),
-      pagination: { page: 1, pageSize: Math.max(tasks.length, 1), total: tasks.length },
+      items: visible.map((task) => this.toResponse(task)),
+      pagination: { page: 1, pageSize: Math.max(visible.length, 1), total: visible.length },
     };
+  }
+
+  /**
+   * Home-page count (`{ total }`). Admins see every task that has left Draft;
+   * everyone else counts the tasks they develop or currently review — never
+   * someone else's draft.
+   */
+  async summary(user: AuthenticatedUser) {
+    const where: Prisma.TaskWhereInput = hasAdminAccess(user)
+      ? { status: { not: TaskStatus.DRAFT } }
+      : {
+          OR: [
+            { developerId: user.id },
+            { currentReviewerId: user.id, status: { not: TaskStatus.DRAFT } },
+          ],
+        };
+    return { total: await this.prisma.task.count({ where }) };
   }
 
   async findOne(id: string, user: AuthenticatedUser) {
     const task = await this.getTask(id);
     if (!mayReadTask(user, task))
-      throw new ForbiddenException('You cannot access this review task');
+      throw new ApiException('TASK_NOT_FOUND', 'Task not found.');
     return this.toResponse(task);
   }
 
@@ -153,7 +186,7 @@ export class ReviewTasksService {
   async findChecklist(id: string, user: AuthenticatedUser) {
     const task = await this.getTask(id);
     if (!mayReadTask(user, task))
-      throw new ForbiddenException('You cannot access this review task');
+      throw new ApiException('TASK_NOT_FOUND', 'Task not found.');
 
     const checklist = task.developerChecklist;
     if (!checklist) return null;
@@ -211,7 +244,7 @@ export class ReviewTasksService {
   async findChecklistSubmissions(id: string, user: AuthenticatedUser) {
     const task = await this.getTask(id);
     if (!mayReadTask(user, task))
-      throw new ForbiddenException('You cannot access this review task');
+      throw new ApiException('TASK_NOT_FOUND', 'Task not found.');
     const records = await this.prisma.auditLog.findMany({
       where: { taskId: id, action: { in: ['TASK_SUBMITTED', 'TASK_RESUBMITTED'] } },
       select: { metadata: true },
@@ -231,7 +264,7 @@ export class ReviewTasksService {
   async findEvents(id: string, user: AuthenticatedUser) {
     const task = await this.getTask(id);
     if (!mayReadTask(user, task))
-      throw new ForbiddenException('You cannot access this review task');
+      throw new ApiException('TASK_NOT_FOUND', 'Task not found.');
     const logs = await this.prisma.auditLog.findMany({
       where: { taskId: id, userId: { not: null } },
       orderBy: { createdAt: 'asc' },
@@ -243,6 +276,11 @@ export class ReviewTasksService {
       TASK_PICKED: 'Picked',
       REVIEWER_ASSIGNED: 'ReviewerAssigned',
       REVIEWER_REASSIGNED: 'Reassigned',
+      TASK_ASSIGNED: 'ReviewerAssigned',
+      TASK_REASSIGNED: 'Reassigned',
+      RESUBMISSION_REVIEWER_CHANGED: 'Reassigned',
+      RESUBMISSION_REVIEWER_UNAVAILABLE: 'ReturnedToQueue',
+      HANDOVER_RETURNED_TO_QUEUE: 'ReturnedToQueue',
       REVIEW_DRAFT_SAVED: 'ReviewDraftSaved',
       TASK_APPROVED: 'Approved',
       CHANGES_REQUESTED: 'ChangesRequested',
@@ -251,22 +289,34 @@ export class ReviewTasksService {
       TASK_CANCELLED: 'Cancelled',
       COUNTED_CYCLE_ADJUSTED: 'CountedCycleAdjusted',
     };
+    // Each Request Changes closes a round, so an event belongs to round
+    // 1 + (decisions of that kind recorded before it). History can then be
+    // grouped by the round the event really happened in.
+    let round = 1;
     return logs.flatMap((log) => {
       const kind = kindByAction[log.action];
+      const eventRound = round;
+      if (log.action === 'CHANGES_REQUESTED') round += 1;
       if (!kind || !log.userId) return [];
       const metadata =
         log.metadata && typeof log.metadata === 'object' && !Array.isArray(log.metadata)
           ? log.metadata
           : null;
+      const values =
+        log.newValues && typeof log.newValues === 'object' && !Array.isArray(log.newValues)
+          ? log.newValues
+          : null;
+      const reason = metadata?.['reason'] ?? values?.['reason'];
       return [
         {
           id: log.id,
           taskId: id,
           kind,
-          reviewCycle: Math.max(task.currentReviewCycle, 1),
+          reviewCycle: eventRound,
           actorId: log.userId,
           actorName: log.actorName,
-          note: log.description,
+          // The admin's or reviewer's own words when there are any.
+          note: typeof reason === 'string' && reason.trim() !== '' ? reason : null,
           occurredAt: log.createdAt.toISOString(),
           ...(kind === 'CountedCycleAdjusted' && metadata
             ? {
@@ -285,7 +335,7 @@ export class ReviewTasksService {
   async findAttachments(id: string, user: AuthenticatedUser) {
     const task = await this.getTask(id);
     if (!mayReadTask(user, task))
-      throw new ForbiddenException('You cannot access this review task');
+      throw new ApiException('TASK_NOT_FOUND', 'Task not found.');
     const rows = await this.prisma.taskAttachment.findMany({
       where: { taskId: id },
       orderBy: [{ uploadedAt: 'asc' }, { id: 'asc' }],
@@ -300,8 +350,22 @@ export class ReviewTasksService {
     const mimeType = typeof body['mimeType'] === 'string' ? body['mimeType'].trim() : '';
     const storageRef = typeof body['dataUrl'] === 'string' ? body['dataUrl'] : '';
     const sizeBytes = typeof body['sizeBytes'] === 'number' ? body['sizeBytes'] : -1;
-    if (!fileName || !mimeType.startsWith('image/') || !storageRef || sizeBytes < 0) {
+    if (!fileName || !storageRef || sizeBytes < 0) {
       throw new ApiException('VALIDATION_FAILED', 'Provide a valid image attachment');
+    }
+    // Same caps as the web client (lib/attachments.ts rejectAttachment).
+    const existingCount = await this.prisma.taskAttachment.count({ where: { taskId: task.id } });
+    if (existingCount >= MAX_SCREENSHOTS_PER_REVIEW) {
+      throw new ApiException(
+        'ATTACHMENT_REJECTED',
+        `A task can have at most ${String(MAX_SCREENSHOTS_PER_REVIEW)} attachments.`,
+      );
+    }
+    if (!(ALLOWED_IMAGE_MIME_TYPES as readonly string[]).includes(mimeType)) {
+      throw new ApiException('ATTACHMENT_REJECTED', 'Only PNG, JPEG, GIF and WebP images can be attached.');
+    }
+    if (sizeBytes > MAX_SCREENSHOT_BYTES) {
+      throw new ApiException('ATTACHMENT_REJECTED', 'Each image must be 5 MB or smaller.');
     }
     await this.prisma.taskAttachment.create({
       data: { taskId: task.id, fileName, mimeType, storageRef, sizeBytes, uploadedById: user.id },
@@ -360,9 +424,11 @@ export class ReviewTasksService {
             if (!developer) throw new NotFoundException(`Developer ${developerId} was not found`);
 
             const hasChecklist = this.hasChecklistPayload(dto);
-            const checklistCompleted = hasChecklist
+            const checklist = hasChecklist
               ? await this.validateChecklist(tx, dto.taskTypeIds!, dto.checklistAnswers!)
-              : false;
+              : null;
+            const checklistCompleted = checklist?.complete ?? false;
+            const checklistAnswers = checklist?.answers ?? [];
             const aggregate = await tx.task.aggregate({
               where: { customerId: dto.customerId },
               _max: { customerSequenceNo: true },
@@ -382,6 +448,7 @@ export class ReviewTasksService {
                 checklistCompleted,
                 customerId: dto.customerId,
                 developerId,
+                noteToReviewer: normalizeNote(dto.noteToReviewer),
                 ...(hasChecklist
                   ? {
                       ...(dto.taskTypeIds!.length > 0
@@ -400,8 +467,8 @@ export class ReviewTasksService {
                             : ChecklistStatus.DRAFT,
                           checkedDate: checklistCompleted ? new Date() : null,
                           completedAt: checklistCompleted ? new Date() : null,
-                          ...(dto.checklistAnswers!.length > 0
-                            ? { answers: { create: dto.checklistAnswers! } }
+                          ...(checklistAnswers.length > 0
+                            ? { answers: { create: checklistAnswers } }
                             : {}),
                         },
                       },
@@ -458,10 +525,10 @@ export class ReviewTasksService {
   }
 
   async update(id: string, dto: UpdateReviewTaskDto, user: AuthenticatedUser) {
-    const authorisedTask = await this.getTask(id);
-    if (!hasAdminAccess(user) && authorisedTask.developerId !== user.id) {
-      throw new ForbiddenException('You cannot update this review task');
-    }
+    // Only the owning developer edits, and only while the task is theirs to
+    // change: a Draft, or ChangesRequested. Everything after submit is the
+    // reviewer's record.
+    await this.getEditableTask(id, user);
     try {
       return await this.prisma.$transaction(
         async (tx) => {
@@ -488,9 +555,11 @@ export class ReviewTasksService {
           }
 
           const hasChecklist = this.hasChecklistPayload(dto);
-          const checklistCompleted = hasChecklist
+          const checklist = hasChecklist
             ? await this.validateChecklist(tx, dto.taskTypeIds!, dto.checklistAnswers!)
-            : existing.checklistCompleted;
+            : null;
+          const checklistCompleted = checklist?.complete ?? existing.checklistCompleted;
+          const checklistAnswers = checklist?.answers ?? [];
 
           const developerId = existing.developerId;
 
@@ -525,9 +594,9 @@ export class ReviewTasksService {
             await tx.checklistAnswer.deleteMany({
               where: { checklistId: existing.developerChecklist.id },
             });
-            if (dto.checklistAnswers!.length > 0) {
+            if (checklistAnswers.length > 0) {
               await tx.checklistAnswer.createMany({
-                data: dto.checklistAnswers!.map((answer) => ({
+                data: checklistAnswers.map((answer) => ({
                   ...answer,
                   checklistId: existing.developerChecklist!.id,
                 })),
@@ -554,8 +623,8 @@ export class ReviewTasksService {
                 data: {
                   ...checklistData,
                   taskId: id,
-                  ...(dto.checklistAnswers!.length > 0
-                    ? { answers: { create: dto.checklistAnswers! } }
+                  ...(checklistAnswers.length > 0
+                    ? { answers: { create: checklistAnswers } }
                     : {}),
                 },
               });
@@ -570,6 +639,9 @@ export class ReviewTasksService {
               title: this.taskTitle(customerCode, crimId, existing.version),
               crimId,
               ...(dto.priority === undefined ? {} : { priority: dto.priority }),
+              ...(dto.noteToReviewer === undefined
+                ? {}
+                : { noteToReviewer: normalizeNote(dto.noteToReviewer) }),
               developerId,
               ...(hasChecklist ? { checklistCompleted } : {}),
             },
@@ -593,7 +665,14 @@ export class ReviewTasksService {
     }
   }
 
-  async remove(id: string, actor: AuthenticatedUser): Promise<void> {
+  /**
+   * Two different powers share this route (frontend lib/taskPolicy.ts):
+   *  - the owning developer discards their own Draft, unless it carries
+   *    submitted evidence (409 DRAFT_HAS_SUBMITTED_EVIDENCE);
+   *  - the Super Admin permanently purges a Draft or Cancelled task that has no
+   *    workflow evidence (409 TASK_HAS_WORKFLOW_EVIDENCE), with a reason.
+   */
+  async remove(id: string, actor: AuthenticatedUser, reason?: string): Promise<void> {
     try {
       await this.prisma.$transaction(async (tx) => {
         const task = await tx.task.findUnique({
@@ -601,12 +680,37 @@ export class ReviewTasksService {
           include: { developerChecklist: true },
         });
         if (!task) throw new ApiException('TASK_NOT_FOUND', `Review task ${id} was not found`);
-        if (!hasAdminAccess(actor)) {
-          if (!actor.roles.includes('DEVELOPER') || task.developerId !== actor.id) {
-            throw new ForbiddenException('You cannot discard this review task');
+        const evidence = await this.workflowEvidence(tx, id);
+        const isOwnDraft =
+          actor.roles.includes('DEVELOPER') &&
+          task.developerId === actor.id &&
+          task.status === TaskStatus.DRAFT;
+        if (isOwnDraft) {
+          if (evidence.submitted) {
+            throw new ApiException(
+              'DRAFT_HAS_SUBMITTED_EVIDENCE',
+              'This draft has submitted evidence and cannot be discarded.',
+            );
           }
-          if (task.status !== TaskStatus.DRAFT || task.submittedAt !== null) {
-            throw new ForbiddenException('Only an unsubmitted draft can be discarded');
+        } else {
+          if (!actor.roles.includes('SUPER_ADMIN')) {
+            throw new ApiException('FORBIDDEN', 'You do not have access to purge tasks.');
+          }
+          if (
+            (task.status !== TaskStatus.DRAFT && task.status !== TaskStatus.CANCELLED) ||
+            evidence.submitted ||
+            evidence.workflow
+          ) {
+            throw new ApiException(
+              'TASK_HAS_WORKFLOW_EVIDENCE',
+              'Tasks with submitted review evidence, review comments, or workflow history cannot be permanently deleted.',
+            );
+          }
+          if (!reason?.trim()) {
+            throw new ApiException(
+              'REASON_REQUIRED',
+              'Provide a reason for permanently deleting this task.',
+            );
           }
         }
         if (task.developerChecklist) {
@@ -619,6 +723,8 @@ export class ReviewTasksService {
         }
         await tx.taskStatusHistory.deleteMany({ where: { taskId: id } });
         await tx.taskTaskType.deleteMany({ where: { taskId: id } });
+        await tx.taskAttachment.deleteMany({ where: { taskId: id } });
+        await tx.notification.deleteMany({ where: { taskId: id } });
         await tx.task.delete({ where: { id } });
         await this.audit.record(tx, actor, {
           actionType: 'TASK_DELETED',
@@ -627,6 +733,7 @@ export class ReviewTasksService {
           taskId: id,
           description: `${actor.name} deleted task '${task.title}'`,
           oldValue: { taskCode: task.taskCode },
+          metadata: { targetLabel: task.taskCode, ...reasonMetadata(reason) },
         });
       });
     } catch (error) {
@@ -636,8 +743,9 @@ export class ReviewTasksService {
 
   async submit(id: string, user: AuthenticatedUser) {
     const task = await this.getTask(id);
-    if (!hasAdminAccess(user) && task.developerId !== user.id) {
-      throw new ForbiddenException('You cannot submit this review task');
+    // Submitting is the owning developer's act (frontend canSubmitTask).
+    if (task.developerId !== user.id) {
+      throw new ApiException('FORBIDDEN', 'Only the owning developer may submit this task.');
     }
     const isResubmission = task.status === TaskStatus.CHANGES_REQUESTED;
     if (task.status !== TaskStatus.DRAFT && !isResubmission) {
@@ -649,39 +757,51 @@ export class ReviewTasksService {
         'Complete the quality checklist before submitting',
       );
     }
+    /*
+     * Resubmission routing (docs/25-review-assignment-rules.md): the task goes
+     * straight back to its follow-up reviewer — the one an admin chose, or else
+     * the reviewer who requested the changes — never to the open pool. Only if
+     * that reviewer is no longer eligible (should be unreachable: deactivation
+     * is blocked while they hold pending work) does it fall back to the pool,
+     * with the previous reviewer kept in history, the audit log and a notice to
+     * the admins.
+     */
     let resubmissionReviewerId: string | null = null;
+    let unavailableReviewer: { id: string; name: string } | null = null;
     if (isResubmission) {
       const latestChangesReview = await this.prisma.codeReviewForm.findFirst({
         where: { taskId: id, decision: 'CHANGES_REQUESTED' },
-        select: {
-          reviewerId: true,
-          reviewer: {
-            select: {
-              status: true,
-              deletedAt: true,
-              userRoles: {
-                where: { role: { code: 'REVIEWER', deletedAt: null } },
-                select: { roleId: true },
-              },
-            },
-          },
-          findings: { select: { id: true } },
-        },
+        select: { reviewerId: true, findings: { select: { id: true } } },
         orderBy: [{ reviewCycleNumber: 'desc' }, { completedAt: 'desc' }],
       });
       if (!latestChangesReview) {
-        throw new ConflictException('No previous changes-requested review was found');
+        throw new ApiException('INVALID_STATE', 'No previous changes-requested review was found.');
       }
-      if (
-        latestChangesReview.reviewer.status !== 'ACTIVE' ||
-        latestChangesReview.reviewer.deletedAt !== null ||
-        latestChangesReview.reviewer.userRoles.length === 0
-      ) {
-        throw new ConflictException(
-          'The reviewer who requested changes is no longer eligible for assignment',
-        );
+      const followUpId = task.resubmissionReviewerId ?? latestChangesReview.reviewerId;
+      const followUp = await this.prisma.user.findUnique({
+        where: { id: followUpId },
+        select: {
+          id: true,
+          fullName: true,
+          status: true,
+          deletedAt: true,
+          userRoles: {
+            where: { role: { code: 'REVIEWER', deletedAt: null } },
+            select: { roleId: true },
+          },
+        },
+      });
+      const isEligible =
+        followUp !== null &&
+        followUp.status === 'ACTIVE' &&
+        followUp.deletedAt === null &&
+        followUp.userRoles.length > 0 &&
+        followUp.id !== task.developerId;
+      if (isEligible) {
+        resubmissionReviewerId = followUp.id;
+      } else {
+        unavailableReviewer = { id: followUpId, name: followUp?.fullName ?? 'the previous reviewer' };
       }
-      resubmissionReviewerId = latestChangesReview.reviewerId;
       const findingIds = latestChangesReview.findings.map(({ id: findingId }) => findingId);
       const responses = await this.prisma.developerFindingResponse.findMany({
         where: {
@@ -740,6 +860,7 @@ export class ReviewTasksService {
         data: {
           status: nextStatus,
           submittedAt: now,
+          resubmissionReviewerId: null,
           statusHistory: {
             create: {
               oldStatus: task.status,
@@ -751,6 +872,63 @@ export class ReviewTasksService {
         },
         include: taskInclude,
       });
+      if (isResubmission && unavailableReviewer !== null) {
+        // Pool fallback: nobody holds the task now, and the previous reviewer's
+        // name stays on the record.
+        await tx.taskReviewerAssignment.updateMany({
+          where: { taskId: id, isCurrent: true },
+          data: { isCurrent: false, unassignedAt: now },
+        });
+        await tx.notification.deleteMany({
+          where: {
+            taskId: id,
+            notificationType: NotificationType.TASK_RESUBMITTED,
+            id: { notIn: existingResubmissionNotifications.map(({ id }) => id) },
+          },
+        });
+        await tx.taskStatusHistory.create({
+          data: {
+            taskId: id,
+            oldStatus: TaskStatus.RESUBMITTED,
+            newStatus: TaskStatus.RESUBMITTED,
+            changedBy: user.id,
+            remarks: `Original reviewer ${unavailableReviewer.name} unavailable; returned to the review pool`,
+          },
+        });
+        await this.audit.record(tx, user, {
+          actionType: 'RESUBMISSION_REVIEWER_UNAVAILABLE',
+          entityType: 'TASK',
+          entityId: id,
+          taskId: id,
+          targetUserId: unavailableReviewer.id,
+          description: `${task.title} returned to the review pool: ${unavailableReviewer.name} is no longer an eligible reviewer`,
+          metadata: {
+            previousReviewerId: unavailableReviewer.id,
+            previousReviewerName: unavailableReviewer.name,
+            reason: `${unavailableReviewer.name} is no longer an eligible reviewer`,
+          },
+        });
+        const admins = await tx.user.findMany({
+          where: {
+            status: 'ACTIVE',
+            deletedAt: null,
+            userRoles: {
+              some: { role: { code: { in: ['ADMIN', 'SUPER_ADMIN'] }, deletedAt: null } },
+            },
+          },
+          select: { id: true },
+        });
+        await this.notifications.createMany(
+          tx,
+          admins.map(({ id: recipientId }) => ({
+            taskId: id,
+            recipientId,
+            type: NotificationType.TASK_RESUBMITTED,
+            title: `${task.title} resubmitted to the review pool`,
+            message: `${unavailableReviewer.name} is no longer available, so any reviewer can pick it up.`,
+          })),
+        );
+      }
       if (isResubmission && resubmissionReviewerId !== null) {
         await tx.notification.deleteMany({
           where: {
@@ -1038,14 +1216,24 @@ export class ReviewTasksService {
       });
       if (!task) throw new ApiException('TASK_NOT_FOUND', `Review task ${id} was not found`);
       if (task.handovers.length > 0) {
-        throw new ConflictException('Use the handover reassignment action for this task');
+        throw new ApiException('INVALID_STATE', 'Use the handover reassignment action for this task.');
+      }
+      if (task.status === TaskStatus.CHANGES_REQUESTED) {
+        throw new ApiException(
+          'CHANGES_REQUESTED_ACTIVE',
+          'The developer is addressing requested changes. Change the follow-up reviewer instead.',
+        );
       }
       if (
         task.status !== TaskStatus.SUBMITTED &&
         task.status !== TaskStatus.RESUBMITTED &&
         task.status !== TaskStatus.IN_REVIEW
       ) {
-        throw new ConflictException('This task cannot be assigned in its current state');
+        throw new ApiException('INVALID_STATE', 'This task cannot be assigned in its current state.');
+      }
+      // Taking a review away from someone mid-way needs a recorded reason.
+      if (task.status === TaskStatus.IN_REVIEW && !reason?.trim()) {
+        throw new ApiException('REASON_REQUIRED', 'Provide a reason for reassigning this review.');
       }
 
       const reviewer = await tx.user.findFirst({
@@ -1057,12 +1245,12 @@ export class ReviewTasksService {
         },
         select: { id: true, fullName: true },
       });
-      if (!reviewer) throw new BadRequestException('Select an active Reviewer');
+      if (!reviewer) throw new ApiException('INVALID_REVIEWER', 'Select an active Reviewer.');
       if (reviewer.id === task.developerId) {
-        throw new BadRequestException('A developer cannot review their own task');
+        throw new ApiException('SELF_REVIEW', 'A developer cannot review their own task.');
       }
       if (task.currentReviewerId === reviewer.id) {
-        throw new ConflictException(`${reviewer.fullName} is already assigned to this task`);
+        throw new ApiException('SAME_REVIEWER', `${reviewer.fullName} is already assigned to this task.`);
       }
 
       const isReassignment = task.currentReviewerId !== null;
@@ -1087,9 +1275,14 @@ export class ReviewTasksService {
           reviewCycleNumber: Math.max(task.currentReviewCycle, 1),
           status: 'DRAFT',
         },
+        // The new reviewer starts their own judgement: the previous reviewer's
+        // rank and carried-over note do not transfer.
         data: {
           reviewerId: reviewer.id,
           currentReviewSessionId: assignment.id,
+          reviewRank: null,
+          previousFeedbackReviewNote: null,
+          previousFeedbackAcknowledged: null,
         },
       });
       await tx.task.update({
@@ -1126,6 +1319,101 @@ export class ReviewTasksService {
           status: TaskStatus.IN_REVIEW,
           ...(reason?.trim() ? { reason: reason.trim() } : {}),
         },
+      });
+
+      const updated = await tx.task.findUnique({ where: { id }, include: taskInclude });
+      if (!updated) throw new ApiException('TASK_NOT_FOUND', `Review task ${id} was not found`);
+      return this.toResponse(updated);
+    });
+  }
+
+  /**
+   * Admin transfer for a task awaiting resubmission: chooses who receives it
+   * when the developer resubmits. Used to clear a reviewer's pending work
+   * before they are deactivated (docs/25-review-assignment-rules.md).
+   */
+  async changeResubmissionReviewer(
+    id: string,
+    reviewerId: string,
+    actor: AuthenticatedUser,
+    reason?: string,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const task = await tx.task.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          developerId: true,
+          resubmissionReviewerId: true,
+          codeReviewForms: {
+            where: { decision: 'CHANGES_REQUESTED' },
+            orderBy: [{ reviewCycleNumber: 'desc' }, { completedAt: 'desc' }],
+            take: 1,
+            select: { reviewer: { select: { id: true, fullName: true } } },
+          },
+        },
+      });
+      if (!task) throw new ApiException('TASK_NOT_FOUND', `Review task ${id} was not found`);
+      if (task.status !== TaskStatus.CHANGES_REQUESTED) {
+        throw new ApiException(
+          'INVALID_STATE',
+          'Only a task awaiting resubmission has a follow-up reviewer.',
+        );
+      }
+      if (!reason?.trim()) {
+        throw new ApiException('REASON_REQUIRED', 'Provide a reason for changing the reviewer.');
+      }
+      const reviewer = await tx.user.findFirst({
+        where: {
+          id: reviewerId,
+          status: 'ACTIVE',
+          deletedAt: null,
+          userRoles: { some: { role: { code: 'REVIEWER', deletedAt: null } } },
+        },
+        select: { id: true, fullName: true },
+      });
+      if (!reviewer) throw new ApiException('INVALID_REVIEWER', 'Select an active Reviewer.');
+      if (reviewer.id === task.developerId) {
+        throw new ApiException('SELF_REVIEW', 'A developer cannot review their own task.');
+      }
+      const requester = task.codeReviewForms[0]?.reviewer ?? null;
+      const currentId = task.resubmissionReviewerId ?? requester?.id ?? null;
+      if (currentId === reviewer.id) {
+        throw new ApiException('SAME_REVIEWER', `${reviewer.fullName} already receives this task.`);
+      }
+      const previous = currentId
+        ? await tx.user.findUnique({ where: { id: currentId }, select: { fullName: true } })
+        : null;
+
+      await tx.task.update({ where: { id }, data: { resubmissionReviewerId: reviewer.id } });
+      await tx.taskStatusHistory.create({
+        data: {
+          taskId: id,
+          oldStatus: TaskStatus.CHANGES_REQUESTED,
+          newStatus: TaskStatus.CHANGES_REQUESTED,
+          changedBy: actor.id,
+          remarks: `Follow-up reviewer changed from ${previous?.fullName ?? 'none'} to ${reviewer.fullName}: ${reason.trim()}`,
+        },
+      });
+      await this.notifications.create(tx, {
+        taskId: id,
+        recipientId: reviewer.id,
+        type: NotificationType.TASK_ASSIGNED,
+        title: `${task.title} will return to you on resubmission`,
+        message: `${actor.name} made you the follow-up reviewer for this task.`,
+      });
+      await this.audit.record(tx, actor, {
+        actionType: 'RESUBMISSION_REVIEWER_CHANGED',
+        entityType: 'TASK',
+        entityId: id,
+        taskId: id,
+        targetUserId: reviewer.id,
+        description: `${actor.name} changed the follow-up reviewer of '${task.title}' from ${previous?.fullName ?? 'none'} to ${reviewer.fullName}`,
+        oldValue: { reviewerId: currentId, reviewerName: previous?.fullName ?? null },
+        newValue: { reviewerId: reviewer.id, reviewerName: reviewer.fullName },
+        metadata: { targetLabel: task.title, reason: reason.trim() },
       });
 
       const updated = await tx.task.findUnique({ where: { id }, include: taskInclude });
@@ -1171,9 +1459,20 @@ export class ReviewTasksService {
         },
         data: { currentReviewSessionId: null },
       });
+      // A cancelled task leaves nothing open behind it: its pending handover is
+      // closed so the admin queue does not keep a dead item.
+      await tx.handoverTask.updateMany({
+        where: { taskId: id, status: HandoverStatus.PENDING },
+        data: { status: HandoverStatus.CANCELLED },
+      });
       await tx.task.update({
         where: { id },
-        data: { status: TaskStatus.CANCELLED, currentReviewerId: null },
+        data: {
+          status: TaskStatus.CANCELLED,
+          currentReviewerId: null,
+          resubmissionReviewerId: null,
+          cancelledAt: now,
+        },
       });
       await tx.taskStatusHistory.create({
         data: {
@@ -1408,6 +1707,36 @@ export class ReviewTasksService {
     };
   }
 
+  /**
+   * History belongs to whoever made the latest decision: an earlier reviewer
+   * of a task someone else has since decided no longer lists it as theirs.
+   */
+  private latestDeciderOnly(tasks: TaskWithRelations[], user: AuthenticatedUser) {
+    return tasks.filter((task) => {
+      if (task.status !== TaskStatus.APPROVED && task.status !== TaskStatus.CHANGES_REQUESTED) {
+        return true;
+      }
+      const decided = task.codeReviewForms.filter(({ decision }) => decision !== null);
+      return decided.at(-1)?.reviewerId === user.id;
+    });
+  }
+
+  /** What a task has accumulated that makes deleting it erase history. */
+  private async workflowEvidence(tx: Prisma.TransactionClient, taskId: string) {
+    const [submissions, decided, forms, responses, handovers, assignments] = await Promise.all([
+      tx.auditLog.count({ where: { taskId, action: { in: ['TASK_SUBMITTED', 'TASK_RESUBMITTED'] } } }),
+      tx.codeReviewForm.count({ where: { taskId, decision: { not: null } } }),
+      tx.codeReviewForm.count({ where: { taskId } }),
+      tx.developerFindingResponse.count({ where: { finding: { reviewForm: { taskId } } } }),
+      tx.handoverTask.count({ where: { taskId } }),
+      tx.taskReviewerAssignment.count({ where: { taskId } }),
+    ]);
+    return {
+      submitted: submissions > 0 || decided > 0,
+      workflow: forms > 0 || responses > 0 || handovers > 0 || assignments > 0,
+    };
+  }
+
   private hasChecklistPayload(dto: UpdateReviewTaskDto): boolean {
     const hasTaskTypes = dto.taskTypeIds !== undefined;
     const hasAnswers = dto.checklistAnswers !== undefined;
@@ -1564,7 +1893,7 @@ export class ReviewTasksService {
       isHandedOver: task.handovers.some(({ status }) => status === HandoverStatus.PENDING),
       handedOverByName:
         previousAdminAssignedReviewer ?? task.handovers[0]?.fromReviewer.fullName ?? null,
-      noteToReviewer: null,
+      noteToReviewer: task.noteToReviewer,
       createdAt: task.createdAt.toISOString(),
       submittedAt: task.submittedAt?.toISOString() ?? null,
       updatedAt: task.updatedAt.toISOString(),
@@ -1576,11 +1905,17 @@ export class ReviewTasksService {
     };
   }
 
+  /**
+   * Checks the task types and returns the answers that apply to them, plus
+   * whether every applicable question is answered. Answers to questions that
+   * no longer apply (the developer deselected a task type) are dropped, not
+   * rejected — the wizard keeps them client-side so reselecting restores them.
+   */
   private async validateChecklist(
     tx: Prisma.TransactionClient,
     taskTypeIds: number[],
     answers: ChecklistAnswerDto[],
-  ): Promise<boolean> {
+  ): Promise<{ complete: boolean; answers: ChecklistAnswerDto[] }> {
     const taskTypes = await tx.taskType.findMany({
       where: { id: { in: taskTypeIds }, isActive: true },
       select: { id: true },
@@ -1607,16 +1942,9 @@ export class ReviewTasksService {
       select: { id: true },
     });
     const requiredIds = new Set(questions.map(({ id }) => id));
-    const answeredIds = new Set(answers.map(({ questionId }) => questionId));
+    const applicable = answers.filter(({ questionId }) => requiredIds.has(questionId));
+    const answeredIds = new Set(applicable.map(({ questionId }) => questionId));
     const missing = [...requiredIds].filter((id) => !answeredIds.has(id));
-    const invalid = [...answeredIds].filter((id) => !requiredIds.has(id));
-    if (invalid.length) {
-      throw new ApiException(
-        'CHECKLIST_INCOMPLETE',
-        'Checklist answers must match applicable active questions',
-        [{ invalidQuestionIds: invalid }],
-      );
-    }
-    return taskTypeIds.length > 0 && missing.length === 0;
+    return { complete: taskTypeIds.length > 0 && missing.length === 0, answers: applicable };
   }
 }

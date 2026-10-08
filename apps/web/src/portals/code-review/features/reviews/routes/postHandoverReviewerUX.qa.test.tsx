@@ -76,14 +76,16 @@ describe('POST-HANDOVER REVIEWER UX QA SUITE', () => {
     ).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: /Clear Rank & Hand Over/i }));
 
-    expect(within(dialog).getByRole('heading', { name: /Hand Over Review/i })).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole('heading', { name: /Hand this review over/i }),
+    ).toBeInTheDocument();
 
     // Type reason
-    const reasonInput = within(dialog).getByRole('textbox', { name: /reason for handover/i });
+    const reasonInput = within(dialog).getByRole('textbox', { name: /^reason$/i });
     await user.type(reasonInput, 'Medical leave - transferring to team');
 
     // Confirm Handover
-    const confirmBtn = within(dialog).getByRole('button', { name: /hand over review/i });
+    const confirmBtn = within(dialog).getByRole('button', { name: /^hand over$/i });
     await user.click(confirmBtn);
 
     // Modal switches to success acknowledgement
@@ -171,7 +173,9 @@ describe('POST-HANDOVER REVIEWER UX QA SUITE', () => {
     // Click Back to Dashboard
     const backBtn = screen.getByRole('button', { name: /Back to Reviewer Dashboard/i });
     await user.click(backBtn);
-    expect(router.state.location.pathname).toBe('/crp/reviewer');
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe('/crp/reviewer');
+    });
   });
 
   it('3. After Admin reassigns task to Reviewer B, Reviewer A revisiting old URL sees clean access state with no active review workspace', async () => {
@@ -226,17 +230,17 @@ describe('POST-HANDOVER REVIEWER UX QA SUITE', () => {
     await user.click(handoverBtn);
 
     const dialog = await screen.findByRole('dialog');
-    const reasonInput = within(dialog).getByRole('textbox', { name: /reason for handover/i });
+    const reasonInput = within(dialog).getByRole('textbox', { name: /^reason$/i });
     await user.type(reasonInput, 'Need reassignment');
 
-    const confirmBtn = within(dialog).getByRole('button', { name: /hand over review/i });
+    const confirmBtn = within(dialog).getByRole('button', { name: /^hand over$/i });
     await user.click(confirmBtn);
 
     // Dialog stays open, error is shown, user does NOT navigate
     await waitFor(() => {
       expect(screen.getByText(/Database connection failed/i)).toBeInTheDocument();
     });
-    expect(within(dialog).getByRole('textbox', { name: /reason for handover/i })).toHaveValue(
+    expect(within(dialog).getByRole('textbox', { name: /^reason$/i })).toHaveValue(
       'Need reassignment',
     );
     expect(router.state.location.pathname).toBe(`/crp/reviewer/tasks/${TARGET_TASK}`);
@@ -262,10 +266,10 @@ describe('POST-HANDOVER REVIEWER UX QA SUITE', () => {
     await user.click(within(dialog).getByRole('button', { name: /Clear Rank & Hand Over/i }));
 
     await user.type(
-      within(dialog).getByRole('textbox', { name: /reason for handover/i }),
+      within(dialog).getByRole('textbox', { name: /^reason$/i }),
       'Handing over to concurrency specialist',
     );
-    await user.click(within(dialog).getByRole('button', { name: /hand over review/i }));
+    await user.click(within(dialog).getByRole('button', { name: /^hand over$/i }));
 
     await waitFor(() => {
       expect(db.tasks.find((t) => t.id === TARGET_TASK)?.isHandedOver).toBe(true);

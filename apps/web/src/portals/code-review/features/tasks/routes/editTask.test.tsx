@@ -141,9 +141,9 @@ describe('reopening a task in the wizard', () => {
 
     // Check that title indicates editing existing task, and back button returns to Task Overview
     expect(await screen.findByRole('heading', { name: /edit review task/i })).toBeInTheDocument();
-    expect(
-      screen.getAllByRole('button', { name: /back to task overview/i }).length,
-    ).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: /back to task overview/i }).length).toBeGreaterThan(
+      0,
+    );
   });
 
   it('refuses a task belonging to another developer', async () => {

@@ -78,10 +78,11 @@ export function taskMetrics(items: readonly TaskListItem[]): TaskMetrics {
   const submitted = items.filter((task) => SUBMITTED_STATUSES.includes(task.status)).length;
 
   // Approved tasks only — see `byCycle` on the interface above.
-  const cycles = { one: 0, two: 0, threePlus: 0 };
+  const cycles = { zero: 0, one: 0, two: 0, threePlus: 0 };
   for (const task of approvedTasks) {
-    const cycleCount = task.countedCycle;
-    if (cycleCount <= 1) cycles.one += 1;
+    const cycleCount = task.reviewCycle ?? task.countedCycle;
+    if (cycleCount === 0) cycles.zero += 1;
+    else if (cycleCount === 1) cycles.one += 1;
     else if (cycleCount === 2) cycles.two += 1;
     else cycles.threePlus += 1;
   }
@@ -89,12 +90,14 @@ export function taskMetrics(items: readonly TaskListItem[]): TaskMetrics {
   const averageCycles =
     approvedTasks.length === 0
       ? null
-      : approvedTasks.reduce((sum, task) => sum + task.countedCycle, 0) / approvedTasks.length;
+      : approvedTasks.reduce((sum, task) => sum + (task.reviewCycle ?? task.countedCycle), 0) /
+        approvedTasks.length;
 
   return {
     total: items.length,
     byStatus,
     byCycle: [
+      { label: '0', count: cycles.zero },
       { label: '1', count: cycles.one },
       { label: '2', count: cycles.two },
       { label: '3+', count: cycles.threePlus },

@@ -17,6 +17,7 @@ import { UpdateUserDto } from './dto/update-user.dto.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import type { AuthenticatedUser } from '../auth/auth.types.js';
+import { ReasonDto } from '../../common/dto/reason.dto.js';
 
 @ApiTags('Users')
 @Controller('users')
@@ -46,7 +47,11 @@ export class UsersController {
   @Roles('SUPER_ADMIN')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiNoContentResponse()
-  async remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() actor: AuthenticatedUser) {
-    await this.users.remove(id, actor);
+  async remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ReasonDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    await this.users.remove(id, actor, dto.reason);
   }
 }

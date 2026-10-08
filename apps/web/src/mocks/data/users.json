@@ -165,10 +165,7 @@
     "id": "u-qa-superadmin",
     "name": "QA Super Admin",
     "email": "qa.superadmin@sebsaworld.com",
-    "roles": [
-      "Admin",
-      "SuperAdmin"
-    ],
+    "roles": ["SuperAdmin"],
     "isActive": true,
     "createdAt": "2026-09-22T09:01:00.000Z"
   },
@@ -176,11 +173,7 @@
     "id": "u-qa-superreviewer",
     "name": "QA Super Admin Reviewer",
     "email": "qa.superreviewer@sebsaworld.com",
-    "roles": [
-      "Admin",
-      "SuperAdmin",
-      "Reviewer"
-    ],
+    "roles": ["Admin", "Reviewer"],
     "isActive": true,
     "createdAt": "2026-09-22T09:02:00.000Z"
   }

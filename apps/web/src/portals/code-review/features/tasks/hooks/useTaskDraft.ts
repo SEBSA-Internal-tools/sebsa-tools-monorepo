@@ -51,7 +51,7 @@ export interface TaskDraftState {
   noteToReviewer: string;
 
   setDetails: (
-    details: Partial<Pick<TaskDraftState, 'customerId' | 'crimId' | 'priority'>>,
+    details: Partial<Pick<TaskDraftState, 'customerId' | 'crimId' | 'version' | 'priority'>>,
   ) => void;
   setTaskId: (
     taskId: string,

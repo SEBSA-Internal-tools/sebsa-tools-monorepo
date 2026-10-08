@@ -14,8 +14,33 @@ import { z } from 'zod';
 /* Wireframes show one user as "Developer • Reviewer • Admin" simultaneously.  */
 /* -------------------------------------------------------------------------- */
 export const ROLES = ['Developer', 'Reviewer', 'Admin', 'SuperAdmin'] as const;
-export const roleSchema = z.enum(ROLES);
-export type Role = z.infer<typeof roleSchema>;
+export type Role = (typeof ROLES)[number];
+
+/** Role codes as NestJS stores and accepts them (apps/api auth.constants.ts). */
+export const ROLE_CODE_BY_ROLE = {
+  Developer: 'DEVELOPER',
+  Reviewer: 'REVIEWER',
+  Admin: 'ADMIN',
+  SuperAdmin: 'SUPER_ADMIN',
+} as const satisfies Record<Role, string>;
+export type RoleCode = (typeof ROLE_CODE_BY_ROLE)[Role];
+
+/**
+ * NestJS serialises roles as display labels (`SUPER_ADMIN` → 'Super Admin')
+ * and accepts codes on writes. The client keeps identifier-style keys, so both
+ * spellings are normalised here, once, at the parse boundary.
+ */
+const ROLE_ALIASES: Readonly<Record<string, Role>> = {
+  'Super Admin': 'SuperAdmin',
+  ...Object.fromEntries(
+    (Object.entries(ROLE_CODE_BY_ROLE) as [Role, RoleCode][]).map(([role, code]) => [code, role]),
+  ),
+};
+
+export const roleSchema = z.preprocess(
+  (value) => (typeof value === 'string' ? (ROLE_ALIASES[value] ?? value) : value),
+  z.enum(ROLES),
+);
 
 export const PORTAL_IDS = ['code-review', 'delivery', 'wiki'] as const;
 export const portalIdSchema = z.enum(PORTAL_IDS);

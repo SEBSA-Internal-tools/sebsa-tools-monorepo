@@ -10,7 +10,6 @@ import { authSecret, authSettings } from './auth.config.js';
 import { ROLE_LABELS, type RoleCode } from './auth.constants.js';
 import type { JwtPayload } from './auth.types.js';
 import type { LoginDto } from './dto/login.dto.js';
-import type { RegisterDto } from './dto/register.dto.js';
 
 const userWithRoles = {
   userRoles: { where: { role: { deletedAt: null } }, include: { role: true } },
@@ -38,39 +37,24 @@ export class AuthService {
     private readonly config: ConfigService,
   ) {}
 
-  async register(dto: RegisterDto, metadata: RequestMetadata) {
-    const passwordHash = await this.hashPassword(dto.password);
-    let user: UserWithRoles;
-    try {
-      user = await this.prisma.user.create({
-        data: {
-          email: dto.email.trim().toLowerCase(),
-          fullName: dto.fullName.trim(),
-          passwordHash,
-          userRoles: {
-            create: { role: { connect: { code: 'DEVELOPER', deletedAt: null } } },
-          },
-        },
-        include: userWithRoles,
-      });
-    } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ApiException('VALIDATION_FAILED', 'An account with this email already exists');
-      }
-      throw error;
-    }
-    const tokens = await this.createSession(user.id, false, metadata);
-    return { user: this.toCurrentUser(user), tokens };
-  }
-
   async login(dto: LoginDto, metadata: RequestMetadata) {
     const user = await this.prisma.user.findFirst({
       where: { email: dto.email.trim().toLowerCase(), deletedAt: null },
       include: userWithRoles,
     });
-    if (!user?.passwordHash || user.status !== 'ACTIVE') this.invalidCredentials();
+    // One message for every credential failure: distinguishing "no such
+    // account" from "wrong password" would let anyone enumerate who works here.
+    // An INVITED account has no password yet, so it fails here too.
+    if (!user?.passwordHash) this.invalidCredentials();
     const valid = await verify(user.passwordHash, dto.password);
     if (!valid) this.invalidCredentials();
+    // Only someone who proved the password learns the account is switched off.
+    if (user.status !== 'ACTIVE') {
+      throw new ApiException(
+        'ACCOUNT_INACTIVE',
+        'Authentication failed or user account not configured. Please contact your administrator.',
+      );
+    }
 
     await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
     const tokens = await this.createSession(user.id, dto.remember ?? false, metadata);
@@ -195,15 +179,11 @@ export class AuthService {
     };
   }
 
-  private hashPassword(password: string) {
-    return hash(password, { type: argon2id, memoryCost: 19_456, timeCost: 2, parallelism: 1 });
-  }
-
   private hashToken(token: string) {
     return hash(token, { type: argon2id, memoryCost: 19_456, timeCost: 2, parallelism: 1 });
   }
 
   private invalidCredentials(): never {
-    throw new UnauthorizedException('Invalid email or password');
+    throw new ApiException('INVALID_CREDENTIALS', 'Invalid email or password.');
   }
 }

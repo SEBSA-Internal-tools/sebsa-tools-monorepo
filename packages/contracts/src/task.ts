@@ -6,18 +6,18 @@ import { prioritySchema, taskStatusSchema, taskTypeIdSchema, MAX_VERSION_CHARS }
 /* Task                                                                        */
 /* -------------------------------------------------------------------------- */
 
-export const taskSchema = z.object({
+const taskShape = {
   id: idSchema,
 
   /**
-   * Human-facing identifier, e.g. "AASL-019". Format is
-   * `<customer.code>-<zero-padded per-customer sequence>` (spec §2.2.3 seq 1).
+   * Human-facing identifier, e.g. "CUSTOMER-01". Format is
+   * `<normalized customer name>-<zero-padded per-customer sequence>`.
    * Generated server-side inside the create transaction — never by the client,
    * because the sequence is a shared counter (plan risk R2).
    */
   taskCode: z.string().min(1),
 
-  /** Derived server-side. Legacy records retain their historical title format. */
+  /** Derived: `Customer – CRIM ID – Version` (FL 2.5-01). Never user-editable. */
   title: z.string().min(1),
 
   crimId: z.string().min(1),
@@ -27,11 +27,17 @@ export const taskSchema = z.object({
   priority: prioritySchema,
   status: taskStatusSchema,
 
+  /** Number of persisted business cycles whose `counted` flag is true. */
+  reviewCycle: z.number().int().min(0).optional(),
+
+  /** Monotonic immutable review round (zero until a reviewer starts reviewing). */
+  historicalCycle: z.number().int().min(0).optional(),
+
   /** The actual chronological / historical review attempt sequence (monotonic, never decrements). */
   reviewRound: z.number().int().min(1).default(1),
 
-  /** Effective / business countable review cycle (can decrement on qualifying accepted rejections). */
-  countedCycle: z.number().int().min(1).default(1),
+  /** Presentation alias for `reviewCycle`; kept synchronized at the contract boundary. */
+  countedCycle: z.number().int().min(0).default(0),
 
   /** Tracks which historical review rounds have received an accepted-rejection decrement (idempotency). */
   adjustedCycles: z.array(z.number().int()).default([]),
@@ -64,26 +70,54 @@ export const taskSchema = z.object({
   createdAt: isoDateTimeSchema,
   submittedAt: isoDateTimeSchema.nullable(),
   updatedAt: isoDateTimeSchema,
-});
+} as const;
+
+function normalizeTaskCycles(input: unknown): unknown {
+  if (typeof input !== 'object' || input === null || Array.isArray(input)) return input;
+
+  const task = input as Record<string, unknown>;
+  const reviewCycle = task['countedCycle'] ?? task['reviewCycle'] ?? 0;
+  const historicalCycle = task['reviewRound'] ?? task['historicalCycle'] ?? reviewCycle;
+  const reviewRound =
+    typeof historicalCycle === 'number' ? Math.max(1, historicalCycle) : historicalCycle;
+
+  return {
+    ...task,
+    reviewCycle,
+    historicalCycle,
+    reviewRound,
+    countedCycle: reviewCycle,
+  };
+}
+
+export const taskSchema = z.preprocess(normalizeTaskCycles, z.object(taskShape));
 export type Task = z.infer<typeof taskSchema>;
 
 /**
  * A task joined with the display fields every grid needs. Returned by list
  * endpoints so the frontend never has to fan out N+1 lookups to render a row.
  */
-export const taskListItemSchema = taskSchema.extend({
-  customerName: z.string(),
-  customerCode: z.string(),
-  customerColor: z.string(),
-  developerName: z.string(),
-  reviewerName: z.string().nullable(),
-});
+export const taskListItemSchema = z.preprocess(
+  normalizeTaskCycles,
+  z.object({
+    ...taskShape,
+    /** Previous reviewer shown beside tasks that have been handed over. */
+    handedOverByName: z.string().nullable().optional(),
+    customerName: z.string(),
+    customerCode: z.string(),
+    customerColor: z.string(),
+    developerName: z.string(),
+    reviewerName: z.string().nullable(),
+  }),
+);
 export type TaskListItem = z.infer<typeof taskListItemSchema>;
 
-/**
- * Canonical title for newly created tasks. The server remains authoritative;
- * clients use the same pure rule only to preview the value before persistence.
- */
+export const nextTaskVersionSchema = z.object({
+  version: z.number().int().min(0),
+  title: z.string().min(1),
+});
+export type NextTaskVersion = z.infer<typeof nextTaskVersionSchema>;
+
 export function deriveTaskTitle(
   customerCode: string,
   crimId: string,
@@ -94,13 +128,6 @@ export function deriveTaskTitle(
   if (normalizedVersion !== '') parts.push(normalizedVersion);
   return parts.join('-');
 }
-
-/** Preview returned for a new task identity. Creation still assigns authoritatively. */
-export const nextTaskVersionSchema = z.object({
-  version: z.number().int().min(0),
-  title: z.string().min(1),
-});
-export type NextTaskVersion = z.infer<typeof nextTaskVersionSchema>;
 
 /* -------------------------------------------------------------------------- */
 /* Create / update input                                                       */
@@ -116,6 +143,11 @@ export type NextTaskVersion = z.infer<typeof nextTaskVersionSchema>;
 export const taskDraftSchema = z.object({
   customerId: idSchema.min(1, 'Select a customer'),
   crimId: z.string().trim().min(1, 'Enter the CRIM ID'),
+  version: z
+    .string()
+    .trim()
+    .max(MAX_VERSION_CHARS, `Version must be ${MAX_VERSION_CHARS} characters or fewer`)
+    .optional(),
   priority: prioritySchema,
   /** Written on the review step; absent while the task is still being drafted. */
   noteToReviewer: z.string().trim().optional(),
@@ -174,22 +206,31 @@ export const TASK_EVENT_KINDS = [
 export const taskEventKindSchema = z.enum(TASK_EVENT_KINDS);
 export type TaskEventKind = z.infer<typeof taskEventKindSchema>;
 
-export const taskEventSchema = z.object({
-  id: idSchema,
-  taskId: idSchema,
-  kind: taskEventKindSchema,
-  /** Review round the event belongs to, so history can be grouped by round. */
-  reviewRound: z.number().int().min(1),
-  actorId: idSchema,
-  actorName: z.string(),
-  note: z.string().nullable(),
-  occurredAt: isoDateTimeSchema,
-  qualifyingReviewRound: z.number().int().min(1).optional(),
-  previousCountedCycle: z.number().int().min(1).optional(),
-  newCountedCycle: z.number().int().min(1).optional(),
-  adjustmentAmount: z.number().int().min(1).optional(),
-  reason: z.string().optional(),
-});
+function normalizeReviewRound(input: unknown): unknown {
+  if (typeof input !== 'object' || input === null || Array.isArray(input)) return input;
+  const value = input as Record<string, unknown>;
+  return { ...value, reviewRound: value['reviewRound'] ?? value['reviewCycle'] ?? 1 };
+}
+
+export const taskEventSchema = z.preprocess(
+  normalizeReviewRound,
+  z.object({
+    id: idSchema,
+    taskId: idSchema,
+    kind: taskEventKindSchema,
+    /** Review round the event belongs to, so history can be grouped by round. */
+    reviewRound: z.number().int().min(1),
+    actorId: idSchema,
+    actorName: z.string(),
+    note: z.string().nullable(),
+    occurredAt: isoDateTimeSchema,
+    qualifyingReviewRound: z.number().int().min(1).optional(),
+    previousCountedCycle: z.number().int().min(1).optional(),
+    newCountedCycle: z.number().int().min(0).optional(),
+    adjustmentAmount: z.number().int().min(1).optional(),
+    reason: z.string().optional(),
+  }),
+);
 export type TaskEvent = z.infer<typeof taskEventSchema>;
 
 /* -------------------------------------------------------------------------- */

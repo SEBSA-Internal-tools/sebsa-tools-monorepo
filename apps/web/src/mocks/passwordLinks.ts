@@ -2,7 +2,7 @@ import { delay, http, HttpResponse, type HttpHandler } from 'msw';
 import type { User } from '@sdp/contracts';
 import { db, findUser } from './db.ts';
 import { INVITE_VALID_HOURS, RESET_VALID_MINUTES } from '@/features/local-auth/config.ts';
-import { RULE_CODES, evaluatePassword } from '@/features/local-auth/domain/passwordRules.ts';
+import { failedPasswordRules, isPersonalPassword } from '@sdp/contracts';
 
 /**
  * One-time password links — the Phase 1 stand-in for the NestJS endpoints behind
@@ -283,21 +283,6 @@ async function readBody(request: Request): Promise<Record<string, unknown>> {
   }
 }
 
-/** Short, very common choices the policy rules alone would let through. */
-const COMMON_PASSWORDS = ['password', 'qwerty', 'letmein', 'welcome', 'admin', '123456', 'sebsa'];
-
-/** Contains the user's name or email, or a well-known password. */
-function isPersonal(password: string, user: User): boolean {
-  const lower = password.toLowerCase();
-  const local = user.email.split('@')[0]?.toLowerCase() ?? '';
-  const parts = [
-    ...local.split(/[^a-z0-9]+/),
-    ...user.name.toLowerCase().split(/\s+/),
-    ...COMMON_PASSWORDS,
-  ].filter((part) => part.length >= 3);
-  return parts.some((part) => lower.includes(part));
-}
-
 /* -------------------------------------------------------------- handlers */
 
 /**
@@ -339,13 +324,12 @@ export const passwordLinkHandlers: HttpHandler[] = [
       return authError(422, 'PASSWORD_POLICY', { failedRules: [] });
 
     // The server re-checks the policy; the browser's checklist is a convenience.
-    const results = evaluatePassword(newPassword);
-    const failedRules = RULE_CODES.filter((code) => !results[code]);
+    const failedRules = failedPasswordRules(newPassword);
     if (failedRules.length > 0) {
       link.failedAttempts += 1;
       return authError(422, 'PASSWORD_POLICY', { failedRules });
     }
-    if (isPersonal(newPassword, user)) {
+    if (isPersonalPassword(newPassword, user)) {
       link.failedAttempts += 1;
       return authError(422, 'PASSWORD_PERSONAL');
     }

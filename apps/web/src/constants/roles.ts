@@ -10,7 +10,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   Developer: 'Developer',
   Reviewer: 'Reviewer',
   Admin: 'Admin',
-  SuperAdmin: 'Super Admin',
+  SuperAdmin: 'SuperAdmin',
 };
 
 export function roleLabel(role: Role): string {

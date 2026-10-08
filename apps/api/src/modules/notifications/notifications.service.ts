@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import type { Notification, NotificationType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
 
@@ -6,6 +6,14 @@ type NotificationClient = Pick<Prisma.TransactionClient, 'notification'>;
 // Kept as a typed constant so this compiles before `prisma generate` has been
 // run for the accompanying enum migration in a fresh checkout.
 export const TASK_REASSIGNED_NOTIFICATION = 'TASK_REASSIGNED' as NotificationType;
+
+type NotificationWithTask = Notification & { task: { developerId: string } | null };
+
+interface RecipientContext {
+  id: string;
+  isAdmin: boolean;
+  isReviewer: boolean;
+}
 
 export interface CreateNotificationInput {
   taskId: string;
@@ -20,24 +28,37 @@ export class NotificationsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findAll(recipientId: string) {
-    const rows = await this.prisma.notification.findMany({
-      where: { recipientId },
-      orderBy: { createdAt: 'desc' },
-    });
-    return rows.map((row) => this.toResponse(row));
+    const [rows, recipient] = await Promise.all([
+      this.prisma.notification.findMany({
+        where: { recipientId },
+        include: { task: { select: { developerId: true } } },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.recipientRoles(recipientId),
+    ]);
+    return rows.map((row) => this.toResponse(row, recipient));
   }
 
   async markRead(id: string, recipientId: string) {
-    const owned = await this.prisma.notification.findFirst({ where: { id, recipientId } });
+    const owned = await this.prisma.notification.findUnique({
+      where: { id },
+      include: { task: { select: { developerId: true } } },
+    });
     if (!owned) throw new NotFoundException('Notification not found');
+    // Someone else's notification exists but is not yours to touch.
+    if (owned.recipientId !== recipientId) {
+      throw new ForbiddenException('This notification belongs to another user');
+    }
+    const recipient = await this.recipientRoles(recipientId);
 
     const row = owned.isRead
       ? owned
       : await this.prisma.notification.update({
           where: { id },
           data: { isRead: true, readAt: new Date() },
+          include: { task: { select: { developerId: true } } },
         });
-    return this.toResponse(row);
+    return this.toResponse(row, recipient);
   }
 
   async markAllRead(recipientId: string): Promise<void> {
@@ -72,7 +93,35 @@ export class NotificationsService {
     });
   }
 
-  private toResponse(row: Notification) {
+  private async recipientRoles(recipientId: string): Promise<RecipientContext> {
+    const roles = await this.prisma.userRole.findMany({
+      where: { userId: recipientId, role: { deletedAt: null } },
+      select: { role: { select: { code: true } } },
+    });
+    const codes = roles.map(({ role }) => role.code);
+    return {
+      id: recipientId,
+      isAdmin: codes.includes('ADMIN') || codes.includes('SUPER_ADMIN'),
+      isReviewer: codes.includes('REVIEWER'),
+    };
+  }
+
+  /**
+   * Where a notification takes this recipient: the screen for *their* part in
+   * the task (frontend mocks/handlers.ts). The developer opens their task, a
+   * reviewer the review, an admin the handover queue or the admin task view.
+   */
+  private hrefFor(row: NotificationWithTask, recipient: RecipientContext): string {
+    if (row.taskId === null) return '/crp';
+    const taskId = encodeURIComponent(row.taskId);
+    if (row.task?.developerId === recipient.id) return `/crp/developer/tasks/${taskId}`;
+    if (row.notificationType === 'TASK_HANDOVER' && recipient.isAdmin) return '/crp/admin/handovers';
+    if (recipient.isReviewer) return `/crp/reviewer/tasks/${taskId}`;
+    if (recipient.isAdmin) return `/crp/admin/tasks/${taskId}`;
+    return '/crp';
+  }
+
+  private toResponse(row: NotificationWithTask, recipient: RecipientContext) {
     const kind = {
       TASK_APPROVED: 'TaskApproved',
       CHANGES_REQUESTED: 'ChangesRequested',
@@ -85,16 +134,7 @@ export class NotificationsService {
       TASK_DELIVERED: 'TaskApproved',
     }[row.notificationType];
 
-    const href =
-      row.taskId === null
-        ? '/crp'
-        : row.notificationType === 'TASK_HANDOVER'
-          ? '/crp/admin/handovers'
-          : row.notificationType === 'TASK_APPROVED' ||
-              row.notificationType === 'CHANGES_REQUESTED' ||
-              row.notificationType === 'TASK_DELIVERED'
-            ? `/crp/developer/tasks/${row.taskId}`
-            : `/crp/reviewer/tasks/${row.taskId}`;
+    const href = this.hrefFor(row, recipient);
 
     return {
       id: row.id,

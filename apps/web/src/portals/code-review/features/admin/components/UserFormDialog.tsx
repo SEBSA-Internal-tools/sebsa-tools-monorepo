@@ -5,6 +5,7 @@ import {
   ROLES,
   createUserInputSchema,
   emailAddressSchema,
+  type PendingReviewTask,
   type Role,
   type User,
 } from '@sdp/contracts';
@@ -16,7 +17,9 @@ import { ApiError } from '@/lib/apiClient.ts';
 import { interpolate } from '@/lib/formatters.ts';
 import admin from '@/content/admin.json';
 import common from '@/content/common.json';
-import { useCreateUser, useUpdateUser } from '../api/queries.ts';
+import { useCreateUser, useReplaceUserRoles, useUpdateUser } from '../api/queries.ts';
+import { PendingReviewTasksNotice } from './PendingReviewTasksNotice.tsx';
+import { pendingReviewTasksFrom } from './pendingReviewTasks.ts';
 
 /**
  * Add User (screen 02's modal) and Edit User, which is the same three fields.
@@ -30,6 +33,10 @@ import { useCreateUser, useUpdateUser } from '../api/queries.ts';
  * the handler parses, so a message shown here is the message the server would
  * give. Creating a user does not set a password: the server makes the account
  * INVITED and emails a one-time link to the set-password screen.
+ *
+ * Editing saves the profile (PATCH /users/:id) and, only when the role set
+ * changed, the complete new set (PUT /users/:id/roles) — roles can be added, or
+ * removed from a user who holds more than one.
  */
 
 interface FormState {
@@ -40,7 +47,13 @@ interface FormState {
 }
 
 const EMPTY: FormState = { name: '', email: '', roles: [], reason: '' };
+
+/** Granting or removing these needs a written reason (kept in the audit log). */
 const PRIVILEGED_ROLES: readonly Role[] = ['Admin', 'SuperAdmin'];
+
+function sameRoles(a: readonly Role[], b: readonly Role[]): boolean {
+  return a.length === b.length && a.every((role) => b.includes(role));
+}
 
 /**
  * Mounted only while open, and keyed on the subject by the caller.
@@ -52,16 +65,21 @@ const PRIVILEGED_ROLES: readonly Role[] = ['Admin', 'SuperAdmin'];
  */
 export function UserFormDialog({
   user,
-  canManagePrivileged,
   onClose,
+  availableRoles = ['Developer', 'Reviewer'],
+  editRoles = true,
 }: {
   /** `null` creates; a user edits that user. */
   user: User | null;
-  canManagePrivileged: boolean;
   onClose: () => void;
+  /** Roles the signed-in admin may grant or revoke (Admin only for a Super Admin). */
+  availableRoles?: readonly Role[];
+  /** `false` for the Super Admin account, whose role changes only through Transfer. */
+  editRoles?: boolean;
 }) {
   const createUser = useCreateUser();
   const updateUser = useUpdateUser();
+  const replaceRoles = useReplaceUserRoles();
 
   const [form, setForm] = useState<FormState>(() =>
     user === null
@@ -69,17 +87,17 @@ export function UserFormDialog({
       : { name: user.name, email: user.email, roles: [...user.roles], reason: '' },
   );
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
+  const [pendingTasks, setPendingTasks] = useState<PendingReviewTask[] | null>(null);
 
-  const isPending = createUser.isPending || updateUser.isPending;
-  const availableRoles = canManagePrivileged
-    ? ROLES
-    : ROLES.filter((role) => role === 'Developer' || role === 'Reviewer');
+  const isPending = createUser.isPending || updateUser.isPending || replaceRoles.isPending;
+  const rolesChanged = user !== null && editRoles && !sameRoles(user.roles, form.roles);
   const privilegedChange =
     user === null
       ? form.roles.some((role) => PRIVILEGED_ROLES.includes(role))
-      : PRIVILEGED_ROLES.some((role) => user.roles.includes(role) !== form.roles.includes(role));
+      : rolesChanged &&
+        PRIVILEGED_ROLES.some((role) => user.roles.includes(role) !== form.roles.includes(role));
 
-  function submit() {
+  async function submit() {
     if (privilegedChange && form.reason.trim() === '') {
       setErrors((current) => ({ ...current, reason: admin.users.privileged.reasonRequired }));
       return;
@@ -97,31 +115,53 @@ export function UserFormDialog({
       return;
     }
 
+    const reason = privilegedChange ? form.reason.trim() : undefined;
     const onError = (cause: unknown) => {
+      const blocking = pendingReviewTasksFrom(cause);
+      if (blocking !== null) {
+        setPendingTasks(blocking);
+        return;
+      }
       toast.error(cause instanceof ApiError ? cause.message : common.errors.generic);
     };
 
     if (user === null) {
-      createUser.mutate(parsed.data, {
-        onSuccess: (created) => {
-          toast.success(
-            interpolate(admin.users.created, { name: created.name, email: created.email }),
-          );
-          onClose();
-        },
-        onError,
-      });
-    } else {
-      updateUser.mutate(
-        { userId: user.id, input: parsed.data },
-        {
-          onSuccess: (updated) => {
-            toast.success(interpolate(admin.users.updated, { name: updated.name }));
-            onClose();
-          },
-          onError,
-        },
-      );
+      try {
+        const created = await createUser.mutateAsync({
+          name: parsed.data.name,
+          email: parsed.data.email,
+          roles: parsed.data.roles,
+          ...(reason === undefined ? {} : { reason }),
+        });
+        toast.success(
+          interpolate(admin.users.created, { name: created.name, email: created.email }),
+        );
+        onClose();
+      } catch (cause) {
+        onError(cause);
+      }
+      return;
+    }
+
+    try {
+      let updated = user;
+      if (parsed.data.name !== user.name || parsed.data.email !== user.email) {
+        updated = await updateUser.mutateAsync({
+          userId: user.id,
+          input: { name: parsed.data.name, email: parsed.data.email },
+        });
+      }
+      if (rolesChanged) {
+        updated = await replaceRoles.mutateAsync({
+          userId: user.id,
+          roles: parsed.data.roles,
+          ...(reason === undefined ? {} : { reason }),
+        });
+      }
+      toast.success(interpolate(admin.users.updated, { name: updated.name }));
+      onClose();
+    } catch (cause) {
+      onError(cause);
     }
   }
 
@@ -138,7 +178,7 @@ export function UserFormDialog({
           <Button variant="secondary" onClick={onClose}>
             {common.actions.cancel}
           </Button>
-          <Button variant="adminPrimary" onClick={submit} isLoading={isPending}>
+          <Button variant="adminPrimary" onClick={() => void submit()} isLoading={isPending}>
             {user === null
               ? isPending
                 ? admin.users.creating
@@ -184,42 +224,42 @@ export function UserFormDialog({
           />
         </Field>
 
-        <fieldset>
-          <legend className="mb-2 text-sm font-medium text-ink-900">
-            {admin.users.rolesLabel}
-          </legend>
-          <div className="flex flex-wrap gap-4">
-            {availableRoles.map((role) => (
-              <Checkbox
-                key={role}
-                label={common.role[role]}
-                checked={form.roles.includes(role)}
-                onCheckedChange={(checked) => {
-                  setForm({
-                    ...form,
-                    roles: checked
-                      ? [
-                          ...form.roles,
-                          ...(role === 'SuperAdmin' && !form.roles.includes('Admin')
-                            ? (['Admin'] as Role[])
-                            : []),
-                          role,
-                        ]
-                      : form.roles.filter(
-                          (current) =>
-                            current !== role && !(role === 'Admin' && current === 'SuperAdmin'),
-                        ),
-                  });
-                }}
-              />
-            ))}
-          </div>
-          {errors.roles === undefined ? null : (
-            <p role="alert" className="mt-2 text-xs font-medium text-danger">
-              {errors.roles}
-            </p>
-          )}
-        </fieldset>
+        {user !== null && !editRoles ? null : (
+          <fieldset>
+            <legend className="mb-2 text-sm font-medium text-ink-900">
+              {admin.users.rolesLabel}
+            </legend>
+            <div className="flex flex-wrap gap-4">
+              {ROLES.filter((role) => availableRoles.includes(role)).map((role) => {
+                const checked = form.roles.includes(role);
+                // A user always keeps at least one role; the last one cannot be cleared.
+                const isLastRole = checked && form.roles.length === 1 && user !== null;
+                return (
+                  <Checkbox
+                    key={role}
+                    label={common.role[role]}
+                    checked={checked}
+                    disabled={isLastRole}
+                    onCheckedChange={(next) => {
+                      setPendingTasks(null);
+                      setForm({
+                        ...form,
+                        roles: next
+                          ? [...form.roles, role]
+                          : form.roles.filter((current) => current !== role),
+                      });
+                    }}
+                  />
+                );
+              })}
+            </div>
+            {errors.roles === undefined ? null : (
+              <p role="alert" className="mt-2 text-xs font-medium text-danger">
+                {errors.roles}
+              </p>
+            )}
+          </fieldset>
+        )}
 
         {privilegedChange ? (
           <Field label={admin.users.privileged.reasonLabel} required error={errors.reason}>
@@ -236,6 +276,10 @@ export function UserFormDialog({
               placeholder={admin.users.privileged.reasonPlaceholder}
             />
           </Field>
+        ) : null}
+
+        {pendingTasks !== null && user !== null ? (
+          <PendingReviewTasksNotice name={user.name} tasks={pendingTasks} />
         ) : null}
       </div>
     </Dialog>

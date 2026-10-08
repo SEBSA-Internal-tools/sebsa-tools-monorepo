@@ -34,6 +34,7 @@ export const SEGMENTS = {
   handovers: 'handovers',
   handover: 'handover',
   reports: 'reports',
+  activity: 'activity',
   login: 'login',
   setPassword: 'set-password',
   forgotPassword: 'forgot-password',
@@ -106,6 +107,7 @@ export const routePaths = {
       handoverTask: (taskId: string) =>
         `${CRP}/${SEGMENTS.admin}/${SEGMENTS.tasks}/${encodeURIComponent(taskId)}/${SEGMENTS.handover}`,
       reports: `${CRP}/${SEGMENTS.admin}/${SEGMENTS.reports}`,
+      activity: `${CRP}/${SEGMENTS.admin}/${SEGMENTS.activity}`,
     },
   },
 

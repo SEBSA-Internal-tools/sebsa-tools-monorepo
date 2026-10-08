@@ -53,7 +53,9 @@ export function TaskInformationCard({
     'countedCycle' in task && typeof task.countedCycle === 'number'
       ? task.countedCycle
       : 1;
-  const adjustment = Math.max(0, round - counted);
+  // Counted cycles start at 0, so only rounds actually excluded are an adjustment.
+  const adjustment =
+    'adjustedCycles' in task && Array.isArray(task.adjustedCycles) ? task.adjustedCycles.length : 0;
   const peopleFields =
     previousReviewerName === undefined
       ? [

@@ -112,6 +112,32 @@ query). Hash with Argon2id or bcrypt. Never trim, log or echo the password.
 client also adds `<meta name="referrer" content="no-referrer">` while a
 password screen is open.
 
+**NestJS implementation (2026-10-08).** `apps/api/src/modules/password-links`
+implements this contract and `password-links.service.spec.ts` runs the mock's
+cases against it.
+
+- Tokens: 32 random bytes, base64url; only `SHA-256(token)` is stored
+  (`password_links.token_hash`). Consumption is a conditional update, so two
+  concurrent submits cannot both use one link.
+- Email goes through the `Mailer` port (`apps/api/src/integrations/mail`). The
+  development adapter, `DevOutboxMailer`, logs each link as `[dev outbox] …`.
+  Outside development it refuses to send, and the link is recorded as
+  `email_status = FAILED` rather than being written to production logs. Bind
+  the real transport in `MailModule` when it is available.
+- Rate limits: per token (`failed_attempts`, 5), per email (3 per 15 min), per
+  resend (60 s, from the last link's `created_at`), plus 30 requests per 15 min
+  per IP. The per-email and per-IP counters are in memory
+  (`RateLimiterService`): correct for one API instance; move them to Redis
+  before running more than one.
+- Per-IP limits need Express `trust proxy` set to the real proxy depth behind
+  a load balancer, or every caller shares the balancer's address.
+- The four public routes are exempt from the CSRF cookie check (they send no
+  cookies) and instead check `Origin` against `FRONTEND_ORIGIN`, with
+  `Cache-Control: no-store` and `Referrer-Policy: no-referrer`.
+- Setting a password revokes every `RefreshSession` for the user.
+- Public self-registration (`POST /auth/register`) was removed: accounts are
+  created only by an admin invite.
+
 **Redirects.** After sign-in, only a same-origin path from router state is
 followed (`lib/safeRedirect.ts`). `//host`, `/\host`, absolute URLs and control
 characters fall back to `/crp`.

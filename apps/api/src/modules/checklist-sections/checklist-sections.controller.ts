@@ -17,6 +17,7 @@ import { UpdateChecklistSectionDto } from './dto/update-checklist-section.dto.js
 import { Roles } from '../auth/decorators/roles.decorator.js';
 import { CreateChecklistCategoryDto } from './dto/create-checklist-category.dto.js';
 import { UpdateChecklistCategoryDto } from './dto/update-checklist-category.dto.js';
+import { ReorderDto } from '../../common/dto/reorder.dto.js';
 
 @ApiTags('Checklist Sections')
 @Controller('checklist-sections')
@@ -67,6 +68,21 @@ export class ChecklistCategoriesController {
   @ApiOkResponse()
   findAll() {
     return this.checklistSections.findCategories();
+  }
+
+  /** Declared before `:id` so "order" is never parsed as an id. */
+  @Patch('order')
+  @Roles('ADMIN')
+  @ApiOkResponse()
+  reorder(@Body() dto: ReorderDto) {
+    return this.checklistSections.reorderCategories(dto.ids);
+  }
+
+  @Patch(':id/question-order')
+  @Roles('ADMIN')
+  @ApiOkResponse()
+  reorderQuestions(@Param('id', ParseUUIDPipe) id: string, @Body() dto: ReorderDto) {
+    return this.checklistSections.reorderQuestions(id, dto.ids);
   }
 
   @Get(':id')

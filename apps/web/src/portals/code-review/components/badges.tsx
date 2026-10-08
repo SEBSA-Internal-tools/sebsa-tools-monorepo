@@ -244,13 +244,19 @@ export function CountedCycleBadge({
 export function ReviewCycleBadges({
   round,
   counted,
+  adjustedCycles = [],
   className,
 }: {
   round: number;
   counted: number;
+  /**
+   * Rounds excluded from the counted total. Counted cycles start at 0, so
+   * `round - counted` is not an adjustment — only an excluded round is.
+   */
+  adjustedCycles?: readonly number[];
   className?: string;
 }) {
-  const adjustment = Math.max(0, round - counted);
+  const adjustment = adjustedCycles.length;
   return (
     <span className={cn('inline-flex items-center gap-1.5', className)}>
       <ReviewRoundBadge round={round} />

@@ -25,6 +25,7 @@ import { ReviewTaskQueryDto } from './dto/review-task-query.dto.js';
 import { NextTaskVersionQueryDto } from './dto/next-task-version-query.dto.js';
 import { AssignReviewerDto } from './dto/assign-reviewer.dto.js';
 import { CancelReviewTaskDto } from './dto/cancel-review-task.dto.js';
+import { ReasonDto } from '../../common/dto/reason.dto.js';
 
 @ApiTags('Review Tasks')
 @Controller(['review-tasks', 'tasks'])
@@ -35,6 +36,10 @@ export class ReviewTasksController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.tasks.findAll(user, query.scope ?? 'mine');
+  }
+  /** Declared before `:id` so "summary" is never parsed as a task id. */
+  @Get('summary') @ApiOkResponse() summary(@CurrentUser() user: AuthenticatedUser) {
+    return this.tasks.summary(user);
   }
   @Get('next-version') @Roles('DEVELOPER', 'ADMIN') @ApiOkResponse() nextVersion(
     @Query() query: NextTaskVersionQueryDto,
@@ -135,6 +140,17 @@ export class ReviewTasksController {
   ) {
     return this.tasks.assign(id, dto.reviewerId, user, dto.reason);
   }
+  /**
+   * Admin transfer for a ChangesRequested task: who receives it on
+   * resubmission (docs/25-review-assignment-rules.md).
+   */
+  @Post(':id/resubmission-reviewer') @Roles('ADMIN') @ApiOkResponse() changeResubmissionReviewer(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AssignReviewerDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.tasks.changeResubmissionReviewer(id, dto.reviewerId, user, dto.reason);
+  }
   @Post(':id/cancel') @Roles('ADMIN') @ApiOkResponse() cancel(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: CancelReviewTaskDto,
@@ -146,8 +162,12 @@ export class ReviewTasksController {
   @Roles('DEVELOPER', 'ADMIN')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiNoContentResponse()
-  async remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
-    await this.tasks.remove(id, user);
+  async remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ReasonDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    await this.tasks.remove(id, user, dto.reason);
   }
 }
 

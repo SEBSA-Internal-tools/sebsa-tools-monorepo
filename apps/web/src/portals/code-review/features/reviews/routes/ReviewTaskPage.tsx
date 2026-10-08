@@ -52,9 +52,7 @@ import { PageContainer } from '@/components/common/PageContainer.tsx';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog.tsx';
 import { ReviewDecisionDialog } from '../components/ReviewDecisionDialog.tsx';
 import { getReviewerReturnDestination } from '../domain/reviewerNavigation.ts';
-import {
-  resolveActiveReviewRound,
-} from '../domain/reviewRules.ts';
+import { resolveActiveReviewRound } from '../domain/reviewRules.ts';
 
 import {
   AUTOSAVE_DELAY_MS,
@@ -312,11 +310,11 @@ export function ReviewTaskPage() {
       setDecisionToConfirm({
         decision,
         draft,
-        reviewRound: task?.reviewRound ?? 1,
-        reviewCycle: task?.reviewRound ?? 1,
+        reviewRound: Math.max(1, task?.historicalCycle ?? task?.reviewCycle ?? 0),
+        reviewCycle: Math.max(1, task?.historicalCycle ?? task?.reviewCycle ?? 0),
       });
     },
-    [task?.reviewRound],
+    [task?.historicalCycle, task?.reviewCycle],
   );
 
   // A different task starts from a clean slate (adjusted during render).
@@ -650,8 +648,8 @@ export function ReviewTaskPage() {
         task?.currentReviewSessionId ?? current?.currentReviewSessionId ?? undefined
       }
       taskCode={task.taskCode}
-      reviewRound={task.reviewRound ?? 1}
-      reviewCycle={task.reviewRound ?? 1}
+      reviewRound={Math.max(1, task.historicalCycle ?? task.reviewCycle ?? task.reviewRound)}
+      reviewCycle={Math.max(1, task.historicalCycle ?? task.reviewCycle ?? task.reviewRound)}
       onSaveDraft={handleAutoSave}
       onDraftChange={handleDraftChange}
       onManualSaveDraft={handleManualSave}

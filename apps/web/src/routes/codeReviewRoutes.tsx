@@ -208,6 +208,14 @@ export const codeReviewRoutes: RouteObject[] = [
           return { Component: module.AdminReportsPage };
         },
       },
+      {
+        path: SEGMENTS.activity,
+        lazy: async () => {
+          const module =
+            await import('@/portals/code-review/features/admin/routes/AdminActivityLogPage');
+          return { Component: module.AdminActivityLogPage };
+        },
+      },
     ],
   },
   {
