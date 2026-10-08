@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { rethrowPrismaConflict } from '../../common/prisma-errors.js';
 import type { CreateRoleDto } from './dto/create-role.dto.js';
@@ -10,17 +10,28 @@ export class RolesService {
 
   findAll() {
     return this.prisma.role.findMany({
-      include: { _count: { select: { userRoles: true } } },
+      where: { deletedAt: null },
+      include: {
+        _count: { select: { userRoles: { where: { user: { deletedAt: null } } } } },
+      },
       orderBy: { name: 'asc' },
     });
   }
 
   async findOne(id: number) {
-    const role = await this.prisma.role.findUnique({
-      where: { id },
+    const role = await this.prisma.role.findFirst({
+      where: { id, deletedAt: null },
       include: {
         userRoles: {
-          include: { user: true, grantor: true },
+          where: { user: { deletedAt: null } },
+          include: {
+            user: {
+              select: { id: true, email: true, fullName: true, status: true, createdAt: true },
+            },
+            grantor: {
+              select: { id: true, email: true, fullName: true, status: true, createdAt: true },
+            },
+          },
           orderBy: { grantedAt: 'desc' },
         },
       },
@@ -62,9 +73,12 @@ export class RolesService {
   }
 
   async remove(id: number): Promise<void> {
-    await this.findOne(id);
+    const role = await this.findOne(id);
+    if (role.userRoles.length > 0) {
+      throw new ConflictException('A role assigned to existing users cannot be deleted');
+    }
     try {
-      await this.prisma.role.delete({ where: { id } });
+      await this.prisma.role.update({ where: { id }, data: { deletedAt: new Date() } });
     } catch (error) {
       rethrowPrismaConflict(error);
     }

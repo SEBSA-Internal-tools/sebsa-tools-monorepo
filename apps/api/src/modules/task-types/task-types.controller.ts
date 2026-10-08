@@ -9,6 +9,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import {
   ApiCreatedResponse,
@@ -25,8 +26,8 @@ import { Roles } from '../auth/decorators/roles.decorator.js';
 @Controller('task-types')
 export class TaskTypesController {
   constructor(private readonly taskTypes: TaskTypesService) {}
-  @Get() @ApiOkResponse() findAll() {
-    return this.taskTypes.findAll();
+  @Get() @ApiOkResponse() findAll(@Query('scope') scope?: string) {
+    return this.taskTypes.findAll(scope === 'all');
   }
 
   @Get(':id')
@@ -60,4 +61,3 @@ export class TaskTypesController {
     await this.taskTypes.remove(id);
   }
 }
-

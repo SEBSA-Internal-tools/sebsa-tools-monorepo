@@ -10,16 +10,13 @@ import {
   Patch,
   Post,
 } from '@nestjs/common';
-import {
-  ApiCreatedResponse,
-  ApiNoContentResponse,
-  ApiOkResponse,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiCreatedResponse, ApiNoContentResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { ChecklistSectionsService } from './checklist-sections.service.js';
 import { CreateChecklistSectionDto } from './dto/create-checklist-section.dto.js';
 import { UpdateChecklistSectionDto } from './dto/update-checklist-section.dto.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
+import { CreateChecklistCategoryDto } from './dto/create-checklist-category.dto.js';
+import { UpdateChecklistCategoryDto } from './dto/update-checklist-category.dto.js';
 
 @ApiTags('Checklist Sections')
 @Controller('checklist-sections')
@@ -48,10 +45,7 @@ export class ChecklistSectionsController {
   @Patch(':id')
   @Roles('ADMIN')
   @ApiOkResponse()
-  update(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: UpdateChecklistSectionDto,
-  ) {
+  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateChecklistSectionDto) {
     return this.checklistSections.update(id, dto);
   }
 
@@ -64,3 +58,42 @@ export class ChecklistSectionsController {
   }
 }
 
+@ApiTags('Checklist Categories')
+@Controller('checklist-categories')
+export class ChecklistCategoriesController {
+  constructor(private readonly checklistSections: ChecklistSectionsService) {}
+
+  @Get()
+  @ApiOkResponse()
+  findAll() {
+    return this.checklistSections.findCategories();
+  }
+
+  @Get(':id')
+  @ApiOkResponse()
+  findOne(@Param('id', ParseUUIDPipe) id: string) {
+    return this.checklistSections.findCategory(id);
+  }
+
+  @Post()
+  @Roles('ADMIN')
+  @ApiCreatedResponse()
+  create(@Body() dto: CreateChecklistCategoryDto) {
+    return this.checklistSections.createCategory(dto);
+  }
+
+  @Patch(':id')
+  @Roles('ADMIN')
+  @ApiOkResponse()
+  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateChecklistCategoryDto) {
+    return this.checklistSections.updateCategory(id, dto);
+  }
+
+  @Delete(':id')
+  @Roles('ADMIN')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContentResponse()
+  async remove(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
+    await this.checklistSections.removeCategory(id);
+  }
+}

@@ -114,10 +114,17 @@ enum ReviewerDecision {
   @@map("reviewer_decision")
 }
 
+enum ReviewCycleOutcome {
+  CHANGES_REQUESTED
+
+  @@map("review_cycle_outcome")
+}
+
 enum HandoverStatus {
   PENDING
   REASSIGNED
   CANCELLED
+  RETURNED_TO_QUEUE
 
   @@map("handover_status")
 }
@@ -125,6 +132,7 @@ enum HandoverStatus {
 enum NotificationType {
   TASK_SUBMITTED
   TASK_ASSIGNED
+  TASK_REASSIGNED
   CHANGES_REQUESTED
   TASK_RESUBMITTED
   TASK_APPROVED
@@ -145,6 +153,7 @@ model User {
   lastLoginAt              DateTime?                  @map("last_login_at") @db.Timestamptz(6)
   createdAt                DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt                DateTime?                  @map("deleted_at") @db.Timestamptz(6)
   userRoles                UserRole[]                 @relation("UserRoleUser")
   rolesGranted             UserRole[]                 @relation("UserRoleGrantor")
   customersCreated         Customer[]                 @relation("CustomerCreator")
@@ -157,6 +166,7 @@ model User {
   codeReviewForms          CodeReviewForm[]           @relation("ReviewFormReviewer")
   reviewFindingsCreated    ReviewFinding[]            @relation("FindingCreator")
   screenshotsUploaded      FindingScreenshot[]        @relation("ScreenshotUploader")
+  taskAttachmentsUploaded  TaskAttachment[]           @relation("TaskAttachmentUploader")
   findingResponses         DeveloperFindingResponse[] @relation("ResponseDeveloper")
   findingResponsesReviewed DeveloperFindingResponse[] @relation("ResponseReviewer")
   handoversFrom            HandoverTask[]             @relation("HandoverFromReviewer")
@@ -166,6 +176,7 @@ model User {
   auditLogs                AuditLog[]                 @relation("AuditLogUser")
   refreshSessions          RefreshSession[]
 
+  @@index([deletedAt])
   @@map("users")
 }
 
@@ -191,8 +202,10 @@ model Role {
   code        String     @unique @db.VarChar(30)
   name        String     @db.VarChar(100)
   description String?    @db.Text
+  deletedAt   DateTime?  @map("deleted_at") @db.Timestamptz(6)
   userRoles   UserRole[]
 
+  @@index([deletedAt])
   @@map("roles")
 }
 
@@ -268,8 +281,10 @@ model Task {
   statusHistory       TaskStatusHistory[]
   developerChecklist  DeveloperChecklist?
   codeReviewForms     CodeReviewForm[]
+  reviewCycles        ReviewCycle[]
   handovers           HandoverTask[]
   notifications       Notification[]
+  attachments         TaskAttachment[]
 
   @@unique([customerId, customerSequenceNo])
   @@index([taskCode])
@@ -329,6 +344,24 @@ model TaskStatusHistory {
   @@index([changedBy])
   @@index([reviewFormId])
   @@map("task_status_history")
+}
+
+model TaskAttachment {
+  id           String   @id @default(uuid()) @db.Uuid
+  taskId       String   @map("task_id") @db.Uuid
+  fileName     String   @map("file_name") @db.VarChar(255)
+  sizeBytes    Int      @map("size_bytes")
+  mimeType     String   @map("mime_type") @db.VarChar(100)
+  storageRef   String   @map("storage_ref") @db.Text
+  caption      String   @default("") @db.Text
+  uploadedById String   @map("uploaded_by_id") @db.Uuid
+  uploadedAt   DateTime @default(now()) @map("uploaded_at") @db.Timestamptz(6)
+  task         Task     @relation(fields: [taskId], references: [id], onDelete: Restrict)
+  uploadedBy   User     @relation("TaskAttachmentUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@index([taskId])
+  @@index([uploadedById])
+  @@map("task_attachments")
 }
 
 model ChecklistSection {
@@ -415,23 +448,27 @@ model CodeReviewQuestion {
 }
 
 model CodeReviewForm {
-  id                String               @id @default(uuid()) @db.Uuid
-  taskId            String               @map("task_id") @db.Uuid
-  reviewerId        String               @map("reviewer_id") @db.Uuid
-  reviewCycleNumber Int                  @map("review_cycle_number")
-  reviewRank        Int?                 @map("review_rank") @db.SmallInt
-  reviewComment     String?              @map("review_comment") @db.Text
-  otherRemarks      String?              @map("other_remarks") @db.Text
-  feedbackSummary   String?              @map("feedback_summary") @db.Text
-  status            CodeReviewFormStatus
-  decision          ReviewDecision?
-  createdAt         DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
-  completedAt       DateTime?            @map("completed_at") @db.Timestamptz(6)
-  task              Task                 @relation(fields: [taskId], references: [id], onDelete: Restrict)
-  reviewer          User                 @relation("ReviewFormReviewer", fields: [reviewerId], references: [id], onDelete: Restrict)
-  answers           CodeReviewAnswer[]
-  findings          ReviewFinding[]
-  statusHistory     TaskStatusHistory[]  @relation("StatusHistoryReviewForm")
+  id                           String               @id @default(uuid()) @db.Uuid
+  taskId                       String               @map("task_id") @db.Uuid
+  reviewerId                   String               @map("reviewer_id") @db.Uuid
+  reviewCycleNumber            Int                  @map("review_cycle_number")
+  reviewRank                   Int?                 @map("review_rank") @db.SmallInt
+  reviewComment                String?              @map("review_comment") @db.Text
+  otherRemarks                 String?              @map("other_remarks") @db.Text
+  feedbackSummary              String?              @map("feedback_summary") @db.Text
+  previousFeedbackReviewNote   String?              @map("previous_feedback_review_note") @db.Text
+  previousFeedbackAcknowledged Boolean?             @map("previous_feedback_acknowledged")
+  currentReviewSessionId       String?              @map("current_review_session_id") @db.Uuid
+  status                       CodeReviewFormStatus
+  decision                     ReviewDecision?
+  createdAt                    DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                    DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  completedAt                  DateTime?            @map("completed_at") @db.Timestamptz(6)
+  task                         Task                 @relation(fields: [taskId], references: [id], onDelete: Restrict)
+  reviewer                     User                 @relation("ReviewFormReviewer", fields: [reviewerId], references: [id], onDelete: Restrict)
+  answers                      CodeReviewAnswer[]
+  findings                     ReviewFinding[]
+  statusHistory                TaskStatusHistory[]  @relation("StatusHistoryReviewForm")
 
   @@unique([taskId, reviewCycleNumber])
   @@index([taskId])
@@ -457,18 +494,19 @@ model CodeReviewAnswer {
 }
 
 model ReviewFinding {
-  id           String                     @id @default(uuid()) @db.Uuid
-  reviewFormId String                     @map("review_form_id") @db.Uuid
-  findingNo    Int                        @map("finding_no")
-  commentText  String                     @map("comment_text") @db.Text
-  status       FindingStatus              @default(OPEN)
-  createdBy    String                     @map("created_by") @db.Uuid
-  createdAt    DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(6)
-  reviewForm   CodeReviewForm             @relation(fields: [reviewFormId], references: [id], onDelete: Restrict)
-  creator      User                       @relation("FindingCreator", fields: [createdBy], references: [id], onDelete: Restrict)
-  screenshots  FindingScreenshot[]
-  responses    DeveloperFindingResponse[]
+  id              String                     @id @default(uuid()) @db.Uuid
+  reviewFormId    String                     @map("review_form_id") @db.Uuid
+  findingNo       Int                        @map("finding_no")
+  commentText     String                     @map("comment_text") @db.Text
+  reviewSessionId String?                    @map("review_session_id") @db.Uuid
+  status          FindingStatus              @default(OPEN)
+  createdBy       String                     @map("created_by") @db.Uuid
+  createdAt       DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  reviewForm      CodeReviewForm             @relation(fields: [reviewFormId], references: [id], onDelete: Restrict)
+  creator         User                       @relation("FindingCreator", fields: [createdBy], references: [id], onDelete: Restrict)
+  screenshots     FindingScreenshot[]
+  responses       DeveloperFindingResponse[]
 
   @@unique([reviewFormId, findingNo])
   @@index([reviewFormId])
@@ -496,25 +534,47 @@ model FindingScreenshot {
 }
 
 model DeveloperFindingResponse {
-  id               String            @id @default(uuid()) @db.Uuid
-  findingId        String            @map("finding_id") @db.Uuid
-  developerId      String            @map("developer_id") @db.Uuid
-  decision         DeveloperDecision
-  rejectionReason  String?           @map("rejection_reason") @db.Text
-  developerComment String?           @map("developer_comment") @db.Text
-  respondedAt      DateTime          @default(now()) @map("responded_at") @db.Timestamptz(6)
-  reviewerDecision ReviewerDecision  @default(PENDING) @map("reviewer_decision")
-  reviewerComment  String?           @map("reviewer_comment") @db.Text
-  reviewedBy       String?           @map("reviewed_by") @db.Uuid
-  reviewedAt       DateTime?         @map("reviewed_at") @db.Timestamptz(6)
-  finding          ReviewFinding     @relation(fields: [findingId], references: [id], onDelete: Restrict)
-  developer        User              @relation("ResponseDeveloper", fields: [developerId], references: [id], onDelete: Restrict)
-  reviewer         User?             @relation("ResponseReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
+  id                String            @id @default(uuid()) @db.Uuid
+  findingId         String            @map("finding_id") @db.Uuid
+  developerId       String            @map("developer_id") @db.Uuid
+  reviewCycleNumber Int               @default(1) @map("review_cycle_number")
+  cycleId           String?           @map("cycle_id") @db.Uuid
+  decision          DeveloperDecision
+  rejectionReason   String?           @map("rejection_reason") @db.Text
+  developerComment  String?           @map("developer_comment") @db.Text
+  respondedAt       DateTime          @default(now()) @map("responded_at") @db.Timestamptz(6)
+  reviewerDecision  ReviewerDecision  @default(PENDING) @map("reviewer_decision")
+  reviewerComment   String?           @map("reviewer_comment") @db.Text
+  reviewedBy        String?           @map("reviewed_by") @db.Uuid
+  reviewedAt        DateTime?         @map("reviewed_at") @db.Timestamptz(6)
+  finding           ReviewFinding     @relation(fields: [findingId], references: [id], onDelete: Restrict)
+  developer         User              @relation("ResponseDeveloper", fields: [developerId], references: [id], onDelete: Restrict)
+  reviewer          User?             @relation("ResponseReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
+  cycle             ReviewCycle?      @relation(fields: [cycleId], references: [id], onDelete: Restrict)
 
   @@index([findingId])
   @@index([developerId])
   @@index([reviewedBy])
+  @@index([cycleId])
   @@map("developer_finding_responses")
+}
+
+model ReviewCycle {
+  id              String             @id @default(uuid()) @db.Uuid
+  taskId          String             @map("task_id") @db.Uuid
+  roundNumber     Int                @map("round_number")
+  outcome         ReviewCycleOutcome @default(CHANGES_REQUESTED)
+  counted         Boolean            @default(true)
+  exclusionReason String?            @map("exclusion_reason") @db.Text
+  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  excludedAt      DateTime?          @map("excluded_at") @db.Timestamptz(6)
+  task            Task               @relation(fields: [taskId], references: [id], onDelete: Restrict)
+  responses       DeveloperFindingResponse[]
+
+  @@unique([taskId, roundNumber])
+  @@index([taskId, counted])
+  @@map("review_cycles")
 }
 
 model HandoverTask {
@@ -560,19 +620,29 @@ model Notification {
 }
 
 model AuditLog {
-  id         String   @id @default(uuid()) @db.Uuid
-  userId     String?  @map("user_id") @db.Uuid
-  action     String   @db.VarChar(100)
-  entityType String   @map("entity_type") @db.VarChar(100)
-  entityId   String?  @map("entity_id") @db.Uuid
-  oldValues  Json?    @map("old_values") @db.JsonB
-  newValues  Json?    @map("new_values") @db.JsonB
-  ipAddress  String?  @map("ip_address") @db.Inet
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  user       User?    @relation("AuditLogUser", fields: [userId], references: [id], onDelete: SetNull)
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String?  @map("user_id") @db.Uuid
+  actorName    String   @map("actor_name") @db.VarChar(255)
+  actorRole    String   @map("actor_role") @db.VarChar(100)
+  action       String   @db.VarChar(100)
+  entityType   String   @map("entity_type") @db.VarChar(100)
+  entityId     String?  @map("entity_id") @db.VarChar(100)
+  description  String   @db.Text
+  oldValues    Json?    @map("old_values") @db.JsonB
+  newValues    Json?    @map("new_values") @db.JsonB
+  taskId       String?  @map("task_id") @db.Uuid
+  targetUserId String?  @map("target_user_id") @db.Uuid
+  metadata     Json?    @db.JsonB
+  ipAddress    String?  @map("ip_address") @db.Inet
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  user         User?    @relation("AuditLogUser", fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([entityType, entityId])
+  @@index([action])
+  @@index([actorRole])
+  @@index([taskId])
+  @@index([targetUserId])
+  @@index([createdAt])
   @@map("audit_logs")
 }
-

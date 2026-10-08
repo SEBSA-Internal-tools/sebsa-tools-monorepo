@@ -18,3 +18,14 @@ export class ChecklistsController {
   }
 }
 
+@ApiTags('Developer Checklist')
+@Controller('checklist-template')
+export class ChecklistTemplateController {
+  constructor(private readonly checklists: ChecklistsService) {}
+
+  @Get()
+  @ApiOkResponse()
+  findTemplate(@Query('scope') scope?: string) {
+    return this.checklists.findTemplate(scope === 'all');
+  }
+}

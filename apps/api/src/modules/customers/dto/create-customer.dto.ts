@@ -11,12 +11,13 @@ import {
 } from 'class-validator';
 
 export class CreateCustomerDto {
-  @ApiProperty({ example: 'IFS' })
+  @ApiPropertyOptional({ example: 'IFS', description: 'Generated from the name when omitted' })
+  @IsOptional()
   @IsString()
   @Matches(/\S/, { message: 'code must contain a non-whitespace character' })
   @MinLength(1)
   @MaxLength(50)
-  code!: string;
+  code?: string;
   @ApiProperty({ example: 'IFS' })
   @IsString()
   @Matches(/\S/, { message: 'name must contain a non-whitespace character' })
@@ -36,4 +37,3 @@ export class CreateCustomerDto {
   @IsEnum(CustomerStatus)
   status?: CustomerStatus;
 }
-

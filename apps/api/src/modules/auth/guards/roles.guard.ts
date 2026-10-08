@@ -18,11 +18,12 @@ export class RolesGuard implements CanActivate {
       context.getHandler(),
       context.getClass(),
     ]);
-    if (!required?.length) return true;
 
     const user = context.switchToHttp().getRequest<AuthenticatedRequest>().user;
+    if (!required?.length) return true;
+
     if (required.some((role) => user.roles.includes(role))) return true;
+    if (user.roles.includes('SUPER_ADMIN') && required.includes('ADMIN')) return true;
     throw new ForbiddenException('You do not have permission to perform this action');
   }
 }
-

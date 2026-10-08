@@ -15,11 +15,18 @@ import type { AuthenticatedUser } from './auth.types.js';
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly auth: AuthService, private readonly config: ConfigService) {}
+  constructor(
+    private readonly auth: AuthService,
+    private readonly config: ConfigService,
+  ) {}
 
   @Public()
   @Post('register')
-  async register(@Body() dto: RegisterDto, @Req() request: Request, @Res({ passthrough: true }) response: Response) {
+  async register(
+    @Body() dto: RegisterDto,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
     const result = await this.auth.register(dto, this.metadata(request));
     this.setCookies(response, result.tokens);
     return result.user;
@@ -28,7 +35,11 @@ export class AuthController {
   @Public()
   @HttpCode(HttpStatus.OK)
   @Post('login')
-  async login(@Body() dto: LoginDto, @Req() request: Request, @Res({ passthrough: true }) response: Response) {
+  async login(
+    @Body() dto: LoginDto,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
     const result = await this.auth.login(dto, this.metadata(request));
     this.setCookies(response, result.tokens);
     return result.user;
@@ -65,8 +76,16 @@ export class AuthController {
   private setCookies(response: Response, tokens: AuthTokens): void {
     const secure = authSettings(this.config).secureCookies;
     const common = { httpOnly: true, secure, sameSite: 'lax' as const };
-    response.cookie(ACCESS_COOKIE, tokens.accessToken, { ...common, path: '/', maxAge: tokens.accessMaxAgeMs });
-    response.cookie(REFRESH_COOKIE, tokens.refreshToken, { ...common, path: '/api/auth', maxAge: tokens.refreshMaxAgeMs });
+    response.cookie(ACCESS_COOKIE, tokens.accessToken, {
+      ...common,
+      path: '/',
+      maxAge: tokens.accessMaxAgeMs,
+    });
+    response.cookie(REFRESH_COOKIE, tokens.refreshToken, {
+      ...common,
+      path: '/api/auth',
+      maxAge: tokens.refreshMaxAgeMs,
+    });
     response.cookie(CSRF_COOKIE, randomBytes(32).toString('base64url'), {
       httpOnly: false,
       secure,
@@ -97,4 +116,3 @@ export class AuthController {
     };
   }
 }
-

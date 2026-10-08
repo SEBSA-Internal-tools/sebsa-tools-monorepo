@@ -20,6 +20,10 @@ import { RolesModule } from './modules/roles/roles.module.js';
 import { UserRolesModule } from './modules/user-roles/user-roles.module.js';
 import { ChecklistSectionsModule } from './modules/checklist-sections/checklist-sections.module.js';
 import { ChecklistQuestionsModule } from './modules/checklist-questions/checklist-questions.module.js';
+import { AuditModule } from './modules/audit/audit.module.js';
+import { HandoversModule } from './modules/handovers/handovers.module.js';
+import { NotificationsModule } from './modules/notifications/notifications.module.js';
+import { ReviewsModule } from './modules/reviews/reviews.module.js';
 
 @Module({
   imports: [
@@ -30,11 +34,15 @@ import { ChecklistQuestionsModule } from './modules/checklist-questions/checklis
     }),
     HealthModule,
     PrismaModule,
+    AuditModule,
     UsersModule,
     CustomersModule,
     TaskTypesModule,
     ChecklistsModule,
     ReviewTasksModule,
+    HandoversModule,
+    NotificationsModule,
+    ReviewsModule,
     RolesModule,
     UserRolesModule,
     ChecklistSectionsModule,
