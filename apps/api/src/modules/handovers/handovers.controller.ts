@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post } from '@nestjs/common';
-import { ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, HttpStatus, Param, ParseUUIDPipe, Post, Res } from '@nestjs/common';
+import type { Response } from 'express';
+import { ApiCreatedResponse, ApiNoContentResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
 import type { AuthenticatedUser } from '../auth/auth.types.js';
@@ -48,10 +49,17 @@ export class AdminHandoversController {
     return this.handovers.findOne(handoverId);
   }
 
+  /** 204 when the reviewer left no draft — an empty 200 body would not parse. */
   @Get(':handoverId/draft')
   @ApiOkResponse()
-  findDraft(@Param('handoverId', ParseUUIDPipe) handoverId: string) {
-    return this.handovers.findDraft(handoverId);
+  @ApiNoContentResponse()
+  async findDraft(
+    @Param('handoverId', ParseUUIDPipe) handoverId: string,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const draft = await this.handovers.findDraft(handoverId);
+    if (draft === null) response.status(HttpStatus.NO_CONTENT);
+    return draft ?? undefined;
   }
 
   @Post(':handoverId/reassign')

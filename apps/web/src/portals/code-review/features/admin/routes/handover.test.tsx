@@ -199,6 +199,26 @@ describe('admin handover queue', () => {
     expect(within(reassignedRow).getByText('Prev. Pinsara')).toBeInTheDocument();
   });
 
+  it('returns a task to the open queue instead, when no one is named', async () => {
+    await handOver();
+
+    signInForTest(ADMIN);
+    const { user } = renderAt('/crp/admin/handovers');
+
+    const cell = await screen.findByText('BLOM-010');
+    const row = cell.closest('tr');
+    if (row === null) throw new Error('No handover row');
+
+    await user.click(
+      within(row).getByRole('button', { name: /return BLOM-010 to the open queue/i }),
+    );
+    await user.click(await screen.findByRole('button', { name: /^return to queue$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Returned to queue')).toBeInTheDocument();
+    });
+  });
+
   it('is closed to a non-admin', async () => {
     signInForTest('u-dheliya'); // Developer only.
     const { router } = renderAt('/crp/admin/handovers');

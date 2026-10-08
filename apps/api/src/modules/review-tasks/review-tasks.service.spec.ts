@@ -183,7 +183,26 @@ describe('ReviewTasksService list visibility', () => {
       },
     });
 
-    await expect(service.findOne('task-id', user)).rejects.toBeInstanceOf(ForbiddenException);
+    // 404, not 403: a guessed id must not confirm that a draft exists.
+    await expect(service.findOne('task-id', user)).rejects.toMatchObject({ code: 'TASK_NOT_FOUND' });
+  });
+
+  it('hides a developer draft from an Admin too', async () => {
+    const user = actor(['ADMIN']);
+    const service = serviceWith({
+      task: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'task-id',
+          developerId: 'another-developer',
+          currentReviewerId: null,
+          status: TaskStatus.DRAFT,
+          codeReviewForms: [],
+          handovers: [],
+        }),
+      },
+    });
+
+    await expect(service.findOne('task-id', user)).rejects.toMatchObject({ code: 'TASK_NOT_FOUND' });
   });
 });
 describe('ReviewTasksService draft checklist', () => {
@@ -245,12 +264,27 @@ describe('ReviewTasksService draft checklist', () => {
 describe('ReviewTasksService draft discard', () => {
   const taskId = '00000000-0000-4000-8000-000000000010';
 
-  function deletionPrisma(task: {
-    developerId: string;
-    status: TaskStatus;
-    submittedAt: Date | null;
-  }) {
+  function deletionPrisma(
+    task: {
+      developerId: string;
+      status: TaskStatus;
+      submittedAt: Date | null;
+    },
+    evidence: { submissions?: number; decided?: number; assignments?: number } = {},
+  ) {
     const tx = {
+      auditLog: { count: vi.fn().mockResolvedValue(evidence.submissions ?? 0) },
+      codeReviewForm: {
+        count: vi
+          .fn()
+          .mockResolvedValueOnce(evidence.decided ?? 0)
+          .mockResolvedValue(evidence.decided ?? 0),
+      },
+      developerFindingResponse: { count: vi.fn().mockResolvedValue(0) },
+      handoverTask: { count: vi.fn().mockResolvedValue(0) },
+      taskReviewerAssignment: { count: vi.fn().mockResolvedValue(evidence.assignments ?? 0) },
+      taskAttachment: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+      notification: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
       task: {
         findUnique: vi.fn().mockResolvedValue({
           id: taskId,
@@ -295,7 +329,21 @@ describe('ReviewTasksService draft discard', () => {
     });
     const service = serviceWith(prisma);
 
-    await expect(service.remove(taskId, user)).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(service.remove(taskId, user)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(tx.task.delete).not.toHaveBeenCalled();
+  });
+
+  it('does not let a Developer discard a draft that already has submitted evidence', async () => {
+    const user = actor(['DEVELOPER']);
+    const { prisma, tx } = deletionPrisma(
+      { developerId: user.id, status: TaskStatus.DRAFT, submittedAt: null },
+      { submissions: 1 },
+    );
+    const service = serviceWith(prisma);
+
+    await expect(service.remove(taskId, user)).rejects.toMatchObject({
+      code: 'DRAFT_HAS_SUBMITTED_EVIDENCE',
+    });
     expect(tx.task.delete).not.toHaveBeenCalled();
   });
 
@@ -308,21 +356,51 @@ describe('ReviewTasksService draft discard', () => {
     });
     const service = serviceWith(prisma);
 
-    await expect(service.remove(taskId, user)).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(service.remove(taskId, user)).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(tx.task.delete).not.toHaveBeenCalled();
   });
 
-  it('preserves existing Admin deletion access', async () => {
+  it('keeps permanent purge a Super Admin power: an Admin is refused', async () => {
     const user = actor(['ADMIN']);
     const { prisma, tx } = deletionPrisma({
       developerId: '00000000-0000-4000-8000-000000000099',
-      status: TaskStatus.SUBMITTED,
-      submittedAt: new Date('2026-02-02T10:00:00.000Z'),
+      status: TaskStatus.DRAFT,
+      submittedAt: null,
     });
     const service = serviceWith(prisma);
 
-    await expect(service.remove(taskId, user)).resolves.toBeUndefined();
+    await expect(service.remove(taskId, user, 'cleanup')).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    expect(tx.task.delete).not.toHaveBeenCalled();
+  });
+
+  it('lets a Super Admin purge an evidence-free draft, with a reason', async () => {
+    const user = actor(['SUPER_ADMIN']);
+    const { prisma, tx } = deletionPrisma({
+      developerId: '00000000-0000-4000-8000-000000000099',
+      status: TaskStatus.DRAFT,
+      submittedAt: null,
+    });
+    const service = serviceWith(prisma);
+
+    await expect(service.remove(taskId, user)).rejects.toMatchObject({ code: 'REASON_REQUIRED' });
+    await expect(service.remove(taskId, user, 'Created by mistake')).resolves.toBeUndefined();
     expect(tx.task.delete).toHaveBeenCalledWith({ where: { id: taskId } });
+  });
+
+  it('refuses to purge a task with workflow evidence', async () => {
+    const user = actor(['SUPER_ADMIN']);
+    const { prisma, tx } = deletionPrisma(
+      { developerId: user.id, status: TaskStatus.CANCELLED, submittedAt: new Date() },
+      { submissions: 1, assignments: 1 },
+    );
+    const service = serviceWith(prisma);
+
+    await expect(service.remove(taskId, user, 'cleanup')).rejects.toMatchObject({
+      code: 'TASK_HAS_WORKFLOW_EVIDENCE',
+    });
+    expect(tx.task.delete).not.toHaveBeenCalled();
   });
 });
 
@@ -398,6 +476,16 @@ describe('ReviewTasksService resubmission assignment', () => {
         }),
       },
       developerFindingResponse: { findMany: vi.fn().mockResolvedValue([]) },
+      // The follow-up reviewer is looked up on its own to check eligibility.
+      user: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: reviewerId,
+          fullName: 'Previous Reviewer',
+          status: 'ACTIVE',
+          deletedAt: null,
+          userRoles: [{ roleId: 2 }],
+        }),
+      },
       $transaction: vi.fn((operation: (client: typeof tx) => Promise<unknown>) => operation(tx)),
     };
     const service = serviceWith(prisma);
@@ -885,6 +973,9 @@ describe('ReviewTasksService Admin task actions', () => {
       data: {
         reviewerId: newReviewerId,
         currentReviewSessionId: '00000000-0000-4000-8000-000000000070',
+        reviewRank: null,
+        previousFeedbackReviewNote: null,
+        previousFeedbackAcknowledged: null,
       },
     });
     expect(notifications.create).toHaveBeenCalledWith(
@@ -921,6 +1012,7 @@ describe('ReviewTasksService Admin task actions', () => {
       taskReviewerAssignment: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
       codeReviewForm: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
       taskStatusHistory: { create: vi.fn().mockResolvedValue({}) },
+      handoverTask: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
     };
     const service = serviceWith({
       $transaction: vi.fn((operation: (client: typeof tx) => Promise<unknown>) => operation(tx)),
@@ -933,7 +1025,17 @@ describe('ReviewTasksService Admin task actions', () => {
 
     expect(tx.task.update).toHaveBeenCalledWith({
       where: { id: taskId },
-      data: { status: TaskStatus.CANCELLED, currentReviewerId: null },
+      data: {
+        status: TaskStatus.CANCELLED,
+        currentReviewerId: null,
+        resubmissionReviewerId: null,
+        cancelledAt: expect.any(Date),
+      },
+    });
+    // A pending handover is closed with the task.
+    expect(tx.handoverTask.updateMany).toHaveBeenCalledWith({
+      where: { taskId, status: 'PENDING' },
+      data: { status: 'CANCELLED' },
     });
     expect(tx.codeReviewForm.updateMany).toHaveBeenCalledWith({
       where: { taskId, reviewCycleNumber: 1, status: 'DRAFT' },

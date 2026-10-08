@@ -24,6 +24,9 @@ import { AuditModule } from './modules/audit/audit.module.js';
 import { HandoversModule } from './modules/handovers/handovers.module.js';
 import { NotificationsModule } from './modules/notifications/notifications.module.js';
 import { ReviewsModule } from './modules/reviews/reviews.module.js';
+import { MailModule } from './integrations/mail/mail.module.js';
+import { PasswordLinksModule } from './modules/password-links/password-links.module.js';
+import { ReviewerWorkloadModule } from './modules/reviewer-workload/reviewer-workload.module.js';
 
 @Module({
   imports: [
@@ -35,6 +38,9 @@ import { ReviewsModule } from './modules/reviews/reviews.module.js';
     HealthModule,
     PrismaModule,
     AuditModule,
+    MailModule,
+    PasswordLinksModule,
+    ReviewerWorkloadModule,
     UsersModule,
     CustomersModule,
     TaskTypesModule,

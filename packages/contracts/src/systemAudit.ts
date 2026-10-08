@@ -9,6 +9,8 @@ export const SYSTEM_AUDIT_ACTIONS = [
   'PrivilegedUserActivated',
   'PrivilegedUserDeactivated',
   'UserDeleted',
+  /** An invite withdrawn before the user ever signed in (temporary local auth). */
+  'InviteRevoked',
   'TaskDeleted',
   'CustomerDeleted',
 ] as const;

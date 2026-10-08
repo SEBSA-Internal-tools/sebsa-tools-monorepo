@@ -1,6 +1,7 @@
 import { delay, http, HttpResponse, type HttpHandler } from 'msw';
 import { z } from 'zod';
 import {
+  type PendingReviewTask,
   checklistDraftSchema,
   checklistSubmissionSchema,
   createChecklistCategoryInputSchema,
@@ -92,6 +93,13 @@ import {
   shiftOrdersFrom,
 } from '@/lib/checklistOrdering.ts';
 import credentials from './data/credentials.json';
+import {
+  issueLink,
+  passwordFor,
+  passwordLinkHandlers,
+  resendWaitSeconds,
+  revokeLinksFor,
+} from './passwordLinks.ts';
 import { generateHandoverId } from './handoverId.ts';
 import { canAccessWorkspace, hasCapability, type Capability } from '@/lib/permissions.ts';
 
@@ -124,9 +132,53 @@ const DEMO_EMAILS = new Set(credentials.emails.map((e) => e.toLowerCase()));
  */
 const LATENCY_MS = 120;
 
-function errorResponse(status: number, code: string, message: string) {
-  const body: ApiError = { statusCode: status, code, message };
-  return HttpResponse.json(body, { status });
+function errorResponse(status: number, code: string, message: string, details?: unknown) {
+  const body: ApiError = { statusCode: status, code, message, ...(details === undefined ? {} : { details }) };
+  return HttpResponse.json(body as never, { status });
+}
+
+/**
+ * The follow-up reviewer of a ChangesRequested task: the admin's choice, or the
+ * reviewer of the latest Request Changes decision (NestJS ReviewTasksService).
+ */
+function followUpReviewerId(taskId: string): string | undefined {
+  return (
+    db.resubmissionReviewerIds.get(taskId) ??
+    reviewsForTask(taskId).find((review) => review.decision === 'ChangesRequested')?.reviewerId ??
+    undefined
+  );
+}
+
+/**
+ * A reviewer's pending review work — the NestJS ReviewerWorkloadService rule
+ * (docs/25-review-assignment-rules.md): InReview tasks they hold, and
+ * ChangesRequested tasks that will come back to them on resubmission.
+ */
+function pendingReviewTasksFor(userId: string): PendingReviewTask[] {
+  return db.tasks.flatMap((task): PendingReviewTask[] => {
+    if (task.status === 'InReview' && task.reviewerId === userId) {
+      return [{ id: task.id, taskCode: task.taskCode, title: task.title, status: task.status, kind: 'InReview' }];
+    }
+    if (task.status === 'ChangesRequested' && followUpReviewerId(task.id) === userId) {
+      return [
+        { id: task.id, taskCode: task.taskCode, title: task.title, status: task.status, kind: 'AwaitingResubmission' },
+      ];
+    }
+    return [];
+  });
+}
+
+/** 409 with the blocking tasks, or undefined when the reviewer may be removed. */
+function reviewerRemovalBlocked(user: User) {
+  if (!user.roles.includes('Reviewer')) return undefined;
+  const tasks = pendingReviewTasksFor(user.id);
+  if (tasks.length === 0) return undefined;
+  return errorResponse(
+    409,
+    'REVIEWER_HAS_PENDING_TASKS',
+    `${user.name} still has ${String(tasks.length)} pending review task(s). Hand over or reassign them first.`,
+    { tasks },
+  );
 }
 
 /**
@@ -368,6 +420,32 @@ function firstIssue(error: z.ZodError): string {
  * `const denied = requireAdmin(request); if (denied) return denied;` — one line,
  * impossible to write as a no-op by forgetting to negate.
  */
+/**
+ * The INVITED user an invite action targets, or the error response to return:
+ * 401/403 for the caller, 404 for no such user, 409 once they are no longer
+ * invited (they set a password, or the invite was revoked meanwhile).
+ */
+function invitedUserFor(request: Request, userId: string): User | Response {
+  const denied = requireAdmin(request);
+  if (denied) return denied;
+  const actor = currentUser(request)!;
+  const user = findUser(userId);
+  if (!user || db.deletedUserIds.has(user.id)) {
+    return errorResponse(404, 'NOT_FOUND', 'User not found.');
+  }
+  if (!isSuperAdmin(actor) && !adminMayManage(user)) {
+    return errorResponse(
+      403,
+      'PRIVILEGED_ROLE_REQUIRED',
+      'Only a Super Admin can manage a privileged account.',
+    );
+  }
+  if (user.status !== 'INVITED') {
+    return errorResponse(409, 'NOT_INVITED', 'This user is no longer in the invited state.');
+  }
+  return user;
+}
+
 function requireAdmin(request: Request) {
   return requireCapability(request, 'admin.access');
 }
@@ -376,18 +454,18 @@ const ROLE_LABEL_BY_CODE = {
   DEVELOPER: 'Developer',
   REVIEWER: 'Reviewer',
   ADMIN: 'Admin',
-  SUPER_ADMIN: 'Super Admin',
+  SUPER_ADMIN: 'SuperAdmin',
 } as const satisfies Record<string, Role>;
 const replaceRolesSchema = z.object({
   roles: z.array(z.enum(['DEVELOPER', 'REVIEWER', 'ADMIN', 'SUPER_ADMIN'])).min(1),
 });
 
 function isSuperAdmin(user: User): boolean {
-  return user.roles.includes('Super Admin');
+  return user.roles.includes('SuperAdmin');
 }
 
 function adminMayManage(user: User): boolean {
-  return !user.roles.some((role) => role === 'Admin' || role === 'Super Admin');
+  return !user.roles.some((role) => role === 'Admin' || role === 'SuperAdmin');
 }
 
 function mayAssignRoles(actor: User, roles: readonly Role[]): boolean {
@@ -487,6 +565,9 @@ function nextCustomerCode(name: string): string {
 export const handlers: HttpHandler[] = [
   /* ------------------------------------------------------------------ auth */
 
+  // Set-password, forgot-password and link validation (temporary local auth).
+  ...passwordLinkHandlers,
+
   /**
    * Mock sign-in.
    *
@@ -502,11 +583,17 @@ export const handlers: HttpHandler[] = [
     const password = typeof body.password === 'string' ? body.password : '';
 
     const user = db.users.find((u) => u.email.toLowerCase() === email);
-    const isKnownEmail = DEMO_EMAILS.has(email);
+    // A password set through a set-password link replaces the shared demo one
+    // for that account. An invited user has neither, so cannot sign in yet.
+    const ownPassword = user ? passwordFor(user.id) : undefined;
+    const isCorrect =
+      ownPassword !== undefined
+        ? password === ownPassword
+        : DEMO_EMAILS.has(email) && password === DEMO_PASSWORD;
 
     // One message for every failure mode. Distinguishing "no such account" from
     // "wrong password" would let anyone enumerate who works here.
-    if (!user || !isKnownEmail || password !== DEMO_PASSWORD) {
+    if (!user || !isCorrect) {
       return errorResponse(401, 'INVALID_CREDENTIALS', 'Invalid email or password.');
     }
 
@@ -1115,24 +1202,18 @@ export const handlers: HttpHandler[] = [
       );
     }
 
-    const previousChangesReview = isResubmission
-      ? reviewsForTask(task.id).find((review) => review.decision === 'ChangesRequested')
-      : undefined;
-    const resubmissionReviewer = previousChangesReview?.reviewerId
-      ? findUser(previousChangesReview.reviewerId)
-      : undefined;
-    if (
-      isResubmission &&
-      (!resubmissionReviewer ||
-        !resubmissionReviewer.isActive ||
-        !resubmissionReviewer.roles.includes('Reviewer'))
-    ) {
-      return errorResponse(
-        409,
-        'INVALID_STATE',
-        'The reviewer who requested changes is no longer eligible for assignment.',
-      );
-    }
+    // A resubmission goes straight back to its follow-up reviewer; only if they
+    // are no longer eligible does it fall back to the open pool (docs/25).
+    const followUpId = isResubmission ? followUpReviewerId(task.id) : undefined;
+    const followUp = followUpId ? findUser(followUpId) : undefined;
+    const followUpEligible =
+      followUp !== undefined &&
+      followUp.isActive &&
+      !db.deletedUserIds.has(followUp.id) &&
+      followUp.roles.includes('Reviewer') &&
+      followUp.id !== task.developerId;
+    const resubmissionReviewer = followUpEligible ? followUp : undefined;
+    const poolFallback = isResubmission && !followUpEligible;
 
     const checklist = findChecklist(task.id);
     if (!checklist) {
@@ -1213,8 +1294,30 @@ export const handlers: HttpHandler[] = [
     });
     task.status = isResubmission ? 'ReSubmitted' : 'Submitted';
     task.submittedAt = now;
+    db.resubmissionReviewerIds.delete(task.id);
 
-    if (isResubmission) {
+    if (poolFallback) {
+      task.reviewerId = null;
+      for (const admin of db.users.filter(
+        (candidate) =>
+          candidate.isActive &&
+          (candidate.roles.includes('Admin') || candidate.roles.includes('SuperAdmin')),
+      )) {
+        db.notifications.push({
+          id: `n-${String(Date.now())}-${String(db.notifications.length + 1)}`,
+          userId: admin.id,
+          kind: 'TaskResubmitted',
+          title: `${task.taskCode} resubmitted to the review pool`,
+          body: `${followUp?.name ?? 'The previous reviewer'} is no longer available, so any reviewer can pick it up.`,
+          href: `/crp/admin/tasks/${task.id}`,
+          taskId: task.id,
+          isRead: false,
+          createdAt: now,
+        });
+      }
+    }
+
+    if (isResubmission && !poolFallback) {
       const allTaskReviews = reviewsForTask(task.id);
       const activeRound = resolveActiveReviewCycle(task, allTaskReviews);
       const reviewSessionId = createReviewSessionId(task.id, activeRound);
@@ -1399,7 +1502,7 @@ export const handlers: HttpHandler[] = [
           candidate.isActive &&
           (candidate.id === latestHandover.fromReviewerId ||
             candidate.roles.includes('Admin') ||
-            candidate.roles.includes('Super Admin')) &&
+            candidate.roles.includes('SuperAdmin')) &&
           candidate.id !== user.id &&
           candidate.id !== task.developerId,
       );
@@ -2296,15 +2399,22 @@ export const handlers: HttpHandler[] = [
       return errorResponse(409, 'EMAIL_TAKEN', 'A user with that email address already exists.');
     }
 
+    // No password is ever chosen by an admin. The account starts INVITED (and
+    // so cannot sign in) until the user sets one through the emailed link.
     const user: User = {
       id: `u-${email.split('@')[0] ?? 'user'}-${String(db.users.length + 1)}`,
       name: parsed.data.name,
       email: parsed.data.email,
       roles: parsed.data.roles,
-      isActive: true,
+      isActive: false,
       createdAt: new Date().toISOString(),
+      status: 'INVITED',
+      inviteExpiresAt: null,
+      inviteEmailStatus: null,
     };
     db.users.push(user);
+    await issueLink(user, 'INVITE');
+
     recordMockAudit(actor, {
       actionType: 'USER_CREATED',
       entityType: 'USER',
@@ -2364,11 +2474,30 @@ export const handlers: HttpHandler[] = [
       return errorResponse(422, 'SELF_LOCKOUT', 'You cannot remove your own admin access.');
     }
 
+    // Activation needs a password, which only the user can set. Resend or
+    // revoke the invite instead.
+    if (user.status === 'INVITED' && parsed.data.isActive !== undefined) {
+      return errorResponse(
+        409,
+        'INVITE_PENDING',
+        'This user has not set a password yet. Resend or revoke the invite instead.',
+      );
+    }
+
     const oldValue = { ...user, roles: [...user.roles] };
     if (parsed.data.name !== undefined) user.name = parsed.data.name;
     if (parsed.data.email !== undefined) user.email = parsed.data.email;
     if (parsed.data.roles !== undefined) user.roles = parsed.data.roles;
-    if (parsed.data.isActive !== undefined) user.isActive = parsed.data.isActive;
+    if (parsed.data.isActive === false && user.isActive) {
+      const blocked = reviewerRemovalBlocked(user);
+      if (blocked) return blocked;
+    }
+    if (parsed.data.isActive !== undefined) {
+      user.isActive = parsed.data.isActive;
+      if (user.status !== undefined) user.status = user.isActive ? 'ACTIVE' : 'DEACTIVATED';
+      // A deactivated account must not be revived by a link sent earlier.
+      if (!user.isActive) revokeLinksFor(user.id);
+    }
 
     recordMockAudit(actor, {
       actionType:
@@ -2402,6 +2531,48 @@ export const handlers: HttpHandler[] = [
     return HttpResponse.json(user);
   }),
 
+  /**
+   * Invite actions on the Users tab (temporary local auth).
+   *
+   * Same authorisation as editing the user: an Admin may act on Developer and
+   * Reviewer invites, and only a Super Admin on a privileged one.
+   */
+  http.post('/api/users/:userId/resend-invite', async ({ request, params }) => {
+    await delay(LATENCY_MS);
+    const target = invitedUserFor(request, String(params['userId']));
+    if (target instanceof Response) return target;
+
+    const wait = resendWaitSeconds(target.id, 'INVITE');
+    if (wait > 0) {
+      return errorResponse(429, 'RATE_LIMITED', `Wait ${String(wait)}s before resending.`);
+    }
+    const { expiresAt } = await issueLink(target, 'INVITE');
+    return HttpResponse.json({ invite: { expiresAt, emailStatus: 'SENT' } });
+  }),
+
+  /**
+   * Withdraws an invite. The account never signed in and owns nothing, so it is
+   * removed outright — which is also what lets the admin invite the address
+   * again later — and the withdrawal is kept in the system audit log.
+   */
+  http.post('/api/users/:userId/revoke-invite', async ({ request, params }) => {
+    await delay(LATENCY_MS);
+    const target = invitedUserFor(request, String(params['userId']));
+    if (target instanceof Response) return target;
+
+    revokeLinksFor(target.id);
+    db.users = db.users.filter((u) => u.id !== target.id);
+    recordSystemAuditEvent({
+      action: 'InviteRevoked',
+      actorId: currentUser(request)!.id,
+      targetType: 'User',
+      targetId: target.id,
+      targetLabel: `${target.name} <${target.email}>`,
+      reason: 'Invite withdrawn before first sign-in.',
+    });
+    return new HttpResponse(null, { status: 204 });
+  }),
+
   /** Replaces the complete role set while preserving the role-management policy. */
   http.put('/api/users/:userId/roles', async ({ request, params }) => {
     await delay(LATENCY_MS);
@@ -2422,8 +2593,8 @@ export const handlers: HttpHandler[] = [
     if (
       (!isSuperAdmin(actor) && (!adminMayManage(user) || !mayAssignRoles(actor, roles))) ||
       (isSuperAdmin(actor) &&
-        (user.roles.includes('Super Admin') ||
-          roles.includes('Super Admin') ||
+        (user.roles.includes('SuperAdmin') ||
+          roles.includes('SuperAdmin') ||
           !mayAssignRoles(actor, roles)))
     ) {
       return errorResponse(
@@ -2433,6 +2604,10 @@ export const handlers: HttpHandler[] = [
       );
     }
 
+    if (user.roles.includes('Reviewer') && !roles.includes('Reviewer')) {
+      const blocked = reviewerRemovalBlocked(user);
+      if (blocked) return blocked;
+    }
     const oldRoles = [...user.roles];
     user.roles = roles;
     recordMockAudit(actor, {
@@ -2476,7 +2651,7 @@ export const handlers: HttpHandler[] = [
     }
 
     const currentSuperAdmins = db.users.filter(
-      (user) => !db.deletedUserIds.has(user.id) && user.roles.includes('Super Admin'),
+      (user) => !db.deletedUserIds.has(user.id) && user.roles.includes('SuperAdmin'),
     );
     if (currentSuperAdmins.length !== 1 || currentSuperAdmins[0]?.id !== actor.id) {
       return errorResponse(
@@ -2487,9 +2662,9 @@ export const handlers: HttpHandler[] = [
     }
 
     actor.roles = [
-      ...new Set(actor.roles.filter((role) => role !== 'Super Admin').concat('Admin')),
+      ...new Set(actor.roles.filter((role) => role !== 'SuperAdmin').concat('Admin')),
     ];
-    target.roles = ['Super Admin'];
+    target.roles = ['SuperAdmin'];
     recordMockAudit(actor, {
       actionType: 'SUPER_ADMIN_TRANSFERRED',
       entityType: 'USER',
@@ -2516,6 +2691,8 @@ export const handlers: HttpHandler[] = [
     if (!user || db.deletedUserIds.has(user.id)) {
       return errorResponse(404, 'NOT_FOUND', 'User not found.');
     }
+    const blocked = reviewerRemovalBlocked(user);
+    if (blocked) return blocked;
 
     const oldValue = { ...user, roles: [...user.roles] };
     user.isActive = false;
@@ -2629,6 +2806,36 @@ export const handlers: HttpHandler[] = [
   }),
 
   /** Assign or reassign a reviewer (screen 01, the person-plus row action). */
+  /** Admin transfer for a ChangesRequested task: who receives it on resubmission. */
+  http.post('/api/tasks/:taskId/resubmission-reviewer', async ({ request, params }) => {
+    await delay(LATENCY_MS);
+    const denied = requireAdmin(request);
+    if (denied) return denied;
+
+    const task = findTask(String(params['taskId']));
+    if (!task) return errorResponse(404, 'NOT_FOUND', 'Task not found.');
+    if (task.status !== 'ChangesRequested') {
+      return errorResponse(422, 'INVALID_STATE', 'Only a task awaiting resubmission has a follow-up reviewer.');
+    }
+    const body = (await request.json().catch(() => ({}))) as { reviewerId?: unknown; reason?: unknown };
+    const reason = typeof body.reason === 'string' ? body.reason.trim() : '';
+    if (reason === '') {
+      return errorResponse(422, 'REASON_REQUIRED', 'Provide a reason for changing the reviewer.');
+    }
+    const reviewer = typeof body.reviewerId === 'string' ? findUser(body.reviewerId) : undefined;
+    if (!reviewer || !reviewer.isActive || !reviewer.roles.includes('Reviewer')) {
+      return errorResponse(422, 'INVALID_REVIEWER', 'Select an active Reviewer.');
+    }
+    if (reviewer.id === task.developerId) {
+      return errorResponse(422, 'SELF_REVIEW', 'A developer cannot review their own task.');
+    }
+    if (followUpReviewerId(task.id) === reviewer.id) {
+      return errorResponse(422, 'SAME_REVIEWER', `${reviewer.name} already receives this task.`);
+    }
+    db.resubmissionReviewerIds.set(task.id, reviewer.id);
+    return HttpResponse.json(task);
+  }),
+
   http.post('/api/tasks/:taskId/assign', async ({ request, params }) => {
     await delay(LATENCY_MS);
     const denied = requireAdmin(request);
@@ -3766,7 +3973,7 @@ export const handlers: HttpHandler[] = [
         (candidate.id === task.developerId ||
           candidate.roles.includes('Reviewer') ||
           candidate.roles.includes('Admin') ||
-          candidate.roles.includes('Super Admin')),
+          candidate.roles.includes('SuperAdmin')),
     );
     for (const recipient of notificationRecipients) {
       const isDeveloper = recipient.id === task.developerId;

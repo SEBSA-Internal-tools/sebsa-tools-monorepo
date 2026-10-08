@@ -53,6 +53,9 @@ export function TaskInformationCard({
     'countedCycle' in task && typeof task.countedCycle === 'number'
       ? task.countedCycle
       : 1;
+  // Counted cycles start at 0, so only rounds actually excluded are an adjustment.
+  const adjustment =
+    'adjustedCycles' in task && Array.isArray(task.adjustedCycles) ? task.adjustedCycles.length : 0;
   const peopleFields =
     previousReviewerName === undefined
       ? [
@@ -158,7 +161,17 @@ export function TaskInformationCard({
                 <span>{tasksContent.detail.fields.countedCycle}</span>
                 <InfoTooltip content={tasksContent.detail.tooltips.countedCycle} />
               </dt>
-              <dd className="mt-1 font-semibold text-ink-900">Cycle {counted}</dd>
+              <dd className="mt-1 flex items-center gap-1.5 font-semibold text-ink-900">
+                <span>Cycle {counted}</span>
+                {adjustment > 0 ? (
+                  <span
+                    className="inline-flex items-center rounded-md border border-emerald-200/70 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 shadow-2xs"
+                    title={`A qualifying review round was excluded from the effective count (-${adjustment}). See Task History for cycle adjustment details.`}
+                  >
+                    Adjusted (-{adjustment})
+                  </span>
+                ) : null}
+              </dd>
             </div>
           </dl>
         </div>

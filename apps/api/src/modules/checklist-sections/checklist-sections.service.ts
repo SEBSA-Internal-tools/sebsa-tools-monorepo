@@ -1,4 +1,7 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { ApiException } from '../../common/api-error.js';
+import { isCompleteOrder } from '../../common/dto/reorder.dto.js';
+import { moveToPosition } from '../../common/ordering.js';
 import { Prisma } from '@prisma/client';
 import { rethrowPrismaConflict } from '../../common/prisma-errors.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
@@ -12,8 +15,10 @@ const sectionInclude = {
     include: { taskType: true },
     orderBy: { displayOrder: 'asc' },
   },
-  questions: { orderBy: { displayOrder: 'asc' } },
+  questions: { orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }] },
 } satisfies Prisma.ChecklistSectionInclude;
+
+type SectionWithRelations = Prisma.ChecklistSectionGetPayload<{ include: typeof sectionInclude }>;
 
 @Injectable()
 export class ChecklistSectionsService {
@@ -22,7 +27,7 @@ export class ChecklistSectionsService {
   findAll() {
     return this.prisma.checklistSection.findMany({
       include: sectionInclude,
-      orderBy: { name: 'asc' },
+      orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
     });
   }
 
@@ -96,7 +101,8 @@ export class ChecklistSectionsService {
   async remove(id: string): Promise<void> {
     const existing = await this.findOne(id);
     if (existing.questions.length > 0) {
-      throw new ConflictException(
+      throw new ApiException(
+        'CATEGORY_NOT_EMPTY',
         'Categories containing questions cannot be safely deleted. Deactivate the category instead.',
       );
     }
@@ -113,11 +119,49 @@ export class ChecklistSectionsService {
   }
 
   async findCategories() {
-    return (await this.findAll()).map((section) => this.toCategory(section));
+    return (await this.findAll()).map((section, index) => this.toCategory(section, index + 1));
   }
 
   async findCategory(id: string) {
-    return this.toCategory(await this.findOne(id));
+    const all = await this.findCategories();
+    const category = all.find((entry) => entry.id === id);
+    if (!category) throw new NotFoundException(`Checklist category ${id} was not found`);
+    return category;
+  }
+
+  /** PATCH /checklist-categories/order: the whole sequence, rewritten 1..n. */
+  async reorderCategories(ids: readonly string[]) {
+    const all = await this.prisma.checklistSection.findMany({ select: { id: true } });
+    if (!isCompleteOrder(ids, all.map(({ id }) => id))) {
+      throw new ApiException('ORDER_INCOMPLETE', 'The new order must list every category exactly once.');
+    }
+    await this.writeCategoryOrder(ids);
+    return this.findCategories();
+  }
+
+  /** PATCH /checklist-categories/:id/question-order: one category's questions, 1..n. */
+  async reorderQuestions(categoryId: string, ids: readonly string[]) {
+    const section = await this.findOne(categoryId);
+    if (!isCompleteOrder(ids, section.questions.map(({ id }) => id))) {
+      throw new ApiException(
+        'ORDER_INCOMPLETE',
+        'The new order must list every question in this category exactly once.',
+      );
+    }
+    await this.prisma.$transaction(
+      ids.map((id, index) =>
+        this.prisma.checklistQuestion.update({ where: { id }, data: { displayOrder: index + 1 } }),
+      ),
+    );
+    return this.findCategory(categoryId);
+  }
+
+  private async writeCategoryOrder(ids: readonly string[]) {
+    await this.prisma.$transaction(
+      ids.map((id, index) =>
+        this.prisma.checklistSection.update({ where: { id }, data: { displayOrder: index + 1 } }),
+      ),
+    );
   }
 
   async createCategory(dto: CreateChecklistCategoryDto) {
@@ -125,12 +169,18 @@ export class ChecklistSectionsService {
     await this.ensureNameAvailable(name);
     const taskTypeIds = dto.applicableTaskTypeIds.map(Number);
     await this.ensureSelectableTaskTypes(taskTypeIds);
-    const order = dto.order ?? (await this.nextCategoryOrder());
+    const order = await this.nextCategoryOrder();
     const created = await this.create({
       name,
       taskTypes: taskTypeIds.map((taskTypeId) => ({ taskTypeId, displayOrder: order })),
     });
-    return this.toCategory(created);
+    await this.prisma.checklistSection.update({
+      where: { id: created.id },
+      data: { displayOrder: order },
+    });
+    // A requested position moves it there and shifts the rest, as on edit.
+    if (dto.order !== undefined) await this.moveCategory(created.id, dto.order);
+    return this.findCategory(created.id);
   }
 
   async updateCategory(id: string, dto: UpdateChecklistCategoryDto) {
@@ -144,9 +194,8 @@ export class ChecklistSectionsService {
         existing.taskTypes.map(({ taskTypeId }) => taskTypeId),
       );
     }
-    const order =
-      dto.order ?? Math.min(...existing.taskTypes.map(({ displayOrder }) => displayOrder));
-    const updated = await this.update(id, {
+    const order = existing.displayOrder;
+    await this.update(id, {
       ...(dto.name === undefined ? {} : { name: dto.name }),
       ...(dto.isActive === undefined ? {} : { isActive: dto.isActive }),
       ...(taskTypeIds === undefined
@@ -155,7 +204,17 @@ export class ChecklistSectionsService {
             taskTypes: taskTypeIds.map((taskTypeId) => ({ taskTypeId, displayOrder: order })),
           }),
     });
-    return this.toCategory(updated);
+    // Moving to an occupied position shifts the others; positions stay 1..n.
+    if (dto.order !== undefined) await this.moveCategory(id, dto.order);
+    return this.findCategory(id);
+  }
+
+  private async moveCategory(id: string, position: number) {
+    const ordered = await this.prisma.checklistSection.findMany({
+      orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
+      select: { id: true },
+    });
+    await this.writeCategoryOrder(moveToPosition(ordered.map((entry) => entry.id), id, position));
   }
 
   removeCategory(id: string): Promise<void> {
@@ -187,7 +246,7 @@ export class ChecklistSectionsService {
       select: { id: true },
     });
     if (taskTypes.length !== taskTypeIds.length) {
-      throw new ConflictException('Choose one or more active task types.');
+      throw new ApiException('INVALID_TASK_TYPE', 'Choose one or more active task types.');
     }
   }
 
@@ -199,30 +258,28 @@ export class ChecklistSectionsService {
       },
       select: { id: true },
     });
-    if (duplicate) throw new ConflictException('A category with that name already exists.');
+    if (duplicate) throw new ApiException('NAME_TAKEN', 'A category with that name already exists.');
   }
 
   private async nextCategoryOrder(): Promise<number> {
-    const aggregate = await this.prisma.taskTypeChecklistSection.aggregate({
+    const aggregate = await this.prisma.checklistSection.aggregate({
       _max: { displayOrder: true },
     });
-    return (aggregate._max.displayOrder ?? -1) + 1;
+    return (aggregate._max.displayOrder ?? 0) + 1;
   }
 
-  private toCategory(
-    section: Prisma.ChecklistSectionGetPayload<{ include: typeof sectionInclude }>,
-  ) {
+  private toCategory(section: SectionWithRelations, position: number) {
     return {
       id: section.id,
       name: section.name,
-      order: Math.min(...section.taskTypes.map(({ displayOrder }) => displayOrder)),
+      order: position,
       isActive: section.isActive,
       applicableTaskTypeIds: section.taskTypes.map(({ taskTypeId }) => String(taskTypeId)),
-      questions: section.questions.map((question) => ({
+      questions: section.questions.map((question, index) => ({
         id: question.id,
         categoryId: section.id,
         text: question.questionText,
-        order: question.displayOrder,
+        order: index + 1,
         isActive: question.isActive,
       })),
     };

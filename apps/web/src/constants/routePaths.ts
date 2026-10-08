@@ -36,6 +36,9 @@ export const SEGMENTS = {
   reports: 'reports',
   activity: 'activity',
   login: 'login',
+  setPassword: 'set-password',
+  forgotPassword: 'forgot-password',
+  linkExpired: 'link-expired',
 } as const;
 
 const CRP = `/${SEGMENTS.crp}` as const;
@@ -51,6 +54,15 @@ export const routePaths = {
 
   /** Unauthenticated entry point. Sits outside the app shell — no app bar. */
   login: `/${SEGMENTS.login}`,
+
+  /**
+   * Guest-only screens of the temporary local sign-in, beside `login`. The
+   * set-password link carries its one-time token in the fragment
+   * (`#token=...`), never in the path or query, so it is not built here.
+   */
+  setPassword: `/${SEGMENTS.setPassword}`,
+  forgotPassword: `/${SEGMENTS.forgotPassword}`,
+  linkExpired: `/${SEGMENTS.linkExpired}`,
 
   crp: {
     /**

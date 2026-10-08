@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
+import { Toaster } from 'sonner';
 import { signInForTest } from '@/test/setup.ts';
 import { db, findUser } from '@/mocks/db.ts';
 import { routes } from '@/app/routes.tsx';
@@ -35,6 +36,8 @@ function renderAdmin(path = '/crp/admin') {
   const utils = render(
     <QueryClientProvider client={queryClient}>
       <RouterProvider router={router} />
+      {/* `Toaster` lives in `App`; mounted here so toast outcomes can be asserted. */}
+      <Toaster />
     </QueryClientProvider>,
   );
 
@@ -84,7 +87,7 @@ describe('admin workspace guard', () => {
   it('does not show a separate Role Granting tab for Super Admin', async () => {
     const actor = findUser(ADMIN);
     if (actor === undefined) throw new Error('Admin fixture was not found');
-    actor.roles = ['Super Admin'];
+    actor.roles = ['SuperAdmin'];
 
     renderAdmin('/crp/admin/users');
 
@@ -200,13 +203,13 @@ describe('admin users tab', () => {
     await user.click(screen.getByRole('button', { name: /^transfer super admin$/i }));
 
     await waitFor(() => {
-      expect(target.roles).toContain('Super Admin');
-      expect(target.roles).toEqual(['Super Admin']);
+      expect(target.roles).toContain('SuperAdmin');
+      expect(target.roles).toEqual(['SuperAdmin']);
       expect(actor.roles).toContain('Admin');
-      expect(actor.roles).not.toContain('Super Admin');
+      expect(actor.roles).not.toContain('SuperAdmin');
     });
     expect(
-      [actor, target].filter((candidate) => candidate.roles.includes('Super Admin')),
+      [actor, target].filter((candidate) => candidate.roles.includes('SuperAdmin')),
     ).toHaveLength(1);
   });
 
@@ -244,6 +247,114 @@ describe('admin users tab', () => {
     expect(await screen.findByText(/select at least one role/i)).toBeInTheDocument();
     // The dialog stays open rather than silently discarding the input.
     expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
+  it.each(['name@company', 'name@@company.com', 'name company@x.com', 'name@company.c'])(
+    'rejects the malformed email %j before anything is sent',
+    async (email) => {
+      const { user } = renderAdmin('/crp/admin/users');
+      await user.click(await screen.findByRole('button', { name: /add user/i }));
+      const dialog = await screen.findByRole('dialog');
+      await user.type(within(dialog).getByLabelText(/name/i), 'Bad Email');
+      await user.type(within(dialog).getByLabelText(/email/i), email);
+      await user.tab();
+
+      expect(
+        await within(dialog).findByText(
+          'Enter a valid email address, for example name@company.com',
+        ),
+      ).toBeInTheDocument();
+      await user.click(within(dialog).getByRole('checkbox', { name: 'Developer' }));
+      await user.click(within(dialog).getByRole('button', { name: /^create user$/i }));
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(db.users.some((u) => u.name === 'Bad Email')).toBe(false);
+    },
+  );
+
+  it('creates the user as Invited, with resend and revoke instead of activate', async () => {
+    const { user } = renderAdmin('/crp/admin/users');
+    await user.click(await screen.findByRole('button', { name: /add user/i }));
+    const dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByLabelText(/name/i), 'Invite Person');
+    await user.type(within(dialog).getByLabelText(/email/i), 'invite.person@sebsaworld.com');
+    await user.click(within(dialog).getByRole('checkbox', { name: 'Reviewer' }));
+    await user.click(within(dialog).getByRole('button', { name: /^create user$/i }));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+
+    await user.type(screen.getByRole('searchbox', { name: /search users/i }), 'invite.person');
+    const row = (await screen.findByText('invite.person@sebsaworld.com')).closest('tr')!;
+    expect(within(row).getByText('Invited')).toBeInTheDocument();
+    expect(
+      within(row).getByRole('button', { name: 'Resend invite for Invite Person' }),
+    ).toBeInTheDocument();
+    expect(within(row).queryByRole('button', { name: /^(activate|deactivate)/i })).toBeNull();
+
+    // The invite only just went out, so the server asks the admin to wait.
+    await user.click(within(row).getByRole('button', { name: 'Resend invite for Invite Person' }));
+    expect(await screen.findByText('Please wait a moment before resending.')).toBeInTheDocument();
+
+    await user.click(within(row).getByRole('button', { name: 'Revoke invite for Invite Person' }));
+    await user.click(await screen.findByRole('button', { name: 'Revoke invite' }));
+    expect(
+      await screen.findByText('Invite for invite.person@sebsaworld.com revoked.'),
+    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText('invite.person@sebsaworld.com')).toBeNull();
+    });
+  });
+
+  it('shows invite state in the Status column, with no separate Invite column', async () => {
+    db.users.push({
+      id: 'u-new-starter',
+      name: 'New Starter',
+      email: 'new.starter@sebsaworld.com',
+      roles: ['Developer'],
+      isActive: false,
+      createdAt: '2026-10-01T09:00:00.000Z',
+      status: 'INVITED',
+      inviteExpiresAt: new Date(Date.now() + 23 * 3_600_000).toISOString(),
+      inviteEmailStatus: 'SENT',
+    });
+    renderAdmin('/crp/admin/users');
+    await screen.findByText('dheliya.kankanamge@sebsaworld.com');
+
+    expect(screen.getByRole('columnheader', { name: /status/i })).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: /^invite$/i })).toBeNull();
+    // An invited user is listed as Invited, and keeps its row actions.
+    const row = screen.getByText('new.starter@sebsaworld.com').closest('tr')!;
+    expect(within(row).getByText('Invited')).toBeInTheDocument();
+    expect(
+      within(row).getByRole('button', { name: 'Resend invite for New Starter' }),
+    ).toBeInTheDocument();
+    expect(
+      within(row).getByRole('button', { name: 'Revoke invite for New Starter' }),
+    ).toBeInTheDocument();
+    expect(within(row).getByRole('button', { name: /edit New Starter/i })).toBeInTheDocument();
+  });
+
+  it('filters to invited users', async () => {
+    db.users.push({
+      id: 'u-waiting',
+      name: 'Waiting Person',
+      email: 'waiting@sebsaworld.com',
+      roles: ['Developer'],
+      isActive: false,
+      createdAt: '2026-10-01T09:00:00.000Z',
+      status: 'INVITED',
+      inviteExpiresAt: null,
+      inviteEmailStatus: 'SENT',
+    });
+    const { user } = renderAdmin('/crp/admin/users');
+    await screen.findByText('dheliya.kankanamge@sebsaworld.com');
+
+    await user.click(screen.getByRole('combobox', { name: /status/i }));
+    await user.click(await screen.findByRole('option', { name: 'Invited' }));
+
+    expect(await screen.findByText('waiting@sebsaworld.com')).toBeInTheDocument();
+    expect(screen.queryByText('dheliya.kankanamge@sebsaworld.com')).toBeNull();
+    expect(screen.getByText('Showing 1 of', { exact: false })).toHaveTextContent('Showing 1 of');
   });
 
   it('filters by role', async () => {
@@ -308,5 +419,76 @@ describe('admin customers tab', () => {
     // The handler refused: the dialog is still open and the customer survives.
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     expect(screen.getByText('Biomsterlandet')).toBeInTheDocument();
+  });
+});
+
+describe('admin users tab: editing roles and reviewer workload (docs/25)', () => {
+  async function openEdit(user: ReturnType<typeof userEvent.setup>, name: string) {
+    await user.type(await screen.findByRole('searchbox', { name: /search users/i }), name);
+    await user.click(await screen.findByRole('button', { name: new RegExp(`^edit ${name}$`, 'i') }));
+    return screen.findByRole('dialog');
+  }
+
+  it('adds a role to a single-role user', async () => {
+    const { user } = renderAdmin('/crp/admin/users');
+    const dialog = await openEdit(user, 'Dheliya Kankanamge');
+
+    await user.click(within(dialog).getByRole('checkbox', { name: 'Reviewer' }));
+    await user.click(within(dialog).getByRole('button', { name: /^save changes$/i }));
+
+    await waitFor(() => {
+      expect(findUser('u-dheliya')?.roles).toEqual(['Developer', 'Reviewer']);
+    });
+  });
+
+  it('removes one role from a user who holds two', async () => {
+    db.users.push({
+      id: 'u-two-roles',
+      name: 'Two Roles',
+      email: 'two.roles@sebsaworld.com',
+      roles: ['Developer', 'Reviewer'],
+      isActive: true,
+      createdAt: '2026-01-01T00:00:00.000Z',
+    });
+    const { user } = renderAdmin('/crp/admin/users');
+    const dialog = await openEdit(user, 'Two Roles');
+
+    await user.click(within(dialog).getByRole('checkbox', { name: 'Reviewer' }));
+    await user.click(within(dialog).getByRole('button', { name: /^save changes$/i }));
+
+    await waitFor(() => {
+      expect(findUser('u-two-roles')?.roles).toEqual(['Developer']);
+    });
+  });
+
+  it('never lets the last remaining role be cleared', async () => {
+    const { user } = renderAdmin('/crp/admin/users');
+    const dialog = await openEdit(user, 'Dheliya Kankanamge');
+
+    expect(within(dialog).getByRole('checkbox', { name: 'Developer' })).toBeDisabled();
+    expect(within(dialog).queryByRole('checkbox', { name: 'Admin' })).toBeNull();
+  });
+
+  it('blocks deactivating a reviewer who still has review work, and lists it', async () => {
+    const pending = db.tasks.find((task) => task.status === 'InReview' && task.reviewerId !== null);
+    const reviewer = pending?.reviewerId ? findUser(pending.reviewerId) : undefined;
+    if (pending === undefined || reviewer === undefined) throw new Error('No in-review fixture');
+    signInForTest('u-qa-superadmin');
+
+    const { user } = renderAdmin('/crp/admin/users');
+    await user.type(await screen.findByRole('searchbox', { name: /search users/i }), reviewer.name);
+    await user.click(
+      await screen.findByRole('button', { name: new RegExp(`^deactivate ${reviewer.name}$`, 'i') }),
+    );
+    const dialog = await screen.findByRole('dialog');
+    const reason = within(dialog).queryByRole('textbox');
+    if (reason !== null) await user.type(reason, 'Leaving the team');
+    await user.click(within(dialog).getByRole('button', { name: /^deactivate$/i }));
+
+    const notice = await within(dialog).findByRole('alert');
+    expect(notice).toHaveTextContent(/still has \d+ pending review task/i);
+    expect(within(notice).getByRole('link', { name: new RegExp(pending.taskCode, 'i') })).toBeInTheDocument();
+    // Nothing changed: the reviewer is still active.
+    expect(reviewer.isActive).toBe(true);
   });
 });

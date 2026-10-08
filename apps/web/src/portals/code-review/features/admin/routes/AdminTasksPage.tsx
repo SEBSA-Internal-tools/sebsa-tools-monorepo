@@ -65,6 +65,14 @@ const ADMIN_STATUS_TO_BUCKET: Partial<Record<TaskStatus, KpiBucket>> = {
  * and the handlers re-check every one of them, so a stale button is a dead
  * click rather than an unauthorised write.
  */
+/**
+ * A ChangesRequested task waits for the developer; the admin may change who
+ * receives it on resubmission (docs/25-review-assignment-rules.md).
+ */
+function canChangeFollowUpReviewer(task: TaskListItem): boolean {
+  return task.status === 'ChangesRequested';
+}
+
 export function AdminTasksPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -138,12 +146,16 @@ export function AdminTasksPage() {
                 }
               }}
             />
-            {canAssignReviewer(actor, task) || canReassignReviewer(actor, task) ? (
+            {canAssignReviewer(actor, task) ||
+            canReassignReviewer(actor, task) ||
+            canChangeFollowUpReviewer(task) ? (
               <IconButton
                 label={
-                  task.status === 'InReview'
-                    ? `Reassign reviewer for ${task.taskCode}`
-                    : interpolate(admin.tasks.actions.assign, { taskCode: task.taskCode })
+                  task.status === 'ChangesRequested'
+                    ? interpolate(admin.tasks.followUp.action, { taskCode: task.taskCode })
+                    : task.status === 'InReview'
+                      ? `Reassign reviewer for ${task.taskCode}`
+                      : interpolate(admin.tasks.actions.assign, { taskCode: task.taskCode })
                 }
                 icon={<UserPlus className="size-4" />}
                 size="sm"

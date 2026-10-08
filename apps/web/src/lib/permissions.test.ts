@@ -6,7 +6,7 @@ const DEVELOPER: Role[] = ['Developer'];
 const REVIEWER: Role[] = ['Reviewer'];
 const ADMIN: Role[] = ['Admin'];
 const MULTI: Role[] = ['Developer', 'Reviewer', 'Admin'];
-const SUPER_ADMIN: Role[] = ['Super Admin'];
+const SUPER_ADMIN: Role[] = ['SuperAdmin'];
 
 describe('canAccessWorkspace', () => {
   it('grants a developer only the developer workspace', () => {
@@ -52,7 +52,7 @@ describe('accessibleWorkspaces', () => {
   });
 
   it('includes the Admin workspace for Super Admin', () => {
-    expect(accessibleWorkspaces(['Super Admin'])).toEqual(['admin']);
+    expect(accessibleWorkspaces(['SuperAdmin'])).toEqual(['admin']);
   });
 });
 

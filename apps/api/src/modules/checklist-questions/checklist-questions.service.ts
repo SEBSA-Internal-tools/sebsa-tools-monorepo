@@ -1,4 +1,6 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { ApiException } from '../../common/api-error.js';
+import { moveToPosition } from '../../common/ordering.js';
 import { Prisma } from '@prisma/client';
 import { rethrowPrismaConflict } from '../../common/prisma-errors.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
@@ -33,12 +35,14 @@ export class ChecklistQuestionsService {
     });
 
     if (occupant && dto.onDuplicateOrder === undefined) {
-      throw new ConflictException(
+      throw new ApiException(
+        'ORDER_TAKEN',
         `Order ${String(order)} is already used by a question in this category.`,
       );
     }
     if (occupant && dto.onDuplicateOrder === 'replace' && occupant._count.answers > 0) {
-      throw new ConflictException(
+      throw new ApiException(
+        'QUESTION_IN_USE',
         'Developers have already answered the question at that order, so it cannot be replaced. Deactivate it instead.',
       );
     }
@@ -90,6 +94,23 @@ export class ChecklistQuestionsService {
         if (categoryId !== existing.sectionId) {
           await this.resequence(tx, existing.sectionId, id);
         }
+        // Moving within the category shifts the occupant instead of leaving two
+        // questions on one position.
+        if (dto.order !== undefined) {
+          const ordered = await tx.checklistQuestion.findMany({
+            where: { sectionId: categoryId },
+            orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
+            select: { id: true },
+          });
+          const sequence = moveToPosition(ordered.map((entry) => entry.id), id, dto.order);
+          for (const [index, questionId] of sequence.entries()) {
+            await tx.checklistQuestion.update({
+              where: { id: questionId },
+              data: { displayOrder: index + 1 },
+            });
+          }
+          return { ...question, displayOrder: sequence.indexOf(id) + 1 };
+        }
         return question;
       });
       return this.toResponse(updated);
@@ -101,7 +122,8 @@ export class ChecklistQuestionsService {
   async remove(id: string): Promise<void> {
     const existing = await this.findRecord(id);
     if (existing._count.answers > 0) {
-      throw new ConflictException(
+      throw new ApiException(
+        'QUESTION_IN_USE',
         'Developers have already answered this question. Deactivate it instead.',
       );
     }
@@ -140,7 +162,7 @@ export class ChecklistQuestionsService {
       where: { sectionId },
       _max: { displayOrder: true },
     });
-    return (aggregate._max.displayOrder ?? -1) + 1;
+    return (aggregate._max.displayOrder ?? 0) + 1;
   }
 
   private async shiftOrders(
@@ -177,7 +199,7 @@ export class ChecklistQuestionsService {
     for (const [order, question] of questions.entries()) {
       await tx.checklistQuestion.update({
         where: { id: question.id },
-        data: { displayOrder: order },
+        data: { displayOrder: order + 1 },
       });
     }
   }

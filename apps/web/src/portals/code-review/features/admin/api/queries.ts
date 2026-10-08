@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 import {
+  ROLE_CODE_BY_ROLE,
   customerSchema,
   taskListItemSchema,
   userSchema,
@@ -39,7 +40,12 @@ export function useCreateUser() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (input: CreateUserInput) => api.post('/users', userSchema, input),
+    mutationFn: (input: CreateUserInput) =>
+      api.post('/users', userSchema, {
+        ...input,
+        // NestJS accepts role codes; the response's labels are mapped back by roleSchema.
+        roles: input.roles.map((role) => ROLE_CODE_BY_ROLE[role]),
+      }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: userKeys.all });
     },
@@ -50,6 +56,7 @@ export function useUpdateUser() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    // Profile and status only: roles change through PUT /users/:id/roles (useReplaceUserRoles).
     mutationFn: ({ userId, input }: { userId: string; input: Omit<UpdateUserInput, 'roles'> }) =>
       api.patch(`/users/${userId}`, userSchema, input),
     onSuccess: () => {
@@ -62,7 +69,8 @@ export function useDeleteUser() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (userId: string) => api.delete(`/users/${userId}`, z.unknown()),
+    mutationFn: ({ userId, reason }: { userId: string; reason?: string }) =>
+      api.delete(`/users/${userId}`, z.unknown(), reason === undefined ? {} : { body: { reason } }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: userKeys.all });
     },
@@ -109,6 +117,33 @@ export function useDeleteCustomer() {
 }
 
 /* ---------------------------------------------------------------- task actions */
+
+/**
+ * Who receives a ChangesRequested task when the developer resubmits it
+ * (docs/25-review-assignment-rules.md). Lets an admin clear a reviewer's
+ * pending work before deactivating them.
+ */
+export function useChangeResubmissionReviewer() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      taskId,
+      reviewerId,
+      reason,
+    }: {
+      taskId: string;
+      reviewerId: string;
+      reason: string;
+    }) =>
+      api.post(`/tasks/${taskId}/resubmission-reviewer`, taskListItemSchema, { reviewerId, reason }),
+    onSuccess: (task) => {
+      void queryClient.invalidateQueries({ queryKey: taskKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: taskKeys.detail(task.id) });
+      void queryClient.invalidateQueries({ queryKey: taskKeys.events(task.id) });
+    },
+  });
+}
 
 export function useAssignReviewer() {
   const queryClient = useQueryClient();

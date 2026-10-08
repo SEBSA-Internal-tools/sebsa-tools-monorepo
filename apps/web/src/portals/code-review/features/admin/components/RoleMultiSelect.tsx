@@ -13,13 +13,13 @@ export interface RoleMultiSelectProps {
   'aria-label'?: string;
 }
 
-const ROLE_OPTIONS: readonly Role[] = ['Developer', 'Reviewer', 'Admin', 'Super Admin'];
+const ROLE_OPTIONS: readonly Role[] = ['Developer', 'Reviewer', 'Admin', 'SuperAdmin'];
 
 const ROLE_LABELS: Record<Role, string> = {
   Developer: common.role.Developer,
   Reviewer: common.role.Reviewer,
   Admin: common.role.Admin,
-  'Super Admin': common.role['Super Admin'],
+  SuperAdmin: common.role.SuperAdmin,
 };
 
 function getRoleTriggerLabel(selectedRoles: readonly Role[]): string {

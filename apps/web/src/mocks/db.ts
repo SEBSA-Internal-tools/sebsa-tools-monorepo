@@ -75,6 +75,8 @@ type StoredNotification = Notification & { userId: string };
 interface Database {
   users: User[];
   deletedUserIds: Set<string>;
+  /** Admin-chosen follow-up reviewer per ChangesRequested task (docs/25). */
+  resubmissionReviewerIds: Map<string, string>;
   customers: Customer[];
   tasks: Task[];
   notifications: StoredNotification[];
@@ -181,6 +183,7 @@ function buildDatabase(): Database {
   return {
     users: seededUsers.map((u) => ({ ...u })),
     deletedUserIds: new Set<string>(),
+    resubmissionReviewerIds: new Map<string, string>(),
     // Cloned so runtime mutations cannot write back into the module-level copy
     // that `withDerivedFields` reads, which would break `resetDb()`.
     customers: seededCustomers.map((c) => ({ ...c })),
@@ -572,6 +575,7 @@ export function resetDb(): void {
   const fresh = buildDatabase();
   db.users = fresh.users;
   db.deletedUserIds = fresh.deletedUserIds;
+  db.resubmissionReviewerIds = fresh.resubmissionReviewerIds;
   db.customers = fresh.customers;
   db.tasks = fresh.tasks;
   db.notifications = fresh.notifications;

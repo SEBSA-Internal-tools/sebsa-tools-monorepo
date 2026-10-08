@@ -58,22 +58,4 @@ export const inviteSchema = z.object({
 });
 export type Invite = z.infer<typeof inviteSchema>;
 
-export const createInviteResponseSchema = z.object({
-  user: z.object({
-    id: z.string(),
-    email: z.string(),
-    fullName: z.string().nullable().optional(),
-    roleId: z.string(),
-    status: z.literal('INVITED'),
-  }),
-  invite: inviteSchema,
-});
-export type CreateInviteResponse = z.infer<typeof createInviteResponseSchema>;
-
 export const resendInviteResponseSchema = z.object({ invite: inviteSchema });
-
-export interface CreateInviteInput {
-  email: string;
-  fullName?: string | undefined;
-  roleId: string;
-}

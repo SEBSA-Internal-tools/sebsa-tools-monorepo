@@ -42,7 +42,7 @@ describe('Super Admin authorization', () => {
 
     await expect(
       api.patch(`/users/${NORMAL_ADMIN}`, userSchema, {
-        roles: ['Super Admin'],
+        roles: ['SuperAdmin'],
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
@@ -60,7 +60,7 @@ describe('Super Admin authorization', () => {
       api.post('/users', userSchema, {
         name: 'Direct Super Admin',
         email: 'qa.direct.super@sebsaworld.com',
-        roles: ['Super Admin'],
+        roles: ['SuperAdmin'],
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
@@ -73,10 +73,10 @@ describe('Super Admin authorization', () => {
       `/users/${target.id}/roles/transfer-super-admin`,
       userSchema,
     );
-    expect(transferred.roles).toEqual(['Super Admin']);
-    expect(target.roles).toEqual(['Super Admin']);
+    expect(transferred.roles).toEqual(['SuperAdmin']);
+    expect(target.roles).toEqual(['SuperAdmin']);
     expect(previous.roles).toEqual(['Admin']);
-    expect(db.users.filter((user) => user.roles.includes('Super Admin'))).toHaveLength(1);
+    expect(db.users.filter((user) => user.roles.includes('SuperAdmin'))).toHaveLength(1);
   });
 
   it('rejects transfer to a user who is not already an Admin', async () => {

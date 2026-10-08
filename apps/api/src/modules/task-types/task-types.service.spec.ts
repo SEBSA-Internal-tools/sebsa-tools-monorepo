@@ -1,4 +1,3 @@
-import { ConflictException } from '@nestjs/common';
 import { validate } from 'class-validator';
 import { describe, expect, it, vi } from 'vitest';
 import { CreateTaskTypeDto } from './dto/create-task-type.dto.js';
@@ -30,6 +29,7 @@ describe('TaskTypesService management', () => {
       taskType: {
         findMany: vi.fn().mockResolvedValue([]),
         create: vi.fn().mockResolvedValue(created),
+        aggregate: vi.fn().mockResolvedValue({ _max: { displayOrder: 4 } }),
       },
     };
     const prisma = {
@@ -51,6 +51,8 @@ describe('TaskTypesService management', () => {
       data: {
         code: 'UPGRADE_SERVICE',
         name: 'Upgrade Service',
+        // Appended after the current last position.
+        displayOrder: 5,
         description: null,
       },
     });
@@ -122,8 +124,25 @@ describe('TaskTypesService management', () => {
     };
     const service = new TaskTypesService(prisma as never);
 
-    await expect(service.remove(2)).rejects.toBeInstanceOf(ConflictException);
-    await expect(service.remove(2)).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.remove(2)).rejects.toMatchObject({ code: 'TASK_TYPE_IN_USE' });
+    await expect(service.remove(2)).rejects.toMatchObject({ code: 'TASK_TYPE_IN_USE' });
     expect(prisma.taskType.delete).not.toHaveBeenCalled();
+  });
+
+  it('rewrites the task-type sequence 1..n and refuses an incomplete list', async () => {
+    const update = vi.fn().mockResolvedValue({});
+    const prisma = {
+      taskType: {
+        findMany: vi.fn().mockResolvedValue([{ id: 1 }, { id: 2 }]),
+        update,
+      },
+      $transaction: vi.fn((operations: unknown[]) => Promise.all(operations)),
+    };
+    const service = new TaskTypesService(prisma as never);
+
+    await service.reorder(['2', '1']);
+    expect(update).toHaveBeenNthCalledWith(1, { where: { id: 2 }, data: { displayOrder: 1 } });
+    expect(update).toHaveBeenNthCalledWith(2, { where: { id: 1 }, data: { displayOrder: 2 } });
+    await expect(service.reorder(['1'])).rejects.toMatchObject({ code: 'ORDER_INCOMPLETE' });
   });
 });

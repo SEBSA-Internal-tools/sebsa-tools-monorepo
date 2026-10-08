@@ -117,7 +117,7 @@ const ROLE_CLASSES: Record<Role, string> = {
   Developer: 'bg-brand-blue-100 text-brand-blue-700 border-brand-blue-700',
   Reviewer: 'bg-emerald-100 text-emerald-700 border-emerald-700',
   Admin: 'bg-violet-100 text-violet-700 border-violet-700',
-  'Super Admin': 'bg-purple-100 text-purple-800 border-purple-800',
+  SuperAdmin: 'bg-purple-100 text-purple-800 border-purple-800',
 };
 
 const ROLE_BADGE_BASE =
@@ -244,17 +244,31 @@ export function CountedCycleBadge({
 export function ReviewCycleBadges({
   round,
   counted,
+  adjustedCycles = [],
   className,
 }: {
   round: number;
   counted: number;
+  /**
+   * Rounds excluded from the counted total. Counted cycles start at 0, so
+   * `round - counted` is not an adjustment — only an excluded round is.
+   */
+  adjustedCycles?: readonly number[];
   className?: string;
 }) {
-  const adjustment = Math.max(0, round - counted);
+  const adjustment = adjustedCycles.length;
   return (
     <span className={cn('inline-flex items-center gap-1.5', className)}>
       <ReviewRoundBadge round={round} />
       <CountedCycleBadge counted={counted} adjustment={adjustment} />
+      {adjustment > 0 ? (
+        <span
+          className="inline-flex items-center rounded-md border border-emerald-200/70 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 shadow-2xs"
+          title={`A qualifying review round was excluded from the effective count (-${adjustment}). See Task History for cycle adjustment details.`}
+        >
+          Adjusted (-{adjustment})
+        </span>
+      ) : null}
     </span>
   );
 }

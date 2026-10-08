@@ -2,19 +2,53 @@ import { createBrowserRouter, Navigate, type RouteObject } from 'react-router-do
 import { routePaths, SEGMENTS } from '@/constants/routePaths';
 import { LoginRoute } from '@/app/routeAdapters';
 import { RequireAuth } from '@/app/RequireAuth';
+import { RequireGuest } from '@/app/RequireGuest';
 import { RootLayout } from '@/app/RootLayout';
 import { RouteError } from '@/app/RouteError';
 import { ScrollRestorationLayout } from '@/app/ScrollRestorationLayout';
 import { codeReviewRoutes } from './codeReviewRoutes';
 import { LegacyWorkspaceRedirect } from './LegacyWorkspaceRedirect';
-import { localAuthRoutes } from '@/features/local-auth/routes/index.tsx';
 
 export const routeTree: RouteObject[] = [
   {
     element: <ScrollRestorationLayout />,
     children: [
-      { path: routePaths.login, element: <LoginRoute /> },
-      ...localAuthRoutes,
+      {
+        /*
+         * Signed-out screens. One guard for all of them: a signed-in user is sent
+         * on to the CRP home instead. The three password screens belong to the
+         * temporary local sign-in and are lazy so they stay out of the entry
+         * bundle — most visits never open them.
+         */
+        element: <RequireGuest />,
+        errorElement: <RouteError />,
+        children: [
+          { path: routePaths.login, element: <LoginRoute /> },
+          {
+            path: routePaths.setPassword,
+            lazy: async () => {
+              const module = await import('@/features/local-auth/routes/SetPasswordPage');
+              return { Component: module.SetPasswordPage };
+            },
+          },
+          {
+            path: routePaths.forgotPassword,
+            lazy: async () => {
+              const module = await import('@/features/local-auth/routes/ForgotPasswordPage');
+              return { Component: module.ForgotPasswordPage };
+            },
+          },
+          {
+            path: routePaths.linkExpired,
+            lazy: async () => {
+              const module = await import('@/features/local-auth/routes/LinkExpiredPage');
+              return { Component: module.LinkExpiredPage };
+            },
+          },
+        ],
+      },
+      // Accounts are created by admins; there is no self sign-up page.
+      { path: 'signup', element: <Navigate to={routePaths.login} replace /> },
       { path: 'developer/*', element: <LegacyWorkspaceRedirect /> },
       { path: 'reviewer/*', element: <LegacyWorkspaceRedirect /> },
       { path: 'admin/*', element: <LegacyWorkspaceRedirect /> },

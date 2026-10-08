@@ -3,25 +3,30 @@
  *
  * Codes and wording match the API contract (`failedRules` in a 422). The server
  * is the authority; this file only gives the user the same answer before they
- * submit. It adds one server-only check the browser cannot do: the password must
- * not contain the user's name or email, or be a very common one.
- *
- * Passwords are never trimmed, hashed or encrypted here — a leading space is
- * part of the password.
+ * submit.
  */
 
-export const PASSWORD_MIN_LENGTH = 12;
-export const PASSWORD_MAX_LENGTH = 128;
+import {
+  PASSWORD_MIN_LENGTH,
+  RULE_CODES,
+  evaluatePassword,
+  passwordLength,
+  type RuleCode,
+} from '@sdp/contracts';
 
-export const RULE_CODES = [
-  'MIN_LENGTH',
-  'MAX_LENGTH',
-  'UPPERCASE',
-  'LOWERCASE',
-  'NUMBER',
-  'SPECIAL',
-] as const;
-export type RuleCode = (typeof RULE_CODES)[number];
+/*
+ * The rules themselves (lengths, codes, evaluation) live in @sdp/contracts
+ * (passwordPolicy.ts) so NestJS enforces exactly what this checklist shows.
+ * Re-exported here so the screens keep one import path.
+ */
+export {
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+  RULE_CODES,
+  evaluatePassword,
+  passwordLength,
+  type RuleCode,
+} from '@sdp/contracts';
 
 /** The checklist row for "both passwords match" has no server code. */
 export type ChecklistRuleId = Exclude<RuleCode, 'MAX_LENGTH'> | 'MATCH';
@@ -34,36 +39,6 @@ export const CHECKLIST_RULES: readonly { id: ChecklistRuleId; label: string }[] 
   { id: 'SPECIAL', label: 'A symbol (! @ # $ %)' },
   { id: 'MATCH', label: 'Passwords match' },
 ];
-
-/**
- * Length in characters as a person counts them: one emoji is one character, not
- * two UTF-16 units. Assumes the backend counts code points; if it counts
- * something else, this and MAX_LENGTH are the only two places to change.
- */
-export function passwordLength(password: string): number {
-  let count = 0;
-  for (const _ of password) count += 1;
-  return count;
-}
-
-const UPPER = /\p{Lu}/u;
-const LOWER = /\p{Ll}/u;
-const DIGIT = /\p{Nd}/u;
-/** Printable, and neither a letter, a digit, nor whitespace. A space is not "special". */
-const SPECIAL = /[^\p{L}\p{Nd}\p{White_Space}\p{C}]/u;
-
-/** Which rules the password satisfies. Pure, and safe on any input including ''. */
-export function evaluatePassword(password: string): Record<RuleCode, boolean> {
-  const length = passwordLength(password);
-  return {
-    MIN_LENGTH: length >= PASSWORD_MIN_LENGTH,
-    MAX_LENGTH: length <= PASSWORD_MAX_LENGTH,
-    UPPERCASE: UPPER.test(password),
-    LOWERCASE: LOWER.test(password),
-    NUMBER: DIGIT.test(password),
-    SPECIAL: SPECIAL.test(password),
-  };
-}
 
 export function passwordsMatch(password: string, confirm: string): boolean {
   return password !== '' && password === confirm;

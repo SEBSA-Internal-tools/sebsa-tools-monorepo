@@ -66,6 +66,8 @@ describe('CustomersService creation', () => {
       },
     };
     const prisma = {
+      // No existing customer by that name (case-insensitive check).
+      customer: { findFirst: vi.fn().mockResolvedValue(null) },
       $transaction: vi.fn((operation: (client: typeof tx) => unknown) => operation(tx)),
     };
     const service = new CustomersService(prisma as never, audit as never);
@@ -143,5 +145,51 @@ describe('CustomersService status updates', () => {
       actor,
       expect.objectContaining({ actionType: 'CUSTOMER_DEACTIVATED' }),
     );
+  });
+});
+
+describe('CustomersService name and delete rules', () => {
+  const audit = { record: vi.fn().mockResolvedValue(undefined) };
+  const admin: AuthenticatedUser = {
+    id: '00000000-0000-4000-8000-000000000001',
+    email: 'super@example.com',
+    name: 'Super',
+    roles: ['SUPER_ADMIN'],
+    isActive: true,
+    createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    sessionId: 'session',
+  };
+
+  it('refuses a case-insensitive duplicate name with NAME_TAKEN', async () => {
+    const prisma = { customer: { findFirst: vi.fn().mockResolvedValue({ id: 'existing' }) } };
+    const service = new CustomersService(prisma as never, audit as never);
+
+    await expect(service.create({ name: 'northwind traders' }, admin)).rejects.toMatchObject({
+      code: 'NAME_TAKEN',
+    });
+  });
+
+  it('refuses to delete a customer that tasks reference (CUSTOMER_IN_USE)', async () => {
+    const prisma = {
+      customer: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'c1',
+          code: 'NW',
+          name: 'Northwind',
+          description: null,
+          color: null,
+          status: 'ACTIVE',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          creator: null,
+        }),
+      },
+      task: { count: vi.fn().mockResolvedValue(2) },
+    };
+    const service = new CustomersService(prisma as never, audit as never);
+
+    await expect(service.remove('c1', admin, 'Merged')).rejects.toMatchObject({
+      code: 'CUSTOMER_IN_USE',
+    });
   });
 });

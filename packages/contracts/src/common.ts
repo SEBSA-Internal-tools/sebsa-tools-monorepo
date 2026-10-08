@@ -44,5 +44,7 @@ export const apiErrorSchema = z.object({
   message: z.string(),
   fieldErrors: z.record(z.string(), z.array(z.string())).optional(),
   correlationId: z.string().optional(),
+  /** Structured, code-specific context (e.g. the tasks blocking a deactivation). */
+  details: z.unknown().optional(),
 });
 export type ApiError = z.infer<typeof apiErrorSchema>;

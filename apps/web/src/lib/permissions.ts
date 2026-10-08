@@ -32,7 +32,7 @@ const SUPER_ADMIN_CAPABILITIES: readonly Capability[] = [
 /** Small capability seam shared by UI affordances and mock API enforcement. */
 export function hasCapability(roles: readonly Role[], capability: Capability): boolean {
   if (
-    roles.includes('Super Admin') &&
+    roles.includes('SuperAdmin') &&
     (ADMIN_CAPABILITIES.includes(capability) || SUPER_ADMIN_CAPABILITIES.includes(capability))
   )
     return true;
@@ -40,7 +40,7 @@ export function hasCapability(roles: readonly Role[], capability: Capability): b
 }
 
 export function isPrivilegedRoleSet(roles: readonly Role[]): boolean {
-  return roles.includes('Admin') || roles.includes('Super Admin');
+  return roles.includes('Admin') || roles.includes('SuperAdmin');
 }
 
 /**

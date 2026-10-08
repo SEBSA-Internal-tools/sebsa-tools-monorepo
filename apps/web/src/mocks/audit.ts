@@ -6,11 +6,17 @@ export interface MockAuditInput {
   entityType: AuditEntityType;
   entityId?: string | null;
   description: string;
-  oldValue?: AuditLog['oldValue'];
-  newValue?: AuditLog['newValue'];
+  /** Any serialisable snapshot; normalised to plain JSON as the API would store it. */
+  oldValue?: unknown;
+  newValue?: unknown;
   taskId?: string | null;
   targetUserId?: string | null;
   metadata?: AuditLog['metadata'];
+}
+
+/** Round-trips through JSON so optional `undefined` fields disappear, as on the wire. */
+function toJson(value: unknown): AuditLog['newValue'] {
+  return value === undefined ? null : (JSON.parse(JSON.stringify(value)) as AuditLog['newValue']);
 }
 
 export function recordMockAudit(actor: User, input: MockAuditInput): AuditLog {
@@ -24,8 +30,8 @@ export function recordMockAudit(actor: User, input: MockAuditInput): AuditLog {
     entityType: input.entityType,
     entityId: input.entityId ?? null,
     description: input.description,
-    oldValue: input.oldValue ?? null,
-    newValue: input.newValue ?? null,
+    oldValue: toJson(input.oldValue),
+    newValue: toJson(input.newValue),
     taskId: input.taskId ?? null,
     targetUserId: input.targetUserId ?? null,
     metadata: input.metadata ?? null,

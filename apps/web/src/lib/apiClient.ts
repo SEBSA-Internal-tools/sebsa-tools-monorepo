@@ -24,6 +24,7 @@ export class ApiError extends Error {
   readonly code: string;
   readonly fieldErrors: Record<string, string[]> | undefined;
   readonly correlationId: string | undefined;
+  readonly details: unknown;
 
   constructor(init: {
     statusCode: number;
@@ -31,6 +32,7 @@ export class ApiError extends Error {
     message: string;
     fieldErrors?: Record<string, string[]> | undefined;
     correlationId?: string | undefined;
+    details?: unknown;
   }) {
     super(init.message);
     this.name = 'ApiError';
@@ -38,6 +40,7 @@ export class ApiError extends Error {
     this.code = init.code;
     this.fieldErrors = init.fieldErrors;
     this.correlationId = init.correlationId;
+    this.details = init.details;
   }
 
   /** 4xx responses are the user's problem to fix; retrying will not help. */
@@ -102,12 +105,11 @@ export class MockApiDetachedError extends Error {
 }
 
 /**
- * Phase 1 only. How this layer puts a detached mock API back together.
+ * Test harness only. How this layer puts a detached mock API back together.
  *
- * Registered by `main.tsx` from inside its existing `import.meta.env.DEV` block,
- * so this module keeps knowing nothing about `src/mocks/` and deleting that
- * folder in Phase 2 stays a one-line change. Unset in production, where the hook
- * is never even reached — `isMockDetached` returns `false` outside DEV.
+ * The browser always talks to NestJS; MSW runs only under Vitest, so outside
+ * tests this hook is never registered and never reached — `isMockDetached`
+ * returns `false` unless `MODE === 'test'`.
  *
  * Inverted rather than imported for the same reason the identity override is:
  * `lib/` may not depend on a folder that is about to be deleted.
@@ -272,8 +274,8 @@ function readCookie(name: string): string | undefined {
 /**
  * True when a failed `/api/*` response did not come from the mock API.
  *
- * Guarded on `import.meta.env.DEV` because the whole failure mode is a Phase 1
- * artefact: in production there is no service worker to detach, and a real 404
+ * Guarded on test mode because the whole failure mode belongs to the MSW test
+ * double: in the browser there is no service worker to detach, and a real 404
  * from NestJS must stay a plain 404.
  */
 function isMockDetached(response: Response): boolean {

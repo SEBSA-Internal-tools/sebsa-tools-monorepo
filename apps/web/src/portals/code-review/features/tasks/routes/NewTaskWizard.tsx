@@ -133,7 +133,6 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
 
   const [showErrors, setShowErrors] = useState(false);
   const actionInFlight = useRef(false);
-  const [pendingAction, setPendingAction] = useState<'save' | 'next' | 'submit' | null>(null);
 
   const effectiveTaskId = draft.taskId ?? editTaskId ?? '';
   const isPersistedDraft = draft.taskId !== null || isEditMode;
@@ -438,18 +437,13 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
 
   const unanswered = Math.max(progress.total - progress.answered, 0);
 
-  async function runOnce(
-    pending: Exclude<typeof pendingAction, null>,
-    action: () => Promise<void>,
-  ) {
+  async function runOnce(action: () => Promise<void>) {
     if (actionInFlight.current) return;
     actionInFlight.current = true;
-    setPendingAction(pending);
     try {
       await action();
     } finally {
       actionInFlight.current = false;
-      setPendingAction(null);
     }
   }
 
@@ -607,9 +601,9 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
             variant="secondary"
             leadingIcon={<Save className="size-4" aria-hidden="true" />}
             onClick={() => {
-              void runOnce('save', handleSaveDraft);
+              void runOnce(handleSaveDraft);
             }}
-            isLoading={pendingAction === 'save'}
+            isLoading={isBusy}
             // Saving needs enough to create a task: the server derives the title
             // and the task code from exactly these fields.
             disabled={draft.customerId === '' || draft.crimId.trim() === '' || !versionReady}
@@ -620,9 +614,9 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
           {currentStep === 'review' ? (
             <Button
               onClick={() => {
-                void runOnce('submit', handleSubmit);
+                void runOnce(handleSubmit);
               }}
-              isLoading={pendingAction === 'submit'}
+              isLoading={isBusy}
               leadingIcon={<Send className="size-4" aria-hidden="true" />}
               aria-disabled={missing.length > 0}
             >
@@ -631,9 +625,9 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
           ) : (
             <Button
               onClick={() => {
-                void runOnce('next', handleNext);
+                void runOnce(handleNext);
               }}
-              isLoading={pendingAction === 'next'}
+              isLoading={isBusy}
               trailingIcon={<ArrowRight className="size-4" aria-hidden="true" />}
               aria-disabled={!canAdvance || !versionReady}
             >

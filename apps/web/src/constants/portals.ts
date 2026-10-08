@@ -28,7 +28,7 @@ export const PORTALS: readonly PortalDescriptor[] = [
     label: 'Code Review Portal',
     path: routePaths.crp.root,
     icon: 'GitPullRequest',
-    requiredRoles: ['Developer', 'Reviewer', 'Admin', 'Super Admin'],
+    requiredRoles: ['Developer', 'Reviewer', 'Admin', 'SuperAdmin'],
     comingSoon: false,
   },
   {

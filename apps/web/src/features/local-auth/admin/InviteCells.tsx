@@ -12,27 +12,17 @@ const STATUS_TONE: Record<UserStatus, string> = {
   DEACTIVATED: 'bg-priority-low-surface text-priority-low',
 };
 
-/** Invited / Active / Deactivated. */
+/**
+ * Invited / Active / Deactivated. An invited user's pill carries the invite
+ * detail ("Expires in 23 h", "Expired", "Email failed") as a hover tooltip,
+ * since the table has no separate Invite column.
+ */
 export function StatusPill({ user }: { user: User }) {
   const status = userStatus(user);
-  return <span className={cn(PILL_BASE, STATUS_TONE[status])}>{copy.status[status]}</span>;
-}
-
-/** "Expires in 23 h", "Expired" or "Email failed" — blank for rows not invited. */
-export function InviteCell({ user }: { user: User }) {
-  const display = describeInvite(user);
-  if (display === null) {
-    return (
-      <span className="text-sm text-ink-400" aria-label="No invite">
-        —
-      </span>
-    );
-  }
-  return display.tone === 'warning' ? (
-    <span className={cn(PILL_BASE, 'border-warning/30 bg-warning-surface text-warning')}>
-      {display.text}
+  const detail = status === 'INVITED' ? describeInvite(user)?.text : undefined;
+  return (
+    <span className={cn(PILL_BASE, STATUS_TONE[status])} title={detail}>
+      {copy.status[status]}
     </span>
-  ) : (
-    <span className="text-ink-600 text-sm">{display.text}</span>
   );
 }

@@ -4,7 +4,19 @@ import type { Request } from 'express';
 import { CSRF_COOKIE, CSRF_HEADER } from '../auth.constants.js';
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
-const TOKEN_BOOTSTRAP_PATHS = ['/auth/login', '/auth/register'];
+/**
+ * Requests that cannot carry the CSRF token: login mints it, and the public
+ * password-link endpoints are called before sign-in with `credentials: 'omit'`
+ * — they neither send nor trust cookies, so there is no ambient authority to
+ * forge. They get an Origin check instead (PublicAuthHeadersInterceptor).
+ */
+const TOKEN_BOOTSTRAP_PATHS = [
+  '/auth/login',
+  '/auth/token/validate',
+  '/auth/set-password',
+  '/auth/forgot-password',
+  '/auth/resend-link',
+];
 
 @Injectable()
 export class CsrfGuard implements CanActivate {

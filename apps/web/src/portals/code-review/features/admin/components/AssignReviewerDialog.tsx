@@ -10,13 +10,15 @@ import { ApiError } from '@/lib/apiClient.ts';
 import { interpolate } from '@/lib/formatters.ts';
 import admin from '@/content/admin.json';
 import common from '@/content/common.json';
-import { useAssignReviewer } from '../api/queries.ts';
+import { useAssignReviewer, useChangeResubmissionReviewer } from '../api/queries.ts';
 
 /**
  * Assign or reassign a reviewer (screen 01's person-plus row action).
  *
- * Supports initial assignment for Submitted/ReSubmitted tasks and
- * re-assignment with mandatory reason for InReview tasks.
+ * Supports initial assignment for Submitted/ReSubmitted tasks,
+ * re-assignment with mandatory reason for InReview tasks, and — for a
+ * ChangesRequested task — choosing the follow-up reviewer who receives it on
+ * resubmission (docs/25-review-assignment-rules.md), also with a reason.
  */
 export function AssignReviewerDialog({
   task,
@@ -29,7 +31,10 @@ export function AssignReviewerDialog({
   onClose: () => void;
 }) {
   const assign = useAssignReviewer();
+  const changeFollowUp = useChangeResubmissionReviewer();
+  const isFollowUp = task.status === 'ChangesRequested';
   const isReassign = task.status === 'InReview';
+  const followUp = admin.tasks.followUp;
 
   // Seeded on mount: for reassign, start empty so admin explicitly selects a new reviewer
   const [reviewerId, setReviewerId] = useState(isReassign ? '' : (task.reviewerId ?? ''));
@@ -51,8 +56,26 @@ export function AssignReviewerDialog({
 
   function submit() {
     if (reviewerId === '') return;
-    if (isReassign && reason.trim() === '') return;
+    if ((isReassign || isFollowUp) && reason.trim() === '') return;
     const reviewerName = eligible.find((user) => user.id === reviewerId)?.name ?? '';
+
+    if (isFollowUp) {
+      changeFollowUp.mutate(
+        { taskId: task.id, reviewerId, reason: reason.trim() },
+        {
+          onSuccess: () => {
+            toast.success(
+              interpolate(followUp.success, { taskCode: task.taskCode, name: reviewerName }),
+            );
+            onClose();
+          },
+          onError: (cause) => {
+            toast.error(cause instanceof ApiError ? cause.message : common.errors.generic);
+          },
+        },
+      );
+      return;
+    }
 
     assign.mutate(
       { taskId: task.id, reviewerId, reason: isReassign ? reason.trim() : undefined },
@@ -76,8 +99,10 @@ export function AssignReviewerDialog({
     );
   }
 
+  const needsReason = isReassign || isFollowUp;
   const isSubmitDisabled =
-    reviewerId === '' || eligible.length === 0 || (isReassign && reason.trim() === '');
+    reviewerId === '' || eligible.length === 0 || (needsReason && reason.trim() === '');
+  const isPending = assign.isPending || changeFollowUp.isPending;
 
   return (
     <Dialog
@@ -85,13 +110,17 @@ export function AssignReviewerDialog({
       onOpenChange={(open) => {
         if (!open) onClose();
       }}
-      title={isReassign ? 'Reassign Reviewer' : admin.tasks.assign.title}
+      title={
+        isFollowUp ? followUp.title : isReassign ? 'Reassign Reviewer' : admin.tasks.assign.title
+      }
       description={
-        isReassign
-          ? `Choose a new reviewer to take over ${task.taskCode}.`
-          : interpolate(admin.tasks.assign.description, {
-              taskCode: task.taskCode,
-            })
+        isFollowUp
+          ? interpolate(followUp.description, { taskCode: task.taskCode })
+          : isReassign
+            ? `Choose a new reviewer to take over ${task.taskCode}.`
+            : interpolate(admin.tasks.assign.description, {
+                taskCode: task.taskCode,
+              })
       }
       size="sm"
       footer={
@@ -103,31 +132,45 @@ export function AssignReviewerDialog({
             variant="adminPrimary"
             onClick={submit}
             disabled={isSubmitDisabled}
-            isLoading={assign.isPending}
+            isLoading={isPending}
           >
-            {assign.isPending
-              ? isReassign
-                ? 'Reassigning…'
-                : admin.tasks.assign.submitting
-              : isReassign
-                ? 'Reassign Reviewer'
-                : admin.tasks.assign.submit}
+            {isFollowUp
+              ? isPending
+                ? followUp.submitting
+                : followUp.submit
+              : isPending
+                ? isReassign
+                  ? 'Reassigning…'
+                  : admin.tasks.assign.submitting
+                : isReassign
+                  ? 'Reassign Reviewer'
+                  : admin.tasks.assign.submit}
           </Button>
         </>
       }
     >
       <div className="space-y-4">
         <Field
-          label={isReassign ? 'New Reviewer' : admin.tasks.assign.label}
+          label={
+            isFollowUp ? followUp.label : isReassign ? 'New Reviewer' : admin.tasks.assign.label
+          }
           hint={admin.tasks.assign.ownerExcluded}
         >
           <Select
             value={reviewerId}
             onValueChange={setReviewerId}
             options={options}
-            placeholder={isReassign ? 'Select a new reviewer' : admin.tasks.assign.placeholder}
+            placeholder={
+              isFollowUp
+                ? followUp.placeholder
+                : isReassign
+                  ? 'Select a new reviewer'
+                  : admin.tasks.assign.placeholder
+            }
             disabled={eligible.length === 0}
-            aria-label={isReassign ? 'New Reviewer' : admin.tasks.assign.label}
+            aria-label={
+              isFollowUp ? followUp.label : isReassign ? 'New Reviewer' : admin.tasks.assign.label
+            }
           />
         </Field>
 
@@ -138,6 +181,17 @@ export function AssignReviewerDialog({
               onChange={(e) => setReason(e.target.value)}
               rows={3}
               placeholder="Why is this reviewer being reassigned?"
+            />
+          </Field>
+        ) : null}
+
+        {isFollowUp ? (
+          <Field label={followUp.reasonLabel}>
+            <Textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              rows={3}
+              placeholder={followUp.reasonPlaceholder}
             />
           </Field>
         ) : null}

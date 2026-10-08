@@ -7,6 +7,8 @@ import type { UpdateCustomerDto } from './dto/update-customer.dto.js';
 import { formatTaskCode } from '../review-tasks/task-code.js';
 import type { AuthenticatedUser } from '../auth/auth.types.js';
 import { AuditService } from '../audit/audit.service.js';
+import { ApiException } from '../../common/api-error.js';
+import { reasonMetadata } from '../../common/dto/reason.dto.js';
 
 @Injectable()
 export class CustomersService {
@@ -40,6 +42,7 @@ export class CustomersService {
     return { taskCode: formatTaskCode(customer.name, sequence), sequence };
   }
   async create(dto: CreateCustomerDto, actor: AuthenticatedUser) {
+    await this.assertNameFree(dto.name);
     try {
       const customer = await this.prisma.$transaction(async (tx) => {
         const name = dto.name.trim();
@@ -68,6 +71,20 @@ export class CustomersService {
     }
   }
 
+  /** Customer names are unique ignoring case, as the web client checks them. */
+  private async assertNameFree(rawName: string, exceptId?: string) {
+    const clash = await this.prisma.customer.findFirst({
+      where: {
+        name: { equals: rawName.trim(), mode: 'insensitive' },
+        ...(exceptId === undefined ? {} : { id: { not: exceptId } }),
+      },
+      select: { id: true },
+    });
+    if (clash) {
+      throw new ApiException('NAME_TAKEN', 'A customer with that name already exists.');
+    }
+  }
+
   private async nextCode(tx: Prisma.TransactionClient, name: string): Promise<string> {
     const base = (name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 6) || 'CUST').toUpperCase();
     const existing = await tx.customer.findMany({
@@ -83,6 +100,7 @@ export class CustomersService {
   }
   async update(id: string, dto: UpdateCustomerDto, actor: AuthenticatedUser) {
     const existing = await this.findOne(id);
+    if (dto.name !== undefined) await this.assertNameFree(dto.name, id);
     try {
       const customer = await this.prisma.$transaction(async (tx) => {
         const { isActive, status, ...changes } = dto;
@@ -123,8 +141,15 @@ export class CustomersService {
       rethrowPrismaConflict(error);
     }
   }
-  async remove(id: string, actor: AuthenticatedUser) {
+  /**
+   * Permanent delete (Super Admin only, enforced by the controller). A customer
+   * that any task references is part of the record: deactivate it instead.
+   */
+  async remove(id: string, actor: AuthenticatedUser, reason?: string) {
     const existing = await this.findOne(id);
+    if ((await this.prisma.task.count({ where: { customerId: id } })) > 0) {
+      throw new ApiException('CUSTOMER_IN_USE', 'This customer has tasks. Deactivate them instead.');
+    }
     try {
       return await this.prisma.$transaction(async (tx) => {
         const deleted = await tx.customer.delete({ where: { id } });
@@ -134,6 +159,7 @@ export class CustomersService {
           entityId: id,
           description: `${actor.name} deleted customer ${existing.name}`,
           oldValue: existing,
+          metadata: { targetLabel: existing.name, ...reasonMetadata(reason) },
         });
         return deleted;
       });

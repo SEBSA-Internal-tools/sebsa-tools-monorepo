@@ -10,6 +10,7 @@ datasource db {
 enum UserStatus {
   ACTIVE
   INACTIVE
+  INVITED
 
   @@map("user_status")
 }
@@ -143,6 +144,21 @@ enum NotificationType {
   @@map("notification_type")
 }
 
+/// Purpose of a one-time password link (temporary local auth until SSO).
+enum PasswordLinkPurpose {
+  INVITE
+  RESET
+
+  @@map("password_link_purpose")
+}
+
+enum EmailDeliveryStatus {
+  SENT
+  FAILED
+
+  @@map("email_delivery_status")
+}
+
 model User {
   id                       String                     @id @default(uuid()) @db.Uuid
   entraObjectId            String?                    @unique @map("entra_object_id") @db.VarChar(100)
@@ -175,9 +191,30 @@ model User {
   notifications            Notification[]             @relation("NotificationRecipient")
   auditLogs                AuditLog[]                 @relation("AuditLogUser")
   refreshSessions          RefreshSession[]
+  passwordLinks            PasswordLink[]
+  resubmissionReviews      Task[]                     @relation("TaskResubmissionReviewer")
 
   @@index([deletedAt])
   @@map("users")
+}
+
+/// One-time invite / password-reset link. Only the SHA-256 of the token is stored.
+model PasswordLink {
+  id             String               @id @default(uuid()) @db.Uuid
+  userId         String               @map("user_id") @db.Uuid
+  purpose        PasswordLinkPurpose
+  tokenHash      String               @unique @map("token_hash") @db.Char(64)
+  expiresAt      DateTime             @map("expires_at") @db.Timestamptz(6)
+  usedAt         DateTime?            @map("used_at") @db.Timestamptz(6)
+  revokedAt      DateTime?            @map("revoked_at") @db.Timestamptz(6)
+  failedAttempts Int                  @default(0) @map("failed_attempts")
+  emailStatus    EmailDeliveryStatus? @map("email_status")
+  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose])
+  @@index([expiresAt])
+  @@map("password_links")
 }
 
 model RefreshSession {
@@ -247,6 +284,7 @@ model TaskType {
   name              String                     @db.VarChar(100)
   description       String?                    @db.Text
   isActive          Boolean                    @default(true) @map("is_active")
+  displayOrder      Int                        @default(0) @map("display_order")
   tasks             TaskTaskType[]
   checklistSections TaskTypeChecklistSection[]
 
@@ -254,37 +292,41 @@ model TaskType {
 }
 
 model Task {
-  id                  String                   @id @default(uuid()) @db.Uuid
-  taskCode            String                   @unique @map("task_code") @db.VarChar(100)
-  customerSequenceNo  Int                      @map("customer_sequence_no")
-  title               String                   @db.VarChar(500)
-  crimId              String                   @map("crim_id") @db.VarChar(100)
-  version             String?                  @db.VarChar(100)
-  priority            TaskPriority
-  status              TaskStatus
-  currentReviewCycle  Int                      @default(0) @map("current_review_cycle")
-  checklistCompleted  Boolean                  @default(false) @map("checklist_completed")
-  developerId         String                   @map("developer_id") @db.Uuid
-  currentReviewerId   String?                  @map("current_reviewer_id") @db.Uuid
-  customerId          String                   @map("customer_id") @db.Uuid
-  createdAt           DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt           DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
-  submittedAt         DateTime?                @map("submitted_at") @db.Timestamptz(6)
-  approvedAt          DateTime?                @map("approved_at") @db.Timestamptz(6)
-  deliveredAt         DateTime?                @map("delivered_at") @db.Timestamptz(6)
-  cancelledAt         DateTime?                @map("cancelled_at") @db.Timestamptz(6)
-  developer           User                     @relation("TaskDeveloper", fields: [developerId], references: [id], onDelete: Restrict)
-  currentReviewer     User?                    @relation("TaskCurrentReviewer", fields: [currentReviewerId], references: [id], onDelete: SetNull)
-  customer            Customer                 @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  taskTypes           TaskTaskType[]
-  reviewerAssignments TaskReviewerAssignment[]
-  statusHistory       TaskStatusHistory[]
-  developerChecklist  DeveloperChecklist?
-  codeReviewForms     CodeReviewForm[]
-  reviewCycles        ReviewCycle[]
-  handovers           HandoverTask[]
-  notifications       Notification[]
-  attachments         TaskAttachment[]
+  id                     String                   @id @default(uuid()) @db.Uuid
+  taskCode               String                   @unique @map("task_code") @db.VarChar(100)
+  customerSequenceNo     Int                      @map("customer_sequence_no")
+  title                  String                   @db.VarChar(500)
+  crimId                 String                   @map("crim_id") @db.VarChar(100)
+  version                String?                  @db.VarChar(100)
+  priority               TaskPriority
+  status                 TaskStatus
+  currentReviewCycle     Int                      @default(0) @map("current_review_cycle")
+  checklistCompleted     Boolean                  @default(false) @map("checklist_completed")
+  developerId            String                   @map("developer_id") @db.Uuid
+  currentReviewerId      String?                  @map("current_reviewer_id") @db.Uuid
+  customerId             String                   @map("customer_id") @db.Uuid
+  createdAt              DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
+  submittedAt            DateTime?                @map("submitted_at") @db.Timestamptz(6)
+  approvedAt             DateTime?                @map("approved_at") @db.Timestamptz(6)
+  deliveredAt            DateTime?                @map("delivered_at") @db.Timestamptz(6)
+  cancelledAt            DateTime?                @map("cancelled_at") @db.Timestamptz(6)
+  noteToReviewer         String?                  @map("note_to_reviewer") @db.Text
+  /// Admin-chosen reviewer for the next resubmission; null = the reviewer who requested changes.
+  resubmissionReviewerId String?                  @map("resubmission_reviewer_id") @db.Uuid
+  resubmissionReviewer   User?                    @relation("TaskResubmissionReviewer", fields: [resubmissionReviewerId], references: [id], onDelete: SetNull)
+  developer              User                     @relation("TaskDeveloper", fields: [developerId], references: [id], onDelete: Restrict)
+  currentReviewer        User?                    @relation("TaskCurrentReviewer", fields: [currentReviewerId], references: [id], onDelete: SetNull)
+  customer               Customer                 @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  taskTypes              TaskTaskType[]
+  reviewerAssignments    TaskReviewerAssignment[]
+  statusHistory          TaskStatusHistory[]
+  developerChecklist     DeveloperChecklist?
+  codeReviewForms        CodeReviewForm[]
+  reviewCycles           ReviewCycle[]
+  handovers              HandoverTask[]
+  notifications          Notification[]
+  attachments            TaskAttachment[]
 
   @@unique([customerId, customerSequenceNo])
   @@index([taskCode])
@@ -292,6 +334,7 @@ model Task {
   @@index([customerId])
   @@index([developerId])
   @@index([currentReviewerId])
+  @@index([resubmissionReviewerId])
   @@index([status])
   @@index([priority])
   @@map("tasks")
@@ -365,11 +408,13 @@ model TaskAttachment {
 }
 
 model ChecklistSection {
-  id        String                     @id @default(uuid()) @db.Uuid
-  name      String                     @db.VarChar(255)
-  isActive  Boolean                    @default(true) @map("is_active")
-  taskTypes TaskTypeChecklistSection[]
-  questions ChecklistQuestion[]
+  id           String                     @id @default(uuid()) @db.Uuid
+  name         String                     @db.VarChar(255)
+  isActive     Boolean                    @default(true) @map("is_active")
+  /// Category order across the whole checklist template (1..n).
+  displayOrder Int                        @default(0) @map("display_order")
+  taskTypes    TaskTypeChecklistSection[]
+  questions    ChecklistQuestion[]
 
   @@map("checklist_sections")
 }
@@ -560,16 +605,16 @@ model DeveloperFindingResponse {
 }
 
 model ReviewCycle {
-  id              String             @id @default(uuid()) @db.Uuid
-  taskId          String             @map("task_id") @db.Uuid
-  roundNumber     Int                @map("round_number")
-  outcome         ReviewCycleOutcome @default(CHANGES_REQUESTED)
-  counted         Boolean            @default(true)
-  exclusionReason String?            @map("exclusion_reason") @db.Text
-  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
-  excludedAt      DateTime?          @map("excluded_at") @db.Timestamptz(6)
-  task            Task               @relation(fields: [taskId], references: [id], onDelete: Restrict)
+  id              String                     @id @default(uuid()) @db.Uuid
+  taskId          String                     @map("task_id") @db.Uuid
+  roundNumber     Int                        @map("round_number")
+  outcome         ReviewCycleOutcome         @default(CHANGES_REQUESTED)
+  counted         Boolean                    @default(true)
+  exclusionReason String?                    @map("exclusion_reason") @db.Text
+  createdAt       DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  excludedAt      DateTime?                  @map("excluded_at") @db.Timestamptz(6)
+  task            Task                       @relation(fields: [taskId], references: [id], onDelete: Restrict)
   responses       DeveloperFindingResponse[]
 
   @@unique([taskId, roundNumber])

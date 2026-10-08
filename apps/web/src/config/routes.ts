@@ -45,7 +45,7 @@ export const ROUTES = {
 export const WORKSPACE_ACCESS = {
   developer: ['Developer'],
   reviewer: ['Reviewer'],
-  admin: ['Admin', 'Super Admin'],
+  admin: ['Admin', 'SuperAdmin'],
 } as const satisfies Record<string, readonly Role[]>;
 
 export type WorkspaceKey = keyof typeof WORKSPACE_ACCESS;

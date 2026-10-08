@@ -81,6 +81,19 @@
       "confirming": "Deleting…",
       "success": "{taskCode} deleted.",
       "onlyDraftOrCancelled": "Only a draft or cancelled task can be deleted."
+    },
+    "followUp": {
+      "action": "Change follow-up reviewer for {taskCode}",
+      "title": "Change follow-up reviewer",
+      "description": "{taskCode} is waiting for the developer's changes. Choose who reviews it when it is resubmitted.",
+      "label": "Follow-up reviewer",
+      "placeholder": "Select a reviewer",
+      "current": "Currently returns to {name}.",
+      "reasonLabel": "Reason (required)",
+      "reasonPlaceholder": "Why is the follow-up reviewer changing?",
+      "submit": "Change Reviewer",
+      "submitting": "Saving…",
+      "success": "{taskCode} will return to {name} on resubmission."
     }
   },
   "users": {
@@ -97,6 +110,7 @@
     "statusAll": "Status: All Statuses",
     "statusActive": "Active",
     "statusInactive": "Inactive",
+    "statusInvited": "Invited",
     "clearFilters": "Clear Filters",
     "emptyTitle": "No users yet",
     "emptyHint": "Add the first user to give someone access to the portal.",
@@ -110,7 +124,7 @@
     },
     "add": "Add User",
     "addTitle": "Add New User",
-    "addSubtitle": "Create a new user account",
+    "addSubtitle": "They will get an email with a link to set their password.",
     "editTitle": "Edit User",
     "editSubtitle": "Change this user's details and access",
     "nameLabel": "Name",
@@ -121,7 +135,7 @@
     "creating": "Creating…",
     "save": "Save Changes",
     "saving": "Saving…",
-    "created": "{name} added.",
+    "created": "{name} added. We've emailed {email} a link to set their password.",
     "updated": "{name} updated.",
     "privileged": {
       "managed": "Managed by Super Admin",
@@ -149,7 +163,19 @@
       "title": "Delete this user?",
       "description": "{name} will be removed from normal user lists and will no longer be able to sign in. Their database record and history will be kept.",
       "confirm": "Delete User",
-      "success": "{name} deleted."
+      "success": "{name} deleted.",
+      "reasonLabel": "Reason for deletion",
+      "reasonPlaceholder": "Explain why this account must be deleted"
+    },
+    "pendingTasks": {
+      "title": "{name} still has {count} pending review task(s).",
+      "hint": "Hand over or reassign them before deactivating, deleting or removing the Reviewer role.",
+      "kinds": {
+        "InReview": "In review",
+        "AwaitingResubmission": "Awaiting resubmission",
+        "Handover": "Handover pending"
+      },
+      "open": "Open {taskCode}"
     },
     "transferSuperAdmin": {
       "title": "Transfer Super Admin?",
@@ -385,7 +411,8 @@
     "returned": "Returned to the open queue",
     "actions": {
       "view": "View {taskCode}",
-      "reassign": "Reassign {taskCode}"
+      "reassign": "Reassign {taskCode}",
+      "return": "Return {taskCode} to the open queue"
     },
     "reassign": {
       "title": "Reassign this review",
@@ -398,6 +425,12 @@
       "submitting": "Reassigning…",
       "success": "{taskCode} reassigned to {name}.",
       "noReviewers": "No other active reviewer is eligible for this task."
+    },
+    "return": {
+      "title": "Return this task to the queue?",
+      "description": "{taskCode} becomes available for any reviewer to pick up. No one is assigned.",
+      "confirm": "Return to Queue",
+      "success": "{taskCode} returned to the open queue."
     }
   },
   "reports": {

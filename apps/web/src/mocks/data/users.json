@@ -165,7 +165,7 @@
     "id": "u-qa-superadmin",
     "name": "QA Super Admin",
     "email": "qa.superadmin@sebsaworld.com",
-    "roles": ["Super Admin"],
+    "roles": ["SuperAdmin"],
     "isActive": true,
     "createdAt": "2026-09-22T09:01:00.000Z"
   },

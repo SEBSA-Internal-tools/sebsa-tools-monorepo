@@ -1,6 +1,8 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
+  NotFoundException,
   UnauthorizedException,
   type ArgumentsHost,
 } from '@nestjs/common';
@@ -32,6 +34,7 @@ describe('HttpExceptionFilter', () => {
 
       expect(status).toHaveBeenCalledWith(expectedStatus);
       expect(json).toHaveBeenCalledWith({
+        statusCode: expectedStatus,
         code,
         message: 'Safe message',
         details: [],
@@ -45,14 +48,18 @@ describe('HttpExceptionFilter', () => {
   it.each([
     [new BadRequestException('Invalid input'), 400, 'VALIDATION_FAILED'],
     [new UnauthorizedException(), 401, 'AUTH_REQUIRED'],
-    [new ForbiddenException(), 403, 'RESOURCE_FORBIDDEN'],
+    [new ForbiddenException(), 403, 'FORBIDDEN'],
+    [new NotFoundException(), 404, 'NOT_FOUND'],
+    [new ConflictException({ code: 'ALREADY_PICKED', message: 'Taken' }), 409, 'ALREADY_PICKED'],
   ])('maps built-in HTTP exceptions', (exception, expectedStatus, code) => {
     const { host, json, status } = responseHarness();
 
     new HttpExceptionFilter().catch(exception, host);
 
     expect(status).toHaveBeenCalledWith(expectedStatus);
-    expect(json).toHaveBeenCalledWith(expect.objectContaining({ code }));
+    expect(json).toHaveBeenCalledWith(
+      expect.objectContaining({ statusCode: expectedStatus, code }),
+    );
   });
 
   it('returns validation messages as safe details', () => {
@@ -66,7 +73,7 @@ describe('HttpExceptionFilter', () => {
     expect(json).toHaveBeenCalledWith(
       expect.objectContaining({
         code: 'VALIDATION_FAILED',
-        message: 'Validation failed',
+        message: 'email must be an email',
         details: ['email must be an email', 'name should not be empty'],
       }),
     );

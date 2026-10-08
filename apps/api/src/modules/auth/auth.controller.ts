@@ -9,7 +9,6 @@ import { AuthService, type AuthTokens } from './auth.service.js';
 import { CurrentUser } from './decorators/current-user.decorator.js';
 import { Public } from './decorators/public.decorator.js';
 import { LoginDto } from './dto/login.dto.js';
-import { RegisterDto } from './dto/register.dto.js';
 import type { AuthenticatedUser } from './auth.types.js';
 
 @ApiTags('Authentication')
@@ -19,18 +18,6 @@ export class AuthController {
     private readonly auth: AuthService,
     private readonly config: ConfigService,
   ) {}
-
-  @Public()
-  @Post('register')
-  async register(
-    @Body() dto: RegisterDto,
-    @Req() request: Request,
-    @Res({ passthrough: true }) response: Response,
-  ) {
-    const result = await this.auth.register(dto, this.metadata(request));
-    this.setCookies(response, result.tokens);
-    return result.user;
-  }
 
   @Public()
   @HttpCode(HttpStatus.OK)

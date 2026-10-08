@@ -48,7 +48,7 @@ export class UserRoleAssignmentsController {
     @Body() dto: ReplaceUserRolesDto,
     @CurrentUser() actor: AuthenticatedUser,
   ) {
-    return this.userRoles.replaceForUser(userId, dto.roles, actor);
+    return this.userRoles.replaceForUser(userId, dto.roles, actor, dto.reason);
   }
 
   @Post('transfer-super-admin')

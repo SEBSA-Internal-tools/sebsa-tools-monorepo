@@ -36,11 +36,20 @@ describe('ChecklistsService', () => {
             id: '00000000-0000-0000-0000-000000000002',
             categoryId: '00000000-0000-0000-0000-000000000001',
             text: 'Is the implementation maintainable?',
-            order: 0,
+            // Positions are 1..n regardless of the stored sort key.
+            order: 1,
             isActive: true,
           },
         ],
       },
     ]);
+  });
+
+  it("hides a category with no active questions from developers, not from admins", async () => {
+    const empty = { id: "c-empty", name: "Empty", isActive: true, taskTypes: [{ taskTypeId: 2, displayOrder: 1 }], questions: [] };
+    const service = new ChecklistsService({ checklistSection: { findMany: vi.fn().mockResolvedValue([empty]) } } as never);
+
+    await expect(service.findTemplate()).resolves.toEqual([]);
+    await expect(service.findTemplate(true)).resolves.toHaveLength(1);
   });
 });

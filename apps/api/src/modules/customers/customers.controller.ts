@@ -15,6 +15,7 @@ import { CustomersService } from './customers.service.js';
 import { CreateCustomerDto } from './dto/create-customer.dto.js';
 import { UpdateCustomerDto } from './dto/update-customer.dto.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
+import { ReasonDto } from '../../common/dto/reason.dto.js';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import type { AuthenticatedUser } from '../auth/auth.types.js';
 
@@ -44,11 +45,16 @@ export class CustomersController {
   ) {
     return this.customers.update(id, dto, admin);
   }
+  /** Permanent delete is a Super Admin power (`records.purge`); Admins deactivate. */
   @Delete(':id')
-  @Roles('ADMIN')
+  @Roles('SUPER_ADMIN')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiNoContentResponse()
-  async remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() admin: AuthenticatedUser) {
-    await this.customers.remove(id, admin);
+  async remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ReasonDto,
+    @CurrentUser() admin: AuthenticatedUser,
+  ) {
+    await this.customers.remove(id, admin, dto.reason);
   }
 }

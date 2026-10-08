@@ -90,7 +90,9 @@ const ROLE_BY_CODE: Record<string, Role> = {
   ADMIN: 'Admin',
   DEVELOPER: 'Developer',
   REVIEWER: 'Reviewer',
-  SUPER_ADMIN: 'Super Admin',
+  SUPER_ADMIN: 'SuperAdmin',
+  // The client's own role key, as the mock records it.
+  SUPERADMIN: 'SuperAdmin',
 };
 
 function ActivityRole({ value }: { value: string }) {

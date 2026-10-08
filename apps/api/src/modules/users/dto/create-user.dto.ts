@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, type TransformFnParams } from 'class-transformer';
 import {
   ArrayMinSize,
@@ -6,6 +6,7 @@ import {
   IsArray,
   IsEmail,
   IsIn,
+  IsOptional,
   IsString,
   MaxLength,
   Matches,
@@ -17,6 +18,7 @@ import {
   type RoleCode,
   type RoleLabel,
 } from '../../auth/auth.constants.js';
+import { MAX_REASON_LENGTH } from '../../../common/dto/reason.dto.js';
 
 function normalizeRoles({ value }: TransformFnParams): unknown {
   if (!Array.isArray(value)) return value;
@@ -48,4 +50,11 @@ export class CreateUserDto {
   @ArrayUnique()
   @IsIn(ROLE_CODES, { each: true })
   roles!: RoleCode[];
+
+  /** Justification for a privileged change; audited. */
+  @ApiPropertyOptional({ maxLength: MAX_REASON_LENGTH })
+  @IsOptional()
+  @IsString()
+  @MaxLength(MAX_REASON_LENGTH)
+  reason?: string;
 }

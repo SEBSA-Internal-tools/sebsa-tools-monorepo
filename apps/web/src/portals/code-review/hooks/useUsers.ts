@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
-import { userSchema, type Role } from '@sdp/contracts';
+import { ROLE_CODE_BY_ROLE, userSchema, type Role } from '@sdp/contracts';
 import { api } from '@/lib/apiClient.ts';
 import { currentUserKeys } from '@/hooks/useCurrentUser.ts';
 
@@ -27,20 +27,24 @@ export function useUsers() {
   });
 }
 
-const ROLE_CODES: Record<Role, string> = {
-  Developer: 'DEVELOPER',
-  Reviewer: 'REVIEWER',
-  Admin: 'ADMIN',
-  'Super Admin': 'SUPER_ADMIN',
-};
-
 export function useReplaceUserRoles() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ userId, roles }: { userId: string; roles: readonly Role[] }) =>
+    mutationFn: ({
+      userId,
+      roles,
+      reason,
+    }: {
+      userId: string;
+      roles: readonly Role[];
+      /** Required by policy when Admin is granted or revoked; audited by the server. */
+      reason?: string;
+    }) =>
       api.put(`/users/${userId}/roles`, userSchema, {
-        roles: roles.map((role) => ROLE_CODES[role]),
+        // NestJS accepts role codes; responses come back as labels and are mapped by roleSchema.
+        roles: roles.map((role) => ROLE_CODE_BY_ROLE[role]),
+        ...(reason === undefined ? {} : { reason }),
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: userKeys.all });

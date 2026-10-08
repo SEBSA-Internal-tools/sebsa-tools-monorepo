@@ -1,4 +1,6 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { ApiException } from '../../common/api-error.js';
+import { isCompleteOrder } from '../../common/dto/reorder.dto.js';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { rethrowPrismaConflict } from '../../common/prisma-errors.js';
@@ -12,7 +14,7 @@ export class TaskTypesService {
   async findAll(includeInactive = false) {
     const taskTypes = await this.prisma.taskType.findMany({
       where: includeInactive ? {} : { isActive: true },
-      orderBy: { name: 'asc' },
+      orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
     });
     return taskTypes.map((taskType, index) => ({
       id: String(taskType.id),
@@ -43,10 +45,13 @@ export class TaskTypesService {
       await this.ensureNameAvailable(name);
       const created = await this.prisma.$transaction(async (tx) => {
         const code = dto.code?.trim().toUpperCase() ?? (await this.nextCode(tx, name));
+        const last = await tx.taskType.aggregate({ _max: { displayOrder: true } });
         return tx.taskType.create({
           data: {
             code,
             name,
+            // New types go to the end of the admin's order.
+            displayOrder: (last._max.displayOrder ?? 0) + 1,
             description: dto.description?.trim() ?? null,
             ...(dto.isActive === undefined ? {} : { isActive: dto.isActive }),
           },
@@ -82,12 +87,14 @@ export class TaskTypesService {
   async remove(id: number): Promise<void> {
     const existing = await this.findOne(id);
     if (existing._count.tasks > 0) {
-      throw new ConflictException(
+      throw new ApiException(
+        'TASK_TYPE_IN_USE',
         'This task type is used by existing tasks. Deactivate it instead.',
       );
     }
     if (existing.checklistSections.length > 0) {
-      throw new ConflictException(
+      throw new ApiException(
+        'TASK_TYPE_IN_USE',
         'Checklist categories still target this task type. Remove it from them first.',
       );
     }
@@ -96,6 +103,20 @@ export class TaskTypesService {
     } catch (error) {
       rethrowPrismaConflict(error);
     }
+  }
+
+  /** Rewrites the whole sequence 1..n in one transaction; returns every task type. */
+  async reorder(ids: readonly string[]) {
+    const all = await this.prisma.taskType.findMany({ select: { id: true } });
+    if (!isCompleteOrder(ids, all.map(({ id }) => String(id)))) {
+      throw new ApiException('ORDER_INCOMPLETE', 'The new order must list every task type exactly once.');
+    }
+    await this.prisma.$transaction(
+      ids.map((id, index) =>
+        this.prisma.taskType.update({ where: { id: Number(id) }, data: { displayOrder: index + 1 } }),
+      ),
+    );
+    return this.findAll(true);
   }
 
   private async findRecord(id: number) {
@@ -112,7 +133,7 @@ export class TaskTypesService {
       },
       select: { id: true },
     });
-    if (duplicate) throw new ConflictException('A task type with that name already exists.');
+    if (duplicate) throw new ApiException('NAME_TAKEN', 'A task type with that name already exists.');
   }
 
   private async nextCode(tx: Prisma.TransactionClient, name: string): Promise<string> {

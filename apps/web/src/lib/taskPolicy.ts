@@ -90,7 +90,7 @@ export function canViewTask(
   }
 
   // 2. Admin & SuperAdmin can view all non-Draft operational tasks
-  if (hasRole(actor, 'Admin') || hasRole(actor, 'Super Admin')) {
+  if (hasRole(actor, 'Admin') || hasRole(actor, 'SuperAdmin')) {
     return true;
   }
 
@@ -264,7 +264,7 @@ export function canPurgeTask(
   task: TaskSubject,
   evidenceFlags?: PurgeEvidenceFlags,
 ): boolean {
-  if (!hasRole(actor, 'Super Admin')) return false;
+  if (!hasRole(actor, 'SuperAdmin')) return false;
   if (task.status !== 'Draft' && task.status !== 'Cancelled') return false;
 
   if (evidenceFlags) {

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
+import { routePaths } from '@/constants/routePaths';
 import { Alert } from '@/components/ui/Alert.tsx';
 import { Button } from '@/components/ui/Button.tsx';
 import { interpolate } from '@/lib/formatters.ts';
@@ -9,7 +10,7 @@ import { Hourglass } from '@/components/common/Hourglass.tsx';
 import { resendLink } from '../api/localAuthApi.ts';
 import { LocalAuthError } from '../api/types.ts';
 import { AuthCard, PanelCopy } from '../components/AuthParts.tsx';
-import { LOCAL_AUTH_ROUTES, RESEND_COOLDOWN_SECONDS } from '../config.ts';
+import { RESEND_COOLDOWN_SECONDS } from '../config.ts';
 import { expired as copy } from '../content.ts';
 import {
   useCountdown,
@@ -104,7 +105,7 @@ export function LinkExpiredPage() {
                 fullWidth
                 trailingIcon={<ArrowRight className="size-4" aria-hidden="true" />}
                 onClick={() => {
-                  void navigate(LOCAL_AUTH_ROUTES.forgotPassword);
+                  void navigate(routePaths.forgotPassword);
                 }}
               >
                 {copy.requestNew}
@@ -134,7 +135,7 @@ export function LinkExpiredPage() {
                 size="lg"
                 fullWidth
                 onClick={() => {
-                  void navigate(LOCAL_AUTH_ROUTES.login);
+                  void navigate(routePaths.login);
                 }}
               >
                 {copy.goToSignIn}
@@ -144,7 +145,7 @@ export function LinkExpiredPage() {
                 size="lg"
                 fullWidth
                 onClick={() => {
-                  void navigate(LOCAL_AUTH_ROUTES.forgotPassword);
+                  void navigate(routePaths.forgotPassword);
                 }}
               >
                 {copy.forgot}
@@ -156,7 +157,7 @@ export function LinkExpiredPage() {
         {isExpired ? (
           <p className="mt-5">
             <Link
-              to={LOCAL_AUTH_ROUTES.login}
+              to={routePaths.login}
               className="rounded-sm text-sm font-medium text-violet-700 hover:underline focus-visible:outline-2 focus-visible:outline-violet-600"
             >
               {copy.back}

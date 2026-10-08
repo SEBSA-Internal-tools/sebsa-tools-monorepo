@@ -1,4 +1,3 @@
-import { ConflictException } from '@nestjs/common';
 import { validate } from 'class-validator';
 import { describe, expect, it, vi } from 'vitest';
 import { ChecklistSectionsService } from './checklist-sections.service.js';
@@ -41,12 +40,12 @@ describe('ChecklistSectionsService category management', () => {
       checklistSection: {
         findFirst: vi.fn().mockResolvedValue(null),
         create: vi.fn().mockResolvedValue(created),
+        aggregate: vi.fn().mockResolvedValue({ _max: { displayOrder: 0 } }),
+        update: vi.fn().mockResolvedValue(created),
+        findMany: vi.fn().mockResolvedValue([created]),
       },
       taskType: {
         findMany: vi.fn().mockResolvedValue([{ id: 2 }]),
-      },
-      taskTypeChecklistSection: {
-        aggregate: vi.fn().mockResolvedValue({ _max: { displayOrder: 0 } }),
       },
     };
     const service = new ChecklistSectionsService(prisma as never);
@@ -97,6 +96,7 @@ describe('ChecklistSectionsService category management', () => {
           .mockResolvedValueOnce(existing)
           .mockResolvedValueOnce(updated),
         findFirst: vi.fn().mockResolvedValue(null),
+        findMany: vi.fn().mockResolvedValue([updated]),
       },
       taskType: { findMany: vi.fn().mockResolvedValue([{ id: 2 }]) },
       $transaction: vi.fn((operation: (client: typeof tx) => unknown) => operation(tx)),
@@ -159,6 +159,47 @@ describe('ChecklistSectionsService category management', () => {
     };
     const service = new ChecklistSectionsService(prisma as never);
 
-    await expect(service.removeCategory(categoryId)).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.removeCategory(categoryId)).rejects.toMatchObject({
+      code: 'CATEGORY_NOT_EMPTY',
+    });
+  });
+
+  it('reports positions 1..n even when stored orders are 0-based or have gaps', async () => {
+    const first = section({ id: 'a', name: 'A', displayOrder: 0, questions: [
+      { id: 'q1', questionText: 'One', displayOrder: 0, isActive: true },
+      { id: 'q2', questionText: 'Two', displayOrder: 7, isActive: true },
+    ] });
+    const second = section({ id: 'b', name: 'B', displayOrder: 5 });
+    const prisma = { checklistSection: { findMany: vi.fn().mockResolvedValue([first, second]) } };
+    const service = new ChecklistSectionsService(prisma as never);
+
+    const categories = await service.findCategories();
+
+    expect(categories.map(({ order }) => order)).toEqual([1, 2]);
+    expect(categories[0]?.questions.map(({ order }) => order)).toEqual([1, 2]);
+  });
+
+  it('rewrites the category sequence 1..n and refuses an incomplete list', async () => {
+    const update = vi.fn().mockResolvedValue({});
+    const prisma = {
+      checklistSection: {
+        findMany: vi
+          .fn()
+          .mockResolvedValueOnce([{ id: 'a' }, { id: 'b' }])
+          .mockResolvedValueOnce([section({ id: 'b' }), section({ id: 'a' })])
+          .mockResolvedValue([{ id: 'a' }, { id: 'b' }]),
+        update,
+      },
+      $transaction: vi.fn((operations: unknown[]) => Promise.all(operations)),
+    };
+    const service = new ChecklistSectionsService(prisma as never);
+
+    await service.reorderCategories(['b', 'a']);
+    expect(update).toHaveBeenNthCalledWith(1, { where: { id: 'b' }, data: { displayOrder: 1 } });
+    expect(update).toHaveBeenNthCalledWith(2, { where: { id: 'a' }, data: { displayOrder: 2 } });
+
+    await expect(service.reorderCategories(['a'])).rejects.toMatchObject({
+      code: 'ORDER_INCOMPLETE',
+    });
   });
 });

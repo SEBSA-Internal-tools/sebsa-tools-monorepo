@@ -7,7 +7,7 @@ export const userRolesSchema = z
   .min(1, 'Select at least one role')
   .refine((roles) => new Set(roles).size === roles.length, 'Roles must not be duplicated')
   .refine(
-    (roles) => !roles.includes('Super Admin') || roles.length === 1,
+    (roles) => !roles.includes('SuperAdmin') || roles.length === 1,
     'Super Admin must be the only assigned role',
   );
 
@@ -40,10 +40,27 @@ export const currentUserSchema = userSchema.extend({
 });
 export type CurrentUser = z.infer<typeof currentUserSchema>;
 
-/** Admin "Add User" modal — screen 02. */
+/** RFC 5321's limit on a forward path; anything longer cannot receive mail. */
+export const MAX_EMAIL_LENGTH = 254;
+const EMAIL_MESSAGE = 'Enter a valid email address, for example name@company.com';
+
+/**
+ * A work email as an admin types it: trimmed and lowercased, then checked for a
+ * local part of letters, digits and `. _ ' + -`, one `@`, and a dotted domain
+ * ending in a 2+ letter TLD (zod's email pattern). Lowercasing here means two
+ * spellings of one address can never become two accounts.
+ */
+export const emailAddressSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .max(MAX_EMAIL_LENGTH, EMAIL_MESSAGE)
+  .email(EMAIL_MESSAGE);
+
+/** Admin "Add User" modal — screen 02. Creating a user also sends their invite. */
 export const createUserInputSchema = z.object({
   name: z.string().trim().min(1, 'Name is required'),
-  email: z.string().trim().email('Enter a valid email address'),
+  email: emailAddressSchema,
   roles: userRolesSchema,
   /** Required by policy when this request changes privileged access. */
   reason: z.string().trim().optional(),
@@ -91,3 +108,26 @@ export const updateCustomerInputSchema = createCustomerInputSchema.partial().ext
   isActive: z.boolean().optional(),
 });
 export type UpdateCustomerInput = z.infer<typeof updateCustomerInputSchema>;
+
+/* -------------------------------------------------------------------------- */
+/* Reviewer workload                                                           */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Why a reviewer cannot be deactivated, deleted or lose the Reviewer role yet.
+ * Sent as `details` on a 409 `REVIEWER_HAS_PENDING_TASKS`; see
+ * docs/25-review-assignment-rules.md.
+ */
+export const PENDING_REVIEW_KINDS = ['InReview', 'AwaitingResubmission', 'Handover'] as const;
+export const pendingReviewTaskSchema = z.object({
+  id: z.string().min(1),
+  taskCode: z.string(),
+  title: z.string(),
+  status: z.string(),
+  kind: z.enum(PENDING_REVIEW_KINDS),
+});
+export type PendingReviewTask = z.infer<typeof pendingReviewTaskSchema>;
+
+export const reviewerPendingTasksDetailsSchema = z.object({
+  tasks: z.array(pendingReviewTaskSchema),
+});
