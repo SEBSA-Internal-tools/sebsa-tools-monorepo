@@ -50,8 +50,8 @@
       "customer": "Customer",
       "status": "Status",
       "priority": "Priority",
-      "cycle": "Counted Cycle",
-      "countedCycle": "Counted Cycle",
+      "cycle": "Cycle",
+      "countedCycle": "Cycle",
       "round": "Round",
       "created": "Created",
       "reviewer": "Reviewer",
@@ -128,7 +128,7 @@
       "status": "Status",
       "cycle": "Round",
       "reviewRound": "Round",
-      "countedCycle": "Counted Cycle",
+      "countedCycle": "Cycle",
       "created": "Created",
       "submitted": "Submitted",
       "checkedDate": "Checked Date",
@@ -152,7 +152,7 @@
       "ReviewDraftSaved": "Review draft saved",
       "Cancelled": "Cancelled",
       "ReviewerAssigned": "Reviewer assigned",
-      "CountedCycleAdjusted": "Counted Cycle Adjusted"
+      "CountedCycleAdjusted": "Cycle Adjusted"
     },
     "attachmentsTitle": "Screenshot Feedback",
     "attachmentsEmptyTitle": "No screenshot feedback",

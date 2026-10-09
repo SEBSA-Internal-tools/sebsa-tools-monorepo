@@ -127,7 +127,7 @@ describe('POST-HANDOVER REVIEWER UX QA SUITE', () => {
     expect(updatedTask?.reviewerId).toBeNull();
   });
 
-  it('2. Handed-over task URL renders HandedOverSummary with correct Review Round vs Counted Cycle and event metadata', async () => {
+  it('2. Handed-over task URL renders HandedOverSummary with correct Review Round vs Cycle and event metadata', async () => {
     const task = db.tasks.find((t) => t.id === TARGET_TASK)!;
     task.status = 'Submitted';
     task.reviewerId = null;
@@ -153,9 +153,9 @@ describe('POST-HANDOVER REVIEWER UX QA SUITE', () => {
     const summaryCard = screen.getByTestId('handed-over-summary');
     expect(screen.getAllByText('Review Handed Over').length).toBeGreaterThanOrEqual(1);
 
-    // Verify Round is Round 2 and Counted Cycle is Cycle 1 (distinct!)
+    // Verify Round is Round 2 and Cycle is Cycle 1 (distinct!)
     expect(within(summaryCard).getByText('Round').nextElementSibling).toHaveTextContent('Round 2');
-    expect(within(summaryCard).getByText('Counted Cycle').nextElementSibling).toHaveTextContent(
+    expect(within(summaryCard).getByText('Cycle').nextElementSibling).toHaveTextContent(
       'Cycle 1',
     );
 

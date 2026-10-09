@@ -48,7 +48,7 @@ export function TaskInformationCard({
   const round =
     'reviewRound' in task && typeof task.reviewRound === 'number'
       ? task.reviewRound
-      : 1;
+      : 0;
   const counted =
     'countedCycle' in task && typeof task.countedCycle === 'number'
       ? task.countedCycle

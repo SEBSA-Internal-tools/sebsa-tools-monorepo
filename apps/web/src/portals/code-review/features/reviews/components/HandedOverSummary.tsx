@@ -29,7 +29,7 @@ export function HandedOverSummary({ task, events, className }: HandedOverSummary
     .filter((e) => e.kind === 'HandedOver')
     .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))[0];
 
-  const reviewRound = task.reviewRound ?? 1;
+  const reviewRound = task.reviewRound ?? 0;
   const countedCycle = task.countedCycle ?? 1;
   const handedOverBy = textOr(handoverEvent?.actorName, 'Reviewer');
   const handedOverAt = handoverEvent?.occurredAt ? formatDateTime(handoverEvent.occurredAt) : null;
@@ -90,7 +90,7 @@ export function HandedOverSummary({ task, events, className }: HandedOverSummary
 
           <div className="space-y-1 rounded-lg border border-line/60 bg-canvas/40 p-3">
             <span className="block text-[11px] font-semibold tracking-wider text-ink-500 uppercase">
-              Counted Cycle
+              Cycle
             </span>
             <span className="text-sm font-bold text-ink-900">Cycle {countedCycle}</span>
           </div>

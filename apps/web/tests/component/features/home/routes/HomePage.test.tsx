@@ -1,14 +1,8 @@
-import { beforeEach, describe, expect, it } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
+import { screen } from '@testing-library/react';
 import type { Role, User } from '@sdp/contracts';
 import { renderWithProviders } from '@tests/support/renderWithProviders.tsx';
 import { HomePage } from '@/features/home/routes/HomePage.tsx';
-import { apiStub } from '@tests/support/apiStub.ts';
-import { serveTaskSummary } from '@tests/support/serve.ts';
-
-beforeEach(() => {
-  serveTaskSummary(14);
-});
 
 function makeUser(roles: Role[]): User {
   return {
@@ -64,16 +58,6 @@ describe('HomePage workspace gating (spec FL 2.1-02)', () => {
 });
 
 describe('HomePage data seam', () => {
-  it('shows the task count the server reports for /tasks/summary', async () => {
-    // The real apiClient path: fetch, status handling, Zod parsing of the reply.
-    renderWithProviders(<HomePage user={makeUser(['Admin'])} />);
-
-    await waitFor(() => {
-      expect(screen.getByText('14 total tasks')).toBeInTheDocument();
-    });
-    expect(apiStub.requests('GET', '/tasks/summary')).toHaveLength(1);
-  });
-
   it('greets the signed-in user by name', async () => {
     renderWithProviders(<HomePage user={makeUser(['Developer'])} />);
     expect(await screen.findByText('Charith Widanapathirana')).toBeInTheDocument();

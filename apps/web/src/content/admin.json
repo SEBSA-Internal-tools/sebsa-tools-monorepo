@@ -457,8 +457,8 @@
     "charts": {
       "rankTitle": "Quality Ranking Distribution",
       "rankSubtitle": "Code quality based on review outcomes",
-      "cycleTitle": "Counted Cycle Distribution",
-      "cycleSubtitle": "Distribution of counted cycles to approval",
+      "cycleTitle": "Cycle Distribution",
+      "cycleSubtitle": "Distribution of cycles to approval",
       "statusTitle": "Task Status Distribution",
       "statusSubtitle": "Current status of all review tasks",
       "empty": "No data for the selected filters"
@@ -484,7 +484,7 @@
       "cancelledCaption": "Tasks cancelled",
       "approvalRate": "Approval Rate",
       "approvalRateCaption": "Of submitted tasks",
-      "avgCycles": "Avg Counted Cycles",
+      "avgCycles": "Avg Cycles",
       "avgCyclesCaption": "Per approved task",
       "avgCyclesHigh": "High iterations",
       "avgCyclesEfficient": "Efficient",
@@ -512,10 +512,10 @@
       "tasks": "{count} tasks · {approved} approved",
       "approvalRate": "Approval Rate",
       "avgRanking": "Avg Ranking",
-      "avgCycles": "Avg Counted Cycles",
+      "avgCycles": "Avg Cycles",
       "changesRequested": "Changes Req.",
       "rankTitle": "Rank Distribution",
-      "cycleTitle": "Counted Cycle Distribution",
+      "cycleTitle": "Cycle Distribution",
       "noReviews": "No completed reviews yet",
       "standing": {
         "good": "Good",

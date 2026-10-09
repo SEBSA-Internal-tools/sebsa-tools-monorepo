@@ -252,20 +252,20 @@ describe('Admin Reports', () => {
     expect(screen.getByText('Customer: All Customers')).toBeInTheDocument();
   });
 
-  it('displays distribution charts in the required order and uses Counted Cycle terminology', async () => {
+  it('displays distribution charts in the required order and uses Cycle terminology', async () => {
     renderReports();
 
     await card(/^All review tasks$/);
 
     const qHeading = await screen.findByRole('heading', { name: 'Quality Ranking Distribution' });
-    const cHeading = await screen.findByRole('heading', { name: 'Counted Cycle Distribution' });
+    const cHeading = await screen.findByRole('heading', { name: 'Cycle Distribution' });
     const sHeading = await screen.findByRole('heading', { name: 'Task Status Distribution' });
 
     expect(qHeading).toBeInTheDocument();
     expect(cHeading).toBeInTheDocument();
     expect(sHeading).toBeInTheDocument();
 
-    // Verify ordering in the document: Quality Ranking first, Counted Cycle second, Task Status last
+    // Verify ordering in the document: Quality Ranking first, Cycle second, Task Status last
     expect(
       qHeading.compareDocumentPosition(cHeading) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
@@ -276,7 +276,7 @@ describe('Admin Reports', () => {
     // Verify Review Cycle Distribution is gone
     expect(screen.queryByText(/Review Cycle Distribution/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Avg Review Cycles/i)).not.toBeInTheDocument();
-    expect(screen.getAllByText('Avg Counted Cycles').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Avg Cycles').length).toBeGreaterThan(0);
   });
 
   it('provides Developers and Reviewers tabs and removes the Customers tab and Customer Overview section', async () => {
@@ -291,19 +291,19 @@ describe('Admin Reports', () => {
     expect(screen.queryByText(/Customer Overview/i)).not.toBeInTheDocument();
   });
 
-  it('renders Rank Distribution and Counted Cycle Distribution charts in Developer Performance without review cycle terminology', async () => {
+  it('renders Rank Distribution and Cycle Distribution charts in Developer Performance without review cycle terminology', async () => {
     renderReports();
 
     await card(/^All review tasks$/);
 
     // Developers tab is active by default
     const rankTitles = await screen.findAllByText('Rank Distribution');
-    const cycleTitles = await screen.findAllByText('Counted Cycle Distribution');
+    const cycleTitles = await screen.findAllByText('Cycle Distribution');
 
     expect(rankTitles.length).toBeGreaterThan(0);
     expect(cycleTitles.length).toBeGreaterThan(0);
 
-    const devAvgCycles = screen.getAllByText('Avg Counted Cycles');
+    const devAvgCycles = screen.getAllByText('Avg Cycles');
     expect(devAvgCycles.length).toBeGreaterThan(0);
 
     expect(screen.queryByText(/Avg Review Cycles/i)).not.toBeInTheDocument();
@@ -324,7 +324,7 @@ describe('Admin Reports', () => {
     // Verify there are no pie/donut charts in the reviewer tabpanel
     const tabpanel = screen.getByRole('tabpanel');
     expect(within(tabpanel).queryByText(/Rank Distribution/i)).not.toBeInTheDocument();
-    expect(within(tabpanel).queryByText(/Counted Cycle Distribution/i)).not.toBeInTheDocument();
+    expect(within(tabpanel).queryByText(/Cycle Distribution/i)).not.toBeInTheDocument();
   });
 
   it('scopes all metrics and charts to SEMCO when SEMCO is selected', async () => {

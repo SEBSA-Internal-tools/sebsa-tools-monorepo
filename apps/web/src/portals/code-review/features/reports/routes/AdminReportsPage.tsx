@@ -205,7 +205,7 @@ export function AdminReportsPage() {
           {/*
             Distribution Charts order:
             1. Quality Ranking Distribution
-            2. Counted Cycle Distribution
+            2. Cycle Distribution
             3. Task Status Distribution
           */}
           <div className="grid gap-4 lg:grid-cols-3">

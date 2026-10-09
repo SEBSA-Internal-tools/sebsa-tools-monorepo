@@ -153,7 +153,7 @@ export function WizardReviewStep() {
       label: tasks.detail.fields.cycle,
       value: (
         <span className="text-ink-800 rounded-md border border-line bg-canvas px-2 py-0.5 font-mono text-xs font-semibold">
-          1
+          0
         </span>
       ),
     },

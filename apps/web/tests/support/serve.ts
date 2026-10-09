@@ -187,7 +187,7 @@ export function serveDraftWrites(data: Dataset): void {
       status: 'Draft',
       reviewCycle: 0,
       historicalCycle: 0,
-      reviewRound: 1,
+      reviewRound: 0,
       countedCycle: 0,
       adjustedCycles: [],
       developerId: useSession.getState().userId ?? '',

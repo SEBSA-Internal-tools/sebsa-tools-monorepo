@@ -637,7 +637,7 @@ export class ReviewsService {
         entityType: 'REVIEW_CYCLE',
         entityId: cycle.id,
         taskId,
-        description: `Review Round ${originalRound} was excluded from counted cycles`,
+        description: `Review Round ${originalRound} was excluded from the cycle count`,
         metadata: {
           qualifyingReviewRound: originalRound,
           previousCountedCycle: previousCount,
