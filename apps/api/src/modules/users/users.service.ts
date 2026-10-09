@@ -24,6 +24,12 @@ const userInclude = {
 
 type UserWithRoles = Prisma.UserGetPayload<{ include: typeof userInclude }>;
 
+/** `j***@example.com`: enough to recognise, not enough to harvest. */
+export function maskEmail(email: string): string {
+  const [local = '', domain = ''] = email.split('@');
+  return `${local.slice(0, 1)}***@${domain}`;
+}
+
 function snapshot(user: UserWithRoles) {
   return {
     name: user.fullName,
@@ -168,6 +174,21 @@ export class UsersService {
       await this.workload.assertCanRemoveReviewer(existing, actor, 'DEACTIVATE', dto.reason);
     }
 
+    const newEmail = dto.email?.trim().toLowerCase();
+    const emailChanging = newEmail !== undefined && newEmail !== existing.email.toLowerCase();
+    if (emailChanging && actor.id === id) {
+      throw new ApiException(
+        'SELF_LOCKOUT',
+        'You cannot change your own sign-in email here; it would sign you out of every session.',
+      );
+    }
+    if (emailChanging && dto.isActive === false) {
+      throw new ApiException(
+        'RULE_VIOLATION',
+        'Change the email and the account status in separate steps.',
+      );
+    }
+
     if (dto.email !== undefined) {
       const email = dto.email.trim().toLowerCase();
       const clash = await this.prisma.user.findFirst({
@@ -185,8 +206,13 @@ export class UsersService {
       ...(dto.isActive === undefined
         ? {}
         : { status: dto.isActive ? ('ACTIVE' as const) : ('INACTIVE' as const) }),
+      // A new address must be proven before it can sign in or receive resets:
+      // the account goes back to INVITED with no password, and an invite goes
+      // to the new address (set-password then re-activates it).
+      ...(emailChanging ? { status: 'INVITED' as const, passwordHash: null } : {}),
     } satisfies Prisma.UserUpdateInput;
 
+    let invite: IssuedLink | undefined;
     try {
       const user = await this.prisma.$transaction(async (tx) => {
         if (dto.isActive === false) {
@@ -197,10 +223,44 @@ export class UsersService {
             existingRoles,
             'deactivated or deleted',
           );
+          if (deactivating && existingRoles.includes('REVIEWER')) {
+            await this.workload.assertNoPendingWork(tx, existing);
+          }
           // A deactivated account must not be revived by a link sent earlier.
           await this.passwordLinks.revokeAllFor(tx, id);
         }
+        if (emailChanging) {
+          await lockPrivilegedRoleInvariants(tx);
+          if (existing.status === 'ACTIVE') {
+            await assertNotLastActiveRoleHolder(
+              tx,
+              existing,
+              existingRoles,
+              'deactivated or deleted',
+            );
+          }
+          // Every session and every outstanding link belonged to the old address.
+          await tx.refreshSession.updateMany({
+            where: { userId: id, revokedAt: null },
+            data: { revokedAt: new Date() },
+          });
+          await this.passwordLinks.revokeAllFor(tx, id);
+        }
         const updated = await tx.user.update({ where: { id }, data, include: userInclude });
+        if (emailChanging) {
+          invite = await this.passwordLinks.createLink(tx, id, 'INVITE');
+          await this.audit.record(tx, actor, {
+            actionType: 'USER_EMAIL_CHANGED',
+            entityType: 'USER',
+            entityId: id,
+            targetUserId: id,
+            description: `${actor.name} changed the sign-in email of ${existing.fullName}; a new invite was issued`,
+            // Masked: the audit trail records that it changed, not the addresses.
+            oldValue: { email: maskEmail(existing.email) },
+            newValue: { email: maskEmail(updated.email), status: 'INVITED' },
+            metadata: { targetLabel: existing.fullName, ...reasonMetadata(dto.reason) },
+          });
+        }
         const actionType =
           dto.isActive === undefined
             ? 'USER_UPDATED'
@@ -219,6 +279,10 @@ export class UsersService {
         });
         return updated;
       });
+      if (invite !== undefined) {
+        const emailStatus = await this.passwordLinks.deliver(invite, user, 'INVITE');
+        return toUserResponse(user, { expiresAt: invite.expiresAt, emailStatus });
+      }
       return await this.respond(user);
     } catch (error) {
       rethrowPrismaConflict(error);
@@ -241,7 +305,13 @@ export class UsersService {
       await this.prisma.$transaction(async (tx) => {
         await lockPrivilegedRoleInvariants(tx);
         await assertNotLastActiveRoleHolder(tx, existing, existingRoles, 'deactivated or deleted');
+        if (existingRoles.includes('REVIEWER'))
+          await this.workload.assertNoPendingWork(tx, existing);
         await this.passwordLinks.revokeAllFor(tx, id);
+        await tx.refreshSession.updateMany({
+          where: { userId: id, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
         await tx.user.update({
           where: { id },
           data: { status: 'INACTIVE', deletedAt: new Date() },

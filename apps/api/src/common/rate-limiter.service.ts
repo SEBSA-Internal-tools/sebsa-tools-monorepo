@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 
 /**
- * Sliding-window request counter for the public password endpoints.
+ * Sliding-window request counter for the public auth endpoints (sign-in,
+ * refresh, password links).
  *
  * In memory, so it is per process: correct for the single API instance this
  * project runs today. With more than one instance, replace the map with a
@@ -27,6 +28,11 @@ export class RateLimiterService {
     this.hits.set(key, recent);
     this.prune(now, windowMs);
     return true;
+  }
+
+  /** Clears one key, e.g. an account's failed sign-ins after a successful one. */
+  forget(key: string): void {
+    this.hits.delete(key);
   }
 
   /** Test seam and admin escape hatch. */

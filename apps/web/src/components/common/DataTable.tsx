@@ -498,7 +498,7 @@ export function DataTable<TRow extends object>({
    * This used to be `if (error) return <ErrorState/>` unconditionally, which was
    * the "the table suddenly disappears" defect: TanStack Query keeps the last
    * good `data` when a background refetch fails, so a single failed refresh —
-   * a dropped connection, a stopped mock worker, a 502 — swapped a full, correct
+   * a dropped connection, a restarting API, a 502 — swapped a full, correct
    * grid for an error card. The user lost their page, their scroll position and
    * their filters over a failure that had already been recovered from.
    *
@@ -613,7 +613,7 @@ export function DataTable<TRow extends object>({
                             : undefined
                       }
                       className={cn(
-                        'px-4 py-3 text-left text-xs font-semibold tracking-wide text-ink-500 uppercase whitespace-nowrap',
+                        'px-4 py-3 text-left text-xs font-semibold tracking-wide whitespace-nowrap text-ink-500 uppercase',
                         meta?.headerClassName,
                         meta?.className,
                         isPinnedColumn(header.column.id) && PINNED_HEAD_CLASS,
@@ -762,7 +762,12 @@ function DataRow({
   onActivate,
   reorder,
 }: {
-  cells: readonly { id: string; content: ReactNode; pinned: boolean; className?: string | undefined }[];
+  cells: readonly {
+    id: string;
+    content: ReactNode;
+    pinned: boolean;
+    className?: string | undefined;
+  }[];
   accent?: string | undefined;
   onActivate?: (() => void) | undefined;
   reorder?: RowReorder | undefined;

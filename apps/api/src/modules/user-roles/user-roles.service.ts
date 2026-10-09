@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { ApiException } from '../../common/api-error.js';
 import { rethrowPrismaConflict } from '../../common/prisma-errors.js';
 import type { AuthenticatedUser } from '../auth/auth.types.js';
 import { isRoleCode, type RoleCode } from '../auth/auth.constants.js';
@@ -117,7 +118,7 @@ export class UserRolesService {
     const roleCode = this.availableRoleCode(role.code);
     const currentRoles = assignedRoleCodes(user);
     if (currentRoles.length <= 1) {
-      throw new ConflictException('A user must retain at least one role');
+      throw new ApiException('RULE_VIOLATION', 'A user must retain at least one role');
     }
     assertCanGrantRoles(
       actor,
@@ -130,6 +131,7 @@ export class UserRolesService {
 
     await this.prisma.$transaction(async (tx) => {
       await lockPrivilegedRoleInvariants(tx);
+      if (roleCode === 'REVIEWER') await this.workload.assertNoPendingWork(tx, user);
       const assignment = await tx.userRole.findUnique({
         where: { userId_roleId: { userId, roleId } },
       });
@@ -188,6 +190,9 @@ export class UserRolesService {
         currentRoles.filter((role) => !roleCodes.includes(role)),
         'demoted',
       );
+      if (currentRoles.includes('REVIEWER') && !roleCodes.includes('REVIEWER')) {
+        await this.workload.assertNoPendingWork(tx, user);
+      }
 
       await tx.userRole.deleteMany({ where: { userId } });
       await tx.userRole.createMany({
@@ -215,7 +220,19 @@ export class UserRolesService {
 
   async transferSuperAdmin(targetUserId: string, actor: AuthenticatedUser) {
     if (targetUserId === actor.id) {
-      throw new BadRequestException('Super Admin ownership must be transferred to another user');
+      throw new ApiException(
+        'RULE_VIOLATION',
+        'Super Admin ownership must be transferred to another user',
+      );
+    }
+    // Super Admin is exclusive, so the new holder loses Reviewer. Their open
+    // review work must be handed over first, exactly as for removing the role.
+    const candidate = await this.prisma.user.findFirst({
+      where: { id: targetUserId, deletedAt: null },
+      include: userInclude,
+    });
+    if (candidate && assignedRoleCodes(candidate).includes('REVIEWER')) {
+      await this.workload.assertCanRemoveReviewer(candidate, actor, 'TRANSFER_SUPER_ADMIN');
     }
 
     try {
@@ -252,7 +269,10 @@ export class UserRolesService {
           throw new NotFoundException(`Active user ${targetUserId} was not found`);
         }
         if (!assignedRoleCodes(target).includes('ADMIN')) {
-          throw new BadRequestException('Only an existing Admin can become Super Admin');
+          throw new ApiException('RULE_VIOLATION', 'Only an existing Admin can become Super Admin');
+        }
+        if (assignedRoleCodes(target).includes('REVIEWER')) {
+          await this.workload.assertNoPendingWork(tx, target);
         }
 
         await tx.userRole.upsert({

@@ -314,7 +314,13 @@ export class PasswordLinksService {
     const user = await this.invitedUser(userId, actor);
     await this.prisma.$transaction(async (tx) => {
       await tx.userRole.deleteMany({ where: { userId: user.id } });
-      await tx.user.delete({ where: { id: user.id } });
+      // Conditional on the state checked above: if the user set their password
+      // in the meantime, the account is ACTIVE and must not be deleted. The
+      // throw rolls back the role removal too.
+      const removed = await tx.user.deleteMany({ where: { id: user.id, status: 'INVITED' } });
+      if (removed.count !== 1) {
+        throw new ApiException('NOT_INVITED', 'This user has already accepted the invite.');
+      }
       await this.audit.record(tx, actor, {
         actionType: 'INVITE_REVOKED',
         entityType: 'USER',

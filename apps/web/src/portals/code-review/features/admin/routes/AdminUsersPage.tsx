@@ -303,6 +303,7 @@ export function AdminUsersPage() {
                   icon={<ShieldCheck className="size-4" />}
                   size="sm"
                   onClick={() => {
+                    setBlockingTasks(null);
                     setTransferring(user);
                   }}
                 />
@@ -598,6 +599,10 @@ export function AdminUsersPage() {
         confirmLabel={admin.users.transferSuperAdmin.confirm}
         tone="primary"
         isPending={transferSuperAdmin.isPending}
+        // Super Admin is exclusive, so a Reviewer target loses that role: the
+        // server refuses while they still hold review work. Confirm stays off
+        // until the dialog is reopened after the work is reassigned.
+        confirmDisabled={transferring !== null && blockingTasks !== null}
         onConfirm={() => {
           if (transferring === null) return;
           const user = transferring;
@@ -609,11 +614,25 @@ export function AdminUsersPage() {
               setTransferring(null);
             },
             onError: (cause) => {
+              const blocking = pendingReviewTasksFrom(cause);
+              if (blocking !== null) {
+                setBlockingTasks(blocking);
+                return;
+              }
               toast.error(cause instanceof ApiError ? cause.message : common.errors.generic);
             },
           });
         }}
-      />
+      >
+        {transferring !== null && blockingTasks !== null ? (
+          <>
+            <p className="text-sm text-ink-700">
+              {interpolate(admin.users.transferSuperAdmin.blocked, { name: transferring.name })}
+            </p>
+            <PendingReviewTasksNotice name={transferring.name} tasks={blockingTasks} />
+          </>
+        ) : null}
+      </ConfirmDialog>
     </section>
   );
 }

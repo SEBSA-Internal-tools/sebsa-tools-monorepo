@@ -51,6 +51,8 @@ export class UserRoleAssignmentsController {
     return this.userRoles.replaceForUser(userId, dto.roles, actor, dto.reason);
   }
 
+  // An action on an existing resource, not a creation: 200, not 201.
+  @HttpCode(HttpStatus.OK)
   @Post('transfer-super-admin')
   @Roles('SUPER_ADMIN')
   @ApiOkResponse()

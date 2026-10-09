@@ -1,6 +1,6 @@
 # 0003 · MSW at the network boundary, not a mock service object
 
-**Status:** Accepted · **Date:** Phase 1, Sprint 0
+**Status:** Superseded by [ADR 0016](0016-nestjs-is-the-only-backend.md) (2026-10-09) · **Date:** Phase 1, Sprint 0
 
 ## Context
 

@@ -28,28 +28,30 @@ export class ChecklistQuestionsService {
 
   async create(dto: CreateChecklistQuestionDto) {
     await this.ensureSectionExists(dto.categoryId);
-    const order = dto.order ?? (await this.nextOrder(dto.categoryId));
-    const occupant = await this.prisma.checklistQuestion.findFirst({
-      where: { sectionId: dto.categoryId, displayOrder: order },
-      include: { _count: { select: { answers: true } } },
-    });
-
-    if (occupant && dto.onDuplicateOrder === undefined) {
-      throw new ApiException(
-        'ORDER_TAKEN',
-        `Order ${String(order)} is already used by a question in this category.`,
-      );
-    }
-    if (occupant && dto.onDuplicateOrder === 'replace' && occupant._count.answers > 0) {
-      throw new ApiException(
-        'QUESTION_IN_USE',
-        'Developers have already answered the question at that order, so it cannot be replaced. Deactivate it instead.',
-      );
-    }
-
     try {
       const created = await this.prisma.$transaction(async (tx) => {
+        // The admin picks a position as the UI shows it (1..n); compact any
+        // gaps left in older data first so that position means the same here.
+        if (dto.order !== undefined) await this.resequence(tx, dto.categoryId);
+        // Occupancy and usage are read inside the transaction that acts on them.
+        const order = dto.order ?? (await this.nextOrder(dto.categoryId, tx));
+        const occupant = await tx.checklistQuestion.findFirst({
+          where: { sectionId: dto.categoryId, displayOrder: order },
+          include: { _count: { select: { answers: true } } },
+        });
+        if (occupant && dto.onDuplicateOrder === undefined) {
+          throw new ApiException(
+            'ORDER_TAKEN',
+            `Order ${String(order)} is already used by a question in this category.`,
+          );
+        }
         if (occupant && dto.onDuplicateOrder === 'replace') {
+          if (await this.isInUse(tx, occupant.id, occupant._count.answers)) {
+            throw new ApiException(
+              'QUESTION_IN_USE',
+              'Developers have already answered the question at that order, so it cannot be replaced. Deactivate it instead.',
+            );
+          }
           await tx.checklistQuestion.delete({ where: { id: occupant.id } });
         } else if (occupant && dto.onDuplicateOrder === 'shift') {
           await this.shiftOrders(tx, dto.categoryId, order);
@@ -102,7 +104,11 @@ export class ChecklistQuestionsService {
             orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
             select: { id: true },
           });
-          const sequence = moveToPosition(ordered.map((entry) => entry.id), id, dto.order);
+          const sequence = moveToPosition(
+            ordered.map((entry) => entry.id),
+            id,
+            dto.order,
+          );
           for (const [index, questionId] of sequence.entries()) {
             await tx.checklistQuestion.update({
               where: { id: questionId },
@@ -121,20 +127,38 @@ export class ChecklistQuestionsService {
 
   async remove(id: string): Promise<void> {
     const existing = await this.findRecord(id);
-    if (existing._count.answers > 0) {
-      throw new ApiException(
-        'QUESTION_IN_USE',
-        'Developers have already answered this question. Deactivate it instead.',
-      );
-    }
     try {
       await this.prisma.$transaction(async (tx) => {
+        const answers = await tx.checklistAnswer.count({ where: { questionId: id } });
+        if (await this.isInUse(tx, id, answers)) {
+          throw new ApiException(
+            'QUESTION_IN_USE',
+            'Developers have already answered this question. Deactivate it instead.',
+          );
+        }
         await tx.checklistQuestion.delete({ where: { id } });
         await this.resequence(tx, existing.sectionId);
       });
     } catch (error) {
       rethrowPrismaConflict(error);
     }
+  }
+
+  /**
+   * A question is part of the record once any developer answered it, either in
+   * a live checklist or in a submitted checklist snapshot (kept in the audit
+   * log's `checklistSubmission` metadata, which outlives later edits).
+   */
+  private async isInUse(tx: Prisma.TransactionClient, questionId: string, answers: number) {
+    if (answers > 0) return true;
+    const [row] = await tx.$queryRaw<{ used: boolean }[]>`
+      SELECT EXISTS (
+        SELECT 1 FROM "audit_logs"
+        WHERE "metadata" ? 'checklistSubmission'
+          AND ("metadata" -> 'checklistSubmission')::text LIKE ${`%"${questionId}"%`}
+      ) AS "used"
+    `;
+    return row?.used === true;
   }
 
   private async findRecord(id: string) {
@@ -157,8 +181,11 @@ export class ChecklistQuestionsService {
     if (!section) throw new NotFoundException(`Checklist section ${id} was not found`);
   }
 
-  private async nextOrder(sectionId: string): Promise<number> {
-    const aggregate = await this.prisma.checklistQuestion.aggregate({
+  private async nextOrder(
+    sectionId: string,
+    client: Prisma.TransactionClient = this.prisma,
+  ): Promise<number> {
+    const aggregate = await client.checklistQuestion.aggregate({
       where: { sectionId },
       _max: { displayOrder: true },
     });
@@ -194,9 +221,10 @@ export class ChecklistQuestionsService {
         ...(excludedId === undefined ? {} : { id: { not: excludedId } }),
       },
       orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
-      select: { id: true },
+      select: { id: true, displayOrder: true },
     });
     for (const [order, question] of questions.entries()) {
+      if (question.displayOrder === order + 1) continue;
       await tx.checklistQuestion.update({
         where: { id: question.id },
         data: { displayOrder: order + 1 },

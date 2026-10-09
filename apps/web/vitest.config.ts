@@ -1,5 +1,11 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { storybookTest } from '@storybook/addon-vitest/vitest-plugin';
+import { playwright } from '@vitest/browser-playwright';
 import { defineConfig, mergeConfig } from 'vitest/config';
 import viteConfig from './vite.config.ts';
+
+const dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /**
  * `mergeConfig` is required: the presence of this file stops Vitest reading
@@ -9,6 +15,10 @@ import viteConfig from './vite.config.ts';
 export default mergeConfig(
   viteConfig,
   defineConfig({
+    resolve: {
+      // Test-only helpers (apiStub, fixtures, render helpers) live outside src/.
+      alias: { '@tests': path.resolve(dirname, 'tests') },
+    },
     test: {
       projects: [
         {
@@ -47,12 +57,37 @@ export default mergeConfig(
             maxWorkers: 3,
             globals: false,
             css: true,
-            setupFiles: ['./src/test/setup.ts'],
+            setupFiles: ['./tests/support/setup.ts'],
+            /*
+             * Tests live in tests/, apart from the code they test:
+             *   tests/unit       pure rules and helpers (no DOM, no network)
+             *   tests/component  screens and components, with canned API answers
+             * Browser journeys against the real NestJS API are in apps/web-e2e.
+             */
             include: [
-              'src/**/*.{test,spec}.{ts,tsx}',
+              'tests/unit/**/*.{test,spec}.{ts,tsx}',
+              'tests/component/**/*.{test,spec}.{ts,tsx}',
               '../../packages/*/src/**/*.{test,spec}.{ts,tsx}',
             ],
             exclude: ['**/node_modules/**', 'e2e/**'],
+          },
+        },
+        /*
+         * Every story rendered in a real browser, with its play function and an
+         * axe check (`a11y.test` in .storybook/preview.ts).
+         * `npm run test:storybook`.
+         */
+        {
+          extends: true,
+          plugins: [storybookTest({ configDir: path.join(dirname, '.storybook') })],
+          test: {
+            name: 'storybook',
+            browser: {
+              enabled: true,
+              headless: true,
+              provider: playwright(),
+              instances: [{ browser: 'chromium' }],
+            },
           },
         },
       ],
@@ -60,7 +95,7 @@ export default mergeConfig(
         provider: 'v8',
         reporter: ['text', 'html', 'lcov'],
         include: ['src/**/*.{ts,tsx}', '../../packages/*/src/**/*.ts'],
-        exclude: ['**/*.stories.tsx', '**/*.d.ts', 'src/mocks/**', 'src/test/**', '**/index.ts'],
+        exclude: ['**/*.stories.tsx', '**/*.d.ts', 'tests/**', '**/index.ts'],
         thresholds: {
           /*
            * `npm test` runs with `--coverage` precisely so these thresholds are

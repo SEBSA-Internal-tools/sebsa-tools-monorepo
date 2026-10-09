@@ -12,9 +12,9 @@
     "test:fast": "vitest run --project unit",
     "test:watch": "vitest --project unit",
     "test:ui": "vitest --ui --project unit",
-    "test:coverage": "vitest run --project unit --coverage"
-  },
-  "msw": {
-    "workerDirectory": ["public"]
+    "test:coverage": "vitest run --project unit --coverage",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build -o ../../dist/storybook",
+    "test:storybook": "vitest run --project storybook"
   }
 }

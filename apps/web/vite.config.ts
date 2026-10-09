@@ -31,10 +31,13 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5175,
+    port: Number(process.env['SDP_WEB_PORT'] ?? 5175),
     proxy: {
       '/api': {
-        target: 'http://localhost:3000',
+        // NestJS. The Playwright suite points this at its own e2e API
+        // (SDP_API_TARGET=http://localhost:3100) so it never touches the API a
+        // developer runs against the shared database.
+        target: process.env['SDP_API_TARGET'] ?? 'http://localhost:3000',
         changeOrigin: true,
       },
     },
@@ -44,9 +47,8 @@ export default defineConfig({
      * Vite's default is to pick the next free port, which is friendly right up
      * until it is not: a second instance runs happily on another port while
      * SHARING `cacheDir` with the first, and the two race to rename the
-     * optimised-deps directory. `playwright.config.ts` pins `baseURL` to 5175
-     * and reuses a running server, so a silent move to 5176 also means the e2e
-     * suite and the browser you are watching are two different servers.
+     * optimised-deps directory. The Playwright suite runs its own server on
+     * SDP_WEB_PORT=5185, so a silent move would put the suite on the wrong one.
      */
     strictPort: true,
   },
@@ -72,7 +74,15 @@ export default defineConfig({
    * cause rather than retrying around it. Keyed by project path so a sibling
    * checkout cannot collide.
    */
-  cacheDir: join(tmpdir(), 'sdp-vite', createHash('sha1').update(PROJECT_ROOT).digest('hex')),
+  // A separate cache per port: the Playwright server (5185) and a developer's
+  // own dev server (5175) must not race over one optimised-deps directory.
+  cacheDir: join(
+    tmpdir(),
+    'sdp-vite',
+    createHash('sha1')
+      .update(`${PROJECT_ROOT}:${process.env['SDP_WEB_PORT'] ?? '5175'}`)
+      .digest('hex'),
+  ),
   build: {
     outDir: '../../dist/apps/web',
     emptyOutDir: true,

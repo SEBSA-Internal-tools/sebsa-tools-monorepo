@@ -24,13 +24,17 @@ import { ReorderDto } from '../../common/dto/reorder.dto.js';
 export class ChecklistSectionsController {
   constructor(private readonly checklistSections: ChecklistSectionsService) {}
 
+  // Admin catalogue tooling only: these return retired rows too. Developers and
+  // reviewers read the published checklist through GET /checklist-template.
   @Get()
+  @Roles('ADMIN')
   @ApiOkResponse()
   findAll() {
     return this.checklistSections.findAll();
   }
 
   @Get(':id')
+  @Roles('ADMIN')
   @ApiOkResponse()
   findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.checklistSections.findOne(id);
@@ -64,7 +68,10 @@ export class ChecklistSectionsController {
 export class ChecklistCategoriesController {
   constructor(private readonly checklistSections: ChecklistSectionsService) {}
 
+  // Admin catalogue tooling only: these return retired rows too. Developers and
+  // reviewers read the published checklist through GET /checklist-template.
   @Get()
+  @Roles('ADMIN')
   @ApiOkResponse()
   findAll() {
     return this.checklistSections.findCategories();
@@ -86,6 +93,7 @@ export class ChecklistCategoriesController {
   }
 
   @Get(':id')
+  @Roles('ADMIN')
   @ApiOkResponse()
   findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.checklistSections.findCategory(id);

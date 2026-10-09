@@ -6,6 +6,7 @@ import { argon2id, hash, verify } from 'argon2';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { ApiException } from '../../common/api-error.js';
+import { RateLimiterService } from '../../common/rate-limiter.service.js';
 import { authSecret, authSettings } from './auth.config.js';
 import { ROLE_LABELS, type RoleCode } from './auth.constants.js';
 import type { JwtPayload } from './auth.types.js';
@@ -29,25 +30,77 @@ export interface RequestMetadata {
   ipAddress?: string;
 }
 
+/** Sign-in attempts allowed per normalised email, and per client IP, per window. */
+export const LOGIN_ATTEMPTS_PER_EMAIL = 5;
+export const LOGIN_ATTEMPTS_PER_IP = 30;
+export const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+/** Refreshes allowed per client IP per minute (a normal tab needs a handful). */
+export const REFRESHES_PER_IP = 60;
+export const REFRESH_WINDOW_MS = 60 * 1000;
+
+/**
+ * An argon2id hash of a random value nobody knows, computed once. Verifying a
+ * password against it for accounts that do not exist (or have no password yet)
+ * makes those failures take as long as a real wrong password, so response time
+ * cannot be used to discover which emails have accounts.
+ */
+let dummyHash: Promise<string> | undefined;
+function timingDummyHash(): Promise<string> {
+  dummyHash ??= hash(randomUUID(), {
+    type: argon2id,
+    memoryCost: 19_456,
+    timeCost: 2,
+    parallelism: 1,
+  });
+  return dummyHash;
+}
+
 @Injectable()
 export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    private readonly limiter: RateLimiterService,
   ) {}
 
   async login(dto: LoginDto, metadata: RequestMetadata) {
+    const email = dto.email.trim().toLowerCase();
+    // Brute-force protection: per account (slows guessing one password) and per
+    // client (slows spraying one password across many accounts). Counted before
+    // the password is checked, so a correct guess after the limit still fails.
+    const ipAllowed =
+      metadata.ipAddress === undefined ||
+      this.limiter.consume(
+        `login-ip:${metadata.ipAddress}`,
+        LOGIN_ATTEMPTS_PER_IP,
+        LOGIN_WINDOW_MS,
+      );
+    if (
+      !ipAllowed ||
+      !this.limiter.consume(`login-email:${email}`, LOGIN_ATTEMPTS_PER_EMAIL, LOGIN_WINDOW_MS)
+    ) {
+      throw new ApiException(
+        'RATE_LIMITED',
+        'Too many sign-in attempts. Wait a few minutes and try again.',
+      );
+    }
+
     const user = await this.prisma.user.findFirst({
-      where: { email: dto.email.trim().toLowerCase(), deletedAt: null },
+      where: { email, deletedAt: null },
       include: userWithRoles,
     });
     // One message for every credential failure: distinguishing "no such
     // account" from "wrong password" would let anyone enumerate who works here.
-    // An INVITED account has no password yet, so it fails here too.
-    if (!user?.passwordHash) this.invalidCredentials();
+    // An INVITED account has no password yet, so it fails here too - after the
+    // same argon2 work, so the timing does not tell them apart either.
+    if (!user?.passwordHash) {
+      await verify(await timingDummyHash(), dto.password).catch(() => false);
+      this.invalidCredentials();
+    }
     const valid = await verify(user.passwordHash, dto.password);
     if (!valid) this.invalidCredentials();
+    this.limiter.forget(`login-email:${email}`);
     // Only someone who proved the password learns the account is switched off.
     if (user.status !== 'ACTIVE') {
       throw new ApiException(
@@ -61,7 +114,13 @@ export class AuthService {
     return { user: this.toCurrentUser(user), tokens };
   }
 
-  async refresh(refreshToken: string | undefined) {
+  async refresh(refreshToken: string | undefined, metadata: RequestMetadata = {}) {
+    if (
+      metadata.ipAddress !== undefined &&
+      !this.limiter.consume(`refresh-ip:${metadata.ipAddress}`, REFRESHES_PER_IP, REFRESH_WINDOW_MS)
+    ) {
+      throw new ApiException('RATE_LIMITED', 'Too many requests. Try again later.');
+    }
     if (!refreshToken) throw new UnauthorizedException();
     const settings = authSettings(this.config);
     let payload: JwtPayload;
@@ -70,6 +129,7 @@ export class AuthService {
         secret: authSecret(this.config, 'JWT_REFRESH_SECRET'),
         issuer: settings.issuer,
         audience: settings.audience,
+        algorithms: ['HS256'],
       });
     } catch {
       throw new UnauthorizedException();
@@ -114,6 +174,7 @@ export class AuthService {
         secret: authSecret(this.config, 'JWT_REFRESH_SECRET'),
         issuer: settings.issuer,
         audience: settings.audience,
+        algorithms: ['HS256'],
         ignoreExpiration: true,
       });
       await this.prisma.refreshSession.updateMany({
@@ -147,17 +208,29 @@ export class AuthService {
     return tokens;
   }
 
-  private async signTokens(userId: string, sessionId: string, refreshTtl: number): Promise<AuthTokens> {
+  private async signTokens(
+    userId: string,
+    sessionId: string,
+    refreshTtl: number,
+  ): Promise<AuthTokens> {
     const settings = authSettings(this.config);
     const common = { sub: userId, sid: sessionId, iss: settings.issuer, aud: settings.audience };
     const [accessToken, refreshToken] = await Promise.all([
       this.jwt.signAsync(
         { ...common, jti: randomUUID(), typ: 'access' satisfies JwtPayload['typ'] },
-        { secret: authSecret(this.config, 'JWT_ACCESS_SECRET'), expiresIn: settings.accessTtl },
+        {
+          secret: authSecret(this.config, 'JWT_ACCESS_SECRET'),
+          expiresIn: settings.accessTtl,
+          algorithm: 'HS256',
+        },
       ),
       this.jwt.signAsync(
         { ...common, jti: randomUUID(), typ: 'refresh' satisfies JwtPayload['typ'] },
-        { secret: authSecret(this.config, 'JWT_REFRESH_SECRET'), expiresIn: refreshTtl },
+        {
+          secret: authSecret(this.config, 'JWT_REFRESH_SECRET'),
+          expiresIn: refreshTtl,
+          algorithm: 'HS256',
+        },
       ),
     ]);
     return {

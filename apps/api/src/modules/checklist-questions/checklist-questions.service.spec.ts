@@ -45,13 +45,15 @@ describe('ChecklistQuestionsService question management', () => {
 
   it('adds a question at the end of only the selected category', async () => {
     const created = question({ displayOrder: 2 });
-    const tx = { checklistQuestion: { create: vi.fn().mockResolvedValue(created) } };
-    const prisma = {
-      checklistSection: { findUnique: vi.fn().mockResolvedValue({ id: categoryId }) },
+    const tx = {
       checklistQuestion: {
+        create: vi.fn().mockResolvedValue(created),
         aggregate: vi.fn().mockResolvedValue({ _max: { displayOrder: 1 } }),
         findFirst: vi.fn().mockResolvedValue(null),
       },
+    };
+    const prisma = {
+      checklistSection: { findUnique: vi.fn().mockResolvedValue({ id: categoryId }) },
       $transaction: vi.fn((operation: (client: typeof tx) => unknown) => operation(tx)),
     };
     const service = new ChecklistQuestionsService(prisma as never);
@@ -65,7 +67,7 @@ describe('ChecklistQuestionsService question management', () => {
       order: 2,
       isActive: true,
     });
-    expect(prisma.checklistQuestion.aggregate).toHaveBeenCalledWith({
+    expect(tx.checklistQuestion.aggregate).toHaveBeenCalledWith({
       where: { sectionId: categoryId },
       _max: { displayOrder: true },
     });
@@ -132,6 +134,8 @@ describe('ChecklistQuestionsService question management', () => {
         findMany: vi.fn().mockResolvedValue([]),
         update: vi.fn(),
       },
+      checklistAnswer: { count: vi.fn().mockResolvedValue(0) },
+      $queryRaw: vi.fn().mockResolvedValue([{ used: false }]),
     };
     const prisma = {
       checklistQuestion: { findUnique: vi.fn().mockResolvedValue(question()) },
@@ -147,15 +151,37 @@ describe('ChecklistQuestionsService question management', () => {
   });
 
   it('protects checklist history by refusing to delete an answered question', async () => {
+    const tx = {
+      checklistQuestion: { delete: vi.fn() },
+      checklistAnswer: { count: vi.fn().mockResolvedValue(1) },
+      $queryRaw: vi.fn(),
+    };
     const prisma = {
-      checklistQuestion: {
-        findUnique: vi.fn().mockResolvedValue(question({ _count: { answers: 1 } })),
-      },
-      $transaction: vi.fn(),
+      checklistQuestion: { findUnique: vi.fn().mockResolvedValue(question()) },
+      $transaction: vi.fn((operation: (client: typeof tx) => unknown) => operation(tx)),
     };
     const service = new ChecklistQuestionsService(prisma as never);
 
     await expect(service.remove(questionId)).rejects.toMatchObject({ code: 'QUESTION_IN_USE' });
-    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(tx.checklistQuestion.delete).not.toHaveBeenCalled();
+  });
+
+  it('also treats a question captured in a submitted checklist snapshot as in use', async () => {
+    const tx = {
+      checklistQuestion: { delete: vi.fn() },
+      checklistAnswer: { count: vi.fn().mockResolvedValue(0) },
+      $queryRaw: vi.fn().mockResolvedValue([{ used: true }]),
+    };
+    const prisma = {
+      checklistQuestion: { findUnique: vi.fn().mockResolvedValue(question()) },
+      $transaction: vi.fn((operation: (client: typeof tx) => unknown) => operation(tx)),
+    };
+    const service = new ChecklistQuestionsService(prisma as never);
+
+    await expect(service.remove(questionId)).rejects.toMatchObject({
+      code: 'QUESTION_IN_USE',
+      status: 409,
+    });
+    expect(tx.checklistQuestion.delete).not.toHaveBeenCalled();
   });
 });

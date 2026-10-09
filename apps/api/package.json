@@ -15,6 +15,8 @@
     "class-transformer": "0.5.1",
     "class-validator": "0.15.1",
     "cookie-parser": "1.4.7",
+    "express": "5.2.1",
+    "helmet": "8.1.0",
     "passport": "0.7.0",
     "passport-jwt": "4.0.1",
     "reflect-metadata": "0.2.2",
@@ -33,7 +35,11 @@
     "prisma:migrate:dev": "prisma migrate dev --schema prisma/schema.prisma",
     "prisma:seed": "prisma db seed --schema prisma/schema.prisma",
     "prisma:migrate:status": "prisma migrate status --schema prisma/schema.prisma",
-    "prisma:seed:dev-users": "tsx prisma/seed-dev-users.ts"
+    "prisma:seed:dev-users": "tsx prisma/seed-dev-users.ts",
+    "e2e:db:up": "node scripts/e2e-db.mjs up",
+    "e2e:db:reset": "node scripts/e2e-db.mjs reset",
+    "e2e:db:down": "node scripts/e2e-db.mjs down",
+    "e2e:serve": "node scripts/e2e-serve.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

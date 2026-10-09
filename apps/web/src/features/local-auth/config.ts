@@ -5,7 +5,7 @@
  * the folder, drop the set-password / forgot-password / link-expired children of
  * the guest route in `routes/index.tsx` (and their `routePaths` entries), the
  * "Forgot password?" link in `LoginRoute`, the invite column and actions on the
- * Users tab, and `mocks/passwordLinks.ts`.
+ * Users tab, and the NestJS password-links module.
  *
  * Addresses live in `constants/routePaths.ts` with every other route.
  */

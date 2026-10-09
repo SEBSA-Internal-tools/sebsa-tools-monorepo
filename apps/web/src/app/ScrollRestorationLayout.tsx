@@ -19,7 +19,7 @@ import { useTabScrollPreservation } from './useTabScrollPreservation.ts';
  * plumbing; there isn't one.
  *
  * WHY A PATHLESS ROUTE rather than `RootLayout`. `RootLayout` returns early in
- * five states — two loading skeletons, session-expired, mock-detached and the
+ * five states — two loading skeletons, session-expired, an error and the
  * unauthenticated case — so anything rendered only in its final JSX unmounts
  * and remounts as those states come and go. A pathless layout is mounted for
  * exactly one location's lifetime, and it also covers `/login`, which renders

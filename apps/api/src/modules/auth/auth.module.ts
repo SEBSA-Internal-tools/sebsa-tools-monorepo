@@ -6,6 +6,7 @@ import { AuthController } from './auth.controller.js';
 import { authSecret } from './auth.config.js';
 import { AuthService } from './auth.service.js';
 import { JwtStrategy } from './strategies/jwt.strategy.js';
+import { RateLimiterService } from '../../common/rate-limiter.service.js';
 
 @Module({
   imports: [
@@ -17,8 +18,7 @@ import { JwtStrategy } from './strategies/jwt.strategy.js';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
+  providers: [AuthService, JwtStrategy, RateLimiterService],
   exports: [AuthService],
 })
 export class AuthModule {}
-

@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   NotFoundException,
   UnauthorizedException,
+  UnprocessableEntityException,
   type ArgumentsHost,
 } from '@nestjs/common';
 import type { Response } from 'express';
@@ -96,5 +97,28 @@ describe('HttpExceptionFilter', () => {
       }),
     );
     expect(JSON.stringify(json.mock.calls[0]?.[0])).not.toContain('Prisma');
+  });
+
+  it.each([
+    ['entity.too.large', 413, 'PAYLOAD_TOO_LARGE'],
+    ['entity.parse.failed', 400, 'VALIDATION_FAILED'],
+    ['encoding.unsupported', 415, 'UNSUPPORTED_MEDIA_TYPE'],
+  ])('maps the body-parser error %s to %i %s instead of a 500', (type, expectedStatus, code) => {
+    const { host, json, status } = responseHarness();
+    const error = Object.assign(new Error('raw parser detail'), { type, status: expectedStatus });
+
+    new HttpExceptionFilter().catch(error, host);
+
+    expect(status).toHaveBeenCalledWith(expectedStatus);
+    expect(json).toHaveBeenCalledWith(
+      expect.objectContaining({ statusCode: expectedStatus, code }),
+    );
+    expect(JSON.stringify(json.mock.calls[0]?.[0])).not.toContain('raw parser detail');
+  });
+
+  it('gives a plain 422 a business-rule code rather than a state-conflict one', () => {
+    const { host, json } = responseHarness();
+    new HttpExceptionFilter().catch(new UnprocessableEntityException('Nope'), host);
+    expect(json).toHaveBeenCalledWith(expect.objectContaining({ code: 'RULE_VIOLATION' }));
   });
 });

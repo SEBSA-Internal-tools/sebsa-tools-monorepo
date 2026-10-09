@@ -309,7 +309,7 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
             draft.setTaskId(updated.id, updated.taskCode, updated.createdAt, updated.submittedAt);
           }
         } catch (updateError) {
-          // If the server draft was lost (e.g. mock DB reset, deleted task, or server restart returning 404),
+          // If the server draft was lost (a deleted task, a stale id kept in the browser — a 404),
           // self-heal by creating the task fresh on the server instead of getting stuck.
           if (updateError instanceof ApiError && updateError.statusCode === 404) {
             createdNow = true;

@@ -4,7 +4,7 @@ import { ShieldAlert } from 'lucide-react';
 import { EmptyState, ErrorState } from '@/components/common/states.tsx';
 import { PageSkeleton } from '@/components/common/Skeleton.tsx';
 import { hasNoWorkspaceAccess } from '@/lib/permissions.ts';
-import { ApiError, MockApiDetachedError } from '@/lib/apiClient.ts';
+import { ApiError } from '@/lib/apiClient.ts';
 import auth from '@/content/auth.json';
 import common from '@/content/common.json';
 import { SessionExpiredScreen } from '@/features/auth/components/SessionExpiredScreen.tsx';
@@ -75,40 +75,11 @@ export function RootLayout() {
   }
 
   /*
-   * Three failure modes, three answers.
-   *
-   * This branch used to be one `isError || !user` that rendered "Authentication
-   * failed or user account not configured" for EVERY failure — including a
-   * detached mock worker, a network drop and a broken contract — and offered a
-   * retry that, in the most common case, provably could not succeed. Users saw
-   * an authentication error for something that was not an authentication
-   * problem, and the only cure was a reload nobody told them to do.
+   * The 401 case is handled above, by the effect and the `isExpired` branch.
+   * Anything else is a real error, and its own message is more useful than a
+   * guess about authentication.
    */
   if (isError || !user) {
-    // 1. The demo API stopped intercepting. Retrying is bypassed too; only a
-    //    reload re-registers the worker.
-    if (error instanceof MockApiDetachedError) {
-      return (
-        <div className="grid min-h-screen place-items-center px-4">
-          <ErrorState
-            title={auth.errors.mockDetachedTitle}
-            message={auth.errors.mockDetached}
-            retryLabel={auth.errors.reload}
-            onRetry={() => {
-              window.location.reload();
-            }}
-          />
-        </div>
-      );
-    }
-
-    /*
-     * 2. The 401 case is handled above, by the effect and the `isExpired` branch.
-     *    It used to be dealt with here, in render, which is what crashed the app.
-     *
-     * 3. Anything else is a real error, and its own message is more useful than
-     *    a guess about authentication.
-     */
     return (
       <div className="grid min-h-screen place-items-center px-4">
         <ErrorState
@@ -150,11 +121,7 @@ export function RootLayout() {
         {common.actions.skipToContent}
       </a>
 
-      <AppBar
-        user={user}
-        showNotifications
-        {...(title === undefined ? {} : { title })}
-      />
+      <AppBar user={user} showNotifications {...(title === undefined ? {} : { title })} />
 
       {/*
         `scroll-mt-20` clears the sticky header. Without it the skip link — and

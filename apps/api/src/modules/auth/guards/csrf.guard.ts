@@ -10,19 +10,27 @@ const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
  * — they neither send nor trust cookies, so there is no ambient authority to
  * forge. They get an Origin check instead (PublicAuthHeadersInterceptor).
  */
-const TOKEN_BOOTSTRAP_PATHS = [
-  '/auth/login',
-  '/auth/token/validate',
-  '/auth/set-password',
-  '/auth/forgot-password',
-  '/auth/resend-link',
-];
+const TOKEN_BOOTSTRAP_PATHS = new Set([
+  '/api/auth/login',
+  '/api/auth/token/validate',
+  '/api/auth/set-password',
+  '/api/auth/forgot-password',
+  '/api/auth/resend-link',
+]);
+
+/** `/api/auth/login/` and `/api/auth/login` are the same route to Express. */
+function normalisedPath(path: string): string {
+  return path.length > 1 ? path.replace(/\/+$/, '') : path;
+}
 
 @Injectable()
 export class CsrfGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<Request>();
-    if (SAFE_METHODS.has(request.method) || TOKEN_BOOTSTRAP_PATHS.some((path) => request.path.endsWith(path))) return true;
+    // Exact full-path match: a suffix test would also exempt any future route
+    // that merely ENDS in one of these segments.
+    if (SAFE_METHODS.has(request.method) || TOKEN_BOOTSTRAP_PATHS.has(normalisedPath(request.path)))
+      return true;
     const cookie = (request.cookies as Record<string, unknown> | undefined)?.[CSRF_COOKIE];
     const header = request.headers[CSRF_HEADER];
     if (typeof cookie !== 'string' || typeof header !== 'string') {
@@ -36,4 +44,3 @@ export class CsrfGuard implements CanActivate {
     return true;
   }
 }
-

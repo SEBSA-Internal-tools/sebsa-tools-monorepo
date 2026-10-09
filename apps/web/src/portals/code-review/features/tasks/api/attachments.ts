@@ -16,7 +16,7 @@ import { taskKeys } from '@/portals/code-review/hooks/useTasks.ts';
  *
  * NOTE: these three WRITE hooks currently have no call site. The wizard's
  * screenshot dropzone was withdrawn from step 3 at the business's request, and
- * the MSW handlers, the schema and the read path all remain — so the developer
+ * the NestJS endpoints, the schema and the read path all remain — so the developer
  * upload surface is a component away, not a feature away, if it is asked for
  * again. The reads (`useTaskAttachments`) are very much live: `ReviewTaskPage`
  * and `TaskDetailPage` both render the attachments a task already has.

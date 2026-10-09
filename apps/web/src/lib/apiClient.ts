@@ -10,14 +10,11 @@ import { apiErrorSchema } from '@sdp/contracts';
  * Responses are parsed through the Zod schema the caller supplies. That costs
  * microseconds against a network round-trip and buys the thing most likely to
  * bite us: a backend that quietly returns a differently-shaped payload than the
- * mocks did. Better a loud error here than `undefined` surfacing three
- * components away.
+ * shared contract promises. Better a loud error here than `undefined` surfacing
+ * three components away.
  */
 
 const API_BASE = '/api';
-// MSW is a unit-test boundary only. Browser builds must always authenticate
-// against NestJS so a seeded/mock identity can never become a real session.
-const USE_MOCK_API = import.meta.env.MODE === 'test';
 
 export class ApiError extends Error {
   readonly statusCode: number;
@@ -62,62 +59,6 @@ export class ApiContractError extends Error {
     this.name = 'ApiContractError';
     this.issues = issues;
   }
-}
-
-/**
- * Unit tests only. Identifies the caller to MSW so handlers can filter
- * server-side (for example
- * excluding a reviewer's own submissions from the Available queue) instead of
- * the UI hiding rows it should never have received.
- *
- * `setMockUserId` is an explicit override used by the unit-test harness. It is
- * ignored outside Vitest; real authentication relies only on HttpOnly cookies.
- */
-let identityOverride: string | null = null;
-
-export function setMockUserId(userId: string | null): void {
-  if (!USE_MOCK_API) return;
-  identityOverride = userId;
-}
-
-function callerIdentity(): string | null {
-  return USE_MOCK_API ? identityOverride : null;
-}
-
-/**
- * Raised when a request to `/api/*` came back as something the mock API would
- * never produce — which in Phase 1 means the MSW service worker has stopped
- * intercepting and the request fell through to the Vite dev server.
- *
- * This deserves its own type because it is NOT an authentication failure, and
- * treating it as one is what produced the misleading "Authentication failed or
- * user account not configured" screen. It is also not retryable: the next
- * request is bypassed too, so only a reload can recover.
- */
-export class MockApiDetachedError extends Error {
-  constructor(path: string) {
-    super(
-      `The demo API is no longer intercepting requests (${path}). ` +
-        'This happens when the mock service worker is stopped by the browser.',
-    );
-    this.name = 'MockApiDetachedError';
-  }
-}
-
-/**
- * Test harness only. How this layer puts a detached mock API back together.
- *
- * The browser always talks to NestJS; MSW runs only under Vitest, so outside
- * tests this hook is never registered and never reached — `isMockDetached`
- * returns `false` unless `MODE === 'test'`.
- *
- * Inverted rather than imported for the same reason the identity override is:
- * `lib/` may not depend on a folder that is about to be deleted.
- */
-let detachedRecovery: (() => Promise<void>) | null = null;
-
-export function setDetachedRecovery(recover: (() => Promise<void>) | null): void {
-  detachedRecovery = recover;
 }
 
 interface RequestOptions {
@@ -172,9 +113,6 @@ async function send(path: string, options: RequestOptions): Promise<Response> {
     if (csrf) headers['X-CSRF-Token'] = csrf;
   }
 
-  const identity = USE_MOCK_API ? callerIdentity() : null;
-  if (identity) headers['X-Mock-User-Id'] = identity;
-
   try {
     return await fetch(buildUrl(path, searchParams), {
       method,
@@ -202,32 +140,11 @@ async function request<TSchema extends z.ZodTypeAny>(
   let response = await send(path, options);
 
   if (response.status === 401 && shouldRefresh(path)) {
-    if (!USE_MOCK_API && (await refreshAuthentication())) response = await send(path, options);
+    if (await refreshAuthentication()) response = await send(path, options);
     if (response.status === 401) window.dispatchEvent(new Event('sdp:unauthorized'));
   }
 
-  /*
-   * Phase 1 only. When the browser stops the MSW service worker, it bypasses
-   * requests to the real network; the reply is an HTML 404, or a plain-text 502
-   * from the dev proxy when no backend is running. That is indistinguishable
-   * from a genuine error by status alone, so the content type is what tells
-   * them apart — the mock API always answers JSON, including for its errors.
-   *
-   * Recover in place rather than surfacing the failure. Re-attaching the worker
-   * takes a postMessage round trip, and the request that noticed the problem is
-   * the one best placed to pay for it — the alternative is an error screen for
-   * something the app can fix by itself. See `mocks/browser.ts`.
-   *
-   * Exactly once: if the retry is bypassed too, the worker is genuinely gone and
-   * only a reload will help, which is what `RootLayout` then offers.
-   */
-  if (!response.ok && isMockDetached(response) && detachedRecovery !== null) {
-    await detachedRecovery();
-    response = await send(path, options);
-  }
-
   if (!response.ok) {
-    if (isMockDetached(response)) throw new MockApiDetachedError(path);
     throw await toApiError(response, path);
   }
 
@@ -269,21 +186,6 @@ function readCookie(name: string): string | undefined {
   const prefix = `${name}=`;
   const pair = document.cookie.split('; ').find((entry) => entry.startsWith(prefix));
   return pair ? decodeURIComponent(pair.slice(prefix.length)) : undefined;
-}
-
-/**
- * True when a failed `/api/*` response did not come from the mock API.
- *
- * Guarded on test mode because the whole failure mode belongs to the MSW test
- * double: in the browser there is no service worker to detach, and a real 404
- * from NestJS must stay a plain 404.
- */
-function isMockDetached(response: Response): boolean {
-  if (!USE_MOCK_API) return false;
-  if (response.status !== 404 && response.status !== 502) return false;
-
-  const contentType = response.headers.get('content-type') ?? '';
-  return !contentType.includes('json');
 }
 
 /**

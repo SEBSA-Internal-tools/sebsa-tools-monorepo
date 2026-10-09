@@ -29,7 +29,7 @@ const SUPER_ADMIN_CAPABILITIES: readonly Capability[] = [
   'workflow.recover',
 ];
 
-/** Small capability seam shared by UI affordances and mock API enforcement. */
+/** Small capability seam for UI affordances; NestJS enforces the same capabilities. */
 export function hasCapability(roles: readonly Role[], capability: Capability): boolean {
   if (
     roles.includes('SuperAdmin') &&

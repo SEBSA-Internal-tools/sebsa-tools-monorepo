@@ -23,25 +23,21 @@ Check with `node --version`. If you use `nvm`, run `nvm use 22`.
 git clone <repository-url>
 cd Repo_SDP
 npm install
-npm run dev
+cp apps/api/.env.example apps/api/.env   # then fill in DATABASE_URL and the JWT secrets
+npm run dev                              # web :5175 + NestJS :3000
 ```
 
-Open <http://localhost:5173>. You will land on the login screen.
+Open <http://localhost:5175>. You will land on the login screen. The browser
+talks only to NestJS (`/api`, proxied by Vite); there is no mock backend
+([ADR 0016](./adr/0016-nestjs-is-the-only-backend.md)).
 
-**There is no `.env` to create and no backend to run.** Every value has a safe
-default and the app boots against a seeded mock API. See [Mock API](./16-mock-api.md).
+### Accounts
 
-### Signing in
-
-Any seeded account works with the shared demo password:
-
-| Email                                    | Roles                      | Use it to see               |
-| ---------------------------------------- | -------------------------- | --------------------------- |
-| `charith.widanapathirana@sebsaworld.com` | Developer, Reviewer, Admin | All three workspaces        |
-| `dheliya.kankanamge@sebsaworld.com`      | Developer                  | One workspace               |
-| `pinsara.chandika@sebsaworld.com`        | Reviewer                   | The reviewer workspace only |
-
-Password for all of them: `Sebsa@2026` (shown on the login screen).
+Accounts are created by an admin from the **Users** tab and finish setup through
+an emailed set-password link. Without an email transport configured, the API
+writes the message (with the link) to its log in development. For a first local
+admin, set `BOOTSTRAP_ADMIN_EMAIL` / `BOOTSTRAP_ADMIN_PASSWORD` and run
+`npm run prisma:seed -w @sdp/api` against your own database.
 
 Signing in as different accounts is how you check role gating — there is no
 account switcher in the app, deliberately. See
@@ -49,49 +45,37 @@ account switcher in the app, deliberately. See
 
 ## Scripts
 
-| Script                            | What it does                                       | When you run it           |
-| --------------------------------- | -------------------------------------------------- | ------------------------- |
-| `npm run dev`                     | Dev server with the mock API                       | Daily                     |
-| `npm run build`                   | Type-check the workspace, then build               | Before pushing            |
-| `npm run preview`                 | Serve the production build                         | Checking a build locally  |
-| `npm run typecheck`               | `tsc -b` across app and packages                   | Daily                     |
-| `npm run lint` / `lint:fix`       | ESLint, including the architecture rules           | Daily                     |
-| `npm run format` / `format:check` | Prettier                                           | Before committing         |
-| `npm test`                        | Unit and component tests                           | Daily                     |
-| `npm run test:watch`              | The same, in watch mode                            | While writing tests       |
-| `npm run test:coverage`           | With coverage; `domain/` is held to 90%            | Before a large merge      |
-| `npm run test:storybook`          | Every story in Chromium, with accessibility checks | Before pushing UI changes |
-| `npm run test:e2e`                | Playwright end-to-end                              | Before pushing            |
-| `npm run storybook`               | Component workshop on :6006                        | Building components       |
+| Script                               | What it does                                                   | When you run it           |
+| ------------------------------------ | -------------------------------------------------------------- | ------------------------- |
+| `npm run dev`                        | Web (Vite) + API (NestJS, esbuild watch)                       | Daily                     |
+| `npm run build`                      | Type-check and build every project                             | Before pushing            |
+| `npm run typecheck`                  | `tsc -b` across apps and packages                              | Daily                     |
+| `npm run lint` / `lint:fix`          | ESLint, including the architecture rules                       | Daily                     |
+| `npm run format` / `format:check`    | Prettier                                                       | Before committing         |
+| `npm test`                           | Unit and component tests (web + API)                           | Daily                     |
+| `npm run test:storybook -w @sdp/web` | Every story in Chromium, with accessibility checks             | Before pushing UI changes |
+| `npm run storybook -w @sdp/web`      | Component workshop on :6006                                    | Building components       |
+| `npm run e2e`                        | Playwright journeys against the real stack (own DB, own ports) | Before pushing            |
 
-First run of `test:storybook` or `test:e2e` needs browsers:
+The API e2e suite and Playwright need PostgreSQL binaries locally (the scripts
+start a private, throwaway cluster — never the shared database) and browsers:
 
 ```bash
 npx playwright install chromium
+npm run e2e:db:up -w @sdp/api
 ```
+
+See [Testing strategy](./13-testing-strategy.md).
 
 ## Environment
 
-| Variable               | Default                          | Purpose                                           |
-| ---------------------- | -------------------------------- | ------------------------------------------------- |
-| `VITE_API_MODE`        | `mock` in dev, `live` in a build | `mock` boots MSW in the browser                   |
-| `VITE_API_BASE_URL`    | `/api`                           | Prefixed to every request                         |
-| `VITE_APP_NAME`        | SEBSA Service Delivery Portal    |                                                   |
-| `VITE_ENABLE_DEVTOOLS` | on in dev                        | React Query devtools and the mock console helpers |
+The web app needs none: it calls relative `/api` URLs. `SDP_API_TARGET`
+changes where Vite proxies them (default `http://localhost:3000`).
 
-Copy `.env.example` to `.env.local` if you need to change any of them. The
-production default is `live` on purpose: shipping seeded fixtures to a real
-deployment because someone forgot a variable is not a failure mode worth having.
-
-## Useful console helpers
-
-Available in development:
-
-```js
-window.__resetDb(); // restore the seeded database
-window.__mockApi.setUser('u-pinsara'); // act as another seeded user
-window.__mockApi.setFailureRate(0.5); // fail half of all requests
-```
+The API's variables are listed in the root [README](../README.md#environment).
+In production the app must be served over HTTPS: session cookies are `Secure`,
+and the API refuses to start with `COOKIE_SECURE=false`, a non-https
+`FRONTEND_ORIGIN`, or a database URL without `sslmode=require`.
 
 ## Committing
 

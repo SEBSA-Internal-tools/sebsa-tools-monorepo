@@ -129,12 +129,14 @@ function fakePrisma() {
         Object.assign(user, data);
         return Promise.resolve(user);
       }),
-      delete: vi.fn(({ where }: { where: { id: string } }) => {
-        users.splice(
-          users.findIndex((row) => row.id === where.id),
-          1,
+      deleteMany: vi.fn(({ where }: { where: { id: string; status?: string } }) => {
+        const index = users.findIndex(
+          (row) =>
+            row.id === where.id && (where.status === undefined || row.status === where.status),
         );
-        return Promise.resolve(undefined);
+        if (index === -1) return Promise.resolve({ count: 0 });
+        users.splice(index, 1);
+        return Promise.resolve({ count: 1 });
       }),
     },
     userRole: { deleteMany: vi.fn().mockResolvedValue({ count: 1 }) },

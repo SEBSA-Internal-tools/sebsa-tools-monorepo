@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import {
   BadRequestException,
-  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -16,9 +15,7 @@ import {
   TaskStatus,
 } from '@prisma/client';
 import {
-  ALLOWED_IMAGE_MIME_TYPES,
   MAX_SCREENSHOTS_PER_REVIEW,
-  MAX_SCREENSHOT_BYTES,
   checklistDraftSchema,
   checklistSubmissionSchema,
   type ChecklistSubmission,
@@ -32,6 +29,10 @@ import type { ChecklistAnswerDto, CreateReviewTaskDto } from './dto/create-revie
 import type { UpdateReviewTaskDto } from './dto/update-review-task.dto.js';
 import type { AuthenticatedUser } from '../auth/auth.types.js';
 import { formatTaskCode } from './task-code.js';
+import {
+  IMAGE_REJECTION_MESSAGES,
+  inspectImageDataUrl,
+} from '../../common/uploads/image-data-url.js';
 import type { ReviewTaskScope } from './dto/review-task-query.dto.js';
 import { AuditService } from '../audit/audit.service.js';
 import type { CreateHandoverDto } from '../handovers/dto/create-handover.dto.js';
@@ -89,7 +90,9 @@ export function deriveTaskReviewCycles(
   currentReviewRound: number,
   cycles: readonly ReviewCycleProjection[],
 ) {
-  const adjustedCycles = cycles.filter(({ counted }) => !counted).map(({ roundNumber }) => roundNumber);
+  const adjustedCycles = cycles
+    .filter(({ counted }) => !counted)
+    .map(({ roundNumber }) => roundNumber);
   return {
     reviewCycle: cycles.filter(({ counted }) => counted).length,
     historicalCycle: currentReviewRound,
@@ -165,8 +168,7 @@ export class ReviewTasksService {
 
   async findOne(id: string, user: AuthenticatedUser) {
     const task = await this.getTask(id);
-    if (!mayReadTask(user, task))
-      throw new ApiException('TASK_NOT_FOUND', 'Task not found.');
+    if (!mayReadTask(user, task)) throw new ApiException('TASK_NOT_FOUND', 'Task not found.');
     return this.toResponse(task);
   }
 
@@ -185,8 +187,7 @@ export class ReviewTasksService {
 
   async findChecklist(id: string, user: AuthenticatedUser) {
     const task = await this.getTask(id);
-    if (!mayReadTask(user, task))
-      throw new ApiException('TASK_NOT_FOUND', 'Task not found.');
+    if (!mayReadTask(user, task)) throw new ApiException('TASK_NOT_FOUND', 'Task not found.');
 
     const checklist = task.developerChecklist;
     if (!checklist) return null;
@@ -243,8 +244,7 @@ export class ReviewTasksService {
 
   async findChecklistSubmissions(id: string, user: AuthenticatedUser) {
     const task = await this.getTask(id);
-    if (!mayReadTask(user, task))
-      throw new ApiException('TASK_NOT_FOUND', 'Task not found.');
+    if (!mayReadTask(user, task)) throw new ApiException('TASK_NOT_FOUND', 'Task not found.');
     const records = await this.prisma.auditLog.findMany({
       where: { taskId: id, action: { in: ['TASK_SUBMITTED', 'TASK_RESUBMITTED'] } },
       select: { metadata: true },
@@ -258,13 +258,14 @@ export class ReviewTasksService {
     if (submissions.length === 0 && task.submittedAt && task.developerChecklist) {
       submissions.push(this.toChecklistSubmission(task, 1, task.submittedAt, task.developerId));
     }
-    return submissions;
+    // Newest first: the web client's ChecklistHistory treats the first entry as
+    // the submission currently under review.
+    return submissions.sort((left, right) => right.version - left.version);
   }
 
   async findEvents(id: string, user: AuthenticatedUser) {
     const task = await this.getTask(id);
-    if (!mayReadTask(user, task))
-      throw new ApiException('TASK_NOT_FOUND', 'Task not found.');
+    if (!mayReadTask(user, task)) throw new ApiException('TASK_NOT_FOUND', 'Task not found.');
     const logs = await this.prisma.auditLog.findMany({
       where: { taskId: id, userId: { not: null } },
       orderBy: { createdAt: 'asc' },
@@ -334,8 +335,7 @@ export class ReviewTasksService {
 
   async findAttachments(id: string, user: AuthenticatedUser) {
     const task = await this.getTask(id);
-    if (!mayReadTask(user, task))
-      throw new ApiException('TASK_NOT_FOUND', 'Task not found.');
+    if (!mayReadTask(user, task)) throw new ApiException('TASK_NOT_FOUND', 'Task not found.');
     const rows = await this.prisma.taskAttachment.findMany({
       where: { taskId: id },
       orderBy: [{ uploadedAt: 'asc' }, { id: 'asc' }],
@@ -347,13 +347,12 @@ export class ReviewTasksService {
     const task = await this.getEditableTask(id, user);
     const body = input as Record<string, unknown>;
     const fileName = typeof body['fileName'] === 'string' ? body['fileName'].trim() : '';
-    const mimeType = typeof body['mimeType'] === 'string' ? body['mimeType'].trim() : '';
     const storageRef = typeof body['dataUrl'] === 'string' ? body['dataUrl'] : '';
-    const sizeBytes = typeof body['sizeBytes'] === 'number' ? body['sizeBytes'] : -1;
-    if (!fileName || !storageRef || sizeBytes < 0) {
+    if (!fileName || fileName.length > 255 || !storageRef) {
       throw new ApiException('VALIDATION_FAILED', 'Provide a valid image attachment');
     }
-    // Same caps as the web client (lib/attachments.ts rejectAttachment).
+    // Same caps as the web client (lib/attachments.ts rejectAttachment), but
+    // checked on the decoded bytes: the declared size and type are not trusted.
     const existingCount = await this.prisma.taskAttachment.count({ where: { taskId: task.id } });
     if (existingCount >= MAX_SCREENSHOTS_PER_REVIEW) {
       throw new ApiException(
@@ -361,14 +360,22 @@ export class ReviewTasksService {
         `A task can have at most ${String(MAX_SCREENSHOTS_PER_REVIEW)} attachments.`,
       );
     }
-    if (!(ALLOWED_IMAGE_MIME_TYPES as readonly string[]).includes(mimeType)) {
-      throw new ApiException('ATTACHMENT_REJECTED', 'Only PNG, JPEG, GIF and WebP images can be attached.');
-    }
-    if (sizeBytes > MAX_SCREENSHOT_BYTES) {
-      throw new ApiException('ATTACHMENT_REJECTED', 'Each image must be 5 MB or smaller.');
+    const image = inspectImageDataUrl(storageRef);
+    if (!image.ok) {
+      throw new ApiException(
+        image.reason === 'wrongType' ? 'UNSUPPORTED_MEDIA_TYPE' : 'ATTACHMENT_REJECTED',
+        IMAGE_REJECTION_MESSAGES[image.reason],
+      );
     }
     await this.prisma.taskAttachment.create({
-      data: { taskId: task.id, fileName, mimeType, storageRef, sizeBytes, uploadedById: user.id },
+      data: {
+        taskId: task.id,
+        fileName,
+        mimeType: image.mimeType,
+        storageRef,
+        sizeBytes: image.sizeBytes,
+        uploadedById: user.id,
+      },
     });
     return this.findAttachments(id, user);
   }
@@ -381,13 +388,18 @@ export class ReviewTasksService {
   ) {
     await this.getEditableTask(id, user);
     const body = input as Record<string, unknown>;
-    const caption = typeof body['caption'] === 'string' ? body['caption'].trim() : '';
-    const updated = await this.prisma.taskAttachment.updateMany({
+    const exists = await this.prisma.taskAttachment.count({
       where: { id: attachmentId, taskId: id },
-      data: { caption },
     });
-    if (updated.count !== 1)
-      throw new NotFoundException(`Attachment ${attachmentId} was not found`);
+    if (exists !== 1) throw new NotFoundException(`Attachment ${attachmentId} was not found`);
+    // A PATCH without `caption` leaves it as it is; an empty string clears it.
+    if (typeof body['caption'] === 'string') {
+      const caption = body['caption'].trim();
+      if (caption.length > 500) {
+        throw new ApiException('VALIDATION_FAILED', 'A caption can be at most 500 characters');
+      }
+      await this.prisma.taskAttachment.update({ where: { id: attachmentId }, data: { caption } });
+    }
     return this.findAttachments(id, user);
   }
 
@@ -623,9 +635,7 @@ export class ReviewTasksService {
                 data: {
                   ...checklistData,
                   taskId: id,
-                  ...(checklistAnswers.length > 0
-                    ? { answers: { create: checklistAnswers } }
-                    : {}),
+                  ...(checklistAnswers.length > 0 ? { answers: { create: checklistAnswers } } : {}),
                 },
               });
             }
@@ -749,7 +759,10 @@ export class ReviewTasksService {
     }
     const isResubmission = task.status === TaskStatus.CHANGES_REQUESTED;
     if (task.status !== TaskStatus.DRAFT && !isResubmission) {
-      throw new ConflictException('Only a draft or changes-requested task can be submitted');
+      throw new ApiException(
+        'INVALID_STATE',
+        'Only a draft or changes-requested task can be submitted',
+      );
     }
     if (!task.checklistCompleted) {
       throw new ApiException(
@@ -800,7 +813,10 @@ export class ReviewTasksService {
       if (isEligible) {
         resubmissionReviewerId = followUp.id;
       } else {
-        unavailableReviewer = { id: followUpId, name: followUp?.fullName ?? 'the previous reviewer' };
+        unavailableReviewer = {
+          id: followUpId,
+          name: followUp?.fullName ?? 'the previous reviewer',
+        };
       }
       const findingIds = latestChangesReview.findings.map(({ id: findingId }) => findingId);
       const responses = await this.prisma.developerFindingResponse.findMany({
@@ -1032,7 +1048,8 @@ export class ReviewTasksService {
           throw new ForbiddenException('You cannot review your own task');
         }
         if (candidate.currentReviewerId !== null) {
-          throw new ConflictException(
+          throw new ApiException(
+            'ALREADY_PICKED',
             candidate.currentReviewer?.fullName
               ? `${candidate.currentReviewer.fullName} has already picked up this task`
               : 'Another reviewer has already picked up this task',
@@ -1042,7 +1059,7 @@ export class ReviewTasksService {
           candidate.status !== TaskStatus.SUBMITTED &&
           candidate.status !== TaskStatus.RESUBMITTED
         ) {
-          throw new ConflictException('This task is not available to pick');
+          throw new ApiException('INVALID_STATE', 'This task is not available to pick');
         }
 
         // The conditional update is the concurrency control. If two reviewers
@@ -1065,7 +1082,8 @@ export class ReviewTasksService {
             where: { id },
             select: { currentReviewer: { select: { fullName: true } } },
           });
-          throw new ConflictException(
+          throw new ApiException(
+            'ALREADY_PICKED',
             winner?.currentReviewer?.fullName
               ? `${winner.currentReviewer.fullName} has already picked up this task`
               : 'This task was picked up or changed by another reviewer',
@@ -1089,10 +1107,10 @@ export class ReviewTasksService {
             },
           });
           if (resolved.count < 1) {
-            throw new ConflictException('This handover was already reassigned');
+            throw new ApiException('ALREADY_RESOLVED', 'This handover was already reassigned');
           }
         }
-        await tx.taskReviewerAssignment.create({
+        const assignment = await tx.taskReviewerAssignment.create({
           data: {
             taskId: id,
             reviewerId: user.id,
@@ -1102,13 +1120,22 @@ export class ReviewTasksService {
               : ReviewerAssignmentType.SELF_PICKED,
           },
         });
-        await tx.$executeRaw`
-          UPDATE "code_review_forms"
-          SET "reviewer_id" = ${user.id}::uuid
-          WHERE "task_id" = ${id}::uuid
-            AND "review_cycle_number" = ${Math.max(candidate.currentReviewCycle, 1)}
-            AND "status" = 'DRAFT'
-        `;
+        // The picker starts their own judgement on the open draft: the previous
+        // reviewer's rank and carried-over note do not transfer (as on assign).
+        await tx.codeReviewForm.updateMany({
+          where: {
+            taskId: id,
+            reviewCycleNumber: Math.max(candidate.currentReviewCycle, 1),
+            status: 'DRAFT',
+          },
+          data: {
+            reviewerId: user.id,
+            currentReviewSessionId: assignment.id,
+            reviewRank: null,
+            previousFeedbackReviewNote: null,
+            previousFeedbackAcknowledged: null,
+          },
+        });
         await tx.taskStatusHistory.create({
           data: {
             taskId: id,
@@ -1216,7 +1243,10 @@ export class ReviewTasksService {
       });
       if (!task) throw new ApiException('TASK_NOT_FOUND', `Review task ${id} was not found`);
       if (task.handovers.length > 0) {
-        throw new ApiException('INVALID_STATE', 'Use the handover reassignment action for this task.');
+        throw new ApiException(
+          'HANDOVER_PENDING',
+          'Use the handover reassignment action for this task.',
+        );
       }
       if (task.status === TaskStatus.CHANGES_REQUESTED) {
         throw new ApiException(
@@ -1229,7 +1259,10 @@ export class ReviewTasksService {
         task.status !== TaskStatus.RESUBMITTED &&
         task.status !== TaskStatus.IN_REVIEW
       ) {
-        throw new ApiException('INVALID_STATE', 'This task cannot be assigned in its current state.');
+        throw new ApiException(
+          'INVALID_STATE',
+          'This task cannot be assigned in its current state.',
+        );
       }
       // Taking a review away from someone mid-way needs a recorded reason.
       if (task.status === TaskStatus.IN_REVIEW && !reason?.trim()) {
@@ -1250,7 +1283,10 @@ export class ReviewTasksService {
         throw new ApiException('SELF_REVIEW', 'A developer cannot review their own task.');
       }
       if (task.currentReviewerId === reviewer.id) {
-        throw new ApiException('SAME_REVIEWER', `${reviewer.fullName} is already assigned to this task.`);
+        throw new ApiException(
+          'SAME_REVIEWER',
+          `${reviewer.fullName} is already assigned to this task.`,
+        );
       }
 
       const isReassignment = task.currentReviewerId !== null;
@@ -1513,7 +1549,17 @@ export class ReviewTasksService {
     });
   }
 
-  async handover(id: string, dto: CreateHandoverDto, actor: AuthenticatedUser) {
+  /**
+   * `saveDraft` persists the reviewer's in-progress draft inside this same
+   * transaction, while they are still the assigned reviewer; its result is the
+   * snapshot the admin sees on the handover.
+   */
+  async handover(
+    id: string,
+    dto: CreateHandoverDto,
+    actor: AuthenticatedUser,
+    saveDraft?: (tx: Prisma.TransactionClient) => Promise<unknown>,
+  ) {
     return retryPrismaTransaction(() =>
       this.prisma.$transaction(async (tx) => {
         const task = await tx.task.findUnique({
@@ -1539,11 +1585,15 @@ export class ReviewTasksService {
           throw new ForbiddenException('Only the assigned reviewer can hand over this task');
         }
         if (task.status !== TaskStatus.IN_REVIEW) {
-          throw new ConflictException('Only a task currently in review can be handed over');
+          throw new ApiException(
+            'INVALID_STATE',
+            'Only a task currently in review can be handed over',
+          );
         }
         if (task.handovers.length > 0) {
-          throw new ConflictException('This task already has a pending handover');
+          throw new ApiException('HANDOVER_PENDING', 'This task already has a pending handover');
         }
+        const draftSnapshot = saveDraft ? await saveDraft(tx) : undefined;
 
         const waitingStatus =
           (task.codeReviewForms?.length ?? 0) > 0 ? TaskStatus.RESUBMITTED : TaskStatus.SUBMITTED;
@@ -1552,7 +1602,10 @@ export class ReviewTasksService {
           data: { currentReviewerId: null, status: waitingStatus },
         });
         if (released.count !== 1) {
-          throw new ConflictException('This task was already handed over or reassigned');
+          throw new ApiException(
+            'ALREADY_HANDED_OVER',
+            'This task was already handed over or reassigned',
+          );
         }
 
         const now = new Date();
@@ -1594,11 +1647,11 @@ export class ReviewTasksService {
             reviewerId: null,
             reason: dto.reason.trim(),
           },
-          ...(dto.draft === undefined
+          ...(draftSnapshot === undefined
             ? {}
             : {
                 metadata: {
-                  reviewDraft: dto.draft as Prisma.InputJsonObject,
+                  reviewDraft: draftSnapshot as Prisma.InputJsonObject,
                 },
               }),
         });
@@ -1724,7 +1777,9 @@ export class ReviewTasksService {
   /** What a task has accumulated that makes deleting it erase history. */
   private async workflowEvidence(tx: Prisma.TransactionClient, taskId: string) {
     const [submissions, decided, forms, responses, handovers, assignments] = await Promise.all([
-      tx.auditLog.count({ where: { taskId, action: { in: ['TASK_SUBMITTED', 'TASK_RESUBMITTED'] } } }),
+      tx.auditLog.count({
+        where: { taskId, action: { in: ['TASK_SUBMITTED', 'TASK_RESUBMITTED'] } },
+      }),
       tx.codeReviewForm.count({ where: { taskId, decision: { not: null } } }),
       tx.codeReviewForm.count({ where: { taskId } }),
       tx.developerFindingResponse.count({ where: { finding: { reviewForm: { taskId } } } }),
@@ -1865,7 +1920,10 @@ export class ReviewTasksService {
       CHANGES_REQUESTED: 'ChangesRequested',
       RESUBMITTED: 'ReSubmitted',
       APPROVED: 'Approved',
-      DELIVERED: 'Delivered',
+      // Delivered was retired from the Code Review workflow; the API contract
+      // has no such status. A legacy row reads as the Approved it was (the old
+      // mock migrated it the same way) instead of breaking every list it is in.
+      DELIVERED: 'Approved',
       CANCELLED: 'Cancelled',
     }[task.status];
     const priority = {
@@ -1921,7 +1979,10 @@ export class ReviewTasksService {
       select: { id: true },
     });
     if (taskTypes.length !== taskTypeIds.length)
-      throw new BadRequestException('All taskTypeIds must identify active task types');
+      throw new ApiException(
+        'INVALID_TASK_TYPE',
+        'All taskTypeIds must identify active task types',
+      );
 
     const duplicateIds = answers
       .map(({ questionId }) => questionId)

@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import {
   HandoverStatus,
   NotificationType,
@@ -12,6 +7,7 @@ import {
   TaskStatus,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { ApiException } from '../../common/api-error.js';
 import type { AuthenticatedUser } from '../auth/auth.types.js';
 import { AuditService } from '../audit/audit.service.js';
 import type { ReassignHandoverDto } from './dto/reassign-handover.dto.js';
@@ -100,7 +96,7 @@ export class HandoversService {
         });
         if (!handover) throw new NotFoundException(`Handover ${id} was not found`);
         if (handover.status !== HandoverStatus.PENDING) {
-          throw new ConflictException('This handover has already been resolved');
+          throw new ApiException('ALREADY_RESOLVED', 'This handover has already been resolved');
         }
 
         const reviewer = await tx.user.findFirst({
@@ -111,9 +107,9 @@ export class HandoversService {
             userRoles: { some: { role: { code: 'REVIEWER', deletedAt: null } } },
           },
         });
-        if (!reviewer) throw new BadRequestException('Select an active Reviewer');
+        if (!reviewer) throw new ApiException('INVALID_REVIEWER', 'Select an active Reviewer');
         if (reviewer.id === handover.task.developerId) {
-          throw new BadRequestException('A developer cannot review their own task');
+          throw new ApiException('SELF_REVIEW', 'A developer cannot review their own task');
         }
 
         const now = new Date();
@@ -127,7 +123,7 @@ export class HandoversService {
           },
         });
         if (resolved.count < 1) {
-          throw new ConflictException('This handover was already reassigned');
+          throw new ApiException('ALREADY_RESOLVED', 'This handover was already reassigned');
         }
 
         const assigned = await tx.task.updateMany({
@@ -139,7 +135,10 @@ export class HandoversService {
           data: { currentReviewerId: reviewer.id, status: TaskStatus.IN_REVIEW },
         });
         if (assigned.count !== 1) {
-          throw new ConflictException('The handed-over task is no longer available to reassign');
+          throw new ApiException(
+            'INVALID_STATE',
+            'The handed-over task is no longer available to reassign',
+          );
         }
 
         await tx.taskReviewerAssignment.updateMany({
@@ -216,7 +215,7 @@ export class HandoversService {
       });
       if (!handover) throw new NotFoundException(`Handover ${id} was not found`);
       if (handover.status !== HandoverStatus.PENDING) {
-        throw new ConflictException('This handover has already been resolved');
+        throw new ApiException('ALREADY_RESOLVED', 'This handover has already been resolved');
       }
       const now = new Date();
       const resolved = await tx.handoverTask.updateMany({
@@ -228,8 +227,23 @@ export class HandoversService {
         },
       });
       if (resolved.count !== 1) {
-        throw new ConflictException('This handover has already been resolved');
+        throw new ApiException('ALREADY_RESOLVED', 'This handover has already been resolved');
       }
+      // Back in the open queue: whoever picks it next starts their own session
+      // and judgement on the draft.
+      await tx.codeReviewForm.updateMany({
+        where: {
+          taskId: handover.taskId,
+          reviewCycleNumber: Math.max(handover.task.currentReviewCycle, 1),
+          status: 'DRAFT',
+        },
+        data: {
+          currentReviewSessionId: null,
+          reviewRank: null,
+          previousFeedbackReviewNote: null,
+          previousFeedbackAcknowledged: null,
+        },
+      });
       await this.audit.record(tx, actor, {
         actionType: 'HANDOVER_RETURNED_TO_QUEUE',
         entityType: 'HANDOVER',

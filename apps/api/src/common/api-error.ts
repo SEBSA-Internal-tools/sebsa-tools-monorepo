@@ -3,9 +3,16 @@ import { HttpException, HttpStatus } from '@nestjs/common';
 /**
  * Every public error code and its fixed HTTP status.
  *
- * The domain codes mirror the frontend's MSW specification
- * (apps/web/src/mocks/handlers.ts, passwordLinks.ts) so the web client shows the
- * same message and branches on the same code whichever backend answers.
+ * Statuses follow standard HTTP semantics (RFC 9110):
+ *  - 400 the request itself is malformed (DTO/Zod failure, bad id, unknown enum);
+ *  - 401 not authenticated; 403 authenticated but not allowed; 404 missing or hidden;
+ *  - 409 the request clashes with the resource's CURRENT STATE (wrong status,
+ *    already picked/resolved, duplicate name, still in use) — retrying after the
+ *    state changes can succeed;
+ *  - 413 / 415 body too large / unsupported upload type;
+ *  - 422 well-formed, but it breaks a business rule (reason missing, checklist
+ *    incomplete, reviewer not eligible) — the caller must change the request;
+ *  - 429 rate limited.
  */
 export const ERROR_HTTP_STATUS = {
   VALIDATION_FAILED: HttpStatus.BAD_REQUEST,
@@ -21,6 +28,10 @@ export const ERROR_HTTP_STATUS = {
   TASK_ALREADY_CLAIMED: HttpStatus.CONFLICT,
   ALREADY_PICKED: HttpStatus.CONFLICT,
   ALREADY_HANDED_OVER: HttpStatus.CONFLICT,
+  ALREADY_RESOLVED: HttpStatus.CONFLICT,
+  HANDOVER_PENDING: HttpStatus.CONFLICT,
+  INVALID_STATE: HttpStatus.CONFLICT,
+  CHANGES_REQUESTED_ACTIVE: HttpStatus.CONFLICT,
   VERSION_CONFLICT: HttpStatus.CONFLICT,
   IMMUTABLE_TASK_IDENTITY: HttpStatus.CONFLICT,
   INVALID_STATE_TRANSITION: HttpStatus.CONFLICT,
@@ -37,7 +48,6 @@ export const ERROR_HTTP_STATUS = {
   NOT_INVITED: HttpStatus.CONFLICT,
   REVIEWER_HAS_PENDING_TASKS: HttpStatus.CONFLICT,
   REVIEW_EVIDENCE_REQUIRED: HttpStatus.CONFLICT,
-  INVALID_STATE: HttpStatus.UNPROCESSABLE_ENTITY,
   CHECKLIST_INCOMPLETE: HttpStatus.UNPROCESSABLE_ENTITY,
   RESPONSES_INCOMPLETE: HttpStatus.UNPROCESSABLE_ENTITY,
   REVIEW_INCOMPLETE: HttpStatus.UNPROCESSABLE_ENTITY,
@@ -46,9 +56,11 @@ export const ERROR_HTTP_STATUS = {
   REASON_REQUIRED: HttpStatus.UNPROCESSABLE_ENTITY,
   EXPLANATION_REQUIRED: HttpStatus.UNPROCESSABLE_ENTITY,
   REJECTION_REASON_REQUIRED: HttpStatus.UNPROCESSABLE_ENTITY,
-  CHANGES_REQUESTED_ACTIVE: HttpStatus.UNPROCESSABLE_ENTITY,
   ATTACHMENT_REJECTED: HttpStatus.UNPROCESSABLE_ENTITY,
-  ALREADY_RESOLVED: HttpStatus.UNPROCESSABLE_ENTITY,
+  SCREENSHOT_REJECTED: HttpStatus.UNPROCESSABLE_ENTITY,
+  RULE_VIOLATION: HttpStatus.UNPROCESSABLE_ENTITY,
+  PAYLOAD_TOO_LARGE: HttpStatus.PAYLOAD_TOO_LARGE,
+  UNSUPPORTED_MEDIA_TYPE: HttpStatus.UNSUPPORTED_MEDIA_TYPE,
   INVALID_REVIEWER: HttpStatus.UNPROCESSABLE_ENTITY,
   SAME_REVIEWER: HttpStatus.UNPROCESSABLE_ENTITY,
   SELF_REVIEW: HttpStatus.UNPROCESSABLE_ENTITY,

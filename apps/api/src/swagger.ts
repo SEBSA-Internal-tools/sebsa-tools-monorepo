@@ -4,9 +4,13 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 export const SWAGGER_PATH = 'api/docs';
 export const SWAGGER_JSON_PATH = 'api/docs-json';
 
-/** Configures the development-only OpenAPI documentation endpoints. */
-export function setupSwagger(app: INestApplication): void {
-  if (process.env['NODE_ENV'] === 'production') {
+/**
+ * Configures the OpenAPI documentation endpoints. Off unless `SWAGGER_ENABLED`
+ * is `true` (the local `.env` turns it on), so a staging or production
+ * deployment never publishes the API map by accident.
+ */
+export function setupSwagger(app: INestApplication, enabled: boolean): void {
+  if (!enabled) {
     return;
   }
 

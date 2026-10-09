@@ -131,6 +131,10 @@
     "namePlaceholder": "Enter name",
     "emailLabel": "Email",
     "emailPlaceholder": "Enter email",
+    "emailChange": {
+      "warning": "Changing the email signs {name} out everywhere. They will get an invite at the new address and must set a new password before they can sign in again.",
+      "success": "{name} updated. An invite to set a new password was sent to {email}."
+    },
     "create": "Create User",
     "creating": "Creating…",
     "save": "Save Changes",
@@ -181,7 +185,8 @@
       "title": "Transfer Super Admin?",
       "description": "{name} will become the only Super Admin and all their other roles will be removed. You will lose Super Admin access and remain an Admin.",
       "confirm": "Transfer Super Admin",
-      "success": "Super Admin ownership transferred to {name}."
+      "success": "Super Admin ownership transferred to {name}.",
+      "blocked": "{name} is also a Reviewer and would lose that role as Super Admin. Reassign or hand over their open review work first, then try the transfer again."
     }
   },
   "checklist": {

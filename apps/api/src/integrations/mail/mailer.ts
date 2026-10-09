@@ -1,3 +1,5 @@
+import { appendFile, mkdir } from 'node:fs/promises';
+import path from 'node:path';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
@@ -45,6 +47,18 @@ export class DevOutboxMailer extends Mailer {
     if (env === 'development') {
       this.logger.log(`[dev outbox] ${message.subject} -> ${message.to}\n${message.text}`);
     }
+    const outbox = process.env['E2E_MAIL_OUTBOX'];
+    if (outbox) return this.appendToOutbox(outbox, message);
     return Promise.resolve();
+  }
+
+  /**
+   * `E2E_MAIL_OUTBOX` (a file path; development/test only) appends each message
+   * as one JSON line, so the Playwright suite can follow an invite or reset link
+   * the way a user would. Nothing is sent anywhere.
+   */
+  private async appendToOutbox(file: string, message: MailMessage): Promise<void> {
+    await mkdir(path.dirname(file), { recursive: true });
+    await appendFile(file, `${JSON.stringify({ ...message, at: new Date().toISOString() })}\n`);
   }
 }

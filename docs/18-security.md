@@ -177,7 +177,7 @@ short.
 
 ## Headers, for deployment
 
-Configured at the host, not in the app:
+The API sets these itself (helmet, below); the host that serves the web build should send the same for the HTML:
 
 | Header                      | Value                                                  |
 | --------------------------- | ------------------------------------------------------ |
@@ -189,12 +189,57 @@ Configured at the host, not in the app:
 
 HTTPS everywhere. Session cookies `Secure`, `HttpOnly`, `SameSite=Lax`.
 
-## When the real backend arrives
+## API hardening (NestJS)
 
-1. Set `VITE_API_MODE=live` and the base URL.
-2. Replace the mock session with the real auth flow. The client already assumes
-   nothing.
-3. Confirm every permission the mock enforces is enforced there — the handlers
-   are a readable specification of what must be true.
-4. Move tokens to httpOnly cookies and add CSRF protection for state-changing
-   requests.
+The backend is the only enforcement point ([ADR 0016](./adr/0016-nestjs-is-the-only-backend.md)).
+
+**Sessions**
+
+- `sdp_access` (15-minute JWT) and `sdp_refresh` (rotated on use, scoped to
+  `/api/auth`) are `HttpOnly`, `SameSite=Lax`, `Secure` in production. JWTs are
+  pinned to HS256 with separate secrets.
+- The access token is bound to its server-side session: logout, a password
+  change, deactivation, deletion or an email change revokes the session and the
+  access token stops working at once (not after 15 minutes).
+- CSRF: double-submit token (`sdp_csrf` cookie + `X-CSRF-Token`) on every write;
+  only the exact public auth paths are exempt, and those check `Origin`.
+
+**Sign-in**
+
+- 5 attempts per account and 30 per client IP per 15 minutes, then 429.
+- Unknown and invited accounts get the same argon2 work as a wrong password, so
+  response time does not reveal which emails exist; one generic 401 for all.
+- `TRUST_PROXY` must name the real proxy (hop count or addresses) so per-IP
+  limits see the client, not the load balancer.
+
+**Accounts**
+
+- Changing a user's email puts the account back to Invited: password cleared,
+  every session and link revoked, a new invite sent to the new address. An
+  admin cannot point an account at an unverified address and then reset it.
+- revoke-invite deletes only a still-INVITED account, inside one transaction.
+- Super Admin transfer is refused while the target still holds review work.
+
+**Uploads** (task attachments, review screenshots)
+
+- Checked on the decoded bytes: PNG/JPEG/GIF/WebP by magic number, ≤ 5 MB,
+  ≤ 10 per item. Only `data:image/...;base64` is stored, so no `javascript:` or
+  remote URL can reach an `<img src>` or download link.
+- JSON body limit 1 MB, raised to 8 MB (attachments) / 25 MB (review drafts)
+  only on those routes and only with a session cookie; over-limit is 413.
+
+**Responses and data**
+
+- `helmet`: CSP with `frame-ancestors 'none'`, `X-Frame-Options: DENY`,
+  `nosniff`, `Referrer-Policy: no-referrer`, HSTS in production; no
+  `X-Powered-By`. Swagger is off unless `SWAGGER_ENABLED=true`.
+- Error responses carry a code and a safe message only; internals never leak.
+- Passwords and refresh tokens are argon2id; link tokens are stored as SHA-256.
+- Data at rest is encrypted by the database host (Neon); production requires
+  `sslmode=require` on the connection.
+- Retired checklist content (`scope=all`, inactive rows) is admin-only.
+
+**Known follow-ups**: the rate limiter is in memory (one instance; use Redis
+with several); attachments are stored as data URLs in the database (move to
+object storage); forgot-password waits for the email send, which leaks timing
+once a real mail transport is bound — queue it with the email work.

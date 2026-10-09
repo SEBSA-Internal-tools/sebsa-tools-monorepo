@@ -15,8 +15,7 @@ import {
  * endpoint in the shared contract, so connecting the real API means changing
  * nothing outside this folder.
  *
- * They are served by NestJS (`apps/api` password-links module). Under Vitest,
- * MSW's `mocks/passwordLinks.ts` stands in for it with the same contract.
+ * They are served by NestJS (`apps/api` password-links module).
  */
 
 /* --------------------------------- public --------------------------------- */
