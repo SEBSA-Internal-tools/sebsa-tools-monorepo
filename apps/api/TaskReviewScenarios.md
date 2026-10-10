@@ -2,15 +2,15 @@
 
 Code Review Portal: review-round and counted-cycle behavior, including developer rejection of reviewer findings.
 
-**Starting state:** When the developer first submits a task for review, Review Round = 0 and Counted Cycle = 0. Review Round becomes 1 only when the reviewer actually starts the first review.
+**Starting state:** When the developer first submits a task for review, Review Round = 0 and Cycle = 0. Review Round becomes 1 only when the reviewer actually starts the first review.
 
-**Legend:** Round = Review Round (never decreases). Counted = number of counted cycles (only cycles with `counted=true`).
+**Legend:** Round = Review Round (never decreases). Counted = number of cycles (only cycles with `counted=true`).
 
 ---
 
 ## Scenario 1 - Normal Review: Direct Approval
 
-| Event | Review Round | Counted Cycle |
+| Event | Review Round | Cycle |
 |---|---|---|
 | Developer submits task for review | 0 | 0 |
 | Reviewer reviews first submission | 1 | 0 |
@@ -19,7 +19,7 @@ Code Review Portal: review-round and counted-cycle behavior, including developer
 
 ## Scenario 2 - Normal Request Changes and Fix
 
-| Event | Review Round | Counted Cycle |
+| Event | Review Round | Cycle |
 |---|---|---|
 | Developer submits task for review | 0 | 0 |
 | Reviewer reviews first submission | 1 | 0 |
@@ -30,7 +30,7 @@ Code Review Portal: review-round and counted-cycle behavior, including developer
 
 ## Scenario 3 - Repeated Request Changes
 
-| Event | Review Round | Counted Cycle |
+| Event | Review Round | Cycle |
 |---|---|---|
 | Developer submits task for review | 0 | 0 |
 | Reviewer reviews first submission | 1 | 0 |
@@ -46,7 +46,7 @@ Code Review Portal: review-round and counted-cycle behavior, including developer
 
 The developer believes the only reviewer finding is invalid and rejects it with a reason.
 
-| Event | Issue State | Review Round | Counted Cycle |
+| Event | Issue State | Review Round | Cycle |
 |---|---|---|---|
 | Developer submits task for review | - | 0 | 0 |
 | Reviewer reviews first submission | - | 1 | 0 |
@@ -59,7 +59,7 @@ The developer believes the only reviewer finding is invalid and rejects it with 
 
 ## Scenario 5 - Single Issue Rejected by Developer; Reviewer Rejects
 
-| Event | Issue State | Review Round | Counted Cycle |
+| Event | Issue State | Review Round | Cycle |
 |---|---|---|---|
 | Developer submits task for review | - | 0 | 0 |
 | Reviewer reviews first submission | - | 1 | 0 |
@@ -88,7 +88,7 @@ Reviewer raises three findings. Developer resolves Issues B and C, but rejects I
 | Reviewer accepts rejection of A | Accepted | Resolved | Resolved | 2 | 1 |
 | Cycle result | Closed | Closed | Closed | 2 | **1** |
 
-**Result:** The counted cycle remains 1 because the developer had valid findings (B and C) that required correction. Accepting the rejection of only Issue A does not remove the cycle.
+**Result:** The cycle remains 1 because the developer had valid findings (B and C) that required correction. Accepting the rejection of only Issue A does not remove the cycle.
 
 ## Scenario 7 - Multiple Issues; Developer Rejects All; Reviewer Accepts All
 
@@ -120,7 +120,7 @@ Reviewer raises three findings. Developer resolves Issues B and C, but rejects I
 | Developer resolves C and resubmits | Closed | Closed | Resolved | 2 | 2 |
 | Reviewer reviews again and approves | Closed | Closed | Closed | 3 | 2 |
 
-**Result:** Because at least one developer rejection is not accepted, the reviewer requests changes again and it is treated as a new counted cycle.
+**Result:** Because at least one developer rejection is not accepted, the reviewer requests changes again and it is treated as a new cycle.
 
 ## Scenario 9 - Multiple Issues; Mixed Resolve/Reject; Reviewer Rejects the Rejected Finding
 
@@ -144,9 +144,9 @@ Reviewer raises three findings. Developer resolves Issues B and C, but rejects I
 | Developer Response | Reviewer Decision | Valid Fixes Existed in Original Cycle? | Cycle Result | Task Result |
 |---|---|---|---|---|
 | Resolve all | N/A | Yes | Keep counted | Re-review; approve or request changes |
-| Reject only issue | Accept rejection | No | Remove that counted cycle | Approve |
-| Reject only issue | Reject rejection | Yes / finding remains valid | New counted cycle | Request Changes |
+| Reject only issue | Accept rejection | No | Remove that cycle | Approve |
+| Reject only issue | Reject rejection | Yes / finding remains valid | New cycle | Request Changes |
 | Resolve some + reject some | Accept rejected findings | Yes | Keep counted | Can proceed based on remaining issue states |
-| Reject all | Accept all rejections | No | Remove that counted cycle | Approve |
-| Reject all | Reject one or more rejections | Yes / finding(s) remain valid | New counted cycle | Request Changes |
-| Resolve some + reject some | Reject one or more rejection reasons | Yes | New counted cycle | Request Changes |
+| Reject all | Accept all rejections | No | Remove that cycle | Approve |
+| Reject all | Reject one or more rejections | Yes / finding(s) remain valid | New cycle | Request Changes |
+| Resolve some + reject some | Reject one or more rejection reasons | Yes | New cycle | Request Changes |

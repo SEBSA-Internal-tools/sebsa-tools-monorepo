@@ -17,6 +17,7 @@ import type { CreateUserDto } from './dto/create-user.dto.js';
 import type { UpdateUserDto } from './dto/update-user.dto.js';
 import { assignedRoleCodes, toUserResponse } from './user-response.js';
 import { AuditService } from '../audit/audit.service.js';
+import { AccountNotices } from '../../integrations/mail/account-notices.service.js';
 
 const userInclude = {
   userRoles: { where: { role: { deletedAt: null } }, include: { role: true } },
@@ -47,6 +48,7 @@ export class UsersService {
     private readonly audit: AuditService,
     private readonly passwordLinks: PasswordLinksService,
     private readonly workload: ReviewerWorkloadService,
+    private readonly notices?: AccountNotices,
   ) {}
 
   async findAll() {
@@ -279,6 +281,17 @@ export class UsersService {
         });
         return updated;
       });
+      if (emailChanging && existing.status === 'ACTIVE') {
+        this.notices?.emailChanged(existing, user.email, actor.name);
+      }
+      if (dto.isActive !== undefined && (existing.status === 'ACTIVE') !== dto.isActive) {
+        this.notices?.accessChanged(
+          user,
+          actor.name,
+          dto.isActive ? 'Your account was reactivated' : 'Your account was deactivated',
+          dto.reason,
+        );
+      }
       if (invite !== undefined) {
         const emailStatus = await this.passwordLinks.deliver(invite, user, 'INVITE');
         return toUserResponse(user, { expiresAt: invite.expiresAt, emailStatus });
@@ -327,6 +340,9 @@ export class UsersService {
           metadata: { targetLabel: existing.fullName, ...reasonMetadata(reason) },
         });
       });
+      if (existing.status === 'ACTIVE') {
+        this.notices?.accessChanged(existing, actor.name, 'Your account was removed', reason);
+      }
     } catch (error) {
       rethrowPrismaConflict(error);
     }

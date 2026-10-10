@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import {
   Filter,
+  KeyRound,
   Lock,
   Mail,
   MailX,
@@ -43,7 +44,11 @@ import { RoleMultiSelect } from '../components/RoleMultiSelect.tsx';
 // Resend / Revoke actions. Remove with `features/local-auth` when SSO arrives.
 import { StatusPill } from '@/features/local-auth/admin/InviteCells.tsx';
 import { userStatus } from '@/features/local-auth/admin/inviteDisplay.ts';
-import { useResendInvite, useRevokeInvite } from '@/features/local-auth/admin/useInviteActions.ts';
+import {
+  useResendInvite,
+  useRevokeInvite,
+  useSendResetLink,
+} from '@/features/local-auth/admin/useInviteActions.ts';
 import { invite as inviteCopy } from '@/features/local-auth/content.ts';
 
 /**
@@ -110,6 +115,7 @@ export function AdminUsersPage() {
   const transferSuperAdmin = useTransferSuperAdmin();
   const { mutate: mutateResend, isPending: isResending } = useResendInvite(userKeys.all);
   const revokeInvite = useRevokeInvite(userKeys.all);
+  const { mutate: mutateResetLink, isPending: isSendingReset } = useSendResetLink();
   const [revoking, setRevoking] = useState<User | null>(null);
 
   const [search, setSearch] = useState('');
@@ -236,7 +242,16 @@ export function AdminUsersPage() {
                         onSuccess: (sent) => {
                           if (sent.emailStatus === 'FAILED')
                             toast.warning(inviteCopy.resentEmailFailed);
-                          else toast.success(interpolate(inviteCopy.resent, { email: user.email }));
+                          else
+                            toast.success(
+                              interpolate(inviteCopy.resent, {
+                                email: user.email,
+                                expiresAt: new Date(sent.expiresAt).toLocaleString(undefined, {
+                                  dateStyle: 'medium',
+                                  timeStyle: 'short',
+                                }),
+                              }),
+                            );
                         },
                         onError: (cause) => {
                           toast.error(
@@ -260,6 +275,33 @@ export function AdminUsersPage() {
                     }}
                   />
                 </>
+              ) : null}
+              {mayManage && userStatus(user) === 'ACTIVE' && user.id !== actor?.id ? (
+                <IconButton
+                  label={interpolate(inviteCopy.resetAction, { name: user.name })}
+                  icon={<KeyRound className="size-4" />}
+                  size="sm"
+                  disabled={isSendingReset}
+                  onClick={() => {
+                    mutateResetLink(user.id, {
+                      onSuccess: (sent) => {
+                        if (sent.emailStatus === 'FAILED')
+                          toast.warning(inviteCopy.resetEmailFailed);
+                        else
+                          toast.success(interpolate(inviteCopy.resetSent, { email: user.email }));
+                      },
+                      onError: (cause) => {
+                        toast.error(
+                          cause instanceof ApiError && cause.code === 'RATE_LIMITED'
+                            ? inviteCopy.rateLimited
+                            : cause instanceof ApiError && cause.code === 'NOT_ACTIVE'
+                              ? inviteCopy.notActive
+                              : inviteCopy.generic,
+                        );
+                      },
+                    });
+                  }}
+                />
               ) : null}
               {mayManage ? (
                 <IconButton
@@ -327,7 +369,16 @@ export function AdminUsersPage() {
         },
       }),
     ],
-    [actor?.id, canManage, isSuperAdmin, setActive, mutateResend, isResending],
+    [
+      actor?.id,
+      canManage,
+      isSuperAdmin,
+      setActive,
+      mutateResend,
+      isResending,
+      mutateResetLink,
+      isSendingReset,
+    ],
   );
 
   return (

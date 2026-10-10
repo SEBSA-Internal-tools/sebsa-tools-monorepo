@@ -12,12 +12,28 @@ const NEW_EMAIL = `flow.person.${String(Date.now()).slice(-6)}@example.com`;
 const FIRST_PASSWORD = 'Zebra-Kettle-42!';
 const SECOND_PASSWORD = 'Harbor-Lantern-77!';
 
-async function choosePassword(page: Page, password: string) {
-  await expect(page.getByRole('heading', { name: 'Create your password' })).toBeVisible();
+async function choosePassword(page: Page, password: string, heading = 'Create your password') {
+  await expect(page.getByRole('heading', { name: heading })).toBeVisible();
   const fields = page.locator('input[type="password"]');
   await fields.nth(0).fill(password);
   await fields.nth(1).fill(password);
   await page.getByRole('button', { name: 'Save password' }).click();
+}
+
+/** The forgot-password email is sent after the reply, so wait for a new link to arrive. */
+async function nextLinkFor(email: string, previous: string | null) {
+  let link = '';
+  await expect
+    .poll(() => {
+      try {
+        link = latestLinkFor(email);
+      } catch {
+        link = '';
+      }
+      return link !== '' && link !== previous;
+    })
+    .toBe(true);
+  return link;
 }
 
 test.describe.serial('new user onboarding', () => {
@@ -41,10 +57,20 @@ test.describe.serial('new user onboarding', () => {
   test('the invite link sets a password, signs in, and then cannot be reused', async ({ page }) => {
     const link = latestLinkFor(NEW_EMAIL);
     await page.goto(link);
-    // The token is scrubbed from the address bar as soon as the screen reads it.
-    await expect(page).not.toHaveURL(/#token=/);
+    // The token stays in the address bar until the password is saved, so a reload still works.
+    await expect(page.getByRole('heading', { name: 'Create your password' })).toBeVisible();
+    await expect(page).toHaveURL(/#token=/);
+    await page.reload();
+    await expect(page.getByRole('heading', { name: 'Create your password' })).toBeVisible();
+
+    // A password the server rejects keeps the link usable.
+    await choosePassword(page, 'Flow-Person-2026!');
+    await expect(page.getByRole('alert')).toContainText("doesn't include your name");
+    await expect(page).toHaveURL(/#token=/);
+
     await choosePassword(page, FIRST_PASSWORD);
     await expect(page.getByRole('heading', { name: 'Password saved' })).toBeVisible();
+    await expect(page).not.toHaveURL(/#token=/);
 
     await signIn(page, NEW_EMAIL, FIRST_PASSWORD);
     await expect(page).toHaveURL(/\/crp$/);
@@ -63,13 +89,17 @@ test.describe.serial('new user onboarding', () => {
     await page.getByRole('button', { name: 'Verify email' }).click();
     await expect(page.getByRole('heading', { name: 'Check your inbox' })).toBeVisible();
 
+    const inviteLink = latestLinkFor(NEW_EMAIL);
     await page.goto('/forgot-password');
     await page.getByLabel(/email/i).fill(NEW_EMAIL);
     await page.getByRole('button', { name: 'Verify email' }).click();
     await expect(page.getByRole('heading', { name: 'Check your inbox' })).toBeVisible();
+    const resetLink = await nextLinkFor(NEW_EMAIL, inviteLink);
 
-    await page.goto(latestLinkFor(NEW_EMAIL));
-    await choosePassword(page, SECOND_PASSWORD);
+    // The link opens even when someone else is signed in on this browser.
+    await signIn(page, E2E_USERS.admin.email);
+    await page.goto(resetLink);
+    await choosePassword(page, SECOND_PASSWORD, 'Choose a new password');
     await expect(page.getByRole('heading', { name: 'Password saved' })).toBeVisible();
     await signIn(page, NEW_EMAIL, SECOND_PASSWORD);
     await expect(page).toHaveURL(/\/crp$/);

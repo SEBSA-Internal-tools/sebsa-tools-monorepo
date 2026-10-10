@@ -9,6 +9,7 @@ const audit = { record: vi.fn().mockResolvedValue(undefined) };
 const notifications = {
   create: vi.fn().mockResolvedValue({}),
   createMany: vi.fn().mockResolvedValue({ count: 0 }),
+  queueEmailForTriggerRows: vi.fn().mockResolvedValue(1),
 };
 const serviceWith = (prisma: unknown) =>
   new ReviewTasksService(prisma as never, audit as never, notifications as never);
@@ -991,13 +992,16 @@ describe('ReviewTasksService Admin task actions', () => {
         previousFeedbackAcknowledged: null,
       },
     });
-    expect(notifications.create).toHaveBeenCalledWith(
+    expect(notifications.createMany).toHaveBeenCalledWith(
       tx,
-      expect.objectContaining({
-        recipientId: newReviewerId,
-        type: 'TASK_ASSIGNED',
-        title: 'Test task reassigned to you',
-      }),
+      expect.arrayContaining([
+        expect.objectContaining({
+          recipientId: newReviewerId,
+          type: 'TASK_ASSIGNED',
+          title: 'Test task reassigned to you',
+          email: expect.objectContaining({ event: 'REVIEWER_ASSIGNED', reviewerId: newReviewerId }),
+        }),
+      ]),
     );
   });
 

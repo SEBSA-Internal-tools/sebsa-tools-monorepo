@@ -12,6 +12,7 @@ import type { AuthenticatedUser } from '../auth/auth.types.js';
 import { AuditService } from '../audit/audit.service.js';
 import type { ReassignHandoverDto } from './dto/reassign-handover.dto.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
+import { taskEmail } from '../notifications/task-email.js';
 import { retryPrismaTransaction } from '../../common/prisma-errors.js';
 import { reviewDraftSchema } from '@sdp/contracts';
 
@@ -189,13 +190,47 @@ export class HandoversService {
           },
           newValue: { reviewerId: reviewer.id, reviewerName: reviewer.fullName },
         });
-        await this.notifications.create(tx, {
-          taskId: handover.taskId,
-          recipientId: reviewer.id,
-          type: NotificationType.TASK_ASSIGNED,
-          title: `${handover.task.title} reassigned to you`,
-          message: `${actor.name} reassigned this review task to ${reviewer.fullName}.`,
-        });
+        const reassignedEmail = taskEmail(
+          'HANDOVER_REASSIGNED',
+          actor.name,
+          {
+            reviewerId: reviewer.id,
+            reviewerName: reviewer.fullName,
+            previousReviewerName: handover.fromReviewer.fullName,
+            reason: handover.reason ?? undefined,
+          },
+          now,
+        );
+        const fromReviewerId = handover.fromReviewerId;
+        await this.notifications.createMany(tx, [
+          {
+            taskId: handover.taskId,
+            recipientId: reviewer.id,
+            type: NotificationType.TASK_ASSIGNED,
+            title: `${handover.task.title} reassigned to you`,
+            message: `${actor.name} reassigned this review task to ${reviewer.fullName}.`,
+            email: reassignedEmail,
+          },
+          {
+            taskId: handover.taskId,
+            recipientId: handover.task.developerId,
+            type: NotificationType.TASK_ASSIGNED,
+            title: `${handover.task.title} has a new reviewer`,
+            message: `${actor.name} assigned ${reviewer.fullName} to review your task.`,
+            email: reassignedEmail,
+          },
+          ...(fromReviewerId === reviewer.id || fromReviewerId === actor.id
+            ? []
+            : [
+                {
+                  taskId: handover.taskId,
+                  recipientId: fromReviewerId,
+                  type: NotificationType.TASK_REASSIGNED,
+                  title: `${handover.task.title} handover resolved`,
+                  message: `${actor.name} reassigned the task you handed over to ${reviewer.fullName}.`,
+                },
+              ]),
+        ]);
 
         const updated = await tx.handoverTask.findUnique({
           where: { id },
@@ -244,6 +279,18 @@ export class HandoversService {
           previousFeedbackAcknowledged: null,
         },
       });
+      await this.notifications.createMany(
+        tx,
+        [...new Set([handover.task.developerId, handover.fromReviewerId])]
+          .filter((recipientId) => recipientId !== actor.id)
+          .map((recipientId) => ({
+            taskId: handover.taskId,
+            recipientId,
+            type: NotificationType.TASK_HANDOVER,
+            title: `${handover.task.title} returned to the review queue`,
+            message: `${actor.name} returned the handed-over task to the open review queue.`,
+          })),
+      );
       await this.audit.record(tx, actor, {
         actionType: 'HANDOVER_RETURNED_TO_QUEUE',
         entityType: 'HANDOVER',

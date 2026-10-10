@@ -10,9 +10,6 @@
  * Addresses live in `constants/routePaths.ts` with every other route.
  */
 
-/** Shown to the user; the backend owns the real values. */
-export const INVITE_VALID_HOURS = 24;
-export const RESET_VALID_MINUTES = 60;
-export const RESEND_COOLDOWN_SECONDS = 60;
+// Link lifetimes and the resend cooldown come from the API (useLinkPolicy).
 /** Where a successful password save sends the user, and how long it waits. */
 export const SUCCESS_REDIRECT_MS = 3000;

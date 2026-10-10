@@ -18,6 +18,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { assertDisposableDatabase, DEFAULT_E2E_DATABASE_URL } from './e2e-db.mjs';
+import { E2E_API_PORT, E2E_WEB_URL } from '../../web-e2e/ports.config.mjs';
 
 const apiDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const databaseUrl = process.env['E2E_DATABASE_URL'] ?? DEFAULT_E2E_DATABASE_URL;
@@ -38,8 +39,8 @@ writeFileSync(outbox, '');
 
 execFileSync(process.execPath, ['esbuild.config.mjs'], { cwd: apiDir, stdio: 'inherit' });
 
-const port = process.env['E2E_API_PORT'] ?? '3100';
-const webOrigin = process.env['E2E_WEB_ORIGIN'] ?? 'http://localhost:5185';
+const port = E2E_API_PORT;
+const webOrigin = process.env['E2E_WEB_ORIGIN'] ?? E2E_WEB_URL;
 const child = spawn(process.execPath, [path.resolve(apiDir, '../../dist/apps/api/main.js')], {
   cwd: apiDir,
   stdio: 'inherit',
@@ -49,8 +50,10 @@ const child = spawn(process.execPath, [path.resolve(apiDir, '../../dist/apps/api
     PORT: port,
     DATABASE_URL: databaseUrl,
     FRONTEND_ORIGIN: webOrigin,
+    APP_BASE_URL: webOrigin,
     SWAGGER_ENABLED: 'false',
     E2E_MAIL_OUTBOX: outbox,
+    EMAIL_ENABLED: 'false',
   },
 });
 for (const signal of ['SIGINT', 'SIGTERM']) {

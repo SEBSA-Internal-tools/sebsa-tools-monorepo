@@ -28,7 +28,7 @@ export class HealthController {
     return {
       status: 'ok',
       timestamp: new Date().toISOString(),
-      environment: this.config.get<string>('nodeEnv', 'development'),
+      environment: this.config.getOrThrow<string>('nodeEnv'),
     };
   }
 }

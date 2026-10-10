@@ -44,99 +44,104 @@ and should survive the swap:
 ## Password links (temporary local auth)
 
 Until SSO, an admin creates an account and the user sets their own password
-through a one-time emailed link (`/set-password#token=...`). Forgot password
-uses the same link. The screens are public, with no env flag. `RequireGuest`
-keeps signed-in users out, but that only shapes the experience: **the token is
-the only credential, and the server is the only control.**
-
-`apps/web/src/mocks/passwordLinks.ts` implements this contract and
-`passwordLinks.test.ts` asserts it. NestJS must pass the same cases.
+through a one-time emailed link (`{APP_BASE_URL}/set-password#token=...`).
+Forgot password, and an admin's **Send reset link**, use the same link. The
+screens are public. **The token is the only credential, and the server is the
+only control.** The implementation is `apps/api/src/modules/password-links`.
+Email delivery is described in [Email and notifications](./email-notifications.md).
 
 **Tokens**
 
-- At least 256 bits from a CSPRNG, URL-safe. Store only `SHA-256(token)`, so a
-  database dump or a log line cannot be replayed.
-- Single use. Expiry: invite 24 h, reset 60 min. Issuing a link revokes that
-  user's earlier links for the same purpose. Setting a password revokes every
-  link they hold and **ends every existing session** (`RefreshSession`).
+- 32 bytes from a CSPRNG, base64url (43 characters). Only `SHA-256(token)` is
+  stored (`password_links.token_hash`), so a database dump or a log line cannot
+  be replayed. Token lengths above 256 are rejected before hashing.
+- Single use, enforced by a conditional update, so two concurrent submits
+  cannot both succeed. Expiry: invite `INVITE_TTL_HOURS` (default 24 h), reset
+  `RESET_TTL_MINUTES` (default 60 min). Issuing a link revokes the user's
+  earlier links for the same purpose. Setting a password revokes every link the
+  user holds and **ends every existing session** (`RefreshSession`).
 - A link is valid only while the account is in the state it was issued for:
-  INVITED for an invite, active for a reset. Deactivating an account revokes
-  its links.
-- The fragment never reaches the server or access logs. The client sends the
-  token only in a JSON body, scrubs it from the address bar, and keeps it in
-  memory, never in storage. Ignore token lengths above 256 before hashing.
+  INVITED for an invite, ACTIVE for a reset. Deactivating or deleting an account
+  revokes its links.
+- The token is never in a query string, an API response, a log line, the audit
+  log or a notification payload. The email's expiry text comes from the link's
+  real `expiresAt`, shown in `APP_TIMEZONE`.
+
+**In the browser** (`features/local-auth/lib/tokenStore.ts`, `SetPasswordPage.tsx`)
+
+- The token is read from the `#token=` fragment, which browsers never send to a
+  server or in `Referer`. It is kept in memory, never in localStorage,
+  sessionStorage or a cookie.
+- The fragment **stays in the address bar until the backend answers 200** to
+  `POST /auth/set-password`. A reload or a rejected password therefore keeps
+  the same link usable. Only then is it scrubbed (`history.replaceState`).
+- `POST /auth/token/validate` decides which screen to show. While the form is
+  open, a timer sends the user to `/link-expired` when `expiresAt` passes, and
+  a submit after expiry is not sent. The server re-checks expiry, use,
+  revocation and account state on submit.
+- Only a definite `expired` or `invalid` answer leads to `/link-expired`. A
+  network error or a 5xx shows "try again" instead.
+- `/set-password` and `/link-expired` open even when someone is signed in on
+  the browser, so an admin can open a link while testing. After a successful
+  save, that browser's session is signed out.
 
 **No account enumeration**
 
-- `POST /auth/forgot-password` and `POST /auth/resend-link` always answer
-  `202` with no body, whether or not the email or token exists.
+- `POST /auth/forgot-password` always answers `202` after at least 400 ms. The
+  account lookup and the email run after the reply, so known and unknown
+  addresses take the same time.
+- `POST /auth/resend-link` answers `202` and ignores used or replaced links.
+- `GET /auth/link-policy` returns only the configured lifetimes and resend
+  cooldown, so the screens never hard-code them.
 - `POST /auth/token/validate` returns only `valid` (masked `emailHint`),
-  `expired` or `invalid`. It never says whether the account exists, and it
-  never consumes the token.
-- Login keeps one message for every failure. An INVITED account with no
-  password cannot sign in.
+  `expired` or `invalid`. It never consumes the token.
+- Login keeps one message for every failure. An INVITED account cannot sign in.
 
 **Rate limits** (429 `RATE_LIMITED`)
 
-| Endpoint                   | Limit in the mock          | Also add in NestJS |
-| -------------------------- | -------------------------- | ------------------ |
-| set-password               | 5 rejected tries per token | per IP             |
-| forgot-password            | 3 per email per 15 min     | per IP             |
-| resend-link, resend-invite | 60 s per user and purpose  | per IP             |
+| What                       | Limit                                                           |
+| -------------------------- | --------------------------------------------------------------- |
+| set-password               | 5 policy failures per link (`PASSWORD_PERSONAL` is not counted) |
+| forgot-password            | 3 per email per 15 min, counted even without an account         |
+| resend-link, resend-invite | 60 s per user and purpose                                       |
+| admin reset link           | 60 s per user                                                   |
+| all public auth routes     | 30 per IP per 15 min                                            |
 
-Count forgot-password per address even when it has no account, or the limit
-itself becomes an enumeration oracle. Per-IP limits rely on `trust proxy` being
-set correctly behind the load balancer, and on a patched `proxy-addr`: today's
-`npm audit` reports an IP-spoofing advisory against it.
+The per-email and per-IP counters are in memory (`RateLimiterService`). That is
+correct for one API instance; move them to Postgres or Redis before running
+more than one. Per-IP limits need Express `trust proxy` (`TRUST_PROXY`) set to
+the real proxy depth, or every caller shares the proxy's address.
 
-**Password policy.** Enforced server-side with the rules in
-`features/local-auth/domain/passwordRules.ts`. Answers `PASSWORD_POLICY` with
-`failedRules`, or `PASSWORD_PERSONAL` for a password containing the user's name
-or email, or a common one. Add a breached-password check (k-anonymity range
-query). Hash with Argon2id or bcrypt. Never trim, log or echo the password.
+**Password policy.** `failedPasswordRules` and `isPersonalPassword` from
+`@sdp/contracts`, the same rules the browser shows. The answer is
+`PASSWORD_POLICY` with `failedRules`, or `PASSWORD_PERSONAL`. Hashing is
+Argon2id. The password is never trimmed, logged or echoed.
 
 **Admin actions**
 
 - `POST /users` creates the account INVITED and sends the invite. An admin never
   types a password.
-- `POST /users/:id/resend-invite` and `POST /users/:id/revoke-invite` use the
-  same authorisation as editing: only a Super Admin may act on an Admin or
-  Super Admin invite. Both answer `409 NOT_INVITED` once the user has left that
-  state.
-- Revoking an invite removes the never-activated account and records
-  `InviteRevoked` in the system audit log.
-- Activating an INVITED user directly is refused (`409 INVITE_PENDING`).
+- `POST /users/:id/resend-invite`, `POST /users/:id/revoke-invite` and
+  `POST /users/:id/reset-password-link` use the same authorisation as editing:
+  only a Super Admin may act on an Admin or Super Admin. Invite actions answer
+  `409 NOT_INVITED`, and the reset link answers `409 NOT_ACTIVE`, once the user
+  is in another state.
+- Changing an active user's email sends a notice to the **old** address.
+  Deactivation, removal and role changes send the user an "access changed"
+  notice.
 
-**Transport and headers on these endpoints:** `Cache-Control: no-store`,
-`Referrer-Policy: no-referrer`, and an `Origin` check on the public POSTs. The
-client also adds `<meta name="referrer" content="no-referrer">` while a
-password screen is open.
+**Transport and headers.** The public routes need no CSRF cookie. They check
+`Origin` against `FRONTEND_ORIGIN` and set `Cache-Control: no-store` and
+`Referrer-Policy: no-referrer`. The page adds
+`<meta name="referrer" content="no-referrer">` while a password screen is open.
 
-**NestJS implementation (2026-10-08).** `apps/api/src/modules/password-links`
-implements this contract and `password-links.service.spec.ts` runs the mock's
-cases against it.
-
-- Tokens: 32 random bytes, base64url; only `SHA-256(token)` is stored
-  (`password_links.token_hash`). Consumption is a conditional update, so two
-  concurrent submits cannot both use one link.
-- Email goes through the `Mailer` port (`apps/api/src/integrations/mail`). The
-  development adapter, `DevOutboxMailer`, logs each link as `[dev outbox] …`.
-  Outside development it refuses to send, and the link is recorded as
-  `email_status = FAILED` rather than being written to production logs. Bind
-  the real transport in `MailModule` when it is available.
-- Rate limits: per token (`failed_attempts`, 5), per email (3 per 15 min), per
-  resend (60 s, from the last link's `created_at`), plus 30 requests per 15 min
-  per IP. The per-email and per-IP counters are in memory
-  (`RateLimiterService`): correct for one API instance; move them to Redis
-  before running more than one.
-- Per-IP limits need Express `trust proxy` set to the real proxy depth behind
-  a load balancer, or every caller shares the balancer's address.
-- The four public routes are exempt from the CSRF cookie check (they send no
-  cookies) and instead check `Origin` against `FRONTEND_ORIGIN`, with
-  `Cache-Control: no-store` and `Referrer-Policy: no-referrer`.
-- Setting a password revokes every `RefreshSession` for the user.
-- Public self-registration (`POST /auth/register`) was removed: accounts are
-  created only by an admin invite.
+**SQL injection.** All database access goes through Prisma. Raw SQL uses only
+tagged templates (`$queryRaw\`...\``), which Prisma sends as bind parameters.
+`src/common/raw-sql.guard.spec.ts`fails the build on`$queryRawUnsafe`,
+`$executeRawUnsafe`, `Prisma.raw(`or a function-call`$queryRaw(`.
+`test/e2e/email-and-links.e2e-spec.ts` sends SQL, NoSQL-style objects, NUL
+bytes and oversized values to every public auth route and to user creation,
+then checks that no 5xx occurred and the row counts are unchanged.
 
 **Redirects.** After sign-in, only a same-origin path from router state is
 followed (`lib/safeRedirect.ts`). `//host`, `/\host`, absolute URLs and control

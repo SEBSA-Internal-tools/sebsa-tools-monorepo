@@ -11,10 +11,8 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: false });
   configureApp(app);
   const config = app.get(ConfigService);
-  setupSwagger(app, config.get<boolean>('swaggerEnabled', false));
-
-  const port = config.get<number>('port', 3000);
-  await app.listen(port);
+  setupSwagger(app, config.getOrThrow<boolean>('swaggerEnabled'));
+  await app.listen(config.getOrThrow<number>('port'));
 }
 
 void bootstrap();

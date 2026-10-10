@@ -1,4 +1,5 @@
 import { useEffect, useState, type InputHTMLAttributes } from 'react';
+import { appEnv } from '@/config/env.ts';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -195,7 +196,7 @@ export function LoginPage({
           <Input
             type="email"
             autoComplete="username"
-            placeholder={content.form.emailPlaceholder}
+            placeholder={appEnv.emailPlaceholder}
             {...register('email')}
           />
         </Field>

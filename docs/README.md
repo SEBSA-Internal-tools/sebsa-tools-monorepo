@@ -49,5 +49,6 @@ first pull request.
 | [23 · Adding a new UI](./23-adding-a-new-ui.md)                     | End-to-end: content, path, page, route, links, and the component tiers       |
 | [24 · Test plan](./24-test-plan.md)                                 | The manual, spec-traceable test suite in `qa/`: setup, roles, format, gaps   |
 | [25 · Review assignment rules](./25-review-assignment-rules.md)     | Who holds a review, resubmission routing, removing a reviewer with open work |
+| [Email and notifications](./email-notifications.md)                 | Brevo setup, which events email whom, Neon patches, troubleshooting          |
 | [ADRs](./adr/)                                                      | Architecture decisions, with the reasoning that produced them                |
 | [Backlog](./backlog.md)                                             | Decided but not yet built                                                    |

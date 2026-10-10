@@ -19,6 +19,14 @@ export type ValidateResult = z.infer<typeof validateResultSchema>;
 
 export const okSchema = z.object({ ok: z.literal(true) });
 
+/** Link lifetimes and resend cooldown, as the API is configured. */
+export const linkPolicySchema = z.object({
+  inviteTtlMinutes: z.number().positive(),
+  resetTtlMinutes: z.number().positive(),
+  resendCooldownSeconds: z.number().nonnegative(),
+});
+export type LinkPolicy = z.infer<typeof linkPolicySchema>;
+
 export const authErrorBodySchema = z.object({
   code: z.string(),
   message: z.string().optional(),
@@ -59,3 +67,4 @@ export const inviteSchema = z.object({
 export type Invite = z.infer<typeof inviteSchema>;
 
 export const resendInviteResponseSchema = z.object({ invite: inviteSchema });
+export const resetLinkResponseSchema = z.object({ reset: inviteSchema });

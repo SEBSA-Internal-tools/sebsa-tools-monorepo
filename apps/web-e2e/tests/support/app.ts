@@ -3,11 +3,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, request, type APIRequestContext, type Page } from '@playwright/test';
 import { E2E_PASSWORD, E2E_USERS } from '../../../api/prisma/e2e-fixtures.ts';
+import { E2E_WEB_URL as WEB_URL } from '../../ports.config.mjs';
 
-export { E2E_PASSWORD, E2E_USERS };
+export { E2E_PASSWORD, E2E_USERS, WEB_URL };
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
-export const WEB_URL = 'http://localhost:5185';
+
 const OUTBOX = path.resolve(dirname, '../../test-results/mail-outbox.jsonl');
 
 /** Signs in through the real login form. */
@@ -100,7 +101,9 @@ export function latestLinkFor(email: string): string {
   const lines = readFileSync(OUTBOX, 'utf8').split('\n').filter(Boolean);
   const message = lines
     .map((line) => JSON.parse(line) as { to: string; text: string })
-    .filter((entry) => entry.to.toLowerCase() === email.toLowerCase())
+    .filter(
+      (entry) => entry.to.toLowerCase() === email.toLowerCase() && entry.text.includes('#token='),
+    )
     .at(-1);
   const link = message?.text.match(/https?:\/\/\S+\/set-password#token=[\w-]+/)?.[0];
   if (!link) throw new Error(`No set-password link was sent to ${email}`);

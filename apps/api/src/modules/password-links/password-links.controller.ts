@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Param,
@@ -37,6 +38,13 @@ import { PublicAuthHeadersInterceptor } from './public-auth-headers.interceptor.
 @UseInterceptors(PublicAuthHeadersInterceptor)
 export class PublicPasswordLinksController {
   constructor(private readonly links: PasswordLinksService) {}
+
+  /** Link lifetimes and resend cooldown, so the screens never hard-code them. */
+  @Get('link-policy')
+  @ApiOkResponse()
+  linkPolicy() {
+    return this.links.linkPolicy();
+  }
 
   /** Never consumes the token. */
   @Post('token/validate')
@@ -86,6 +94,16 @@ export class InviteActionsController {
     @CurrentUser() actor: AuthenticatedUser,
   ) {
     return this.links.resendInvite(userId, actor);
+  }
+
+  @Post('reset-password-link')
+  @HttpCode(HttpStatus.OK)
+  @ApiOkResponse()
+  sendResetLink(
+    @Param('userId', ParseUUIDPipe) userId: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.links.sendResetLink(userId, actor);
   }
 
   @Post('revoke-invite')

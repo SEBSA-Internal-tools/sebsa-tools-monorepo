@@ -14,12 +14,11 @@ export function setupSwagger(app: INestApplication, enabled: boolean): void {
     return;
   }
 
-  const port = process.env['PORT'] ?? '3000';
   const config = new DocumentBuilder()
     .setTitle('SEBSA Code Review Portal API')
     .setDescription('REST API for managing the SEBSA code review workflow.')
     .setVersion('1.0')
-    .addServer(`http://localhost:${port}`, 'Local development')
+    .addServer('/', 'This server')
     .build();
 
   const document = SwaggerModule.createDocument(app, config, {

@@ -1,12 +1,13 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig, devices } from '@playwright/test';
+import { E2E_API_URL, E2E_WEB_PORT, E2E_WEB_URL } from './ports.config.mjs';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(dirname, '../..');
 
-export const WEB_URL = 'http://localhost:5185';
-export const API_URL = 'http://localhost:3100';
+export const WEB_URL = E2E_WEB_URL;
+export const API_URL = E2E_API_URL;
 
 /**
  * Browser journeys against the REAL stack: React (Vite) → NestJS → PostgreSQL.
@@ -57,7 +58,7 @@ export default defineConfig({
       command: 'npm run dev -w @sdp/web',
       cwd: root,
       url: WEB_URL,
-      env: { SDP_WEB_PORT: '5185', SDP_API_TARGET: API_URL },
+      env: { SDP_WEB_PORT: E2E_WEB_PORT, SDP_API_TARGET: API_URL },
       reuseExistingServer: false,
       timeout: 120_000,
     },

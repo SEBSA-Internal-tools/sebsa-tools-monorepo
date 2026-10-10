@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CONFIG_DEFAULTS as D } from './defaults.js';
 
 /**
  * Validated once at boot, via `ConfigModule.forRoot({ validate })`. A
@@ -9,16 +10,16 @@ import { z } from 'zod';
 const envSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-    PORT: z.coerce.number().int().positive().default(3000),
+    PORT: z.coerce.number().int().positive().default(D.port),
     DATABASE_URL: z.url(),
-    FRONTEND_ORIGIN: z.string().default('http://localhost:5175'),
+    FRONTEND_ORIGIN: z.string().default(D.frontendOrigin),
     JWT_ACCESS_SECRET: z.string().min(32).optional(),
     JWT_REFRESH_SECRET: z.string().min(32).optional(),
-    JWT_ISSUER: z.string().min(1).default('sebsa-code-review-api'),
-    JWT_AUDIENCE: z.string().min(1).default('sebsa-code-review-web'),
-    JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().positive().default(900),
-    JWT_REFRESH_TTL_SECONDS: z.coerce.number().int().positive().default(604800),
-    JWT_REMEMBER_TTL_SECONDS: z.coerce.number().int().positive().default(2592000),
+    JWT_ISSUER: z.string().min(1).default(D.jwtIssuer),
+    JWT_AUDIENCE: z.string().min(1).default(D.jwtAudience),
+    JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().positive().default(D.accessTtlSeconds),
+    JWT_REFRESH_TTL_SECONDS: z.coerce.number().int().positive().default(D.refreshTtlSeconds),
+    JWT_REMEMBER_TTL_SECONDS: z.coerce.number().int().positive().default(D.rememberTtlSeconds),
     // Unset means "Secure in production, not in development" (auth.config.ts).
     COOKIE_SECURE: z.enum(['true', 'false']).optional(),
     // Express `trust proxy`: a hop count ("1") or a list of trusted proxy
@@ -33,6 +34,34 @@ const envSchema = z
       )
       .optional(),
     SWAGGER_ENABLED: z.enum(['true', 'false']).optional(),
+    DIRECT_URL: z.url().optional(),
+    APP_BASE_URL: z.url().optional(),
+    APP_NAME: z
+      .string()
+      .trim()
+      .min(1)
+      .max(100)
+      .refine((value) => !/[\r\n]/.test(value), 'APP_NAME must be one line')
+      .optional(),
+    APP_TIMEZONE: z
+      .string()
+      .refine(isTimeZone, 'APP_TIMEZONE must be an IANA zone such as Asia/Colombo')
+      .optional(),
+    INVITE_TTL_HOURS: z.coerce.number().int().min(1).max(168).optional(),
+    RESET_TTL_MINUTES: z.coerce.number().int().min(10).max(1440).optional(),
+    EMAIL_ENABLED: z.enum(['true', 'false']).default('false'),
+    SDP_BREVO_API_KEY: z.string().trim().optional(),
+    SDP_EMAIL_FROM_ADDRESS: z.email().optional(),
+    SDP_EMAIL_FROM_NAME: z
+      .string()
+      .max(100)
+      .refine((value) => !/[\r\n]/.test(value), 'SDP_EMAIL_FROM_NAME must be one line')
+      .optional(),
+    SDP_SUPPORT_EMAIL: z.email().optional(),
+    EMAIL_DISPATCH_INTERVAL_MS: z.coerce.number().int().min(1000).max(600000).optional(),
+    PASSWORD_LINK_RESEND_COOLDOWN_SECONDS: z.coerce.number().int().min(10).max(3600).optional(),
+    BREVO_API_URL: z.url().optional(),
+    E2E_MAIL_OUTBOX: z.string().optional(),
     BOOTSTRAP_ADMIN_EMAIL: z.string().optional(),
     BOOTSTRAP_ADMIN_PASSWORD: z.string().optional(),
     BOOTSTRAP_ADMIN_NAME: z.string().optional(),
@@ -44,8 +73,69 @@ const envSchema = z
         context.addIssue({ code: 'custom', path: [key], message: `${key} is required` });
       }
     }
-    if (env.NODE_ENV === 'production') assertProductionTransport(env, context);
+    if (env.EMAIL_ENABLED === 'true') {
+      if (!env.SDP_BREVO_API_KEY) {
+        context.addIssue({
+          code: 'custom',
+          path: ['SDP_BREVO_API_KEY'],
+          message: 'SDP_BREVO_API_KEY is required when EMAIL_ENABLED=true',
+        });
+      }
+      if (!env.SDP_EMAIL_FROM_ADDRESS) {
+        context.addIssue({
+          code: 'custom',
+          path: ['SDP_EMAIL_FROM_ADDRESS'],
+          message:
+            'SDP_EMAIL_FROM_ADDRESS (a Brevo-verified sender) is required when EMAIL_ENABLED=true',
+        });
+      }
+    }
+    if (env.NODE_ENV === 'production') {
+      assertProductionTransport(env, context);
+      assertProductionEmail(env, context);
+    }
   });
+
+function isTimeZone(value: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en-GB', { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function assertProductionEmail(
+  env: {
+    EMAIL_ENABLED: string;
+    APP_BASE_URL?: string | undefined;
+    E2E_MAIL_OUTBOX?: string | undefined;
+  },
+  context: z.RefinementCtx,
+): void {
+  if (env.EMAIL_ENABLED !== 'true') {
+    context.addIssue({
+      code: 'custom',
+      path: ['EMAIL_ENABLED'],
+      message:
+        'EMAIL_ENABLED must be true in production, or invites and resets are never delivered',
+    });
+  }
+  if (env.APP_BASE_URL !== undefined && !env.APP_BASE_URL.startsWith('https://')) {
+    context.addIssue({
+      code: 'custom',
+      path: ['APP_BASE_URL'],
+      message: 'APP_BASE_URL must be an https:// URL in production',
+    });
+  }
+  if (env.E2E_MAIL_OUTBOX) {
+    context.addIssue({
+      code: 'custom',
+      path: ['E2E_MAIL_OUTBOX'],
+      message: 'E2E_MAIL_OUTBOX writes links to disk and is not allowed in production',
+    });
+  }
+}
 
 /**
  * Production must run over HTTPS end to end. The session cookies are `Secure`

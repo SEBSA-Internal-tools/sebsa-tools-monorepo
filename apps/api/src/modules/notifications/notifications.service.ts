@@ -1,6 +1,9 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import type { Notification, NotificationType, Prisma } from '@prisma/client';
+import { ForbiddenException, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { Prisma, type Notification, type NotificationType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { EmailDispatcher } from './email-dispatcher.service.js';
+import { notificationHref, type RecipientContext } from './notification-href.js';
+import { pendingEmailColumns, type TaskEmailPayload } from './task-email.js';
 
 type NotificationClient = Pick<Prisma.TransactionClient, 'notification'>;
 // Kept as a typed constant so this compiles before `prisma generate` has been
@@ -9,23 +12,33 @@ export const TASK_REASSIGNED_NOTIFICATION = 'TASK_REASSIGNED' as NotificationTyp
 
 type NotificationWithTask = Notification & { task: { developerId: string } | null };
 
-interface RecipientContext {
-  id: string;
-  isAdmin: boolean;
-  isReviewer: boolean;
-}
-
 export interface CreateNotificationInput {
   taskId: string;
   recipientId: string;
   type: NotificationType;
   title: string;
   message: string;
+  /** Also email the recipient, using these facts. */
+  email?: TaskEmailPayload;
+}
+
+function rowData(input: CreateNotificationInput) {
+  return {
+    taskId: input.taskId,
+    recipientId: input.recipientId,
+    notificationType: input.type,
+    title: input.title,
+    message: input.message,
+    ...(input.email ? pendingEmailColumns(input.email) : {}),
+  };
 }
 
 @Injectable()
 export class NotificationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly dispatcher?: EmailDispatcher,
+  ) {}
 
   async findAll(recipientId: string) {
     const [rows, recipient] = await Promise.all([
@@ -69,28 +82,43 @@ export class NotificationsService {
   }
 
   create(client: NotificationClient, input: CreateNotificationInput) {
-    return client.notification.create({
-      data: {
-        taskId: input.taskId,
-        recipientId: input.recipientId,
-        notificationType: input.type,
-        title: input.title,
-        message: input.message,
-      },
-    });
+    if (input.email) this.dispatcher?.kick();
+    return client.notification.create({ data: rowData(input) });
   }
 
   createMany(client: NotificationClient, inputs: CreateNotificationInput[]) {
     if (inputs.length === 0) return Promise.resolve({ count: 0 });
-    return client.notification.createMany({
-      data: inputs.map((input) => ({
-        taskId: input.taskId,
-        recipientId: input.recipientId,
-        notificationType: input.type,
-        title: input.title,
-        message: input.message,
-      })),
-    });
+    if (inputs.some((input) => input.email)) this.dispatcher?.kick();
+    return client.notification.createMany({ data: inputs.map(rowData) });
+  }
+
+  /**
+   * Queues email for rows the `create_task_status_notification` trigger inserted
+   * in this transaction (same `now()`), leaving every other row untouched.
+   */
+  async queueEmailForTriggerRows(
+    tx: Prisma.TransactionClient,
+    input: {
+      taskId: string;
+      recipientIds: string[];
+      types: NotificationType[];
+      payload: TaskEmailPayload;
+    },
+  ): Promise<number> {
+    if (input.recipientIds.length === 0) return 0;
+    const count = await tx.$executeRaw`
+      UPDATE "notifications"
+         SET "email_status" = 'PENDING'::"notification_email_status",
+             "email_attempts" = 0,
+             "email_next_attempt_at" = now(),
+             "payload" = ${JSON.stringify(input.payload)}::jsonb
+       WHERE "task_id" = ${input.taskId}::uuid
+         AND "recipient_id" IN (${Prisma.join(input.recipientIds.map((id) => Prisma.sql`${id}::uuid`))})
+         AND "notification_type"::text IN (${Prisma.join(input.types.map((type) => String(type)))})
+         AND "created_at" = now()
+         AND "email_status" IS NULL`;
+    if (count > 0) this.dispatcher?.kick();
+    return count;
   }
 
   private async recipientRoles(recipientId: string): Promise<RecipientContext> {
@@ -106,21 +134,6 @@ export class NotificationsService {
     };
   }
 
-  /**
-   * Where a notification takes this recipient: the screen for *their* part in
-   * the task (frontend mocks/handlers.ts). The developer opens their task, a
-   * reviewer the review, an admin the handover queue or the admin task view.
-   */
-  private hrefFor(row: NotificationWithTask, recipient: RecipientContext): string {
-    if (row.taskId === null) return '/crp';
-    const taskId = encodeURIComponent(row.taskId);
-    if (row.task?.developerId === recipient.id) return `/crp/developer/tasks/${taskId}`;
-    if (row.notificationType === 'TASK_HANDOVER' && recipient.isAdmin) return '/crp/admin/handovers';
-    if (recipient.isReviewer) return `/crp/reviewer/tasks/${taskId}`;
-    if (recipient.isAdmin) return `/crp/admin/tasks/${taskId}`;
-    return '/crp';
-  }
-
   private toResponse(row: NotificationWithTask, recipient: RecipientContext) {
     const kind = {
       TASK_APPROVED: 'TaskApproved',
@@ -134,7 +147,7 @@ export class NotificationsService {
       TASK_DELIVERED: 'TaskApproved',
     }[row.notificationType];
 
-    const href = this.hrefFor(row, recipient);
+    const href = notificationHref(row, recipient);
 
     return {
       id: row.id,

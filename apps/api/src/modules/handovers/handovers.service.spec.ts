@@ -82,7 +82,10 @@ describe('HandoversService.reassign', () => {
       .mockRejectedValueOnce(writeConflict)
       .mockImplementation((operation: (client: typeof tx) => Promise<unknown>) => operation(tx));
     const prisma = { $transaction: transaction };
-    const notifications = { create: vi.fn().mockResolvedValue({}) };
+    const notifications = {
+      create: vi.fn().mockResolvedValue({}),
+      createMany: vi.fn().mockResolvedValue({ count: 0 }),
+    };
     const service = new HandoversService(prisma as never, audit as never, notifications as never);
 
     await expect(service.reassign(handoverId, { reviewerId: reviewer.id }, actor)).resolves.toEqual(
@@ -130,16 +133,24 @@ describe('HandoversService.reassign', () => {
         newValue: expect.objectContaining({ reviewerName: reviewer.fullName }),
       }),
     );
-    expect(notifications.create).toHaveBeenCalledWith(
+    expect(notifications.createMany).toHaveBeenCalledWith(
       tx,
-      expect.objectContaining({
-        taskId,
-        recipientId: reviewer.id,
-        type: NotificationType.TASK_ASSIGNED,
-        title: 'Task under review reassigned to you',
-      }),
+      expect.arrayContaining([
+        expect.objectContaining({
+          taskId,
+          recipientId: reviewer.id,
+          type: NotificationType.TASK_ASSIGNED,
+          title: 'Task under review reassigned to you',
+          email: expect.objectContaining({ event: 'HANDOVER_REASSIGNED', reviewerId: reviewer.id }),
+        }),
+        expect.objectContaining({
+          recipientId: existing.task.developerId,
+          type: NotificationType.TASK_ASSIGNED,
+          email: expect.objectContaining({ event: 'HANDOVER_REASSIGNED' }),
+        }),
+      ]),
     );
-    expect(notifications.create).toHaveBeenCalledTimes(1);
+    expect(notifications.createMany).toHaveBeenCalledTimes(1);
     expect(transaction).toHaveBeenCalledTimes(2);
   });
 

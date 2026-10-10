@@ -3,7 +3,12 @@ import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { LocalAuthError } from '@/features/local-auth/api/types.ts';
+import { useSession } from '@/hooks/useSession.ts';
 import { clearToken, getToken } from '@/features/local-auth/lib/tokenStore.ts';
+import {
+  formatLinkDuration,
+  resetLinkPolicyCache,
+} from '@/features/local-auth/hooks/useLinkPolicy.ts';
 import { ForgotPasswordPage } from '@/features/local-auth/routes/ForgotPasswordPage.tsx';
 import { LinkExpiredPage } from '@/features/local-auth/routes/LinkExpiredPage.tsx';
 import { SetPasswordPage } from '@/features/local-auth/routes/SetPasswordPage.tsx';
@@ -13,8 +18,12 @@ const api = vi.hoisted(() => ({
   setPassword: vi.fn(),
   resendLink: vi.fn(),
   forgotPassword: vi.fn(),
+  getLinkPolicy: vi.fn(),
 }));
 vi.mock('@/features/local-auth/api/localAuthApi.ts', () => api);
+
+const http = vi.hoisted(() => ({ post: vi.fn() }));
+vi.mock('@/lib/apiClient.ts', () => ({ api: http }));
 
 const GOOD = 'Abcdefgh1234!';
 
@@ -45,12 +54,19 @@ const valid = (purpose: 'INVITE' | 'RESET') => ({
   status: 'valid',
   purpose,
   emailHint: 'j***@company.com',
-  expiresAt: '2026-10-07T10:00:00.000Z',
+  expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
 });
 
 beforeEach(() => {
   clearToken();
   vi.clearAllMocks();
+  resetLinkPolicyCache();
+  api.getLinkPolicy.mockResolvedValue({
+    inviteTtlMinutes: 24 * 60,
+    resetTtlMinutes: 60,
+    resendCooldownSeconds: 60,
+  });
+  useSession.setState({ isAuthenticated: false, isChecking: false, userId: null });
   window.history.replaceState(null, '', '/set-password#token=abc123');
 });
 
@@ -61,34 +77,107 @@ afterEach(() => {
 });
 
 describe('/set-password', () => {
-  it('moves the token out of the address bar and into memory', async () => {
+  it('keeps the token in the address bar, never in storage, until the password is saved', async () => {
     api.validateToken.mockResolvedValue(valid('INVITE'));
     renderAt('/set-password');
 
     await screen.findByRole('heading', { name: 'Create your password' });
-    expect(window.location.hash).toBe('');
-    expect(window.location.href).not.toContain('abc123');
+    expect(window.location.hash).toBe('#token=abc123');
     expect(api.validateToken).toHaveBeenCalledWith('abc123');
     expect(JSON.stringify({ ...localStorage, ...sessionStorage })).not.toContain('abc123');
   });
 
-  it.each(['INVITE', 'RESET'] as const)(
-    'shows the first-password screen for a %s link, with no email hint',
-    async (purpose) => {
-      api.validateToken.mockResolvedValue(valid(purpose));
-      renderAt('/set-password');
+  it('still shows the form after a reload', async () => {
+    api.validateToken.mockResolvedValue(valid('INVITE'));
+    renderAt('/set-password');
+    await screen.findByRole('heading', { name: 'Create your password' });
 
-      expect(
-        await screen.findByRole('heading', { name: 'Create your password' }),
-      ).toBeInTheDocument();
-      expect(screen.queryByText('for j***@company.com')).not.toBeInTheDocument();
-      expect(screen.queryByText(/reset your password/i)).not.toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Save password' })).toBeDisabled();
-      await waitFor(() => {
-        expect(document.title).toBe('Create your password | SDP');
-      });
-    },
-  );
+    cleanup();
+    clearToken();
+    renderAt('/set-password');
+
+    expect(
+      await screen.findByRole('heading', { name: 'Create your password' }),
+    ).toBeInTheDocument();
+    expect(api.validateToken).toHaveBeenLastCalledWith('abc123');
+  });
+
+  it('prefers the token in the address bar over one left from an earlier link', async () => {
+    api.validateToken.mockResolvedValue(valid('INVITE'));
+    renderAt('/set-password');
+    await screen.findByRole('heading', { name: 'Create your password' });
+    cleanup();
+
+    window.history.replaceState(null, '', '/set-password#token=newer');
+    renderAt('/set-password');
+    await screen.findByRole('heading', { name: 'Create your password' });
+    expect(api.validateToken).toHaveBeenLastCalledWith('newer');
+  });
+
+  it.each([
+    ['INVITE', 'Create your password'],
+    ['RESET', 'Choose a new password'],
+  ] as const)('shows the %s wording, with no email hint', async (purpose, heading) => {
+    api.validateToken.mockResolvedValue(valid(purpose));
+    renderAt('/set-password');
+
+    expect(await screen.findByRole('heading', { name: heading })).toBeInTheDocument();
+    expect(screen.queryByText('for j***@company.com')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save password' })).toBeDisabled();
+    await waitFor(() => {
+      expect(document.title).toBe(`${heading} | SDP`);
+    });
+  });
+
+  it('moves to /link-expired when the link runs out while the form is open', async () => {
+    api.validateToken.mockResolvedValue({
+      ...valid('INVITE'),
+      expiresAt: new Date(Date.now() + 1500).toISOString(),
+    });
+    renderAt('/set-password');
+    await screen.findByRole('heading', { name: 'Create your password' });
+
+    expect(
+      await screen.findByRole('heading', { name: 'This link has expired' }, { timeout: 5000 }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Send me a new link' })).toBeInTheDocument();
+  });
+
+  it('keeps the same token after a rejected password, so a corrected one can be saved', async () => {
+    api.validateToken.mockResolvedValue(valid('INVITE'));
+    api.setPassword
+      .mockRejectedValueOnce(new LocalAuthError('PASSWORD_PERSONAL'))
+      .mockResolvedValueOnce(undefined);
+    const user = userEvent.setup({ delay: null });
+    renderAt('/set-password');
+    await screen.findByRole('heading', { name: 'Create your password' });
+
+    const fields = screen.getAllByLabelText(/password/i, { selector: 'input' });
+    await user.type(fields[0]!, GOOD);
+    await user.type(fields[1]!, GOOD);
+    await user.click(screen.getByRole('button', { name: 'Save password' }));
+    await screen.findByRole('alert');
+    expect(window.location.hash).toBe('#token=abc123');
+
+    const again = screen.getAllByLabelText(/password/i, { selector: 'input' });
+    await user.type(again[0]!, `${GOOD}x`);
+    await user.type(again[1]!, `${GOOD}x`);
+    await user.click(screen.getByRole('button', { name: 'Save password' }));
+
+    expect(await screen.findByRole('heading', { name: 'Password saved' })).toBeInTheDocument();
+    expect(api.setPassword).toHaveBeenNthCalledWith(1, 'abc123', GOOD);
+    expect(api.setPassword).toHaveBeenNthCalledWith(2, 'abc123', `${GOOD}x`);
+    expect(window.location.hash).toBe('');
+  }, 30_000);
+
+  it('opens for a signed-in visitor and signs them out once the password is saved', async () => {
+    useSession.setState({ isAuthenticated: true, isChecking: false, userId: 'admin-1' });
+    http.post.mockResolvedValue(undefined);
+    await saveSuccessfully();
+
+    expect(http.post).toHaveBeenCalledWith('/auth/logout', expect.anything());
+    expect(useSession.getState().isAuthenticated).toBe(false);
+  }, 30_000);
 
   it('builds the expiry note from the server date, and omits it when unreadable', async () => {
     api.validateToken.mockResolvedValue({ ...valid('INVITE'), expiresAt: 'not-a-date' });
@@ -126,7 +215,7 @@ describe('/set-password', () => {
     api.setPassword.mockResolvedValue(undefined);
     const user = userEvent.setup({ delay: null });
     renderAt('/set-password');
-    await screen.findByRole('heading', { name: 'Create your password' });
+    await screen.findByRole('heading', { name: 'Choose a new password' });
 
     const fields = screen.getAllByLabelText(/password/i, { selector: 'input' });
     await user.type(fields[0]!, ` ${GOOD} `);
@@ -137,6 +226,7 @@ describe('/set-password', () => {
     expect(api.setPassword).toHaveBeenCalledWith('abc123', ` ${GOOD} `);
     expect(screen.getByText('Taking you to sign in...')).toBeInTheDocument();
     expect(getToken()).toBeNull();
+    expect(window.location.hash).toBe('');
   });
 
   async function saveSuccessfully() {
@@ -241,7 +331,7 @@ describe('/set-password', () => {
       await screen.findByRole('heading', { name: 'This link has expired' }),
     ).toBeInTheDocument();
     expect(screen.queryByLabelText(/new password/i)).not.toBeInTheDocument();
-    expect(screen.getByText(/only valid for 24 hours/)).toBeInTheDocument();
+    expect(await screen.findByText(/only valid for 24 hours/)).toBeInTheDocument();
   });
 
   it('goes to /link-expired for a used or unknown link', async () => {
@@ -318,7 +408,7 @@ describe('/link-expired', () => {
     const user = userEvent.setup({ delay: null });
     renderAt(expiredEntry('tok-1'));
 
-    expect(screen.getByText(/only valid for 60 minutes/)).toBeInTheDocument();
+    expect(await screen.findByText(/only valid for 1 hour./)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Send me a new link' }));
 
     expect(api.resendLink).toHaveBeenCalledWith('tok-1');
@@ -351,5 +441,48 @@ describe('/link-expired', () => {
     renderAt(expiredEntry('tok-3'));
     const state = window.history.state as { usr?: { token?: string } } | null;
     expect(state?.usr?.token).toBeUndefined();
+  });
+});
+
+describe('link policy from the API', () => {
+  it('shows the server lifetime on the expired screen and the forgot confirmation', async () => {
+    api.getLinkPolicy.mockResolvedValue({
+      inviteTtlMinutes: 48 * 60,
+      resetTtlMinutes: 90,
+      resendCooldownSeconds: 30,
+    });
+    renderAt({ pathname: '/link-expired', state: { reason: 'expired', purpose: 'INVITE' } });
+    expect(await screen.findByText(/only valid for 48 hours/)).toBeInTheDocument();
+    cleanup();
+
+    api.forgotPassword.mockResolvedValue(undefined);
+    const user = userEvent.setup({ delay: null });
+    renderAt('/forgot-password');
+    await user.type(screen.getByLabelText(/email/i), 'a@b.co');
+    await waitFor(() => {
+      expect(api.getLinkPolicy).toHaveBeenCalled();
+    });
+    await user.click(screen.getByRole('button', { name: 'Verify email' }));
+    expect(await screen.findByText(/valid for 1 hour 30 minutes/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Send again in 30s/ })).toBeDisabled();
+  });
+
+  it('still works, without a duration, when the policy cannot be fetched', async () => {
+    api.getLinkPolicy.mockRejectedValue(new Error('offline'));
+    renderAt({ pathname: '/link-expired', state: { reason: 'expired', purpose: 'RESET' } });
+    expect(
+      await screen.findByText(
+        'For your security, this link has expired. We can send you a new one.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it.each([
+    [60, '1 hour'],
+    [90, '1 hour 30 minutes'],
+    [1440, '24 hours'],
+    [45, '45 minutes'],
+  ])('formats %i minutes as "%s"', (minutes, text) => {
+    expect(formatLinkDuration(minutes)).toBe(text);
   });
 });

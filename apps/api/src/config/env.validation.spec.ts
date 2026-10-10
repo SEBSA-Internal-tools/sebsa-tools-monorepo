@@ -11,7 +11,47 @@ const production = {
   NODE_ENV: 'production',
   DATABASE_URL: 'postgresql://app:pw@db.example.com/sdp?sslmode=require',
   FRONTEND_ORIGIN: 'https://sdp.example.com',
+  EMAIL_ENABLED: 'true',
+  SDP_BREVO_API_KEY: 'xkeysib-test',
+  SDP_EMAIL_FROM_ADDRESS: 'noreply@example.com',
 };
+
+describe('email settings', () => {
+  it('refuses production without email delivery', () => {
+    expect(() => validate({ ...production, EMAIL_ENABLED: 'false' })).toThrow(/EMAIL_ENABLED/);
+  });
+
+  it('requires the Brevo key and a sender when email is enabled', () => {
+    const { SDP_BREVO_API_KEY: _key, SDP_EMAIL_FROM_ADDRESS: _from, ...rest } = production;
+    expect(() => validate({ ...rest, NODE_ENV: 'development' })).toThrow(
+      /SDP_BREVO_API_KEY[\s\S]*SDP_EMAIL_FROM_ADDRESS|SDP_EMAIL_FROM_ADDRESS[\s\S]*SDP_BREVO_API_KEY/,
+    );
+  });
+
+  it('refuses a plain-HTTP link base and the e2e mail outbox in production', () => {
+    expect(() => validate({ ...production, APP_BASE_URL: 'http://sdp.example.com' })).toThrow(
+      /APP_BASE_URL/,
+    );
+    expect(() => validate({ ...production, E2E_MAIL_OUTBOX: '/tmp/out.jsonl' })).toThrow(
+      /E2E_MAIL_OUTBOX/,
+    );
+  });
+
+  it('checks the time zone and link lifetimes', () => {
+    expect(() => validate({ ...production, APP_TIMEZONE: 'Mars/Base' })).toThrow(/APP_TIMEZONE/);
+    expect(() => validate({ ...production, INVITE_TTL_HOURS: '0' })).toThrow(/INVITE_TTL_HOURS/);
+    expect(() => validate({ ...production, RESET_TTL_MINUTES: '5' })).toThrow(/RESET_TTL_MINUTES/);
+    expect(() =>
+      validate({ ...production, APP_TIMEZONE: 'Asia/Colombo', INVITE_TTL_HOURS: '48' }),
+    ).not.toThrow();
+  });
+
+  it('refuses a multi-line sender name', () => {
+    expect(() => validate({ ...production, SDP_EMAIL_FROM_NAME: 'SDP\r\nBcc: x@y.z' })).toThrow(
+      /SDP_EMAIL_FROM_NAME/,
+    );
+  });
+});
 
 describe('environment validation', () => {
   it('accepts a production deployment served over HTTPS end to end', () => {

@@ -35,6 +35,11 @@ beforeEach(() => {
   serveTaskLists({});
   apiStub.get('/handovers', () => []);
   apiStub.get('/reviews', () => []);
+  apiStub.get('/auth/link-policy', () => ({
+    inviteTtlMinutes: 1440,
+    resetTtlMinutes: 60,
+    resendCooldownSeconds: 60,
+  }));
   // The emailed-link screen validates its token before showing the form.
   apiStub.post('/auth/token/validate', () => ({
     status: 'valid',
@@ -238,7 +243,7 @@ describe('guest-only routes', () => {
     window.history.replaceState(null, '', '/');
   });
 
-  it.each(['/login', '/set-password', '/forgot-password', '/link-expired'])(
+  it.each(['/login', '/forgot-password'])(
     'sends a signed-in user from %s to the CRP home',
     async (path) => {
       signInForTest();
@@ -247,6 +252,17 @@ describe('guest-only routes', () => {
       await waitFor(() => expect(router.state.location.pathname).toBe('/crp'));
     },
   );
+
+  it.each([
+    ['/set-password', "This link can't be used"],
+    ['/link-expired', "This link can't be used"],
+  ])('still opens the emailed-link screen %s for a signed-in user', async (path, heading) => {
+    signInForTest();
+    const { router } = renderApp(path);
+
+    expect(await screen.findByRole('heading', { name: heading })).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/link-expired');
+  });
 
   it('sends /signup to sign-in, since admins create accounts', async () => {
     signOutForTest();

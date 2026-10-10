@@ -16,9 +16,12 @@
  * (apps/web/src/mocks/data/users.json).
  */
 import { createHash, randomBytes } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { PrismaClient } from '@prisma/client';
+import { loadConfiguration } from '../src/config/configuration.js';
 
-const INVITE_TTL_MS = 24 * 60 * 60 * 1000;
+if (existsSync('.env')) process.loadEnvFile('.env');
+const config = loadConfiguration();
 
 const DEV_USERS = [
   { email: 'dheliya.kankanamge@sebsaworld.com', name: 'Dheliya Kankanamge', roles: ['DEVELOPER'] },
@@ -32,11 +35,6 @@ const DEV_USERS = [
 ] as const;
 
 const prisma = new PrismaClient();
-
-function frontendOrigin(): string {
-  const first = (process.env['FRONTEND_ORIGIN'] ?? 'http://localhost:5175').split(',')[0];
-  return (first ?? 'http://localhost:5175').trim().replace(/\/+$/, '');
-}
 
 async function main(): Promise<void> {
   const created: { email: string; url: string }[] = [];
@@ -78,12 +76,12 @@ async function main(): Promise<void> {
           userId: user.id,
           purpose: 'INVITE',
           tokenHash: createHash('sha256').update(token, 'utf8').digest('hex'),
-          expiresAt: new Date(Date.now() + INVITE_TTL_MS),
+          expiresAt: new Date(Date.now() + config.passwordLinks.inviteTtlMs),
           emailStatus: 'SENT',
         },
       });
     });
-    created.push({ email: person.email, url: `${frontendOrigin()}/set-password#token=${token}` });
+    created.push({ email: person.email, url: `${config.appBaseUrl}/set-password#token=${token}` });
   }
 
   // A CLI's output is its interface; stdout keeps it out of the error stream.

@@ -9,13 +9,23 @@ import { authErrorBodySchema, LocalAuthError } from './types.ts';
  * are never cached, and put nothing in the URL — the token and the password
  * travel only in the JSON body.
  */
-export async function postPublic(path: string, body: unknown): Promise<unknown> {
+export function postPublic(path: string, body: unknown): Promise<unknown> {
+  return requestPublic(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export function getPublic(path: string): Promise<unknown> {
+  return requestPublic(path, { method: 'GET', headers: { Accept: 'application/json' } });
+}
+
+async function requestPublic(path: string, init: RequestInit): Promise<unknown> {
   let response: Response;
   try {
     response = await fetch(`/api/auth${path}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify(body),
+      ...init,
       cache: 'no-store',
       credentials: 'omit',
       referrerPolicy: 'no-referrer',

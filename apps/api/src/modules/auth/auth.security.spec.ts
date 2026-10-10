@@ -11,7 +11,7 @@ vi.mock('argon2', async (importOriginal) => {
   return { ...actual, verify: vi.fn(actual.verify) };
 });
 
-const config = { get: vi.fn(() => undefined) };
+const config = { get: vi.fn((key: string) => (key === 'nodeEnv' ? 'test' : undefined)) };
 const jwt = { signAsync: vi.fn().mockResolvedValue('signed-token') };
 
 async function activeUser(password: string) {

@@ -39,7 +39,8 @@
     "e2e:db:up": "node scripts/e2e-db.mjs up",
     "e2e:db:reset": "node scripts/e2e-db.mjs reset",
     "e2e:db:down": "node scripts/e2e-db.mjs down",
-    "e2e:serve": "node scripts/e2e-serve.mjs"
+    "e2e:serve": "node scripts/e2e-serve.mjs",
+    "db:neon-patch": "node scripts/neon-patch.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

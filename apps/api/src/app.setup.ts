@@ -22,15 +22,15 @@ export function configureApp(app: NestExpressApplication): void {
 
   // Behind a TLS-terminating proxy, this makes `request.ip` the real client
   // (per-IP rate limits, session logs) and `request.secure` reflect HTTPS.
-  app.set('trust proxy', config.get<number | string | false>('trustProxy', false));
+  app.set('trust proxy', config.getOrThrow<number | string | false>('trustProxy'));
   app.disable('x-powered-by');
-  app.use(securityHeaders(config.get<string>('nodeEnv') === 'production'));
+  app.use(securityHeaders(config.getOrThrow<string>('nodeEnv') === 'production'));
 
   app.setGlobalPrefix('api');
   app.use(cookieParser());
   registerBodyParsers(app);
   app.enableCors({
-    origin: config.get<string[]>('frontendOrigins', ['http://localhost:5175']),
+    origin: config.getOrThrow<string[]>('frontendOrigins'),
     credentials: true,
   });
   app.useGlobalFilters(new HttpExceptionFilter());

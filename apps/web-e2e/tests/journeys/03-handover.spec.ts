@@ -51,8 +51,11 @@ test.describe.serial('reviewer handover', () => {
     await dialog.getByRole('combobox', { name: /reviewer/i }).click();
     await page.getByRole('option', { name: E2E_USERS.reviewer2.name }).click();
     await dialog.getByRole('button', { name: /^reassign$/i }).click();
+    // The toast and the refreshed row both say it; check the toast.
     await expect(
-      page.getByText(new RegExp(`reassigned to ${E2E_USERS.reviewer2.name}`, 'i')),
+      page
+        .locator('[data-sonner-toast]')
+        .getByText(new RegExp(`reassigned to ${E2E_USERS.reviewer2.name}`, 'i')),
     ).toBeVisible();
   });
 

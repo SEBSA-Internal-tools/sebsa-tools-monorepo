@@ -37,6 +37,7 @@ import type { ReviewTaskScope } from './dto/review-task-query.dto.js';
 import { AuditService } from '../audit/audit.service.js';
 import type { CreateHandoverDto } from '../handovers/dto/create-handover.dto.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
+import { taskEmail } from '../notifications/task-email.js';
 
 const taskInclude = {
   customer: true,
@@ -942,6 +943,16 @@ export class ReviewTasksService {
             type: NotificationType.TASK_RESUBMITTED,
             title: `${task.title} resubmitted to the review pool`,
             message: `${unavailableReviewer.name} is no longer available, so any reviewer can pick it up.`,
+            email: taskEmail(
+              'RESUBMISSION_UNASSIGNED',
+              user.name,
+              {
+                developerName: user.name,
+                previousReviewerName: unavailableReviewer.name,
+                reason: `${unavailableReviewer.name} is no longer an eligible reviewer`,
+              },
+              now,
+            ),
           })),
         );
       }
@@ -969,6 +980,21 @@ export class ReviewTasksService {
             },
           },
           include: taskInclude,
+        });
+        await this.notifications.queueEmailForTriggerRows(tx, {
+          taskId: id,
+          recipientIds: [resubmissionReviewerId],
+          types: [NotificationType.TASK_RESUBMITTED],
+          payload: taskEmail(
+            'TASK_RESUBMITTED',
+            user.name,
+            {
+              reviewerId: resubmissionReviewerId,
+              developerName: user.name,
+              round: task.currentReviewCycle + 1,
+            },
+            now,
+          ),
         });
       }
       await this.audit.record(tx, user, {
@@ -1160,6 +1186,12 @@ export class ReviewTasksService {
           type: NotificationType.TASK_ASSIGNED,
           title: `${candidate.title} picked for review`,
           message: `${user.name} picked up your review task.`,
+          email: taskEmail(
+            'TASK_PICKED',
+            user.name,
+            { reviewerId: user.id, reviewerName: user.name },
+            now,
+          ),
         });
         if (pendingHandover) {
           if (pendingHandover.fromReviewerId !== user.id) {
@@ -1238,6 +1270,7 @@ export class ReviewTasksService {
           currentReviewerId: true,
           currentReviewCycle: true,
           status: true,
+          currentReviewer: { select: { fullName: true } },
           handovers: { where: { status: HandoverStatus.PENDING }, select: { id: true } },
         },
       });
@@ -1334,13 +1367,50 @@ export class ReviewTasksService {
           remarks: `${isReassignment ? 'Reassigned' : 'Assigned'} to ${reviewer.fullName}${reason?.trim() ? `: ${reason.trim()}` : ''}`,
         },
       });
-      await this.notifications.create(tx, {
-        taskId: id,
-        recipientId: reviewer.id,
-        type: NotificationType.TASK_ASSIGNED,
-        title: `${task.title} ${isReassignment ? 'reassigned' : 'assigned'} to you`,
-        message: `${actor.name} ${isReassignment ? 'reassigned' : 'assigned'} this review task to ${reviewer.fullName}.`,
-      });
+      const assignedEmail = taskEmail(
+        'REVIEWER_ASSIGNED',
+        actor.name,
+        {
+          reviewerId: reviewer.id,
+          reviewerName: reviewer.fullName,
+          previousReviewerName: task.currentReviewer?.fullName,
+          reason: reason?.trim(),
+        },
+        now,
+      );
+      await this.notifications.createMany(tx, [
+        {
+          taskId: id,
+          recipientId: reviewer.id,
+          type: NotificationType.TASK_ASSIGNED,
+          title: `${task.title} ${isReassignment ? 'reassigned' : 'assigned'} to you`,
+          message: `${actor.name} ${isReassignment ? 'reassigned' : 'assigned'} this review task to ${reviewer.fullName}.`,
+          email: assignedEmail,
+        },
+        ...(task.developerId === actor.id
+          ? []
+          : [
+              {
+                taskId: id,
+                recipientId: task.developerId,
+                type: NotificationType.TASK_ASSIGNED,
+                title: `${task.title} has a new reviewer`,
+                message: `${actor.name} assigned ${reviewer.fullName} to review your task.`,
+                email: assignedEmail,
+              },
+            ]),
+        ...(task.currentReviewerId === null || task.currentReviewerId === actor.id
+          ? []
+          : [
+              {
+                taskId: id,
+                recipientId: task.currentReviewerId,
+                type: NotificationType.TASK_REASSIGNED,
+                title: `${task.title} reassigned`,
+                message: `${actor.name} reassigned this review to ${reviewer.fullName}.`,
+              },
+            ]),
+      ]);
       await this.audit.record(tx, actor, {
         actionType: isReassignment ? 'TASK_REASSIGNED' : 'TASK_ASSIGNED',
         entityType: 'TASK',
@@ -1433,13 +1503,30 @@ export class ReviewTasksService {
           remarks: `Follow-up reviewer changed from ${previous?.fullName ?? 'none'} to ${reviewer.fullName}: ${reason.trim()}`,
         },
       });
-      await this.notifications.create(tx, {
-        taskId: id,
-        recipientId: reviewer.id,
-        type: NotificationType.TASK_ASSIGNED,
-        title: `${task.title} will return to you on resubmission`,
-        message: `${actor.name} made you the follow-up reviewer for this task.`,
+      const followUpEmail = taskEmail('FOLLOW_UP_REVIEWER_CHANGED', actor.name, {
+        reviewerId: reviewer.id,
+        reviewerName: reviewer.fullName,
+        previousReviewerName: previous?.fullName,
+        reason: reason.trim(),
       });
+      await this.notifications.createMany(tx, [
+        {
+          taskId: id,
+          recipientId: reviewer.id,
+          type: NotificationType.TASK_ASSIGNED,
+          title: `${task.title} will return to you on resubmission`,
+          message: `${actor.name} made you the follow-up reviewer for this task.`,
+          email: followUpEmail,
+        },
+        {
+          taskId: id,
+          recipientId: task.developerId,
+          type: NotificationType.TASK_ASSIGNED,
+          title: `${task.title} will be reviewed by ${reviewer.fullName}`,
+          message: `${actor.name} changed who reviews your resubmission.`,
+          email: followUpEmail,
+        },
+      ]);
       await this.audit.record(tx, actor, {
         actionType: 'RESUBMISSION_REVIEWER_CHANGED',
         entityType: 'TASK',
@@ -1531,6 +1618,7 @@ export class ReviewTasksService {
           type: NotificationType.TASK_CANCELLED,
           title: `${task.title} cancelled`,
           message: `${actor.name} cancelled this task. Reason: ${cancellationReason}`,
+          email: taskEmail('TASK_CANCELLED', actor.name, { reason: cancellationReason }, now),
         })),
       );
       await this.audit.record(tx, actor, {
@@ -1678,6 +1766,13 @@ export class ReviewTasksService {
         const eligibleReviewerIds = new Set(
           eligibleReviewers.map(({ id: reviewerId }) => reviewerId),
         );
+        const administratorIds = new Set(administrators.map(({ id: adminId }) => adminId));
+        const handoverEmail = taskEmail(
+          'TASK_HANDED_OVER',
+          actor.name,
+          { reason: dto.reason.trim(), previousReviewerName: actor.name },
+          now,
+        );
         await this.notifications.createMany(tx, [
           {
             taskId: id,
@@ -1685,6 +1780,7 @@ export class ReviewTasksService {
             type: NotificationType.TASK_HANDOVER,
             title: `${task.title} handed over`,
             message: `${actor.name} handed over your review task for reassignment.`,
+            email: handoverEmail,
           },
           ...eligibleReviewers.map(({ id: recipientId }) => ({
             taskId: id,
@@ -1692,6 +1788,7 @@ export class ReviewTasksService {
             type: NotificationType.TASK_HANDOVER,
             title: `${task.title} available to pick`,
             message: `${actor.name} handed over this review task. It is now available to pick.`,
+            ...(administratorIds.has(recipientId) ? { email: handoverEmail } : {}),
           })),
           ...administrators
             .filter(
@@ -1706,6 +1803,7 @@ export class ReviewTasksService {
               type: NotificationType.TASK_HANDOVER,
               title: `${task.title} handed over`,
               message: `${actor.name} handed over this review task for reassignment.`,
+              email: handoverEmail,
             })),
         ]);
 

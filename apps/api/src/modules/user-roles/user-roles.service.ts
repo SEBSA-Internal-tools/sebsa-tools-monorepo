@@ -19,6 +19,7 @@ import { assignedRoleCodes, toUserResponse } from '../users/user-response.js';
 import { AuditService } from '../audit/audit.service.js';
 import { ReviewerWorkloadService } from '../reviewer-workload/reviewer-workload.service.js';
 import { reasonMetadata } from '../../common/dto/reason.dto.js';
+import { AccountNotices, roleList } from '../../integrations/mail/account-notices.service.js';
 
 const safeUserSelect = {
   id: true,
@@ -43,7 +44,18 @@ export class UserRolesService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly workload: ReviewerWorkloadService,
+    private readonly notices?: AccountNotices,
   ) {}
+
+  private notifyRoles(
+    user: { email: string; fullName: string; status: string },
+    actorName: string,
+    roles: readonly string[],
+    reason?: string,
+  ) {
+    if (user.status !== 'ACTIVE') return;
+    this.notices?.accessChanged(user, actorName, `Your roles are now: ${roleList(roles)}`, reason);
+  }
 
   findAll(query: UserRoleQueryDto = {}) {
     return this.prisma.userRole.findMany({
@@ -75,7 +87,7 @@ export class UserRolesService {
     assertCanGrantRoles(actor, assignedRoleCodes(user), [roleCode]);
 
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      const created = await this.prisma.$transaction(async (tx) => {
         const assignment = await tx.userRole.create({
           data: { userId: dto.userId, roleId: dto.roleId, grantedBy: actor.id },
           include: userRoleInclude,
@@ -91,6 +103,8 @@ export class UserRolesService {
         });
         return assignment;
       });
+      this.notifyRoles(user, actor.name, [...assignedRoleCodes(user), roleCode]);
+      return created;
     } catch (error) {
       rethrowPrismaConflict(error);
     }
@@ -150,6 +164,11 @@ export class UserRolesService {
         newValue: currentRoles.filter((code) => code !== roleCode),
       });
     });
+    this.notifyRoles(
+      user,
+      actor.name,
+      currentRoles.filter((code) => code !== roleCode),
+    );
   }
 
   async findForUser(userId: string) {
@@ -215,6 +234,10 @@ export class UserRolesService {
       return result;
     });
 
+    const changed =
+      currentRoles.length !== roleCodes.length ||
+      currentRoles.some((code) => !roleCodes.includes(code));
+    if (changed) this.notifyRoles(user, actor.name, roleCodes, reason);
     return toUserResponse(updated);
   }
 
@@ -236,7 +259,7 @@ export class UserRolesService {
     }
 
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      const transferred = await this.prisma.$transaction(async (tx) => {
         await lockPrivilegedRoleInvariants(tx);
 
         const roles = await tx.role.findMany({
@@ -303,8 +326,10 @@ export class UserRolesService {
           oldValue: { superAdminUserId: actor.id },
           newValue: { superAdminUserId: target.id },
         });
-        return toUserResponse(updatedTarget);
+        return { target, response: toUserResponse(updatedTarget) };
       });
+      this.notifyRoles(transferred.target, actor.name, ['SUPER_ADMIN']);
+      return transferred.response;
     } catch (error) {
       rethrowPrismaConflict(error);
     }

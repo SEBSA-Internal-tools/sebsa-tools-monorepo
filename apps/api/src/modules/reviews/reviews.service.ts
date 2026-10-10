@@ -27,6 +27,8 @@ import { PrismaService } from '../../prisma/prisma.service.js';
 import { AuditService } from '../audit/audit.service.js';
 import type { AuthenticatedUser } from '../auth/auth.types.js';
 import { ReviewTasksService } from '../review-tasks/review-tasks.service.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
+import { taskEmail } from '../notifications/task-email.js';
 
 const reviewInclude = {
   reviewer: { select: { id: true, fullName: true } },
@@ -184,6 +186,7 @@ export class ReviewsService {
     private readonly prisma: PrismaService,
     private readonly tasks: ReviewTasksService,
     private readonly audit: AuditService,
+    private readonly notifications?: NotificationsService,
   ) {}
 
   async findGeneralCheck() {
@@ -368,6 +371,21 @@ export class ReviewsService {
           task.developerId,
           notificationType,
           existingNotifications.map(({ id }) => id),
+        ),
+      });
+      const findings =
+        decision === ReviewDecision.CHANGES_REQUESTED
+          ? await tx.reviewFinding.count({ where: { reviewFormId: review.id } })
+          : undefined;
+      await this.notifications?.queueEmailForTriggerRows(tx, {
+        taskId,
+        recipientIds: [task.developerId],
+        types: [notificationType],
+        payload: taskEmail(
+          decision === ReviewDecision.APPROVED ? 'TASK_APPROVED' : 'CHANGES_REQUESTED',
+          user.name,
+          { reviewerId: user.id, reviewerName: user.name, round, findings },
+          now,
         ),
       });
       if (decision === ReviewDecision.CHANGES_REQUESTED) {

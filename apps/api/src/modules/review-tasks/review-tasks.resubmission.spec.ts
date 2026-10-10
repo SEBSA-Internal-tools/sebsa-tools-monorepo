@@ -62,6 +62,7 @@ function services(prisma: unknown) {
   const notifications = {
     create: vi.fn().mockResolvedValue(undefined),
     createMany: vi.fn().mockResolvedValue(undefined),
+    queueEmailForTriggerRows: vi.fn().mockResolvedValue(1),
   };
   const service = new ReviewTasksService(prisma as never, audit as never, notifications as never);
   return { audit, notifications, service };
@@ -255,9 +256,14 @@ describe('changeResubmissionReviewer', () => {
         newValue: { reviewerId: newReviewer.id, reviewerName: 'New Reviewer' },
       }),
     );
-    expect(notifications.create).toHaveBeenCalledWith(
+    expect(notifications.createMany).toHaveBeenCalledWith(
       tx,
-      expect.objectContaining({ recipientId: newReviewer.id }),
+      expect.arrayContaining([
+        expect.objectContaining({
+          recipientId: newReviewer.id,
+          email: expect.objectContaining({ event: 'FOLLOW_UP_REVIEWER_CHANGED' }),
+        }),
+      ]),
     );
   });
 

@@ -10,7 +10,7 @@ import { Hourglass } from '@/components/common/Hourglass.tsx';
 import { resendLink } from '../api/localAuthApi.ts';
 import { LocalAuthError } from '../api/types.ts';
 import { AuthCard, PanelCopy } from '../components/AuthParts.tsx';
-import { RESEND_COOLDOWN_SECONDS } from '../config.ts';
+import { formatLinkDuration, useLinkPolicy } from '../hooks/useLinkPolicy.ts';
 import { expired as copy } from '../content.ts';
 import {
   useCountdown,
@@ -39,6 +39,7 @@ export function LinkExpiredPage() {
   const [send, setSend] = useState<SendState>('idle');
   const [errorText, setErrorText] = useState<string>(copy.failed);
   const cooldown = useCountdown();
+  const policy = useLinkPolicy();
 
   useDocumentTitle(copy.title);
   useNoReferrer();
@@ -50,7 +51,7 @@ export function LinkExpiredPage() {
     try {
       await resendLink(token);
       setSend('sent');
-      cooldown.start(RESEND_COOLDOWN_SECONDS);
+      if (policy) cooldown.start(policy.resendCooldownSeconds);
     } catch (cause) {
       setErrorText(
         cause instanceof LocalAuthError && cause.code === 'RATE_LIMITED'
@@ -62,7 +63,12 @@ export function LinkExpiredPage() {
   }
 
   const isExpired = reason === 'expired';
-  const duration = state?.purpose === 'RESET' ? copy.durationReset : copy.durationInvite;
+  const lifetimeMinutes =
+    policy === null
+      ? null
+      : state?.purpose === 'RESET'
+        ? policy.resetTtlMinutes
+        : policy.inviteTtlMinutes;
 
   const sendLabel =
     send === 'sending'
@@ -93,7 +99,11 @@ export function LinkExpiredPage() {
           {isExpired ? copy.expiredTitle : copy.invalidTitle}
         </h2>
         <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-ink-500">
-          {isExpired ? interpolate(copy.expiredText, { duration }) : copy.invalidText}
+          {isExpired
+            ? lifetimeMinutes === null
+              ? copy.expiredTextNoDuration
+              : interpolate(copy.expiredText, { duration: formatLinkDuration(lifetimeMinutes) })
+            : copy.invalidText}
         </p>
 
         <div className="mt-7 space-y-3">

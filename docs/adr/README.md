@@ -25,6 +25,7 @@ costs**. A record that lists only advantages is marketing, not a decision record
 | [0014](0014-monorepo-shape-and-the-backend-seam.md)             | Flat repository; the backend arrives at apiClient                                       | Accepted           |
 | [0015](0015-resubmission-returns-to-the-requesting-reviewer.md) | Resubmission returns to the requesting reviewer; pending reviews block reviewer removal | Proposed           |
 | [0016](0016-nestjs-is-the-only-backend.md)                      | NestJS is the only backend; the MSW mock is removed                                     | Accepted           |
+| [0017](0017-email-delivery.md)                                  | Email through Brevo, with the notifications table as the outbox                         | Accepted           |
 
 ## Status meanings
 

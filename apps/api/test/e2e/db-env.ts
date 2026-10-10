@@ -17,4 +17,5 @@ if (hasE2eDatabase) {
   }
   process.env['DATABASE_URL'] = url;
   process.env['NODE_ENV'] = 'test';
+  process.env['EMAIL_ENABLED'] = 'false';
 }
