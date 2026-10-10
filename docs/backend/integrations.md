@@ -1,4 +1,4 @@
-# integrations/
+# apps/api/src/integrations
 
 Clients for external services the API talks to - anything outside this
 process's own database and HTTP surface (identity provider, object storage,

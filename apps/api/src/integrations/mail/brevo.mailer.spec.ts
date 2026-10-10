@@ -1,10 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { BrevoMailer } from './brevo.mailer.js';
-import { CONFIG_DEFAULTS } from '../../config/defaults.js';
 import { MailError } from './mailer.js';
 
 const settings = {
-  brevoApiUrl: CONFIG_DEFAULTS.brevoApiUrl,
+  brevoApiUrl: 'https://brevo.test/v3',
   brevoApiKey: 'xkeysib-secret',
   fromAddress: 'noreply@example.com',
   fromName: 'Service Delivery Portal',
@@ -34,7 +33,7 @@ describe('BrevoMailer', () => {
     await mailer.send(message);
 
     const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
-    expect(url).toBe('https://api.brevo.com/v3/smtp/email');
+    expect(url).toBe(`${settings.brevoApiUrl}/smtp/email`);
     expect((init.headers as Record<string, string>)['api-key']).toBe('xkeysib-secret');
     expect(JSON.parse(init.body as string)).toEqual({
       sender: { email: 'noreply@example.com', name: 'Service Delivery Portal' },

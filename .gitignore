@@ -20,7 +20,7 @@ playwright-report
 .nx/cache
 .nx/workspace-data
 
-# environment variables (apps/api/.env.example stays tracked - it has no real values)
+# environment variables (variables are documented in docs/26-configuration-and-hosting.md)
 .env
 .env-local
 .env.local

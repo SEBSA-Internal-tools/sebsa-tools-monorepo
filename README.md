@@ -261,8 +261,10 @@ development (`SDP_API_TARGET` overrides it). JWT access and refresh tokens remai
 
 ### `apps/api`
 
-Copy `apps/api/.env.example` to `apps/api/.env` and fill in real values. This
-is a separate process from `apps/web`.
+Create `apps/api/.env` and fill in real values; every variable, its default and
+what to change when hosting is in
+[`docs/26-configuration-and-hosting.md`](./docs/26-configuration-and-hosting.md).
+This is a separate process from `apps/web`.
 
 | Variable                                   | Example                                               | Purpose                                                                                      |
 | ------------------------------------------ | ----------------------------------------------------- | -------------------------------------------------------------------------------------------- |

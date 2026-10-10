@@ -1,3 +1,5 @@
+import loginContent from '@/content/login.json';
+
 /**
  * Every string the local-auth screens show, in one file so the copy can be read
  * and changed without opening a component.
@@ -56,6 +58,7 @@ export const forgot = {
   steps: ['Verify your email', 'Open the link we send you', 'Choose a new password'],
   subtitle: 'Enter your work email and we will send you a link to choose a new password.',
   emailLabel: 'Email',
+  emailPlaceholder: loginContent.form.emailPlaceholder,
   submit: 'Verify email',
   submitting: 'Verifying…',
   back: 'Back to sign in',

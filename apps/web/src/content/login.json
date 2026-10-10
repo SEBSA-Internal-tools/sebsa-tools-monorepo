@@ -13,6 +13,7 @@
     "title": "Welcome back",
     "subtitle": "Sign in to continue to the Code Review Portal.",
     "emailLabel": "Work email",
+    "emailPlaceholder": "you@sebsaworld.com",
     "passwordLabel": "Password",
     "passwordPlaceholder": "Enter your password",
     "showPassword": "Show password",

@@ -23,7 +23,7 @@ Check with `node --version`. If you use `nvm`, run `nvm use 22`.
 git clone <repository-url>
 cd Repo_SDP
 npm install
-cp apps/api/.env.example apps/api/.env   # then fill in DATABASE_URL and the JWT secrets
+# create apps/api/.env from docs/26-configuration-and-hosting.md (DATABASE_URL + JWT secrets)
 npm run dev                              # web :5175 + NestJS :3000
 ```
 

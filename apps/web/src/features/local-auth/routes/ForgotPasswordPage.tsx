@@ -11,7 +11,6 @@ import { AuthLayout } from '@/components/common/AuthLayout.tsx';
 import { forgotPassword } from '../api/localAuthApi.ts';
 import { LocalAuthError } from '../api/types.ts';
 import { AuthCard, CardHeading, PanelCopy } from '../components/AuthParts.tsx';
-import { appEnv } from '@/config/env.ts';
 import { formatLinkDuration, useLinkPolicy } from '../hooks/useLinkPolicy.ts';
 import { forgot as copy } from '../content.ts';
 import {
@@ -102,7 +101,7 @@ export function ForgotPasswordPage() {
                   inputMode="email"
                   autoComplete="email"
                   maxLength={MAX_EMAIL_LENGTH + 1}
-                  placeholder={appEnv.emailPlaceholder}
+                  placeholder={copy.emailPlaceholder}
                   value={email}
                   disabled={isSending}
                   onChange={(event) => {

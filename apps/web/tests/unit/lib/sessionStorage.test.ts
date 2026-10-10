@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
   clearSession,
+  purgeLegacyStorage,
   readSession,
   readSessionUserId,
   renewSession,
@@ -140,5 +141,21 @@ describe('sliding renewal', () => {
 
   it('does nothing when there is no session', () => {
     expect(renewSession()).toBeNull();
+  });
+});
+
+describe('purgeLegacyStorage', () => {
+  it('removes the old mock database keys and leaves the session alone', () => {
+    window.localStorage.setItem('sdp-mock-database-v1', '{}');
+    window.localStorage.setItem('sdp:mock-db', '{}');
+    window.sessionStorage.setItem('sdp:mock-db', '{}');
+    seed('u-hiruni', Date.now() + 60_000);
+
+    purgeLegacyStorage();
+
+    expect(window.localStorage.getItem('sdp-mock-database-v1')).toBeNull();
+    expect(window.localStorage.getItem('sdp:mock-db')).toBeNull();
+    expect(window.sessionStorage.getItem('sdp:mock-db')).toBeNull();
+    expect(readSessionUserId()).toBe('u-hiruni');
   });
 });

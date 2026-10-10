@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { clearUserStorage } from '@/lib/sessionStorage.ts';
+import { clearUserStorage, purgeLegacyStorage } from '@/lib/sessionStorage.ts';
 
 interface SessionState {
   userId: string | null;
@@ -75,6 +75,7 @@ export const useSession = create<SessionState>()((set, get) => ({
  * unauthenticated and asks `/auth/me` to resolve the cookie-backed session.
  */
 export function initialiseSession(): void {
+  purgeLegacyStorage();
   useSession.setState({
     userId: null,
     isAuthenticated: false,

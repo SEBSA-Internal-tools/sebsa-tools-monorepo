@@ -49,6 +49,12 @@ first pull request.
 | [23 · Adding a new UI](./23-adding-a-new-ui.md)                     | End-to-end: content, path, page, route, links, and the component tiers       |
 | [24 · Test plan](./24-test-plan.md)                                 | The manual, spec-traceable test suite in `qa/`: setup, roles, format, gaps   |
 | [25 · Review assignment rules](./25-review-assignment-rules.md)     | Who holds a review, resubmission routing, removing a reviewer with open work |
+| [26 · Configuration and hosting](./26-configuration-and-hosting.md) | Every env variable, ports, proxy, and what to change when hosting            |
+| [Backend · Database schema](./backend/database-schema.md)           | Prisma schema reference for the code review portal                           |
+| [Backend · Database layer](./backend/database-layer.md)             | `apps/api/src/database` boundary                                             |
+| [Backend · Integrations](./backend/integrations.md)                 | `apps/api/src/integrations` (mail and other external clients)                |
+| [Backend · Task review scenarios](./backend/task-review-scenarios.md) | Review round and cycle counting scenarios                                  |
+| [Frontend · Parity audit](./frontend/parity-audit.md)               | Post-migration behaviour parity audit of `apps/web`                         |
 | [Email and notifications](./email-notifications.md)                 | Brevo setup, which events email whom, Neon patches, troubleshooting          |
 | [ADRs](./adr/)                                                      | Architecture decisions, with the reasoning that produced them                |
 | [Backlog](./backlog.md)                                             | Decided but not yet built                                                    |

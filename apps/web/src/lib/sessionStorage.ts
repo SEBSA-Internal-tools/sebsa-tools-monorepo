@@ -177,6 +177,19 @@ export function clearUserStorage(): void {
   }
 }
 
+// Left in browsers by the removed mock API; nothing reads them now.
+const LEGACY_KEYS = ['sdp-mock-database-v1', 'sdp:mock-db'] as const;
+
+export function purgeLegacyStorage(): void {
+  for (const store of [window.localStorage, window.sessionStorage]) {
+    try {
+      for (const key of LEGACY_KEYS) store.removeItem(key);
+    } catch {
+      /* Private browsing can throw on access. */
+    }
+  }
+}
+
 export function clearSession(): void {
   clearUserStorage();
 }

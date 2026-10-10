@@ -1,4 +1,4 @@
-# database/
+# apps/api/src/database
 
 The PostgreSQL boundary. Everything that talks to the database - the client
 or ORM setup, entities/models, migrations, repositories - lives under here.

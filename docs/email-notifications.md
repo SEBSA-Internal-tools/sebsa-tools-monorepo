@@ -153,9 +153,8 @@ use the dev outbox, whatever `.env` says.
   - `src/config/configuration.spec.ts` fails the build if any file outside
     `src/config` reads `process.env` or hard-codes an `http(s)://` URL.
 - **Web:**
-  - `apps/web/src/config/env.ts` (`appEnv`) is the only reader of
-    `import.meta.env`. It is set from `apps/web/.env`; see
-    `apps/web/.env.example`.
+  - The web has no environment settings of its own; copy such as the email
+    placeholder lives in `apps/web/src/content/`.
   - Values the API owns are not copied into the web. The screens read link
     lifetimes and the resend cooldown from `GET /api/auth/link-policy`, and
     the Users-tab toast uses the `expiresAt` the API returns.
