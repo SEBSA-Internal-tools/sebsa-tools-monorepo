@@ -9,9 +9,10 @@ import type { ChecklistQuestion } from '@sdp/contracts';
  * insertion order.
  *
  * In `lib/` rather than in `features/admin/domain/` because there are two
- * callers with the same rule: the MSW handler answers `POST /checklist-questions`
- * today, and the NestJS service will answer it in Phase 2. Standards §4 — a rule
- * asked from more than one place moves to `lib/` and keeps the coverage bar.
+ * callers with the same rule: the admin screens, and the NestJS checklist
+ * services that answer `POST /checklist-questions` apply the same ordering.
+ * Standards §4 — a rule asked from more than one place moves to `lib/` and
+ * keeps the coverage bar.
  *
  * Every function is pure and returns new objects. The handler mutates a
  * module-level store; keeping the arithmetic out of that mutation is what makes
@@ -120,8 +121,8 @@ export function moveRecordId(
  * since the positions come from an array index.
  *
  * Returns `null` unless `orderedIds` is EXACTLY the given records — no missing,
- * no extra, no repeats. Both the client and the MSW handler call this, so a
- * payload the server would reject cannot be built by the UI either, and a
+ * no extra, no repeats. The server applies the same rule (ORDER_INCOMPLETE), so
+ * a payload it would reject cannot be built by the UI either, and a
  * partial list can never silently renumber a subset and orphan the rest. That
  * last case is the one that matters on a paged grid.
  */

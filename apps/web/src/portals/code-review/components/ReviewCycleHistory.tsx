@@ -154,7 +154,7 @@ export function ReviewCycleHistory({
           </Tag>
           {countedCycle !== undefined && (
             <Tag className="bg-violet-100 text-xs font-medium text-violet-800">
-              Counted Cycle: Cycle {countedCycle}
+              Cycle: {countedCycle}
             </Tag>
           )}
         </div>

@@ -18,9 +18,10 @@
      */
     "paths": {
       "@/*": ["./src/*"],
+      "@tests/*": ["./tests/*"],
       "@sdp/contracts": ["../../packages/contracts/src/index.ts"],
       "@sdp/types": ["../../packages/types/src/index.ts"]
     }
   },
-  "include": ["src", "../../packages/*/src"]
+  "include": ["src", "tests", "../../packages/*/src"]
 }

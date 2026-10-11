@@ -9,18 +9,25 @@ import { AuditService } from '../audit/audit.service.js';
 type Db = Prisma.TransactionClient | PrismaService;
 
 /** What the admin tried to do to the reviewer. */
-export type ReviewerRemoval = 'DEACTIVATE' | 'DELETE' | 'REMOVE_REVIEWER_ROLE';
+export type ReviewerRemoval =
+  | 'DEACTIVATE'
+  | 'DELETE'
+  | 'REMOVE_REVIEWER_ROLE'
+  /** Super Admin is an exclusive role: the new holder gives up Reviewer. */
+  | 'TRANSFER_SUPER_ADMIN';
 
 const BLOCKED_ACTION: Record<ReviewerRemoval, string> = {
   DEACTIVATE: 'REVIEWER_DEACTIVATION_BLOCKED',
   DELETE: 'REVIEWER_DELETE_BLOCKED',
   REMOVE_REVIEWER_ROLE: 'REVIEWER_ROLE_REMOVAL_BLOCKED',
+  TRANSFER_SUPER_ADMIN: 'SUPER_ADMIN_TRANSFER_BLOCKED',
 };
 
 const BLOCKED_VERB: Record<ReviewerRemoval, string> = {
   DEACTIVATE: 'deactivating',
   DELETE: 'deleting',
   REMOVE_REVIEWER_ROLE: 'removing the Reviewer role from',
+  TRANSFER_SUPER_ADMIN: 'transferring Super Admin to',
 };
 
 const STATUS_LABEL: Partial<Record<TaskStatus, string>> = {
@@ -136,6 +143,22 @@ export class ReviewerWorkloadService {
       },
     });
 
+    throw new ApiException(
+      'REVIEWER_HAS_PENDING_TASKS',
+      `${target.fullName} still has ${String(tasks.length)} pending review task(s). Hand over or reassign them first.`,
+      { tasks },
+    );
+  }
+
+  /**
+   * The same rule, re-checked inside the caller's transaction just before it
+   * commits, so work picked up between the pre-check and the write is not
+   * stranded. No audit row here: the throw rolls the transaction back, and the
+   * pre-check has already recorded any refusal the admin actually saw.
+   */
+  async assertNoPendingWork(db: Db, target: { id: string; fullName: string }): Promise<void> {
+    const tasks = await this.pendingFor(target.id, db);
+    if (tasks.length === 0) return;
     throw new ApiException(
       'REVIEWER_HAS_PENDING_TASKS',
       `${target.fullName} still has ${String(tasks.length)} pending review task(s). Hand over or reassign them first.`,

@@ -1,12 +1,15 @@
 import { z } from 'zod';
 import { api } from '@/lib/apiClient.ts';
-import { postPublic } from './http.ts';
+import { getPublic, postPublic } from './http.ts';
 import {
   LocalAuthError,
+  linkPolicySchema,
   okSchema,
   resendInviteResponseSchema,
+  resetLinkResponseSchema,
   validateResultSchema,
   type Invite,
+  type LinkPolicy,
   type ValidateResult,
 } from './types.ts';
 
@@ -15,8 +18,7 @@ import {
  * endpoint in the shared contract, so connecting the real API means changing
  * nothing outside this folder.
  *
- * They are served by NestJS (`apps/api` password-links module). Under Vitest,
- * MSW's `mocks/passwordLinks.ts` stands in for it with the same contract.
+ * They are served by NestJS (`apps/api` password-links module).
  */
 
 /* --------------------------------- public --------------------------------- */
@@ -40,6 +42,10 @@ export async function resendLink(token: string): Promise<void> {
   await postPublic('/resend-link', { token });
 }
 
+export async function getLinkPolicy(): Promise<LinkPolicy> {
+  return linkPolicySchema.parse(await getPublic('/link-policy'));
+}
+
 /** Always 202 for any email; only a rate limit or a transport failure throws. */
 export async function forgotPassword(email: string): Promise<void> {
   await postPublic('/forgot-password', { email });
@@ -55,6 +61,14 @@ export async function resendInvite(userId: string): Promise<Invite> {
     resendInviteResponseSchema,
   );
   return invite;
+}
+
+export async function sendResetLink(userId: string): Promise<Invite> {
+  const { reset } = await api.post(
+    `/users/${encodeURIComponent(userId)}/reset-password-link`,
+    resetLinkResponseSchema,
+  );
+  return reset;
 }
 
 export async function revokeInvite(userId: string): Promise<void> {

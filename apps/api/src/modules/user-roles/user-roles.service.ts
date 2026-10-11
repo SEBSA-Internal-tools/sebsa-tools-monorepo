@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { ApiException } from '../../common/api-error.js';
 import { rethrowPrismaConflict } from '../../common/prisma-errors.js';
 import type { AuthenticatedUser } from '../auth/auth.types.js';
 import { isRoleCode, type RoleCode } from '../auth/auth.constants.js';
@@ -18,6 +19,7 @@ import { assignedRoleCodes, toUserResponse } from '../users/user-response.js';
 import { AuditService } from '../audit/audit.service.js';
 import { ReviewerWorkloadService } from '../reviewer-workload/reviewer-workload.service.js';
 import { reasonMetadata } from '../../common/dto/reason.dto.js';
+import { AccountNotices, roleList } from '../../integrations/mail/account-notices.service.js';
 
 const safeUserSelect = {
   id: true,
@@ -42,7 +44,18 @@ export class UserRolesService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly workload: ReviewerWorkloadService,
+    private readonly notices?: AccountNotices,
   ) {}
+
+  private notifyRoles(
+    user: { email: string; fullName: string; status: string },
+    actorName: string,
+    roles: readonly string[],
+    reason?: string,
+  ) {
+    if (user.status !== 'ACTIVE') return;
+    this.notices?.accessChanged(user, actorName, `Your roles are now: ${roleList(roles)}`, reason);
+  }
 
   findAll(query: UserRoleQueryDto = {}) {
     return this.prisma.userRole.findMany({
@@ -74,7 +87,7 @@ export class UserRolesService {
     assertCanGrantRoles(actor, assignedRoleCodes(user), [roleCode]);
 
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      const created = await this.prisma.$transaction(async (tx) => {
         const assignment = await tx.userRole.create({
           data: { userId: dto.userId, roleId: dto.roleId, grantedBy: actor.id },
           include: userRoleInclude,
@@ -90,6 +103,8 @@ export class UserRolesService {
         });
         return assignment;
       });
+      this.notifyRoles(user, actor.name, [...assignedRoleCodes(user), roleCode]);
+      return created;
     } catch (error) {
       rethrowPrismaConflict(error);
     }
@@ -117,7 +132,7 @@ export class UserRolesService {
     const roleCode = this.availableRoleCode(role.code);
     const currentRoles = assignedRoleCodes(user);
     if (currentRoles.length <= 1) {
-      throw new ConflictException('A user must retain at least one role');
+      throw new ApiException('RULE_VIOLATION', 'A user must retain at least one role');
     }
     assertCanGrantRoles(
       actor,
@@ -130,6 +145,7 @@ export class UserRolesService {
 
     await this.prisma.$transaction(async (tx) => {
       await lockPrivilegedRoleInvariants(tx);
+      if (roleCode === 'REVIEWER') await this.workload.assertNoPendingWork(tx, user);
       const assignment = await tx.userRole.findUnique({
         where: { userId_roleId: { userId, roleId } },
       });
@@ -148,6 +164,11 @@ export class UserRolesService {
         newValue: currentRoles.filter((code) => code !== roleCode),
       });
     });
+    this.notifyRoles(
+      user,
+      actor.name,
+      currentRoles.filter((code) => code !== roleCode),
+    );
   }
 
   async findForUser(userId: string) {
@@ -188,6 +209,9 @@ export class UserRolesService {
         currentRoles.filter((role) => !roleCodes.includes(role)),
         'demoted',
       );
+      if (currentRoles.includes('REVIEWER') && !roleCodes.includes('REVIEWER')) {
+        await this.workload.assertNoPendingWork(tx, user);
+      }
 
       await tx.userRole.deleteMany({ where: { userId } });
       await tx.userRole.createMany({
@@ -210,16 +234,32 @@ export class UserRolesService {
       return result;
     });
 
+    const changed =
+      currentRoles.length !== roleCodes.length ||
+      currentRoles.some((code) => !roleCodes.includes(code));
+    if (changed) this.notifyRoles(user, actor.name, roleCodes, reason);
     return toUserResponse(updated);
   }
 
   async transferSuperAdmin(targetUserId: string, actor: AuthenticatedUser) {
     if (targetUserId === actor.id) {
-      throw new BadRequestException('Super Admin ownership must be transferred to another user');
+      throw new ApiException(
+        'RULE_VIOLATION',
+        'Super Admin ownership must be transferred to another user',
+      );
+    }
+    // Super Admin is exclusive, so the new holder loses Reviewer. Their open
+    // review work must be handed over first, exactly as for removing the role.
+    const candidate = await this.prisma.user.findFirst({
+      where: { id: targetUserId, deletedAt: null },
+      include: userInclude,
+    });
+    if (candidate && assignedRoleCodes(candidate).includes('REVIEWER')) {
+      await this.workload.assertCanRemoveReviewer(candidate, actor, 'TRANSFER_SUPER_ADMIN');
     }
 
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      const transferred = await this.prisma.$transaction(async (tx) => {
         await lockPrivilegedRoleInvariants(tx);
 
         const roles = await tx.role.findMany({
@@ -252,7 +292,10 @@ export class UserRolesService {
           throw new NotFoundException(`Active user ${targetUserId} was not found`);
         }
         if (!assignedRoleCodes(target).includes('ADMIN')) {
-          throw new BadRequestException('Only an existing Admin can become Super Admin');
+          throw new ApiException('RULE_VIOLATION', 'Only an existing Admin can become Super Admin');
+        }
+        if (assignedRoleCodes(target).includes('REVIEWER')) {
+          await this.workload.assertNoPendingWork(tx, target);
         }
 
         await tx.userRole.upsert({
@@ -283,8 +326,10 @@ export class UserRolesService {
           oldValue: { superAdminUserId: actor.id },
           newValue: { superAdminUserId: target.id },
         });
-        return toUserResponse(updatedTarget);
+        return { target, response: toUserResponse(updatedTarget) };
       });
+      this.notifyRoles(transferred.target, actor.name, ['SUPER_ADMIN']);
+      return transferred.response;
     } catch (error) {
       rethrowPrismaConflict(error);
     }

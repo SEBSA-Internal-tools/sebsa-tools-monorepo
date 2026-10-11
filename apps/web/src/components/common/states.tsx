@@ -86,8 +86,8 @@ export function ErrorState({
   message,
   onRetry,
   /**
-   * Overrides "Try again" when that would be a lie. A detached mock worker
-   * bypasses the retry too, so the only honest action there is a reload.
+   * Overrides "Try again" when that would be a lie — for example when only a
+   * reload can recover, the label should say so.
    */
   retryLabel,
   className,

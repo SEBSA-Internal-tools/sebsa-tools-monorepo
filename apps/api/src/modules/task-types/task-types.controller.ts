@@ -11,12 +11,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import {
-  ApiCreatedResponse,
-  ApiNoContentResponse,
-  ApiOkResponse,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiCreatedResponse, ApiNoContentResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { TaskTypesService } from './task-types.service.js';
 import { CreateTaskTypeDto } from './dto/create-task-type.dto.js';
 import { UpdateTaskTypeDto } from './dto/update-task-type.dto.js';
@@ -50,7 +45,9 @@ export class TaskTypesController {
     return this.taskTypes.reorder(dto.ids);
   }
 
+  /** The raw row with its sections and usage counts: admin tooling only. */
   @Get(':id')
+  @Roles('ADMIN')
   @ApiOkResponse()
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.taskTypes.findOne(id);
@@ -66,10 +63,7 @@ export class TaskTypesController {
   @Patch(':id')
   @Roles('ADMIN')
   @ApiOkResponse()
-  update(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() dto: UpdateTaskTypeDto,
-  ) {
+  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateTaskTypeDto) {
     return this.taskTypes.update(id, dto);
   }
 

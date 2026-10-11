@@ -324,12 +324,12 @@ export function ReviewerAssessment({
                   defaultExpanded={false}
                   resetKey={`${taskCode ?? 'task'}:${String(reviewCycle)}:previous-feedback`}
                   summary={`${previousComments.length} ${previousComments.length === 1 ? 'comment' : 'comments'}`}
-                  className="overflow-hidden border-slate-200/90 bg-slate-50/70 shadow-none dark:bg-slate-900/30"
+                  className="overflow-hidden border-slate-200 bg-slate-50 shadow-none"
                 >
                   <CardHeader
                     title="Previous Reviewer Feedback"
                     description="Read-only historical context preserved from previous review sessions."
-                    icon={<Clock className="size-4 text-slate-600" />}
+                    icon={<Clock className="size-4 text-slate-500" />}
                   />
                   <CardBody className="pt-0">
                     <ul className="space-y-3">
@@ -370,7 +370,7 @@ export function ReviewerAssessment({
                         >
                           Current Reviewer Feedback
                         </h3>
-                        <span className="text-2xs inline-flex items-center rounded-full border border-violet-200 bg-violet-100 px-2 py-0.5 font-semibold text-violet-800">
+                        <span className="inline-flex items-center rounded-full border border-violet-200 bg-violet-100 px-2 py-0.5 text-[10px] font-semibold text-violet-800">
                           Editable
                         </span>
                         <span className="rounded-md border border-line bg-canvas px-2 py-0.5 text-xs font-semibold text-ink-500">
@@ -638,7 +638,7 @@ export function ReviewerAssessment({
             {!readOnly && draft.rank === 1 && previousComments.length > 0 && (
               <div
                 data-testid="previous-feedback-acknowledgement"
-                className="space-y-3 rounded-xl border border-amber-300 bg-amber-50/70 p-4 dark:border-amber-800 dark:bg-amber-950/30"
+                className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4"
               >
                 <div className="flex items-start gap-2.5">
                   <AlertTriangle
@@ -646,19 +646,19 @@ export function ReviewerAssessment({
                     aria-hidden="true"
                   />
                   <div className="space-y-1">
-                    <h4 className="text-xs font-bold tracking-wider text-amber-900 uppercase dark:text-amber-200">
+                    <h4 className="text-xs font-bold tracking-wider text-amber-900 uppercase">
                       Previous Reviewer Feedback Exists
                     </h4>
-                    <p className="text-xs leading-relaxed text-amber-800 dark:text-amber-300">
+                    <p className="text-xs leading-relaxed text-amber-800">
                       A previous reviewer identified findings during an earlier review session.
                     </p>
-                    <p className="text-xs leading-relaxed font-medium text-amber-800 dark:text-amber-300">
+                    <p className="text-xs leading-relaxed font-medium text-amber-800">
                       Please confirm that you reviewed these findings before approving this task.
                     </p>
                   </div>
                 </div>
 
-                <div className="border-t border-amber-200 pt-2 dark:border-amber-800/60">
+                <div className="border-t border-amber-200/80 pt-2">
                   <Checkbox
                     checked={draft.previousFeedbackAcknowledged ?? false}
                     onCheckedChange={(checked) => {

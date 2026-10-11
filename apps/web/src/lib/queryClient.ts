@@ -1,5 +1,5 @@
 import { QueryClient } from '@tanstack/react-query';
-import { ApiError, MockApiDetachedError } from './apiClient.ts';
+import { ApiError } from './apiClient.ts';
 
 /**
  * Shared TanStack Query configuration.
@@ -29,15 +29,6 @@ export function createQueryClient(): QueryClient {
           // "already claimed" would just spam the server. Only retry transport
           // and 5xx failures.
           if (error instanceof ApiError && error.isClientError) return false;
-
-          /*
-           * A detached mock worker has already been retried once, inside
-           * `apiClient`, with a re-activation in between. Reaching here means
-           * that did not work, so the worker is genuinely gone and every further
-           * request is bypassed too — retrying only delays the reload prompt in
-           * `RootLayout` by two round trips.
-           */
-          if (error instanceof MockApiDetachedError) return false;
 
           return failureCount < 2;
         },

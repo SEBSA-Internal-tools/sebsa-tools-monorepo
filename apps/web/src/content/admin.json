@@ -131,6 +131,10 @@
     "namePlaceholder": "Enter name",
     "emailLabel": "Email",
     "emailPlaceholder": "Enter email",
+    "emailChange": {
+      "warning": "Changing the email signs {name} out everywhere. They will get an invite at the new address and must set a new password before they can sign in again.",
+      "success": "{name} updated. An invite to set a new password was sent to {email}."
+    },
     "create": "Create User",
     "creating": "Creating…",
     "save": "Save Changes",
@@ -139,9 +143,13 @@
     "updated": "{name} updated.",
     "privileged": {
       "managed": "Managed by Super Admin",
-      "reasonLabel": "Reason for privileged change",
-      "reasonPlaceholder": "Explain why this privileged access is changing",
-      "reasonRequired": "Provide a reason for this privileged change."
+      "roleReasonLabel": "Reason for Admin access change",
+      "roleReasonHint": "Required because Admin or Super Admin access is being granted or removed. Saved in the audit log.",
+      "roleReasonPlaceholder": "e.g. Taking over user and customer administration for the team",
+      "statusReasonLabel": "Reason for changing this Admin's account status",
+      "statusReasonHint": "Required for users with Admin or Super Admin access. Saved in the audit log.",
+      "statusReasonPlaceholder": "e.g. Left the company / returning from leave",
+      "reasonRequired": "Provide a reason for this Admin access change."
     },
     "actions": {
       "edit": "Edit {name}",
@@ -181,7 +189,8 @@
       "title": "Transfer Super Admin?",
       "description": "{name} will become the only Super Admin and all their other roles will be removed. You will lose Super Admin access and remain an Admin.",
       "confirm": "Transfer Super Admin",
-      "success": "Super Admin ownership transferred to {name}."
+      "success": "Super Admin ownership transferred to {name}.",
+      "blocked": "{name} is also a Reviewer and would lose that role as Super Admin. Reassign or hand over their open review work first, then try the transfer again."
     }
   },
   "checklist": {
@@ -452,8 +461,8 @@
     "charts": {
       "rankTitle": "Quality Ranking Distribution",
       "rankSubtitle": "Code quality based on review outcomes",
-      "cycleTitle": "Counted Cycle Distribution",
-      "cycleSubtitle": "Distribution of counted cycles to approval",
+      "cycleTitle": "Cycle Distribution",
+      "cycleSubtitle": "Distribution of cycles to approval",
       "statusTitle": "Task Status Distribution",
       "statusSubtitle": "Current status of all review tasks",
       "empty": "No data for the selected filters"
@@ -479,7 +488,7 @@
       "cancelledCaption": "Tasks cancelled",
       "approvalRate": "Approval Rate",
       "approvalRateCaption": "Of submitted tasks",
-      "avgCycles": "Avg Counted Cycles",
+      "avgCycles": "Avg Cycles",
       "avgCyclesCaption": "Per approved task",
       "avgCyclesHigh": "High iterations",
       "avgCyclesEfficient": "Efficient",
@@ -507,10 +516,10 @@
       "tasks": "{count} tasks · {approved} approved",
       "approvalRate": "Approval Rate",
       "avgRanking": "Avg Ranking",
-      "avgCycles": "Avg Counted Cycles",
+      "avgCycles": "Avg Cycles",
       "changesRequested": "Changes Req.",
       "rankTitle": "Rank Distribution",
-      "cycleTitle": "Counted Cycle Distribution",
+      "cycleTitle": "Cycle Distribution",
       "noReviews": "No completed reviews yet",
       "standing": {
         "good": "Good",

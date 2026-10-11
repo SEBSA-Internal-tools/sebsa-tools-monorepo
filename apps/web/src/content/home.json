@@ -13,7 +13,6 @@
   "workspaces": {
     "title": "Your Workspaces",
     "subtitle": "Select a dashboard to manage your workflow",
-    "totalTasks": "{count} total tasks",
     "empty": "No workspaces are assigned to your account. Contact your administrator.",
     "cards": {
       "developer": {

@@ -1,20 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RateLimiterService } from '../../common/rate-limiter.service.js';
+import { CONFIG_DEFAULTS } from '../../config/defaults.js';
+import { testConfig } from '../../config/test-config.js';
+import { MailTemplates } from '../../integrations/mail/templates/mail-templates.service.js';
 import type { AuthenticatedUser } from '../auth/auth.types.js';
 import {
   MAX_FORGOT_REQUESTS,
   MAX_SET_PASSWORD_ATTEMPTS,
   PasswordLinksService,
-  RESEND_COOLDOWN_MS,
   hashToken,
 } from './password-links.service.js';
 
-/*
- * Parity proof: the cases of apps/web/src/mocks/passwordLinks.test.ts, run
- * against the NestJS service. Prisma is replaced by a small in-memory store so
- * the real rules (single use, expiry, revocation, eligibility, limits) are what
- * is exercised, not a mock's say-so.
- */
+// Prisma is replaced by a small in-memory store so the real rules are exercised.
 
 type Status = 'ACTIVE' | 'INACTIVE' | 'INVITED';
 interface UserRow {
@@ -45,6 +42,7 @@ function matches(row: Record<string, unknown>, where: Record<string, unknown>): 
       const condition = expected as Record<string, unknown>;
       if ('in' in condition) return (condition['in'] as unknown[]).includes(row[key]);
       if ('equals' in condition) return row[key] === condition['equals'];
+      if ('lt' in condition) return (row[key] as number) < (condition['lt'] as number);
       return true;
     }
     return row[key] === expected;
@@ -69,7 +67,15 @@ function fakePrisma() {
       updateMany: vi.fn(
         ({ where, data }: { where: Record<string, unknown>; data: Partial<LinkRow> }) => {
           const hit = links.filter((link) => matches(link as never, where));
-          hit.forEach((link) => Object.assign(link, data));
+          for (const link of hit) {
+            for (const [key, value] of Object.entries(data)) {
+              const row = link as unknown as Record<string, unknown>;
+              row[key] =
+                typeof value === 'object' && value !== null && 'increment' in value
+                  ? (row[key] as number) + (value as { increment: number }).increment
+                  : value;
+            }
+          }
           return Promise.resolve({ count: hit.length });
         },
       ),
@@ -129,12 +135,14 @@ function fakePrisma() {
         Object.assign(user, data);
         return Promise.resolve(user);
       }),
-      delete: vi.fn(({ where }: { where: { id: string } }) => {
-        users.splice(
-          users.findIndex((row) => row.id === where.id),
-          1,
+      deleteMany: vi.fn(({ where }: { where: { id: string; status?: string } }) => {
+        const index = users.findIndex(
+          (row) =>
+            row.id === where.id && (where.status === undefined || row.status === where.status),
         );
-        return Promise.resolve(undefined);
+        if (index === -1) return Promise.resolve({ count: 0 });
+        users.splice(index, 1);
+        return Promise.resolve({ count: 1 });
       }),
     },
     userRole: { deleteMany: vi.fn().mockResolvedValue({ count: 1 }) },
@@ -208,15 +216,31 @@ beforeEach(() => {
       ) => client.auditLog.create({ data: { action: input['actionType'], ...input } }),
     ),
   };
-  const config = { get: vi.fn((_key: string, fallback: unknown) => fallback) };
   service = new PasswordLinksService(
     db as never,
     mailer as never,
     new RateLimiterService(),
     audit as never,
     config as never,
+    new MailTemplates(config as never),
   );
+  service.forgotMinResponseMs = 0;
 });
+
+const RESEND_COOLDOWN_MS = CONFIG_DEFAULTS.resendCooldownSeconds * 1000;
+let current = testConfig();
+const config = {
+  get: <T>(key: string, fallback?: T) => current.get<T>(key, fallback),
+  getOrThrow: <T>(key: string) => current.getOrThrow<T>(key),
+};
+beforeEach(() => {
+  current = testConfig();
+});
+
+async function forgot(email: string) {
+  await service.forgotPassword(email, undefined);
+  await service.drainBackground();
+}
 
 describe('validate', () => {
   it('describes a valid link without consuming it, and masks the email', async () => {
@@ -370,6 +394,7 @@ describe('set password', () => {
 describe('forgot password', () => {
   it('answers (202) for an unknown address and sends nothing', async () => {
     await expect(service.forgotPassword('nobody@example.com', undefined)).resolves.toBeUndefined();
+    await service.drainBackground();
     expect(mailer.send).not.toHaveBeenCalled();
   });
 
@@ -381,7 +406,7 @@ describe('forgot password', () => {
       fullName: 'Dheliya K',
     });
 
-    await service.forgotPassword('  Dheliya@Example.com ', undefined);
+    await forgot('  Dheliya@Example.com ');
 
     expect(sent()[0]).toMatchObject({ to: 'dheliya@example.com' });
     await expect(service.validate(lastToken(), undefined)).resolves.toMatchObject({
@@ -392,7 +417,7 @@ describe('forgot password', () => {
 
   it('sends a still-invited user their invite again, not a reset', async () => {
     addUser({ id: 'u-inv', email: 'inv@example.com', status: 'INVITED' });
-    await service.forgotPassword('inv@example.com', undefined);
+    await forgot('inv@example.com');
     await expect(service.validate(lastToken(), undefined)).resolves.toMatchObject({
       purpose: 'INVITE',
     });
@@ -400,13 +425,13 @@ describe('forgot password', () => {
 
   it('sends nothing to a deactivated account', async () => {
     addUser({ id: 'u-off', email: 'off@example.com', status: 'INACTIVE' });
-    await service.forgotPassword('off@example.com', undefined);
+    await forgot('off@example.com');
     expect(mailer.send).not.toHaveBeenCalled();
   });
 
   it('rate-limits per address, for real and unknown addresses alike', async () => {
     for (let i = 0; i < MAX_FORGOT_REQUESTS; i += 1) {
-      await service.forgotPassword('ghost@example.com', undefined);
+      await forgot('ghost@example.com');
     }
     await expect(service.forgotPassword('ghost@example.com', undefined)).rejects.toMatchObject({
       code: 'RATE_LIMITED',
@@ -415,7 +440,7 @@ describe('forgot password', () => {
 });
 
 describe('resend link', () => {
-  it('turns an expired link into a fresh one, then enforces a cooldown', async () => {
+  it('turns an expired link into a fresh one, and the old link cannot ask again', async () => {
     const token = await invite();
     db.links[0]!.expiresAt = new Date(Date.now() - 1000);
     db.links[0]!.createdAt = new Date(Date.now() - RESEND_COOLDOWN_MS - 1000);
@@ -424,6 +449,14 @@ describe('resend link', () => {
     await expect(service.validate(lastToken(), undefined)).resolves.toMatchObject({
       status: 'valid',
     });
+    mailer.send.mockClear();
+    await service.resendLink(token, undefined);
+    expect(mailer.send).not.toHaveBeenCalled();
+  });
+
+  it('enforces the cooldown on a link issued moments ago', async () => {
+    const token = await invite();
+    db.links[0]!.expiresAt = new Date(Date.now() - 1000);
     await expect(service.resendLink(token, undefined)).rejects.toMatchObject({
       code: 'RATE_LIMITED',
     });
@@ -432,6 +465,101 @@ describe('resend link', () => {
   it('answers silently for an unknown or used token and sends nothing', async () => {
     await service.resendLink('never-issued', undefined);
     expect(mailer.send).not.toHaveBeenCalled();
+  });
+});
+
+describe('hardening', () => {
+  it('publishes the link policy from configuration only', () => {
+    current = testConfig({ RESET_TTL_MINUTES: '30', PASSWORD_LINK_RESEND_COOLDOWN_SECONDS: '90' });
+    expect(service.linkPolicy()).toEqual({
+      inviteTtlMinutes: CONFIG_DEFAULTS.inviteTtlHours * 60,
+      resetTtlMinutes: 30,
+      resendCooldownSeconds: 90,
+    });
+  });
+
+  it('reads the link lifetimes from configuration', async () => {
+    current = testConfig({ INVITE_TTL_HOURS: '2' });
+    const before = Date.now();
+    await invite();
+    const lifetime = db.links[0]!.expiresAt.getTime() - before;
+    expect(lifetime).toBeGreaterThan(2 * 60 * 60 * 1000 - 5000);
+    expect(lifetime).toBeLessThanOrEqual(2 * 60 * 60 * 1000 + 5000);
+    expect(sent()[0]?.text).toContain('expires in 2 hours');
+  });
+
+  it('emails an HTML and a text part, with the token only in the #fragment', async () => {
+    const token = await invite();
+    const message = mailer.send.mock.calls[0]![0] as { text: string; html: string };
+    expect(message.text).toContain(`/set-password#token=${token}`);
+    expect(message.html).toContain(`/set-password#token=${token}`);
+    expect(message.text).not.toMatch(/[?&]token=/);
+  });
+
+  it('does not let personal-password rejections lock the link', async () => {
+    const token = await invite();
+    for (let attempt = 0; attempt < MAX_SET_PASSWORD_ATTEMPTS + 2; attempt += 1) {
+      await expect(service.setPassword(token, 'Starter-Pass-42!', undefined)).rejects.toMatchObject(
+        { code: 'PASSWORD_PERSONAL' },
+      );
+    }
+    await expect(
+      service.setPassword(token, 'Blue-Harbour-Lamp-71!', undefined),
+    ).resolves.toBeUndefined();
+  });
+
+  it('never counts past the attempt limit', async () => {
+    const token = await invite();
+    for (let attempt = 0; attempt < MAX_SET_PASSWORD_ATTEMPTS + 3; attempt += 1) {
+      await service.setPassword(token, 'short', undefined).catch(() => undefined);
+    }
+    expect(db.links[0]?.failedAttempts).toBe(MAX_SET_PASSWORD_ATTEMPTS);
+  });
+
+  it('sends a password-changed notice after the password is saved', async () => {
+    const token = await invite();
+    await service.setPassword(token, 'Blue-Harbour-Lamp-71!', undefined);
+    await service.drainBackground();
+    expect(sent().at(-1)).toMatchObject({
+      to: 'new.starter@example.com',
+      subject: 'Your account is ready',
+    });
+    expect(sent().at(-1)?.text).not.toContain(token);
+  });
+
+  it('ignores a resend request for a link that was replaced', async () => {
+    const older = await invite();
+    db.links[0]!.createdAt = new Date(Date.now() - RESEND_COOLDOWN_MS - 1000);
+    await service.issueAndDeliver(
+      { id: 'u-new', email: 'new.starter@example.com', fullName: 'New Starter' },
+      'INVITE',
+    );
+    db.links[1]!.createdAt = new Date(Date.now() - RESEND_COOLDOWN_MS - 1000);
+    mailer.send.mockClear();
+
+    await service.resendLink(older, undefined);
+    expect(mailer.send).not.toHaveBeenCalled();
+  });
+
+  it('still answers when the email status cannot be recorded', async () => {
+    addUser({ id: 'u-x', email: 'x@example.com', status: 'INVITED' });
+    db.passwordLink.update.mockRejectedValueOnce(new Error('db blip'));
+    await expect(
+      service.issueAndDeliver({ id: 'u-x', email: 'x@example.com', fullName: 'X' }, 'INVITE'),
+    ).resolves.toMatchObject({ emailStatus: 'SENT' });
+  });
+
+  it('answers forgot-password in the same minimum time for any address', async () => {
+    service.forgotMinResponseMs = 120;
+    addUser({ id: 'u-a', email: 'a@example.com', status: 'ACTIVE' });
+    const time = async (email: string) => {
+      const started = performance.now();
+      await service.forgotPassword(email, undefined);
+      return performance.now() - started;
+    };
+    expect(await time('a@example.com')).toBeGreaterThanOrEqual(110);
+    expect(await time('nobody@example.com')).toBeGreaterThanOrEqual(110);
+    await service.drainBackground();
   });
 });
 

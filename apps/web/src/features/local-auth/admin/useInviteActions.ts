@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { resendInvite, revokeInvite } from '../api/localAuthApi.ts';
+import { resendInvite, revokeInvite, sendResetLink } from '../api/localAuthApi.ts';
 
 /**
  * Mutations behind the Users tab's invite actions. Each refreshes the user list
@@ -19,6 +19,10 @@ export function useResendInvite(usersKey: readonly unknown[]) {
     mutationFn: (userId: string) => resendInvite(userId),
     onSuccess: refresh,
   });
+}
+
+export function useSendResetLink() {
+  return useMutation({ mutationFn: (userId: string) => sendResetLink(userId) });
 }
 
 export function useRevokeInvite(usersKey: readonly unknown[]) {

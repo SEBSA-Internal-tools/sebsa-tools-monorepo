@@ -1,4 +1,14 @@
-import { Body, Controller, Get, HttpStatus, Param, ParseUUIDPipe, Post, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Res,
+  HttpCode,
+} from '@nestjs/common';
 import type { Response } from 'express';
 import { ApiCreatedResponse, ApiNoContentResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
@@ -26,8 +36,15 @@ export class ReviewerHandoversController {
     @Body() dto: CreateHandoverDto,
     @CurrentUser() actor: AuthenticatedUser,
   ) {
-    if (dto.draft) await this.reviews.saveDraft(taskId, dto.draft, actor);
-    return this.tasks.handover(taskId, dto, actor);
+    const { draft } = dto;
+    return this.tasks.handover(
+      taskId,
+      dto,
+      actor,
+      draft === undefined
+        ? undefined
+        : (tx) => this.reviews.saveHandoverDraft(tx, taskId, draft, actor),
+    );
   }
 }
 
@@ -62,6 +79,8 @@ export class AdminHandoversController {
     return draft ?? undefined;
   }
 
+  // An action on an existing resource, not a creation: 200, not 201.
+  @HttpCode(HttpStatus.OK)
   @Post(':handoverId/reassign')
   @ApiOkResponse()
   reassign(
@@ -72,6 +91,8 @@ export class AdminHandoversController {
     return this.handovers.reassign(handoverId, dto, actor);
   }
 
+  // An action on an existing resource, not a creation: 200, not 201.
+  @HttpCode(HttpStatus.OK)
   @Post(':handoverId/return')
   @ApiOkResponse()
   returnToQueue(

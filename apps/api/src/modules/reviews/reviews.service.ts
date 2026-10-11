@@ -11,6 +11,7 @@ import {
   TaskStatus,
 } from '@prisma/client';
 import {
+  MAX_SCREENSHOTS_PER_REVIEW,
   issueResponseDraftSchema,
   reviewCommentObjectSchema,
   reviewDraftSchema,
@@ -18,10 +19,16 @@ import {
 } from '@sdp/contracts';
 import { z } from 'zod';
 import { ApiException } from '../../common/api-error.js';
+import {
+  IMAGE_REJECTION_MESSAGES,
+  inspectImageDataUrl,
+} from '../../common/uploads/image-data-url.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { AuditService } from '../audit/audit.service.js';
 import type { AuthenticatedUser } from '../auth/auth.types.js';
 import { ReviewTasksService } from '../review-tasks/review-tasks.service.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
+import { taskEmail } from '../notifications/task-email.js';
 
 const reviewInclude = {
   reviewer: { select: { id: true, fullName: true } },
@@ -55,6 +62,52 @@ export const reviewDraftInputSchema = reviewDraftSchema.extend({
 });
 
 type ReviewDraftInput = z.infer<typeof reviewDraftInputSchema>;
+
+/**
+ * Whether the current reviewer may change or delete a stored finding: only
+ * their own comments, on this round's form, written in their current review
+ * session. Everything else (another reviewer's, an earlier session's, an
+ * earlier round's) is read-only history. Mirrors the web client's
+ * `isCommentOwnedBy` (features/reviews/domain/reviewRules.ts).
+ */
+export function isEditableFinding(
+  finding: { reviewFormId: string; createdBy: string; reviewSessionId: string | null },
+  formId: string,
+  userId: string,
+  reviewSessionId: string,
+): boolean {
+  return (
+    finding.reviewFormId === formId &&
+    finding.createdBy === userId &&
+    (finding.reviewSessionId === null || finding.reviewSessionId === reviewSessionId)
+  );
+}
+
+/**
+ * A read-only comment may be sent back (the draft carries the whole thread) but
+ * not altered: same text, same screenshots. Anything else is a 403, as in the
+ * original specification (`validateCommentAuthorship`).
+ */
+export function assertProtectedCommentUnchanged(
+  stored: { commentText: string; screenshots: readonly { id: string }[] },
+  incoming: { text: string; screenshots: readonly { id: string }[] },
+  screenshotId: (clientId: string) => string,
+): void {
+  if (incoming.text.trim() !== stored.commentText.trim()) {
+    throw new ApiException(
+      'FORBIDDEN',
+      'You cannot modify comments authored by another reviewer or from a previous review session.',
+    );
+  }
+  const storedIds = new Set(stored.screenshots.map(({ id }) => id));
+  const incomingIds = new Set(incoming.screenshots.map(({ id }) => screenshotId(id)));
+  if (storedIds.size !== incomingIds.size || [...storedIds].some((id) => !incomingIds.has(id))) {
+    throw new ApiException(
+      'FORBIDDEN',
+      'You cannot modify attachments on comments authored by another reviewer or from a previous review session.',
+    );
+  }
+}
 
 export interface CycleFindingDecision {
   developerDecision: DeveloperDecision;
@@ -133,6 +186,7 @@ export class ReviewsService {
     private readonly prisma: PrismaService,
     private readonly tasks: ReviewTasksService,
     private readonly audit: AuditService,
+    private readonly notifications?: NotificationsService,
   ) {}
 
   async findGeneralCheck() {
@@ -187,7 +241,10 @@ export class ReviewsService {
       orderBy: { reviewCycleNumber: 'desc' },
     });
     if (draft) return this.toReview(draft);
-    const task = await this.prisma.task.findUnique({ where: { id: taskId }, select: { status: true } });
+    const task = await this.prisma.task.findUnique({
+      where: { id: taskId },
+      select: { status: true },
+    });
     if (task?.status !== TaskStatus.APPROVED && task?.status !== TaskStatus.CHANGES_REQUESTED) {
       return null;
     }
@@ -236,6 +293,28 @@ export class ReviewsService {
       });
     }
     return this.toReview(row);
+  }
+
+  /**
+   * Saves the reviewer's in-progress draft as part of a handover, inside the
+   * handover's own transaction (so a failed handover leaves nothing written).
+   * The draft may be partial. Returns the validated draft for the snapshot.
+   */
+  async saveHandoverDraft(
+    tx: Prisma.TransactionClient,
+    taskId: string,
+    input: unknown,
+    user: AuthenticatedUser,
+  ): Promise<ReviewDraftInput> {
+    const parsed = reviewDraftInputSchema.safeParse(input);
+    if (!parsed.success) {
+      throw new ApiException('VALIDATION_FAILED', 'Check the highlighted fields', [
+        ...parsed.error.issues,
+      ]);
+    }
+    const round = await this.ensureReviewRoundStarted(tx, taskId);
+    await this.persistDraft(tx, taskId, round, parsed.data, user);
+    return parsed.data;
   }
 
   async decide(taskId: string, input: unknown, user: AuthenticatedUser) {
@@ -294,6 +373,21 @@ export class ReviewsService {
           existingNotifications.map(({ id }) => id),
         ),
       });
+      const findings =
+        decision === ReviewDecision.CHANGES_REQUESTED
+          ? await tx.reviewFinding.count({ where: { reviewFormId: review.id } })
+          : undefined;
+      await this.notifications?.queueEmailForTriggerRows(tx, {
+        taskId,
+        recipientIds: [task.developerId],
+        types: [notificationType],
+        payload: taskEmail(
+          decision === ReviewDecision.APPROVED ? 'TASK_APPROVED' : 'CHANGES_REQUESTED',
+          user.name,
+          { reviewerId: user.id, reviewerName: user.name, round, findings },
+          now,
+        ),
+      });
       if (decision === ReviewDecision.CHANGES_REQUESTED) {
         await tx.reviewCycle.upsert({
           where: { taskId_roundNumber: { taskId, roundNumber: round } },
@@ -349,7 +443,7 @@ export class ReviewsService {
     }
     if (!hasValidDeveloperRejectionReason(parsed.data.kind, parsed.data.rejectionReason)) {
       throw new ApiException(
-        'VALIDATION_FAILED',
+        'REJECTION_REASON_REQUIRED',
         'Provide a reason when rejecting a review finding',
       );
     }
@@ -412,7 +506,10 @@ export class ReviewsService {
     });
     if (!task) throw new ApiException('TASK_NOT_FOUND', `Review task ${taskId} was not found`);
     if (task.developerId !== user.id || task.status !== TaskStatus.CHANGES_REQUESTED) {
-      throw new ApiException('INVALID_STATE', 'Responses can only be withdrawn while you are addressing requested changes.');
+      throw new ApiException(
+        'INVALID_STATE',
+        'Responses can only be withdrawn while you are addressing requested changes.',
+      );
     }
     const removed = await this.prisma.developerFindingResponse.deleteMany({
       where: { id: responseId, developerId: user.id, finding: { reviewForm: { taskId } } },
@@ -432,7 +529,7 @@ export class ReviewsService {
     await this.assertAssignedReviewer(taskId, user);
     if (parsed.data.verdict === 'Overruled' && !parsed.data.reviewerComment) {
       throw new ApiException(
-        'VALIDATION_FAILED',
+        'EXPLANATION_REQUIRED',
         'An explanation is required when overruling a response',
       );
     }
@@ -454,8 +551,9 @@ export class ReviewsService {
             Overruled: ReviewerDecision.REJECTED,
           }[parsed.data.verdict],
           reviewerComment: parsed.data.reviewerComment ?? null,
-          reviewedBy: user.id,
-          reviewedAt: new Date(),
+          // Back to Pending means "not adjudicated": no reviewer, no time.
+          reviewedBy: parsed.data.verdict === 'Pending' ? null : user.id,
+          reviewedAt: parsed.data.verdict === 'Pending' ? null : new Date(),
         },
       });
       await this.evaluateOriginalCycleCounted(
@@ -557,7 +655,7 @@ export class ReviewsService {
         entityType: 'REVIEW_CYCLE',
         entityId: cycle.id,
         taskId,
-        description: `Review Round ${originalRound} was excluded from counted cycles`,
+        description: `Review Round ${originalRound} was excluded from the cycle count`,
         metadata: {
           qualifyingReviewRound: originalRound,
           previousCountedCycle: previousCount,
@@ -612,14 +710,17 @@ export class ReviewsService {
     });
     await tx.codeReviewAnswer.deleteMany({ where: { reviewFormId: form.id } });
     if (draft.generalCheck.length > 0) {
-      await tx.codeReviewQuestion.createMany({
-        data: draft.generalCheck.map(({ questionId }, order) => ({
-          id: questionId,
-          questionText: questionId,
-          displayOrder: order,
-        })),
-        skipDuplicates: true,
-      });
+      // Answers may only reference the published General Check questions
+      // (GET /general-check). Unknown ids are a client bug or tampering, and
+      // must never create question rows of their own.
+      const questionIds = [...new Set(draft.generalCheck.map(({ questionId }) => questionId))];
+      const known = await tx.codeReviewQuestion.count({ where: { id: { in: questionIds } } });
+      if (known !== questionIds.length) {
+        throw new ApiException(
+          'VALIDATION_FAILED',
+          'The review references an unknown General Check question',
+        );
+      }
       await tx.codeReviewAnswer.createMany({
         data: draft.generalCheck.map(({ questionId, answer }) => ({
           reviewFormId: form.id,
@@ -635,36 +736,109 @@ export class ReviewsService {
     }
     const findingIdFor = (id: string) =>
       stableReviewEntityUuid(UUID_PATTERN.test(id) ? id : `${taskId}:finding:${id}`);
-    const incomingIds = draft.comments.map(({ id }) => findingIdFor(id));
-    const removable = await tx.reviewFinding.findMany({
-      where: {
-        reviewFormId: form.id,
-        createdBy: user.id,
-        id: { notIn: incomingIds },
-        responses: { none: {} },
+    const screenshotIdFor = (findingId: string, id: string) =>
+      stableReviewEntityUuid(UUID_PATTERN.test(id) ? id : `${findingId}:screenshot:${id}`);
+    const incoming = draft.comments.map((comment, index) => ({
+      comment,
+      index,
+      findingId: findingIdFor(comment.id),
+    }));
+    const incomingIds = incoming.map(({ findingId }) => findingId);
+
+    // Ownership comes from the database, never from the reviewerId /
+    // reviewSessionId the client echoes back.
+    const stored = await tx.reviewFinding.findMany({
+      where: { OR: [{ reviewFormId: form.id }, { id: { in: incomingIds } }] },
+      select: {
+        id: true,
+        reviewFormId: true,
+        createdBy: true,
+        reviewSessionId: true,
+        commentText: true,
+        screenshots: { select: { id: true, storageKey: true } },
+        _count: { select: { responses: true } },
       },
-      select: { id: true },
     });
+    const storedById = new Map(stored.map((finding) => [finding.id, finding]));
+    const editable = (finding: (typeof stored)[number]) =>
+      isEditableFinding(finding, form.id, user.id, reviewSessionId);
+    const incomingIdSet = new Set(incomingIds);
+    for (const finding of stored) {
+      if (
+        finding.reviewFormId === form.id &&
+        !editable(finding) &&
+        !incomingIdSet.has(finding.id)
+      ) {
+        throw new ApiException(
+          'FORBIDDEN',
+          'You cannot delete comments authored by another reviewer or from a previous review session.',
+        );
+      }
+    }
+    for (const { comment, findingId } of incoming) {
+      const existing = storedById.get(findingId);
+      if (existing && !editable(existing)) {
+        assertProtectedCommentUnchanged(existing, comment, (id) => screenshotIdFor(findingId, id));
+        continue;
+      }
+      if (comment.screenshots.length > MAX_SCREENSHOTS_PER_REVIEW) {
+        throw new ApiException(
+          'SCREENSHOT_REJECTED',
+          `A comment can have at most ${String(MAX_SCREENSHOTS_PER_REVIEW)} screenshots.`,
+        );
+      }
+    }
+
+    // Own comments of this session that the draft no longer contains.
+    const removable = stored.filter(
+      (finding) =>
+        finding.reviewFormId === form.id &&
+        editable(finding) &&
+        !incomingIdSet.has(finding.id) &&
+        finding._count.responses === 0,
+    );
     if (removable.length > 0) {
       const ids = removable.map(({ id }) => id);
       await tx.findingScreenshot.deleteMany({ where: { findingId: { in: ids } } });
       await tx.reviewFinding.deleteMany({ where: { id: { in: ids } } });
     }
-    const editableFindings = await tx.reviewFinding.findMany({
-      where: { reviewFormId: form.id, createdBy: user.id },
-      select: { id: true },
-      orderBy: { findingNo: 'asc' },
+    // Park every remaining finding number of this form out of the way, so the
+    // unique (form, number) pair can be rewritten in the draft's order.
+    await tx.reviewFinding.updateMany({
+      where: { reviewFormId: form.id },
+      data: { findingNo: { multiply: -1 } },
     });
-    for (const [index, finding] of editableFindings.entries()) {
-      await tx.reviewFinding.update({
-        where: { id: finding.id },
-        data: { findingNo: -(index + 1) },
+    for (const { comment, findingId, index } of incoming) {
+      const existing = storedById.get(findingId);
+      if (existing && !editable(existing)) {
+        // Read-only for this reviewer: only its position in this form may move.
+        if (existing.reviewFormId === form.id) {
+          await tx.reviewFinding.update({
+            where: { id: findingId },
+            data: { findingNo: index + 1 },
+          });
+        }
+        continue;
+      }
+      const storedKeys = new Map(
+        existing?.screenshots.map(({ id, storageKey }) => [id, storageKey]) ?? [],
+      );
+      const screenshots = comment.screenshots.map((shot) => {
+        const id = screenshotIdFor(findingId, shot.id);
+        // An image already stored on this comment is kept as it is (older rows
+        // pre-date these checks); every new or replaced image is validated.
+        if (storedKeys.get(id) === shot.storageRef) {
+          return { id, shot, mimeType: shot.mimeType, sizeBytes: shot.sizeBytes };
+        }
+        const image = inspectImageDataUrl(shot.storageRef);
+        if (!image.ok) {
+          throw new ApiException(
+            image.reason === 'wrongType' ? 'UNSUPPORTED_MEDIA_TYPE' : 'SCREENSHOT_REJECTED',
+            IMAGE_REJECTION_MESSAGES[image.reason],
+          );
+        }
+        return { id, shot, mimeType: image.mimeType, sizeBytes: image.sizeBytes };
       });
-    }
-    for (const [index, comment] of draft.comments.entries()) {
-      const findingId = findingIdFor(comment.id);
-      const existing = await tx.reviewFinding.findUnique({ where: { id: findingId } });
-      if (existing && existing.createdBy !== user.id) continue;
       await tx.reviewFinding.upsert({
         where: { id: findingId },
         create: {
@@ -678,23 +852,34 @@ export class ReviewsService {
         update: { findingNo: index + 1, commentText: comment.text, reviewSessionId },
       });
       await tx.findingScreenshot.deleteMany({ where: { findingId } });
-      if (comment.screenshots.length > 0) {
+      if (screenshots.length > 0) {
         await tx.findingScreenshot.createMany({
-          data: comment.screenshots.map((shot) => ({
-            id: stableReviewEntityUuid(
-              UUID_PATTERN.test(shot.id) ? shot.id : `${findingId}:screenshot:${shot.id}`,
-            ),
+          data: screenshots.map(({ id, shot, mimeType, sizeBytes }) => ({
+            id,
             findingId,
-            fileName: shot.fileName,
+            fileName: shot.fileName.slice(0, 255),
             storageKey: shot.storageRef,
-            mimeType: shot.mimeType,
-            fileSize: BigInt(shot.sizeBytes),
+            mimeType,
+            fileSize: BigInt(sizeBytes),
             annotationText: shot.comment,
             uploadedBy: user.id,
             uploadedAt: new Date(shot.uploadedAt),
           })),
         });
       }
+    }
+    // Findings kept only because a developer already responded to them stay
+    // after the draft's comments.
+    const parked = await tx.reviewFinding.findMany({
+      where: { reviewFormId: form.id, findingNo: { lt: 0 } },
+      select: { id: true },
+      orderBy: { findingNo: 'desc' },
+    });
+    for (const [offset, finding] of parked.entries()) {
+      await tx.reviewFinding.update({
+        where: { id: finding.id },
+        data: { findingNo: draft.comments.length + offset + 1 },
+      });
     }
     const saved = await tx.codeReviewForm.findUnique({
       where: { id: form.id },
@@ -749,12 +934,6 @@ export class ReviewsService {
       if (draft.rank === 1) {
         throw new ApiException('REVIEW_INCOMPLETE', 'Rank 1 cannot request changes');
       }
-      if (ownComments.length === 0) {
-        throw new ApiException(
-          'REVIEW_INCOMPLETE',
-          'Add at least one review comment before requesting changes',
-        );
-      }
     }
     if (
       decision === ReviewDecision.APPROVED &&
@@ -789,6 +968,18 @@ export class ReviewsService {
       throw new ApiException(
         'REVIEW_INCOMPLETE',
         'Adjudicate all developer responses before submitting the review',
+      );
+    }
+    // Sending work back needs something to send back: a new comment, or a
+    // previous finding whose developer response was overruled this round.
+    if (
+      decision === ReviewDecision.CHANGES_REQUESTED &&
+      ownComments.length === 0 &&
+      !responses.some(({ reviewerDecision }) => reviewerDecision === ReviewerDecision.REJECTED)
+    ) {
+      throw new ApiException(
+        'REVIEW_INCOMPLETE',
+        'Add at least one review comment before requesting changes',
       );
     }
     if (

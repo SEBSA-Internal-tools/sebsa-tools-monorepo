@@ -1,14 +1,12 @@
-import { Layers, ShieldCheck, Sparkles, TrendingUp, Zap } from 'lucide-react';
+import { ShieldCheck, Sparkles, TrendingUp, Zap } from 'lucide-react';
 import type { User } from '@sdp/contracts';
 import { EmptyState } from '@/components/common/states.tsx';
 import { WORKSPACE_ROOT } from '@/config/routes.ts';
-import { interpolate } from '@/lib/formatters.ts';
 import { accessibleWorkspaces } from '@/lib/permissions.ts';
 import home from '@/content/home.json';
 import { cn } from '@/components/ui';
 import { PAGE_CONTAINER } from '@/components/common/PageContainer.tsx';
 import { Reveal } from '@/components/common/Reveal.tsx';
-import { useTaskSummary } from '../api/queries.ts';
 import { WorkspaceCard } from '../components/WorkspaceCard.tsx';
 
 const HIGHLIGHT_STYLE = {
@@ -80,7 +78,6 @@ function HeroDecoration() {
  * and, in Phase 2, the API refuses the data regardless of what the UI drew.
  */
 export function HomePage({ user }: { user: User }) {
-  const summary = useTaskSummary();
   const workspaces = accessibleWorkspaces(user.roles);
 
   return (
@@ -170,15 +167,6 @@ export function HomePage({ user }: { user: User }) {
               <h2 className="font-display text-xl font-bold">{home.workspaces.title}</h2>
               <p className="mt-1 text-sm text-ink-500">{home.workspaces.subtitle}</p>
             </div>
-
-            {summary.isSuccess ? (
-              <span className="inline-flex items-center gap-2 rounded-badge border border-line bg-surface px-4 py-2 text-sm font-medium text-ink-700">
-                <Layers className="size-4 text-ink-400" aria-hidden="true" />
-                {interpolate(home.workspaces.totalTasks, {
-                  count: summary.data.total,
-                })}
-              </span>
-            ) : null}
           </div>
 
           {workspaces.length === 0 ? (

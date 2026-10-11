@@ -2,6 +2,9 @@ import { Controller, Get, Query } from '@nestjs/common';
 import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { ChecklistsService } from './checklists.service.js';
 import { ChecklistQueryDto } from './dto/checklist-query.dto.js';
+import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
+import type { AuthenticatedUser } from '../auth/auth.types.js';
+import { ApiException } from '../../common/api-error.js';
 
 @ApiTags('Developer Checklist')
 @Controller(['developer-checklist', 'developer-checklists'])
@@ -23,9 +26,17 @@ export class ChecklistsController {
 export class ChecklistTemplateController {
   constructor(private readonly checklists: ChecklistsService) {}
 
+  /** Retired categories and questions (`scope=all`) are an admin view only. */
   @Get()
   @ApiOkResponse()
-  findTemplate(@Query('scope') scope?: string) {
+  findTemplate(@CurrentUser() user: AuthenticatedUser, @Query('scope') scope?: string) {
+    const isAdmin = user.roles.includes('ADMIN') || user.roles.includes('SUPER_ADMIN');
+    if (scope === 'all' && !isAdmin) {
+      throw new ApiException(
+        'FORBIDDEN',
+        'Only an administrator may view the full checklist template.',
+      );
+    }
     return this.checklists.findTemplate(scope === 'all');
   }
 }

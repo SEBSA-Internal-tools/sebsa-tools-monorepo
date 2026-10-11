@@ -1,6 +1,6 @@
 /**
- * Review-round and cycle arithmetic shared by the developer and reviewer workspaces and
- * the mock API. `reviews/domain/reviewRules` re-exports these for its callers.
+ * Review-round and cycle arithmetic shared by the developer and reviewer workspaces.
+ * `reviews/domain/reviewRules` re-exports these for its callers.
  */
 
 /**

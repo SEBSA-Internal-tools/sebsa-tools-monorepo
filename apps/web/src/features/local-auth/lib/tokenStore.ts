@@ -1,13 +1,10 @@
 /**
- * Holds the one-time link token, in memory only.
+ * Holds the one-time link token in memory only — never localStorage,
+ * sessionStorage, a cookie, a log line or a query string.
  *
- * The token arrives in the URL fragment (`#token=...`) so it is never sent to a
- * server or written to an access log. It is read once, scrubbed from the address
- * bar at once, and kept here — a module variable, never localStorage,
- * sessionStorage, a cookie, a log line or another URL.
- *
- * A module variable rather than component state so React StrictMode's second
- * effect run, which sees the already-scrubbed URL, still finds the token.
+ * The `#token=` fragment stays in the address bar until the server has saved the
+ * password, so a reload keeps working; fragments are never sent to a server or
+ * in Referer. `scrubTokenFromUrl` removes it once the link is spent or unusable.
  */
 
 let current: string | null = null;
@@ -31,24 +28,19 @@ export function parseTokenFromHash(hash: string): string | null {
   return token !== null && token !== '' ? token : null;
 }
 
-/**
- * Takes the token from the address bar into memory and removes it from the URL.
- *
- * `replaceState` keeps the router's own history entry (`window.history.state`)
- * so React Router is not confused, and drops only the fragment. Returns the token
- * now held, or null if there never was one.
- */
+/** The address bar is the only source, so a token left from an earlier link is never reused. */
 export function captureTokenFromLocation(): string | null {
-  const fromHash = parseTokenFromHash(window.location.hash);
-  if (fromHash !== null) {
-    current = fromHash;
-    window.history.replaceState(
-      window.history.state,
-      '',
-      `${window.location.pathname}${window.location.search}`,
-    );
-  }
+  current = parseTokenFromHash(window.location.hash);
   return current;
+}
+
+export function scrubTokenFromUrl(): void {
+  if (parseTokenFromHash(window.location.hash) === null) return;
+  window.history.replaceState(
+    window.history.state,
+    '',
+    `${window.location.pathname}${window.location.search}`,
+  );
 }
 
 /**

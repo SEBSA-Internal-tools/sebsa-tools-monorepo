@@ -1,3 +1,4 @@
+import { CONFIG_DEFAULTS } from '../../config/defaults.js';
 export const ACCESS_COOKIE = 'sdp_access';
 export const REFRESH_COOKIE = 'sdp_refresh';
 export const CSRF_COOKIE = 'sdp_csrf';
@@ -29,8 +30,8 @@ export const ROLE_CODES_BY_LABEL: Record<RoleLabel, RoleCode> = {
   'Super Admin': 'SUPER_ADMIN',
 };
 
-export const JWT_ISSUER_DEFAULT = 'sebsa-code-review-api';
-export const JWT_AUDIENCE_DEFAULT = 'sebsa-code-review-web';
-export const ACCESS_TTL_DEFAULT = 15 * 60;
-export const REFRESH_TTL_DEFAULT = 7 * 24 * 60 * 60;
-export const REMEMBER_TTL_DEFAULT = 30 * 24 * 60 * 60;
+export const JWT_ISSUER_DEFAULT = CONFIG_DEFAULTS.jwtIssuer;
+export const JWT_AUDIENCE_DEFAULT = CONFIG_DEFAULTS.jwtAudience;
+export const ACCESS_TTL_DEFAULT = CONFIG_DEFAULTS.accessTtlSeconds;
+export const REFRESH_TTL_DEFAULT = CONFIG_DEFAULTS.refreshTtlSeconds;
+export const REMEMBER_TTL_DEFAULT = CONFIG_DEFAULTS.rememberTtlSeconds;

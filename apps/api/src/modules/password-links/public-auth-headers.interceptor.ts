@@ -32,7 +32,7 @@ export class PublicAuthHeadersInterceptor implements NestInterceptor {
     response.setHeader('Referrer-Policy', 'no-referrer');
 
     const origin = request.get('origin');
-    const allowed = this.config.get<string[]>('frontendOrigins', ['http://localhost:5175']);
+    const allowed = this.config.getOrThrow<string[]>('frontendOrigins');
     if (origin !== undefined && !allowed.includes(origin)) {
       throw new ApiException('ORIGIN_REJECTED', 'This request is not allowed from this origin.');
     }

@@ -11,8 +11,8 @@ import { useSession } from '@/hooks/useSession.ts';
  * after signing in, not on the home page having lost their place.
  *
  * This is a usability control, not a security boundary: the browser can always
- * be lied to. Enforcement is server-side — MSW filters by caller today
- * (`mocks/handlers.ts`), NestJS guards do it in Phase 2.
+ * be lied to. Enforcement is server-side: NestJS's JWT, role and CSRF guards
+ * (apps/api app.module.ts) check every request.
  */
 export function RequireAuth({ children }: { children: ReactNode }) {
   const isAuthenticated = useSession((s) => s.isAuthenticated);

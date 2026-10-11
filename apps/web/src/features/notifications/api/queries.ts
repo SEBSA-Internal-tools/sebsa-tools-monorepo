@@ -12,6 +12,7 @@ export function useNotifications() {
   return useQuery({
     queryKey: notificationKeys.list(),
     queryFn: ({ signal }) => api.get('/notifications', notificationSchema.array(), { signal }),
+    refetchInterval: 60_000,
   });
 }
 

@@ -91,7 +91,7 @@ const ROLE_BY_CODE: Record<string, Role> = {
   DEVELOPER: 'Developer',
   REVIEWER: 'Reviewer',
   SUPER_ADMIN: 'SuperAdmin',
-  // The client's own role key, as the mock records it.
+  // The client's own role key, should a record carry it.
   SUPERADMIN: 'SuperAdmin',
 };
 

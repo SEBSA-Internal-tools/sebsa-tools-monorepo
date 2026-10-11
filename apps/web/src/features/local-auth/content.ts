@@ -1,3 +1,5 @@
+import loginContent from '@/content/login.json';
+
 /**
  * Every string the local-auth screens show, in one file so the copy can be read
  * and changed without opening a component.
@@ -9,16 +11,21 @@ export const TIPS = [
   'Do not reuse a password from another site',
 ] as const;
 
-/**
- * This screen only ever sets a first password: accounts are created by an admin
- * and the invite link lands here. There is no separate "reset" wording.
- */
 export const setPasswordCopy = {
-  title: 'Create your password',
-  leftHeading: 'Welcome to the Service Delivery Portal',
-  leftText: 'Your administrator has set up your account. Choose a password to activate it.',
-  button: 'Save password',
-  successTitle: 'Password saved',
+  INVITE: {
+    title: 'Create your password',
+    leftHeading: 'Welcome to the Service Delivery Portal',
+    leftText: 'Your administrator has set up your account. Choose a password to activate it.',
+    button: 'Save password',
+    successTitle: 'Password saved',
+  },
+  RESET: {
+    title: 'Choose a new password',
+    leftHeading: 'Reset your password',
+    leftText: 'Choose a new password for your Service Delivery Portal account.',
+    button: 'Save password',
+    successTitle: 'Password saved',
+  },
 } as const;
 
 export const setPassword = {
@@ -51,7 +58,7 @@ export const forgot = {
   steps: ['Verify your email', 'Open the link we send you', 'Choose a new password'],
   subtitle: 'Enter your work email and we will send you a link to choose a new password.',
   emailLabel: 'Email',
-  emailPlaceholder: 'you@sebsaworld.com',
+  emailPlaceholder: loginContent.form.emailPlaceholder,
   submit: 'Verify email',
   submitting: 'Verifying…',
   back: 'Back to sign in',
@@ -60,7 +67,9 @@ export const forgot = {
   emailTooLong: 'Email must be 254 characters or fewer',
   sentTitle: 'Check your inbox',
   sentText:
-    'If this email belongs to an SDP account, we have sent a link. It is valid for 60 minutes. Check your spam folder too.',
+    'If this email belongs to an SDP account, we have sent a link. Check your spam folder too.',
+  sentTextWithDuration:
+    'If this email belongs to an SDP account, we have sent a link. It is valid for {duration}. Check your spam folder too.',
   differentEmail: 'Use a different email',
   sendAgain: 'Send again',
   sendAgainIn: 'Send again in {seconds}s',
@@ -77,8 +86,7 @@ export const expired = {
   expiredTitle: 'This link has expired',
   expiredText:
     'For your security, this link was only valid for {duration}. We can send you a new one.',
-  durationInvite: '24 hours',
-  durationReset: '60 minutes',
+  expiredTextNoDuration: 'For your security, this link has expired. We can send you a new one.',
   invalidTitle: "This link can't be used",
   invalidText:
     'It may have been used already, or replaced by a newer email. Sign in, or request a new password link.',
@@ -96,7 +104,7 @@ export const expired = {
 
 /** Users tab: the Invite column and the Resend / Revoke row actions. */
 export const invite = {
-  resent: 'Invite sent again to {email}. Valid for 24 hours.',
+  resent: 'Invite sent again to {email}. Valid until {expiresAt}.',
   resentEmailFailed:
     'The invite is renewed, but the email could not be sent. Try Resend invite again.',
   revoked: 'Invite for {email} revoked.',
@@ -113,5 +121,9 @@ export const invite = {
     "{name} won't be able to use the link they were sent. You can invite them again later.",
   revokeConfirm: 'Revoke invite',
   notInvited: 'This user is no longer in the invited state.',
+  resetAction: 'Send a password reset link to {name}',
+  resetSent: 'Password reset link sent to {email}.',
+  resetEmailFailed: 'The reset link was created, but the email could not be sent. Try again.',
+  notActive: 'Only an active account can get a reset link.',
   rateLimited: 'Please wait a moment before resending.',
 } as const;

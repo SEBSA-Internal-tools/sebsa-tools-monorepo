@@ -10,12 +10,7 @@ import {
   Patch,
   Post,
 } from '@nestjs/common';
-import {
-  ApiCreatedResponse,
-  ApiNoContentResponse,
-  ApiOkResponse,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiCreatedResponse, ApiNoContentResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { ChecklistQuestionsService } from './checklist-questions.service.js';
 import { CreateChecklistQuestionDto } from './dto/create-checklist-question.dto.js';
 import { UpdateChecklistQuestionDto } from './dto/update-checklist-question.dto.js';
@@ -26,13 +21,17 @@ import { Roles } from '../auth/decorators/roles.decorator.js';
 export class ChecklistQuestionsController {
   constructor(private readonly checklistQuestions: ChecklistQuestionsService) {}
 
+  // Admin catalogue tooling only: these return retired rows too. Developers and
+  // reviewers read the published checklist through GET /checklist-template.
   @Get()
+  @Roles('ADMIN')
   @ApiOkResponse()
   findAll() {
     return this.checklistQuestions.findAll();
   }
 
   @Get(':id')
+  @Roles('ADMIN')
   @ApiOkResponse()
   findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.checklistQuestions.findOne(id);
@@ -48,10 +47,7 @@ export class ChecklistQuestionsController {
   @Patch(':id')
   @Roles('ADMIN')
   @ApiOkResponse()
-  update(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: UpdateChecklistQuestionDto,
-  ) {
+  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateChecklistQuestionDto) {
     return this.checklistQuestions.update(id, dto);
   }
 
@@ -63,4 +59,3 @@ export class ChecklistQuestionsController {
     await this.checklistQuestions.remove(id);
   }
 }
-

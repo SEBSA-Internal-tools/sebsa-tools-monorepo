@@ -16,9 +16,27 @@ npm run dev:web       # just the frontend — http://localhost:5175; expects the
 npm run dev:api       # just the NestJS API — http://localhost:3000
 ```
 
-The web app always uses the real `/api` endpoints. Browser mocks are disabled;
-MSW fixtures are retained only for isolated unit tests. `apps/api` needs its
-database and authentication environment values — see [Environment](#environment).
+The web app has no mock backend: every `/api` call goes to NestJS. `apps/api`
+needs its database and authentication environment values — see
+[Environment](#environment).
+
+### How the frontend reaches NestJS
+
+- **Development:** Vite (`:5175`) proxies `/api` to NestJS (`:3000`, override
+  with `SDP_API_TARGET`). NestJS mounts everything under `setGlobalPrefix('api')`
+  and `apiClient` calls relative `/api/...` URLs, so browser and API share one
+  origin.
+- **Session:** `POST /api/auth/login` sets HttpOnly cookies — `sdp_access`
+  (15-minute JWT, bound to a server-side session) and `sdp_refresh` (rotated,
+  scoped to `/api/auth`) — plus a readable `sdp_csrf` token that `apiClient`
+  echoes in `X-CSRF-Token` on every write. On a 401 the client refreshes once.
+- **Authorisation:** global JWT → Roles → CSRF guards, then each service's
+  policy; roles and status are re-read on every request.
+- **Contracts:** `@sdp/contracts` Zod schemas validate every response in
+  `apiClient` and the request bodies in NestJS.
+- **Production:** serve the web build and the API behind one HTTPS reverse
+  proxy. Cookies are `Secure` in production, so the app must be served over
+  HTTPS; startup fails if `COOKIE_SECURE=false` or a non-https origin is set.
 
 Nx also builds a project graph from these packages; `npm run graph` (or
 `npx nx graph`) opens an interactive view of what depends on what.
@@ -45,16 +63,38 @@ cached.
 | `npm run typecheck`               | `tsc -b` across the root solution (`apps/web`, `apps/web-e2e`, `apps/api`, all packages)                      |
 | `npm run test`                    | `nx run-many -t test` — unit/component tests for every project                                                |
 | `npm run test:web`                | `nx run @sdp/web:test` — Vitest, jsdom, with coverage (`**/domain/**` held to 90%)                            |
-| `npm run test:api`                | `nx run @sdp/api:test` — Vitest e2e config for the API scaffold                                               |
-| `npm run e2e`                     | `nx run @sdp/web-e2e:e2e` — Playwright against the running frontend                                           |
+| `npm run test:api`                | `nx run @sdp/api:test` — NestJS unit tests (Vitest, mocked Prisma)                                            |
+| `npm run e2e`                     | `nx run @sdp/web-e2e:e2e` — Playwright journeys against React → NestJS → a throwaway PostgreSQL (below)       |
 | `npm run lint` / `lint:fix`       | `nx run-many -t lint` — one ESLint flat config for the whole repo, including the architectural boundary rules |
 | `npm run format` / `format:check` | Prettier, run directly (not through Nx)                                                                       |
 | `npm run graph`                   | `nx graph` — visualize the project dependency graph                                                           |
 
 Inside `apps/web` you can also run its local scripts directly (`npm run dev`,
-`test:watch`, `test:ui`, `preview`, …) — see `apps/web/package.json`.
-`window.__resetDb()` restores the seeded mock database from the browser
-console.
+`test:watch`, `test:ui`, `storybook`, `test:storybook`, `preview`, …) — see
+`apps/web/package.json`.
+
+### Testing layers
+
+| Layer         | Where                           | Runs against                                                                                           |
+| ------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Web unit      | `apps/web/tests/unit`           | pure rules and helpers                                                                                 |
+| Web component | `apps/web/tests/component`      | real screens + `apiClient`; per-test canned API answers (`tests/support/apiStub.ts`) — no mock backend |
+| Storybook     | `apps/web/src/**/*.stories.tsx` | every story in real Chromium (`npm run test:storybook`), axe on each                                   |
+| API unit      | `apps/api/src/**/*.spec.ts`     | services with mocked Prisma                                                                            |
+| API e2e       | `apps/api/test/e2e`             | the whole Nest app + a throwaway PostgreSQL (`E2E_DATABASE_URL`)                                       |
+| Journeys      | `apps/web-e2e/tests/journeys`   | the full stack in a browser                                                                            |
+
+**The e2e database is never the shared Neon database.** It is a private
+PostgreSQL cluster (`initdb`, 127.0.0.1:55432) recreated from
+`prisma/migrations` and `prisma/seed-e2e.ts`; every script refuses a non-local
+URL or a database name without `e2e`.
+
+```bash
+npm run e2e:db:up -w @sdp/api      # start the private cluster (first run creates it)
+npm run e2e:db:reset -w @sdp/api   # drop + recreate sdp_e2e, migrate deploy, seed
+E2E_DATABASE_URL=postgresql://postgres@127.0.0.1:55432/sdp_e2e npm run test:e2e -w @sdp/api
+npm run e2e                         # Playwright: starts API :3100 + web :5185 itself, resets the DB first
+```
 
 ### Running web and api in separate terminals
 
@@ -128,8 +168,6 @@ lib/         apiClient, queryClient, formatters, session storage, domain rules
 config/      env, the routes facade, workspaceTheme
 constants/   routePaths, portals, roles
 content/     every user-facing string, as JSON
-mocks/       MSW handlers, seeded database, fixture data
-services/    mockApiService — demo and test controls for the mock backend
 ```
 
 ### `apps/api/src`
@@ -186,15 +224,14 @@ task type's question count fails the build.
 ### Contracts are the single source of truth
 
 `@sdp/contracts` describes what crosses the network. `apps/web/src/lib/apiClient` validates
-responses against it and the MSW handlers validate requests against it, so contract drift fails
-loudly in development rather than shipping. Form schemas live in the owning feature's `domain/` and
+responses against it and NestJS validates requests against it, so contract drift fails loudly in
+development rather than shipping. Form schemas live in the owning feature's `domain/` and
 are built by `.pick()`/`.extend()` from a contract — never by redeclaring the shape.
 
 ### Authentication and authorization are decided by the server
 
 NestJS authenticates the HttpOnly JWT cookies and enforces roles and ownership. The UI's role
-gating shapes what a user sees; it does not secure anything. MSW handlers model those responses
-only inside unit tests.
+gating shapes what a user sees; it does not secure anything.
 
 ### Strings live in `apps/web/src/content`
 
@@ -220,18 +257,25 @@ tinted text with `opacity` pushed every feedback tone below 4.5:1.
 
 No frontend authentication secret or token setting is required. The browser
 calls relative `/api` URLs; Vite proxies them to `http://localhost:3000` during
-development. JWT access and refresh tokens remain in HttpOnly cookies.
+development (`SDP_API_TARGET` overrides it). JWT access and refresh tokens remain in HttpOnly cookies.
 
 ### `apps/api`
 
-Copy `apps/api/.env.example` to `apps/api/.env` and fill in real values. This
-is a separate process from `apps/web` and MSW is not part of it.
+Create `apps/api/.env` and fill in real values; every variable, its default and
+what to change when hosting is in
+[`docs/26-configuration-and-hosting.md`](./docs/26-configuration-and-hosting.md).
+This is a separate process from `apps/web`.
 
-| Variable       | Example                                         | Purpose                     |
-| -------------- | ----------------------------------------------- | --------------------------- |
-| `NODE_ENV`     | `development`                                   |                             |
-| `PORT`         | `3000`                                          | HTTP listen port            |
-| `DATABASE_URL` | `postgresql://user:password@localhost:5432/sdp` | Not yet wired to any module |
+| Variable                                   | Example                                               | Purpose                                                                                      |
+| ------------------------------------------ | ----------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `NODE_ENV`                                 | `development`                                         |                                                                                              |
+| `PORT`                                     | `3000`                                                | HTTP listen port                                                                             |
+| `DATABASE_URL`                             | `postgresql://user:password@host/sdp?sslmode=require` | PostgreSQL (Neon). `sslmode=require` is mandatory in production                              |
+| `FRONTEND_ORIGIN`                          | `http://localhost:5175`                               | CORS allow-list and the origin in emailed links; `https://` only in production               |
+| `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` | 32+ random characters                                 | Separate secrets for the two cookies                                                         |
+| `COOKIE_SECURE`                            | unset                                                 | `Secure` cookies; on automatically in production, which refuses `false`                      |
+| `TRUST_PROXY`                              | `1`                                                   | Express `trust proxy` behind a TLS-terminating proxy (hop count or addresses — never `true`) |
+| `SWAGGER_ENABLED`                          | unset                                                 | API docs at `/api/docs`; defaults to on only when `NODE_ENV=development`                     |
 
 Node 22 or newer is required (Vite 8).
 

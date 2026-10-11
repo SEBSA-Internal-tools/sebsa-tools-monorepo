@@ -23,6 +23,9 @@
 
 @import 'tailwindcss';
 
+/* The app is light-only: `dark:` must never follow the OS colour scheme. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /*
  * Self-hosted so there is no external font request and no flash of fallback.
  * Latin subsets only — the full families ship Cyrillic, Greek and Vietnamese

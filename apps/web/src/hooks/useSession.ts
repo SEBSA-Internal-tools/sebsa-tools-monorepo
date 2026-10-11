@@ -1,6 +1,5 @@
 import { create } from 'zustand';
-import { setMockUserId } from '@/lib/apiClient.ts';
-import { clearUserStorage } from '@/lib/sessionStorage.ts';
+import { clearUserStorage, purgeLegacyStorage } from '@/lib/sessionStorage.ts';
 
 interface SessionState {
   userId: string | null;
@@ -25,22 +24,31 @@ export const useSession = create<SessionState>()((set, get) => ({
   isExpired: false,
 
   signIn: (userId) => {
-    setMockUserId(userId);
     set({ userId, isAuthenticated: true, isChecking: false, didExpire: false, isExpired: false });
   },
 
   authenticationChecked: (userId) => {
-    setMockUserId(userId);
     set({ userId, isAuthenticated: true, isChecking: false, didExpire: false, isExpired: false });
   },
 
   signOut: (options) => {
     const expired = options?.expired ?? false;
     const state = get();
-    if (!state.isAuthenticated && !state.isChecking && state.didExpire === expired && !state.isExpired) return;
+    if (
+      !state.isAuthenticated &&
+      !state.isChecking &&
+      state.didExpire === expired &&
+      !state.isExpired
+    )
+      return;
     clearUserStorage();
-    setMockUserId(null);
-    set({ userId: null, isAuthenticated: false, isChecking: false, didExpire: expired, isExpired: false });
+    set({
+      userId: null,
+      isAuthenticated: false,
+      isChecking: false,
+      didExpire: expired,
+      isExpired: false,
+    });
     if (options?.broadcast !== false && typeof window !== 'undefined') {
       window.localStorage.setItem(AUTH_EVENT_KEY, `${Date.now()}:logout`);
     }
@@ -49,8 +57,13 @@ export const useSession = create<SessionState>()((set, get) => ({
   expireSession: () => {
     if (get().isExpired) return;
     clearUserStorage();
-    setMockUserId(null);
-    set({ userId: null, isAuthenticated: false, isChecking: false, didExpire: true, isExpired: true });
+    set({
+      userId: null,
+      isAuthenticated: false,
+      isChecking: false,
+      didExpire: true,
+      isExpired: true,
+    });
   },
 
   dismissExpiry: () => set({ isExpired: false }),
@@ -62,6 +75,7 @@ export const useSession = create<SessionState>()((set, get) => ({
  * unauthenticated and asks `/auth/me` to resolve the cookie-backed session.
  */
 export function initialiseSession(): void {
+  purgeLegacyStorage();
   useSession.setState({
     userId: null,
     isAuthenticated: false,

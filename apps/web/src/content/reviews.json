@@ -219,11 +219,11 @@
       "developerReason": "Developer Rejection Reason",
       "accept": "Accept Rejection",
       "overrule": "Do Not Accept",
-      "acceptedBadge": "Accepted (Counted Cycle -1)",
+      "acceptedBadge": "Accepted (Cycle -1)",
       "overruledBadge": "Not Accepted",
       "pendingBadge": "Pending Evaluation",
-      "allAcceptedBanner": "All developer rejections have been accepted. You can now approve this task with the counted cycle count reduced by 1.",
-      "singleAcceptedBanner": "The developer rejection has been accepted. You can now approve this task with the counted cycle count reduced by 1."
+      "allAcceptedBanner": "All developer rejections have been accepted. You can now approve this task with the cycle count reduced by 1.",
+      "singleAcceptedBanner": "The developer rejection has been accepted. You can now approve this task with the cycle count reduced by 1."
     },
     "sidebar": {
       "readinessTitle": "Review Readiness",

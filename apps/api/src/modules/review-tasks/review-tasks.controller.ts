@@ -28,6 +28,8 @@ import { CancelReviewTaskDto } from './dto/cancel-review-task.dto.js';
 import { ReasonDto } from '../../common/dto/reason.dto.js';
 
 @ApiTags('Review Tasks')
+// Workflow actions (submit, pick, assign, ...) answer 200: they change an
+// existing task rather than create one.
 @Controller(['review-tasks', 'tasks'])
 export class ReviewTasksController {
   constructor(private readonly tasks: ReviewTasksService) {}
@@ -121,19 +123,19 @@ export class ReviewTasksController {
   ) {
     return this.tasks.update(id, dto, user);
   }
-  @Post(':id/submit') @Roles('DEVELOPER', 'ADMIN') @ApiOkResponse() submit(
+  @HttpCode(HttpStatus.OK) @Post(':id/submit') @Roles('DEVELOPER', 'ADMIN') @ApiOkResponse() submit(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.tasks.submit(id, user);
   }
-  @Post(':id/pick') @Roles('REVIEWER') @ApiOkResponse() pick(
+  @HttpCode(HttpStatus.OK) @Post(':id/pick') @Roles('REVIEWER') @ApiOkResponse() pick(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.tasks.pick(id, user);
   }
-  @Post(':id/assign') @Roles('ADMIN') @ApiOkResponse() assign(
+  @HttpCode(HttpStatus.OK) @Post(':id/assign') @Roles('ADMIN') @ApiOkResponse() assign(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: AssignReviewerDto,
     @CurrentUser() user: AuthenticatedUser,
@@ -144,14 +146,18 @@ export class ReviewTasksController {
    * Admin transfer for a ChangesRequested task: who receives it on
    * resubmission (docs/25-review-assignment-rules.md).
    */
-  @Post(':id/resubmission-reviewer') @Roles('ADMIN') @ApiOkResponse() changeResubmissionReviewer(
+  @HttpCode(HttpStatus.OK)
+  @Post(':id/resubmission-reviewer')
+  @Roles('ADMIN')
+  @ApiOkResponse()
+  changeResubmissionReviewer(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: AssignReviewerDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.tasks.changeResubmissionReviewer(id, dto.reviewerId, user, dto.reason);
   }
-  @Post(':id/cancel') @Roles('ADMIN') @ApiOkResponse() cancel(
+  @HttpCode(HttpStatus.OK) @Post(':id/cancel') @Roles('ADMIN') @ApiOkResponse() cancel(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: CancelReviewTaskDto,
     @CurrentUser() user: AuthenticatedUser,

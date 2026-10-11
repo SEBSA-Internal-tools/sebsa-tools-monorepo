@@ -46,12 +46,13 @@ export class CustomersService {
     try {
       const customer = await this.prisma.$transaction(async (tx) => {
         const name = dto.name.trim();
-        const code = dto.code?.trim().toUpperCase() ?? (await this.nextCode(tx, name));
+        const code = await this.nextCode(tx, name);
         const created = await tx.customer.create({
           data: {
-            ...dto,
             code,
             name,
+            description: dto.description?.trim() ?? null,
+            color: dto.color,
             createdBy: actor.id,
           },
           include: { creator: true },
@@ -103,20 +104,21 @@ export class CustomersService {
     if (dto.name !== undefined) await this.assertNameFree(dto.name, id);
     try {
       const customer = await this.prisma.$transaction(async (tx) => {
-        const { isActive, status, ...changes } = dto;
+        const { isActive } = dto;
         const updatedStatus =
           isActive === undefined
-            ? status
+            ? undefined
             : isActive
               ? CustomerStatus.ACTIVE
               : CustomerStatus.INACTIVE;
+        // `code` is deliberately not updatable: it is derived once, at creation.
         const updated = await tx.customer.update({
           where: { id },
           data: {
-            ...changes,
             ...(updatedStatus === undefined ? {} : { status: updatedStatus }),
-            ...(dto.code === undefined ? {} : { code: dto.code.trim().toUpperCase() }),
             ...(dto.name === undefined ? {} : { name: dto.name.trim() }),
+            ...(dto.description === undefined ? {} : { description: dto.description.trim() }),
+            ...(dto.color === undefined ? {} : { color: dto.color }),
           },
           include: { creator: true },
         });
@@ -146,9 +148,15 @@ export class CustomersService {
    * that any task references is part of the record: deactivate it instead.
    */
   async remove(id: string, actor: AuthenticatedUser, reason?: string) {
+    if (!reason?.trim()) {
+      throw new ApiException('REASON_REQUIRED', 'Provide a reason for deleting this customer.');
+    }
     const existing = await this.findOne(id);
     if ((await this.prisma.task.count({ where: { customerId: id } })) > 0) {
-      throw new ApiException('CUSTOMER_IN_USE', 'This customer has tasks. Deactivate them instead.');
+      throw new ApiException(
+        'CUSTOMER_IN_USE',
+        'This customer has tasks. Deactivate them instead.',
+      );
     }
     try {
       return await this.prisma.$transaction(async (tx) => {

@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException } from '@nestjs/common';
+import { ForbiddenException } from '@nestjs/common';
 import { HandoverStatus, ReviewerAssignmentType, TaskStatus } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 import type { RoleCode } from '../auth/auth.constants.js';
@@ -9,6 +9,7 @@ const audit = { record: vi.fn().mockResolvedValue(undefined) };
 const notifications = {
   create: vi.fn().mockResolvedValue({}),
   createMany: vi.fn().mockResolvedValue({ count: 0 }),
+  queueEmailForTriggerRows: vi.fn().mockResolvedValue(1),
 };
 const serviceWith = (prisma: unknown) =>
   new ReviewTasksService(prisma as never, audit as never, notifications as never);
@@ -70,9 +71,7 @@ describe('ReviewTasksService review round and counted-cycle projection', () => {
   });
 
   it('reports zero counted cycles without reducing or renumbering the round', () => {
-    const result = deriveTaskReviewCycles(2, [
-      { roundNumber: 1, counted: false },
-    ]);
+    const result = deriveTaskReviewCycles(2, [{ roundNumber: 1, counted: false }]);
 
     expect(result).toEqual({ reviewCycle: 0, historicalCycle: 2, adjustedCycles: [1] });
   });
@@ -83,6 +82,54 @@ describe('ReviewTasksService review round and counted-cycle projection', () => {
       historicalCycle: 0,
       adjustedCycles: [],
     });
+  });
+
+  it('labels history before the first pick as round zero', async () => {
+    const user = actor(['DEVELOPER']);
+    const taskId = '00000000-0000-0000-0000-000000000031';
+    const actions = [
+      'TASK_CREATED',
+      'TASK_SUBMITTED',
+      'TASK_PICKED',
+      'CHANGES_REQUESTED',
+      'TASK_RESUBMITTED',
+      'TASK_APPROVED',
+    ];
+    const service = serviceWith({
+      task: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: taskId,
+          status: TaskStatus.APPROVED,
+          developerId: user.id,
+          handovers: [],
+          codeReviewForms: [],
+        }),
+      },
+      auditLog: {
+        findMany: vi.fn().mockResolvedValue(
+          actions.map((action, index) => ({
+            id: `log-${String(index)}`,
+            action,
+            userId: user.id,
+            actorName: user.name,
+            metadata: null,
+            newValues: null,
+            createdAt: new Date(Date.UTC(2026, 0, 1, 0, index)),
+          })),
+        ),
+      },
+    });
+
+    const events = await service.findEvents(taskId, user);
+
+    expect(events.map(({ kind, reviewCycle }) => [kind, reviewCycle])).toEqual([
+      ['Created', 0],
+      ['Submitted', 0],
+      ['Picked', 1],
+      ['ChangesRequested', 1],
+      ['Resubmitted', 2],
+      ['Approved', 2],
+    ]);
   });
 });
 
@@ -184,7 +231,9 @@ describe('ReviewTasksService list visibility', () => {
     });
 
     // 404, not 403: a guessed id must not confirm that a draft exists.
-    await expect(service.findOne('task-id', user)).rejects.toMatchObject({ code: 'TASK_NOT_FOUND' });
+    await expect(service.findOne('task-id', user)).rejects.toMatchObject({
+      code: 'TASK_NOT_FOUND',
+    });
   });
 
   it('hides a developer draft from an Admin too', async () => {
@@ -202,7 +251,9 @@ describe('ReviewTasksService list visibility', () => {
       },
     });
 
-    await expect(service.findOne('task-id', user)).rejects.toMatchObject({ code: 'TASK_NOT_FOUND' });
+    await expect(service.findOne('task-id', user)).rejects.toMatchObject({
+      code: 'TASK_NOT_FOUND',
+    });
   });
 });
 describe('ReviewTasksService draft checklist', () => {
@@ -578,7 +629,7 @@ describe('ReviewTasksService task picking', () => {
         updateMany: vi.fn().mockResolvedValue({ count: 0 }),
         create: vi.fn().mockResolvedValue({ id: '00000000-0000-4000-8000-000000000201' }),
       },
-      $executeRaw: vi.fn().mockResolvedValue(0),
+      codeReviewForm: { updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
       taskStatusHistory: { create: vi.fn().mockResolvedValue({}) },
     };
     const service = serviceWith({
@@ -604,7 +655,16 @@ describe('ReviewTasksService task picking', () => {
         assignmentType: ReviewerAssignmentType.SELF_PICKED,
       },
     });
-    expect(tx.$executeRaw).toHaveBeenCalledOnce();
+    expect(tx.codeReviewForm.updateMany).toHaveBeenCalledWith({
+      where: { taskId: picked.id, reviewCycleNumber: 1, status: 'DRAFT' },
+      data: {
+        reviewerId: user.id,
+        currentReviewSessionId: '00000000-0000-4000-8000-000000000201',
+        reviewRank: null,
+        previousFeedbackReviewNote: null,
+        previousFeedbackAcknowledged: null,
+      },
+    });
     expect(tx.taskStatusHistory.create).toHaveBeenCalledWith({
       data: {
         taskId: picked.id,
@@ -653,9 +713,11 @@ describe('ReviewTasksService task picking', () => {
       $transaction: vi.fn((operation: (client: typeof tx) => Promise<unknown>) => operation(tx)),
     });
 
-    await expect(service.pick('task-id', user)).rejects.toThrow(
-      new ConflictException('Winning Reviewer has already picked up this task'),
-    );
+    await expect(service.pick('task-id', user)).rejects.toMatchObject({
+      code: 'ALREADY_PICKED',
+      status: 409,
+      message: 'Winning Reviewer has already picked up this task',
+    });
   });
 
   it('prevents a Developer and Reviewer user from picking their own submission', async () => {
@@ -738,7 +800,7 @@ describe('ReviewTasksService task picking', () => {
         updateMany: vi.fn().mockResolvedValue({ count: 1 }),
         create: vi.fn().mockResolvedValue({ id: '00000000-0000-4000-8000-000000000202' }),
       },
-      $executeRaw: vi.fn().mockResolvedValue(1),
+      codeReviewForm: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
       taskStatusHistory: { create: vi.fn().mockResolvedValue({}) },
     };
     const service = serviceWith({
@@ -836,7 +898,7 @@ describe('ReviewTasksService task picking', () => {
         updateMany: vi.fn().mockResolvedValue({ count: 1 }),
         create: vi.fn().mockResolvedValue({ id: '00000000-0000-4000-8000-000000000203' }),
       },
-      $executeRaw: vi.fn().mockResolvedValue(1),
+      codeReviewForm: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
       taskStatusHistory: { create: vi.fn().mockResolvedValue({}) },
       user: {
         findMany: vi
@@ -978,13 +1040,16 @@ describe('ReviewTasksService Admin task actions', () => {
         previousFeedbackAcknowledged: null,
       },
     });
-    expect(notifications.create).toHaveBeenCalledWith(
+    expect(notifications.createMany).toHaveBeenCalledWith(
       tx,
-      expect.objectContaining({
-        recipientId: newReviewerId,
-        type: 'TASK_ASSIGNED',
-        title: 'Test task reassigned to you',
-      }),
+      expect.arrayContaining([
+        expect.objectContaining({
+          recipientId: newReviewerId,
+          type: 'TASK_ASSIGNED',
+          title: 'Test task reassigned to you',
+          email: expect.objectContaining({ event: 'REVIEWER_ASSIGNED', reviewerId: newReviewerId }),
+        }),
+      ]),
     );
   });
 
@@ -1151,11 +1216,14 @@ describe('ReviewTasksService handover', () => {
       otherRemarks: 'Preserve this draft',
       feedbackSummary: '',
     };
+    const saveDraft = vi.fn().mockResolvedValue(draft);
     const result = await service.handover(
       taskId,
       { reason: 'On leave next week.', draft },
       reviewer,
+      saveDraft,
     );
+    expect(saveDraft).toHaveBeenCalledWith(tx);
 
     expect(tx.task.updateMany).toHaveBeenCalledWith({
       where: { id: taskId, currentReviewerId: reviewer.id, status: TaskStatus.IN_REVIEW },
@@ -1201,5 +1269,43 @@ describe('ReviewTasksService handover', () => {
         message: `${reviewer.name} handed over this review task for reassignment.`,
       }),
     ]);
+  });
+});
+
+describe('ReviewTasksService legacy statuses', () => {
+  it('serves a legacy DELIVERED task as Approved, a status the API contract knows', async () => {
+    const developer = actor(['DEVELOPER']);
+    const legacy = {
+      id: '00000000-0000-4000-8000-0000000000d1',
+      taskCode: 'LEGACY-01',
+      title: 'Legacy task',
+      crimId: 'CRIM-9',
+      version: '0',
+      customerId: '00000000-0000-4000-8000-000000000030',
+      priority: 'LOW',
+      status: TaskStatus.DELIVERED,
+      currentReviewCycle: 1,
+      developerId: developer.id,
+      currentReviewerId: null,
+      checklistCompleted: true,
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-01-02T00:00:00.000Z'),
+      submittedAt: new Date('2026-01-01T01:00:00.000Z'),
+      customer: { name: 'Test', code: 'TEST', color: '#123456' },
+      developer: { fullName: developer.name },
+      currentReviewer: null,
+      reviewerAssignments: [],
+      taskTypes: [],
+      developerChecklist: null,
+      codeReviewForms: [],
+      reviewCycles: [],
+      handovers: [],
+    };
+    const service = serviceWith({ task: { findUnique: vi.fn().mockResolvedValue(legacy) } });
+
+    await expect(service.findOne(legacy.id, developer)).resolves.toMatchObject({
+      id: legacy.id,
+      status: 'Approved',
+    });
   });
 });

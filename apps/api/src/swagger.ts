@@ -4,18 +4,21 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 export const SWAGGER_PATH = 'api/docs';
 export const SWAGGER_JSON_PATH = 'api/docs-json';
 
-/** Configures the development-only OpenAPI documentation endpoints. */
-export function setupSwagger(app: INestApplication): void {
-  if (process.env['NODE_ENV'] === 'production') {
+/**
+ * Configures the OpenAPI documentation endpoints. Off unless `SWAGGER_ENABLED`
+ * is `true` (the local `.env` turns it on), so a staging or production
+ * deployment never publishes the API map by accident.
+ */
+export function setupSwagger(app: INestApplication, enabled: boolean): void {
+  if (!enabled) {
     return;
   }
 
-  const port = process.env['PORT'] ?? '3000';
   const config = new DocumentBuilder()
     .setTitle('SEBSA Code Review Portal API')
     .setDescription('REST API for managing the SEBSA code review workflow.')
     .setVersion('1.0')
-    .addServer(`http://localhost:${port}`, 'Local development')
+    .addServer('/', 'This server')
     .build();
 
   const document = SwaggerModule.createDocument(app, config, {

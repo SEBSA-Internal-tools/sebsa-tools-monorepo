@@ -5,8 +5,9 @@ import { redirectFromState } from '@/lib/safeRedirect.ts';
 import { PageSkeleton } from '@/components/common/Skeleton.tsx';
 
 /**
- * Gate for the screens that only make sense while signed out: sign-in, and the
- * set-password / forgot-password / link-expired screens of local sign-in.
+ * Gate for the screens that only make sense while signed out: sign-in and
+ * forgot-password. The emailed-link screens (set-password, link-expired) sit
+ * outside it so a link still opens in a browser that is already signed in.
  *
  * The counterpart of `RequireAuth`, as a layout route so every guest screen is
  * covered by one rule instead of each page re-checking the session. A signed-in

@@ -12,8 +12,8 @@ import { useSessionUser } from './session.ts';
  *
  * This stops a user landing on a workspace by typing its URL, but it is a
  * usability control, not a security boundary — the browser can always be lied
- * to. The real enforcement is server-side: MSW filters by caller today
- * (see `mocks/handlers.ts`), NestJS guards do it in Phase 2.
+ * to. The real enforcement is server-side: NestJS's role guard and each
+ * service's policy checks (apps/api).
  */
 export function RequireWorkspace({
   workspace,

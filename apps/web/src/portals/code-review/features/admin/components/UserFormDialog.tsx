@@ -145,6 +145,7 @@ export function UserFormDialog({
 
     try {
       let updated = user;
+      const emailChanged = parsed.data.email.toLowerCase() !== user.email.toLowerCase();
       if (parsed.data.name !== user.name || parsed.data.email !== user.email) {
         updated = await updateUser.mutateAsync({
           userId: user.id,
@@ -158,7 +159,14 @@ export function UserFormDialog({
           ...(reason === undefined ? {} : { reason }),
         });
       }
-      toast.success(interpolate(admin.users.updated, { name: updated.name }));
+      toast.success(
+        emailChanged
+          ? interpolate(admin.users.emailChange.success, {
+              name: updated.name,
+              email: updated.email,
+            })
+          : interpolate(admin.users.updated, { name: updated.name }),
+      );
       onClose();
     } catch (cause) {
       onError(cause);
@@ -223,6 +231,16 @@ export function UserFormDialog({
             placeholder={admin.users.emailPlaceholder}
           />
         </Field>
+        {user !== null && form.email.trim().toLowerCase() !== user.email.toLowerCase() ? (
+          // The server sends the account back to Invited: the new address must
+          // be proven before it can sign in or receive password resets.
+          <p
+            role="note"
+            className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
+          >
+            {interpolate(admin.users.emailChange.warning, { name: user.name })}
+          </p>
+        ) : null}
 
         {user !== null && !editRoles ? null : (
           <fieldset>
@@ -262,7 +280,12 @@ export function UserFormDialog({
         )}
 
         {privilegedChange ? (
-          <Field label={admin.users.privileged.reasonLabel} required error={errors.reason}>
+          <Field
+            label={admin.users.privileged.roleReasonLabel}
+            hint={admin.users.privileged.roleReasonHint}
+            required
+            error={errors.reason}
+          >
             <Textarea
               value={form.reason}
               onChange={(event) => {
@@ -273,7 +296,7 @@ export function UserFormDialog({
                 });
               }}
               rows={3}
-              placeholder={admin.users.privileged.reasonPlaceholder}
+              placeholder={admin.users.privileged.roleReasonPlaceholder}
             />
           </Field>
         ) : null}

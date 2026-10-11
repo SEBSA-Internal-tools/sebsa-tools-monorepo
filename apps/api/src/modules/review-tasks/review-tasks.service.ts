@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import {
   BadRequestException,
-  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -16,9 +15,7 @@ import {
   TaskStatus,
 } from '@prisma/client';
 import {
-  ALLOWED_IMAGE_MIME_TYPES,
   MAX_SCREENSHOTS_PER_REVIEW,
-  MAX_SCREENSHOT_BYTES,
   checklistDraftSchema,
   checklistSubmissionSchema,
   type ChecklistSubmission,
@@ -32,10 +29,15 @@ import type { ChecklistAnswerDto, CreateReviewTaskDto } from './dto/create-revie
 import type { UpdateReviewTaskDto } from './dto/update-review-task.dto.js';
 import type { AuthenticatedUser } from '../auth/auth.types.js';
 import { formatTaskCode } from './task-code.js';
+import {
+  IMAGE_REJECTION_MESSAGES,
+  inspectImageDataUrl,
+} from '../../common/uploads/image-data-url.js';
 import type { ReviewTaskScope } from './dto/review-task-query.dto.js';
 import { AuditService } from '../audit/audit.service.js';
 import type { CreateHandoverDto } from '../handovers/dto/create-handover.dto.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
+import { taskEmail } from '../notifications/task-email.js';
 
 const taskInclude = {
   customer: true,
@@ -89,7 +91,9 @@ export function deriveTaskReviewCycles(
   currentReviewRound: number,
   cycles: readonly ReviewCycleProjection[],
 ) {
-  const adjustedCycles = cycles.filter(({ counted }) => !counted).map(({ roundNumber }) => roundNumber);
+  const adjustedCycles = cycles
+    .filter(({ counted }) => !counted)
+    .map(({ roundNumber }) => roundNumber);
   return {
     reviewCycle: cycles.filter(({ counted }) => counted).length,
     historicalCycle: currentReviewRound,
@@ -165,8 +169,7 @@ export class ReviewTasksService {
 
   async findOne(id: string, user: AuthenticatedUser) {
     const task = await this.getTask(id);
-    if (!mayReadTask(user, task))
-      throw new ApiException('TASK_NOT_FOUND', 'Task not found.');
+    if (!mayReadTask(user, task)) throw new ApiException('TASK_NOT_FOUND', 'Task not found.');
     return this.toResponse(task);
   }
 
@@ -185,8 +188,7 @@ export class ReviewTasksService {
 
   async findChecklist(id: string, user: AuthenticatedUser) {
     const task = await this.getTask(id);
-    if (!mayReadTask(user, task))
-      throw new ApiException('TASK_NOT_FOUND', 'Task not found.');
+    if (!mayReadTask(user, task)) throw new ApiException('TASK_NOT_FOUND', 'Task not found.');
 
     const checklist = task.developerChecklist;
     if (!checklist) return null;
@@ -243,8 +245,7 @@ export class ReviewTasksService {
 
   async findChecklistSubmissions(id: string, user: AuthenticatedUser) {
     const task = await this.getTask(id);
-    if (!mayReadTask(user, task))
-      throw new ApiException('TASK_NOT_FOUND', 'Task not found.');
+    if (!mayReadTask(user, task)) throw new ApiException('TASK_NOT_FOUND', 'Task not found.');
     const records = await this.prisma.auditLog.findMany({
       where: { taskId: id, action: { in: ['TASK_SUBMITTED', 'TASK_RESUBMITTED'] } },
       select: { metadata: true },
@@ -258,13 +259,14 @@ export class ReviewTasksService {
     if (submissions.length === 0 && task.submittedAt && task.developerChecklist) {
       submissions.push(this.toChecklistSubmission(task, 1, task.submittedAt, task.developerId));
     }
-    return submissions;
+    // Newest first: the web client's ChecklistHistory treats the first entry as
+    // the submission currently under review.
+    return submissions.sort((left, right) => right.version - left.version);
   }
 
   async findEvents(id: string, user: AuthenticatedUser) {
     const task = await this.getTask(id);
-    if (!mayReadTask(user, task))
-      throw new ApiException('TASK_NOT_FOUND', 'Task not found.');
+    if (!mayReadTask(user, task)) throw new ApiException('TASK_NOT_FOUND', 'Task not found.');
     const logs = await this.prisma.auditLog.findMany({
       where: { taskId: id, userId: { not: null } },
       orderBy: { createdAt: 'asc' },
@@ -289,12 +291,18 @@ export class ReviewTasksService {
       TASK_CANCELLED: 'Cancelled',
       COUNTED_CYCLE_ADJUSTED: 'CountedCycleAdjusted',
     };
-    // Each Request Changes closes a round, so an event belongs to round
-    // 1 + (decisions of that kind recorded before it). History can then be
-    // grouped by the round the event really happened in.
-    let round = 1;
+    // Round 0 until a reviewer first takes the task; each Request Changes then
+    // closes a round, so later events belong to the round they happened in.
+    const reviewStartActions = new Set([
+      'TASK_PICKED',
+      'TASK_ASSIGNED',
+      'REVIEWER_ASSIGNED',
+      'HANDOVER_REASSIGNED',
+    ]);
+    let round = 0;
     return logs.flatMap((log) => {
       const kind = kindByAction[log.action];
+      if (reviewStartActions.has(log.action)) round = Math.max(round, 1);
       const eventRound = round;
       if (log.action === 'CHANGES_REQUESTED') round += 1;
       if (!kind || !log.userId) return [];
@@ -334,8 +342,7 @@ export class ReviewTasksService {
 
   async findAttachments(id: string, user: AuthenticatedUser) {
     const task = await this.getTask(id);
-    if (!mayReadTask(user, task))
-      throw new ApiException('TASK_NOT_FOUND', 'Task not found.');
+    if (!mayReadTask(user, task)) throw new ApiException('TASK_NOT_FOUND', 'Task not found.');
     const rows = await this.prisma.taskAttachment.findMany({
       where: { taskId: id },
       orderBy: [{ uploadedAt: 'asc' }, { id: 'asc' }],
@@ -347,13 +354,12 @@ export class ReviewTasksService {
     const task = await this.getEditableTask(id, user);
     const body = input as Record<string, unknown>;
     const fileName = typeof body['fileName'] === 'string' ? body['fileName'].trim() : '';
-    const mimeType = typeof body['mimeType'] === 'string' ? body['mimeType'].trim() : '';
     const storageRef = typeof body['dataUrl'] === 'string' ? body['dataUrl'] : '';
-    const sizeBytes = typeof body['sizeBytes'] === 'number' ? body['sizeBytes'] : -1;
-    if (!fileName || !storageRef || sizeBytes < 0) {
+    if (!fileName || fileName.length > 255 || !storageRef) {
       throw new ApiException('VALIDATION_FAILED', 'Provide a valid image attachment');
     }
-    // Same caps as the web client (lib/attachments.ts rejectAttachment).
+    // Same caps as the web client (lib/attachments.ts rejectAttachment), but
+    // checked on the decoded bytes: the declared size and type are not trusted.
     const existingCount = await this.prisma.taskAttachment.count({ where: { taskId: task.id } });
     if (existingCount >= MAX_SCREENSHOTS_PER_REVIEW) {
       throw new ApiException(
@@ -361,14 +367,22 @@ export class ReviewTasksService {
         `A task can have at most ${String(MAX_SCREENSHOTS_PER_REVIEW)} attachments.`,
       );
     }
-    if (!(ALLOWED_IMAGE_MIME_TYPES as readonly string[]).includes(mimeType)) {
-      throw new ApiException('ATTACHMENT_REJECTED', 'Only PNG, JPEG, GIF and WebP images can be attached.');
-    }
-    if (sizeBytes > MAX_SCREENSHOT_BYTES) {
-      throw new ApiException('ATTACHMENT_REJECTED', 'Each image must be 5 MB or smaller.');
+    const image = inspectImageDataUrl(storageRef);
+    if (!image.ok) {
+      throw new ApiException(
+        image.reason === 'wrongType' ? 'UNSUPPORTED_MEDIA_TYPE' : 'ATTACHMENT_REJECTED',
+        IMAGE_REJECTION_MESSAGES[image.reason],
+      );
     }
     await this.prisma.taskAttachment.create({
-      data: { taskId: task.id, fileName, mimeType, storageRef, sizeBytes, uploadedById: user.id },
+      data: {
+        taskId: task.id,
+        fileName,
+        mimeType: image.mimeType,
+        storageRef,
+        sizeBytes: image.sizeBytes,
+        uploadedById: user.id,
+      },
     });
     return this.findAttachments(id, user);
   }
@@ -381,13 +395,18 @@ export class ReviewTasksService {
   ) {
     await this.getEditableTask(id, user);
     const body = input as Record<string, unknown>;
-    const caption = typeof body['caption'] === 'string' ? body['caption'].trim() : '';
-    const updated = await this.prisma.taskAttachment.updateMany({
+    const exists = await this.prisma.taskAttachment.count({
       where: { id: attachmentId, taskId: id },
-      data: { caption },
     });
-    if (updated.count !== 1)
-      throw new NotFoundException(`Attachment ${attachmentId} was not found`);
+    if (exists !== 1) throw new NotFoundException(`Attachment ${attachmentId} was not found`);
+    // A PATCH without `caption` leaves it as it is; an empty string clears it.
+    if (typeof body['caption'] === 'string') {
+      const caption = body['caption'].trim();
+      if (caption.length > 500) {
+        throw new ApiException('VALIDATION_FAILED', 'A caption can be at most 500 characters');
+      }
+      await this.prisma.taskAttachment.update({ where: { id: attachmentId }, data: { caption } });
+    }
     return this.findAttachments(id, user);
   }
 
@@ -623,9 +642,7 @@ export class ReviewTasksService {
                 data: {
                   ...checklistData,
                   taskId: id,
-                  ...(checklistAnswers.length > 0
-                    ? { answers: { create: checklistAnswers } }
-                    : {}),
+                  ...(checklistAnswers.length > 0 ? { answers: { create: checklistAnswers } } : {}),
                 },
               });
             }
@@ -749,7 +766,10 @@ export class ReviewTasksService {
     }
     const isResubmission = task.status === TaskStatus.CHANGES_REQUESTED;
     if (task.status !== TaskStatus.DRAFT && !isResubmission) {
-      throw new ConflictException('Only a draft or changes-requested task can be submitted');
+      throw new ApiException(
+        'INVALID_STATE',
+        'Only a draft or changes-requested task can be submitted',
+      );
     }
     if (!task.checklistCompleted) {
       throw new ApiException(
@@ -800,7 +820,10 @@ export class ReviewTasksService {
       if (isEligible) {
         resubmissionReviewerId = followUp.id;
       } else {
-        unavailableReviewer = { id: followUpId, name: followUp?.fullName ?? 'the previous reviewer' };
+        unavailableReviewer = {
+          id: followUpId,
+          name: followUp?.fullName ?? 'the previous reviewer',
+        };
       }
       const findingIds = latestChangesReview.findings.map(({ id: findingId }) => findingId);
       const responses = await this.prisma.developerFindingResponse.findMany({
@@ -926,6 +949,16 @@ export class ReviewTasksService {
             type: NotificationType.TASK_RESUBMITTED,
             title: `${task.title} resubmitted to the review pool`,
             message: `${unavailableReviewer.name} is no longer available, so any reviewer can pick it up.`,
+            email: taskEmail(
+              'RESUBMISSION_UNASSIGNED',
+              user.name,
+              {
+                developerName: user.name,
+                previousReviewerName: unavailableReviewer.name,
+                reason: `${unavailableReviewer.name} is no longer an eligible reviewer`,
+              },
+              now,
+            ),
           })),
         );
       }
@@ -953,6 +986,21 @@ export class ReviewTasksService {
             },
           },
           include: taskInclude,
+        });
+        await this.notifications.queueEmailForTriggerRows(tx, {
+          taskId: id,
+          recipientIds: [resubmissionReviewerId],
+          types: [NotificationType.TASK_RESUBMITTED],
+          payload: taskEmail(
+            'TASK_RESUBMITTED',
+            user.name,
+            {
+              reviewerId: resubmissionReviewerId,
+              developerName: user.name,
+              round: task.currentReviewCycle + 1,
+            },
+            now,
+          ),
         });
       }
       await this.audit.record(tx, user, {
@@ -1032,7 +1080,8 @@ export class ReviewTasksService {
           throw new ForbiddenException('You cannot review your own task');
         }
         if (candidate.currentReviewerId !== null) {
-          throw new ConflictException(
+          throw new ApiException(
+            'ALREADY_PICKED',
             candidate.currentReviewer?.fullName
               ? `${candidate.currentReviewer.fullName} has already picked up this task`
               : 'Another reviewer has already picked up this task',
@@ -1042,7 +1091,7 @@ export class ReviewTasksService {
           candidate.status !== TaskStatus.SUBMITTED &&
           candidate.status !== TaskStatus.RESUBMITTED
         ) {
-          throw new ConflictException('This task is not available to pick');
+          throw new ApiException('INVALID_STATE', 'This task is not available to pick');
         }
 
         // The conditional update is the concurrency control. If two reviewers
@@ -1065,7 +1114,8 @@ export class ReviewTasksService {
             where: { id },
             select: { currentReviewer: { select: { fullName: true } } },
           });
-          throw new ConflictException(
+          throw new ApiException(
+            'ALREADY_PICKED',
             winner?.currentReviewer?.fullName
               ? `${winner.currentReviewer.fullName} has already picked up this task`
               : 'This task was picked up or changed by another reviewer',
@@ -1089,10 +1139,10 @@ export class ReviewTasksService {
             },
           });
           if (resolved.count < 1) {
-            throw new ConflictException('This handover was already reassigned');
+            throw new ApiException('ALREADY_RESOLVED', 'This handover was already reassigned');
           }
         }
-        await tx.taskReviewerAssignment.create({
+        const assignment = await tx.taskReviewerAssignment.create({
           data: {
             taskId: id,
             reviewerId: user.id,
@@ -1102,13 +1152,22 @@ export class ReviewTasksService {
               : ReviewerAssignmentType.SELF_PICKED,
           },
         });
-        await tx.$executeRaw`
-          UPDATE "code_review_forms"
-          SET "reviewer_id" = ${user.id}::uuid
-          WHERE "task_id" = ${id}::uuid
-            AND "review_cycle_number" = ${Math.max(candidate.currentReviewCycle, 1)}
-            AND "status" = 'DRAFT'
-        `;
+        // The picker starts their own judgement on the open draft: the previous
+        // reviewer's rank and carried-over note do not transfer (as on assign).
+        await tx.codeReviewForm.updateMany({
+          where: {
+            taskId: id,
+            reviewCycleNumber: Math.max(candidate.currentReviewCycle, 1),
+            status: 'DRAFT',
+          },
+          data: {
+            reviewerId: user.id,
+            currentReviewSessionId: assignment.id,
+            reviewRank: null,
+            previousFeedbackReviewNote: null,
+            previousFeedbackAcknowledged: null,
+          },
+        });
         await tx.taskStatusHistory.create({
           data: {
             taskId: id,
@@ -1133,6 +1192,12 @@ export class ReviewTasksService {
           type: NotificationType.TASK_ASSIGNED,
           title: `${candidate.title} picked for review`,
           message: `${user.name} picked up your review task.`,
+          email: taskEmail(
+            'TASK_PICKED',
+            user.name,
+            { reviewerId: user.id, reviewerName: user.name },
+            now,
+          ),
         });
         if (pendingHandover) {
           if (pendingHandover.fromReviewerId !== user.id) {
@@ -1211,12 +1276,16 @@ export class ReviewTasksService {
           currentReviewerId: true,
           currentReviewCycle: true,
           status: true,
+          currentReviewer: { select: { fullName: true } },
           handovers: { where: { status: HandoverStatus.PENDING }, select: { id: true } },
         },
       });
       if (!task) throw new ApiException('TASK_NOT_FOUND', `Review task ${id} was not found`);
       if (task.handovers.length > 0) {
-        throw new ApiException('INVALID_STATE', 'Use the handover reassignment action for this task.');
+        throw new ApiException(
+          'HANDOVER_PENDING',
+          'Use the handover reassignment action for this task.',
+        );
       }
       if (task.status === TaskStatus.CHANGES_REQUESTED) {
         throw new ApiException(
@@ -1229,7 +1298,10 @@ export class ReviewTasksService {
         task.status !== TaskStatus.RESUBMITTED &&
         task.status !== TaskStatus.IN_REVIEW
       ) {
-        throw new ApiException('INVALID_STATE', 'This task cannot be assigned in its current state.');
+        throw new ApiException(
+          'INVALID_STATE',
+          'This task cannot be assigned in its current state.',
+        );
       }
       // Taking a review away from someone mid-way needs a recorded reason.
       if (task.status === TaskStatus.IN_REVIEW && !reason?.trim()) {
@@ -1250,7 +1322,10 @@ export class ReviewTasksService {
         throw new ApiException('SELF_REVIEW', 'A developer cannot review their own task.');
       }
       if (task.currentReviewerId === reviewer.id) {
-        throw new ApiException('SAME_REVIEWER', `${reviewer.fullName} is already assigned to this task.`);
+        throw new ApiException(
+          'SAME_REVIEWER',
+          `${reviewer.fullName} is already assigned to this task.`,
+        );
       }
 
       const isReassignment = task.currentReviewerId !== null;
@@ -1298,13 +1373,50 @@ export class ReviewTasksService {
           remarks: `${isReassignment ? 'Reassigned' : 'Assigned'} to ${reviewer.fullName}${reason?.trim() ? `: ${reason.trim()}` : ''}`,
         },
       });
-      await this.notifications.create(tx, {
-        taskId: id,
-        recipientId: reviewer.id,
-        type: NotificationType.TASK_ASSIGNED,
-        title: `${task.title} ${isReassignment ? 'reassigned' : 'assigned'} to you`,
-        message: `${actor.name} ${isReassignment ? 'reassigned' : 'assigned'} this review task to ${reviewer.fullName}.`,
-      });
+      const assignedEmail = taskEmail(
+        'REVIEWER_ASSIGNED',
+        actor.name,
+        {
+          reviewerId: reviewer.id,
+          reviewerName: reviewer.fullName,
+          previousReviewerName: task.currentReviewer?.fullName,
+          reason: reason?.trim(),
+        },
+        now,
+      );
+      await this.notifications.createMany(tx, [
+        {
+          taskId: id,
+          recipientId: reviewer.id,
+          type: NotificationType.TASK_ASSIGNED,
+          title: `${task.title} ${isReassignment ? 'reassigned' : 'assigned'} to you`,
+          message: `${actor.name} ${isReassignment ? 'reassigned' : 'assigned'} this review task to ${reviewer.fullName}.`,
+          email: assignedEmail,
+        },
+        ...(task.developerId === actor.id
+          ? []
+          : [
+              {
+                taskId: id,
+                recipientId: task.developerId,
+                type: NotificationType.TASK_ASSIGNED,
+                title: `${task.title} has a new reviewer`,
+                message: `${actor.name} assigned ${reviewer.fullName} to review your task.`,
+                email: assignedEmail,
+              },
+            ]),
+        ...(task.currentReviewerId === null || task.currentReviewerId === actor.id
+          ? []
+          : [
+              {
+                taskId: id,
+                recipientId: task.currentReviewerId,
+                type: NotificationType.TASK_REASSIGNED,
+                title: `${task.title} reassigned`,
+                message: `${actor.name} reassigned this review to ${reviewer.fullName}.`,
+              },
+            ]),
+      ]);
       await this.audit.record(tx, actor, {
         actionType: isReassignment ? 'TASK_REASSIGNED' : 'TASK_ASSIGNED',
         entityType: 'TASK',
@@ -1397,13 +1509,30 @@ export class ReviewTasksService {
           remarks: `Follow-up reviewer changed from ${previous?.fullName ?? 'none'} to ${reviewer.fullName}: ${reason.trim()}`,
         },
       });
-      await this.notifications.create(tx, {
-        taskId: id,
-        recipientId: reviewer.id,
-        type: NotificationType.TASK_ASSIGNED,
-        title: `${task.title} will return to you on resubmission`,
-        message: `${actor.name} made you the follow-up reviewer for this task.`,
+      const followUpEmail = taskEmail('FOLLOW_UP_REVIEWER_CHANGED', actor.name, {
+        reviewerId: reviewer.id,
+        reviewerName: reviewer.fullName,
+        previousReviewerName: previous?.fullName,
+        reason: reason.trim(),
       });
+      await this.notifications.createMany(tx, [
+        {
+          taskId: id,
+          recipientId: reviewer.id,
+          type: NotificationType.TASK_ASSIGNED,
+          title: `${task.title} will return to you on resubmission`,
+          message: `${actor.name} made you the follow-up reviewer for this task.`,
+          email: followUpEmail,
+        },
+        {
+          taskId: id,
+          recipientId: task.developerId,
+          type: NotificationType.TASK_ASSIGNED,
+          title: `${task.title} will be reviewed by ${reviewer.fullName}`,
+          message: `${actor.name} changed who reviews your resubmission.`,
+          email: followUpEmail,
+        },
+      ]);
       await this.audit.record(tx, actor, {
         actionType: 'RESUBMISSION_REVIEWER_CHANGED',
         entityType: 'TASK',
@@ -1495,6 +1624,7 @@ export class ReviewTasksService {
           type: NotificationType.TASK_CANCELLED,
           title: `${task.title} cancelled`,
           message: `${actor.name} cancelled this task. Reason: ${cancellationReason}`,
+          email: taskEmail('TASK_CANCELLED', actor.name, { reason: cancellationReason }, now),
         })),
       );
       await this.audit.record(tx, actor, {
@@ -1513,7 +1643,17 @@ export class ReviewTasksService {
     });
   }
 
-  async handover(id: string, dto: CreateHandoverDto, actor: AuthenticatedUser) {
+  /**
+   * `saveDraft` persists the reviewer's in-progress draft inside this same
+   * transaction, while they are still the assigned reviewer; its result is the
+   * snapshot the admin sees on the handover.
+   */
+  async handover(
+    id: string,
+    dto: CreateHandoverDto,
+    actor: AuthenticatedUser,
+    saveDraft?: (tx: Prisma.TransactionClient) => Promise<unknown>,
+  ) {
     return retryPrismaTransaction(() =>
       this.prisma.$transaction(async (tx) => {
         const task = await tx.task.findUnique({
@@ -1539,11 +1679,15 @@ export class ReviewTasksService {
           throw new ForbiddenException('Only the assigned reviewer can hand over this task');
         }
         if (task.status !== TaskStatus.IN_REVIEW) {
-          throw new ConflictException('Only a task currently in review can be handed over');
+          throw new ApiException(
+            'INVALID_STATE',
+            'Only a task currently in review can be handed over',
+          );
         }
         if (task.handovers.length > 0) {
-          throw new ConflictException('This task already has a pending handover');
+          throw new ApiException('HANDOVER_PENDING', 'This task already has a pending handover');
         }
+        const draftSnapshot = saveDraft ? await saveDraft(tx) : undefined;
 
         const waitingStatus =
           (task.codeReviewForms?.length ?? 0) > 0 ? TaskStatus.RESUBMITTED : TaskStatus.SUBMITTED;
@@ -1552,7 +1696,10 @@ export class ReviewTasksService {
           data: { currentReviewerId: null, status: waitingStatus },
         });
         if (released.count !== 1) {
-          throw new ConflictException('This task was already handed over or reassigned');
+          throw new ApiException(
+            'ALREADY_HANDED_OVER',
+            'This task was already handed over or reassigned',
+          );
         }
 
         const now = new Date();
@@ -1594,11 +1741,11 @@ export class ReviewTasksService {
             reviewerId: null,
             reason: dto.reason.trim(),
           },
-          ...(dto.draft === undefined
+          ...(draftSnapshot === undefined
             ? {}
             : {
                 metadata: {
-                  reviewDraft: dto.draft as Prisma.InputJsonObject,
+                  reviewDraft: draftSnapshot as Prisma.InputJsonObject,
                 },
               }),
         });
@@ -1625,6 +1772,13 @@ export class ReviewTasksService {
         const eligibleReviewerIds = new Set(
           eligibleReviewers.map(({ id: reviewerId }) => reviewerId),
         );
+        const administratorIds = new Set(administrators.map(({ id: adminId }) => adminId));
+        const handoverEmail = taskEmail(
+          'TASK_HANDED_OVER',
+          actor.name,
+          { reason: dto.reason.trim(), previousReviewerName: actor.name },
+          now,
+        );
         await this.notifications.createMany(tx, [
           {
             taskId: id,
@@ -1632,6 +1786,7 @@ export class ReviewTasksService {
             type: NotificationType.TASK_HANDOVER,
             title: `${task.title} handed over`,
             message: `${actor.name} handed over your review task for reassignment.`,
+            email: handoverEmail,
           },
           ...eligibleReviewers.map(({ id: recipientId }) => ({
             taskId: id,
@@ -1639,6 +1794,7 @@ export class ReviewTasksService {
             type: NotificationType.TASK_HANDOVER,
             title: `${task.title} available to pick`,
             message: `${actor.name} handed over this review task. It is now available to pick.`,
+            ...(administratorIds.has(recipientId) ? { email: handoverEmail } : {}),
           })),
           ...administrators
             .filter(
@@ -1653,6 +1809,7 @@ export class ReviewTasksService {
               type: NotificationType.TASK_HANDOVER,
               title: `${task.title} handed over`,
               message: `${actor.name} handed over this review task for reassignment.`,
+              email: handoverEmail,
             })),
         ]);
 
@@ -1724,7 +1881,9 @@ export class ReviewTasksService {
   /** What a task has accumulated that makes deleting it erase history. */
   private async workflowEvidence(tx: Prisma.TransactionClient, taskId: string) {
     const [submissions, decided, forms, responses, handovers, assignments] = await Promise.all([
-      tx.auditLog.count({ where: { taskId, action: { in: ['TASK_SUBMITTED', 'TASK_RESUBMITTED'] } } }),
+      tx.auditLog.count({
+        where: { taskId, action: { in: ['TASK_SUBMITTED', 'TASK_RESUBMITTED'] } },
+      }),
       tx.codeReviewForm.count({ where: { taskId, decision: { not: null } } }),
       tx.codeReviewForm.count({ where: { taskId } }),
       tx.developerFindingResponse.count({ where: { finding: { reviewForm: { taskId } } } }),
@@ -1856,7 +2015,7 @@ export class ReviewTasksService {
     const previousAdminAssignedReviewer =
       currentAssignment?.assignmentType === ReviewerAssignmentType.ADMIN_REASSIGNED &&
       currentAssignment.assignedBy !== null
-        ? reviewerAssignments.find(({ isCurrent }) => !isCurrent)?.reviewer.fullName
+        ? reviewerAssignments.find(({ isCurrent }) => !isCurrent)?.reviewer?.fullName
         : null;
     const status = {
       DRAFT: 'Draft',
@@ -1865,7 +2024,10 @@ export class ReviewTasksService {
       CHANGES_REQUESTED: 'ChangesRequested',
       RESUBMITTED: 'ReSubmitted',
       APPROVED: 'Approved',
-      DELIVERED: 'Delivered',
+      // Delivered was retired from the Code Review workflow; the API contract
+      // has no such status. A legacy row reads as the Approved it was (the old
+      // mock migrated it the same way) instead of breaking every list it is in.
+      DELIVERED: 'Approved',
       CANCELLED: 'Cancelled',
     }[task.status];
     const priority = {
@@ -1892,7 +2054,7 @@ export class ReviewTasksService {
       isChecklistComplete: task.checklistCompleted,
       isHandedOver: task.handovers.some(({ status }) => status === HandoverStatus.PENDING),
       handedOverByName:
-        previousAdminAssignedReviewer ?? task.handovers[0]?.fromReviewer.fullName ?? null,
+        previousAdminAssignedReviewer ?? task.handovers[0]?.fromReviewer?.fullName ?? null,
       noteToReviewer: task.noteToReviewer,
       createdAt: task.createdAt.toISOString(),
       submittedAt: task.submittedAt?.toISOString() ?? null,
@@ -1921,7 +2083,10 @@ export class ReviewTasksService {
       select: { id: true },
     });
     if (taskTypes.length !== taskTypeIds.length)
-      throw new BadRequestException('All taskTypeIds must identify active task types');
+      throw new ApiException(
+        'INVALID_TASK_TYPE',
+        'All taskTypeIds must identify active task types',
+      );
 
     const duplicateIds = answers
       .map(({ questionId }) => questionId)

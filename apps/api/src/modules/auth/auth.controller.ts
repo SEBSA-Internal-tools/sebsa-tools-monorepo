@@ -1,4 +1,14 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, Req, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Post,
+  Req,
+  Res,
+  UseInterceptors,
+} from '@nestjs/common';
 import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import type { Request, Response } from 'express';
@@ -10,6 +20,7 @@ import { CurrentUser } from './decorators/current-user.decorator.js';
 import { Public } from './decorators/public.decorator.js';
 import { LoginDto } from './dto/login.dto.js';
 import type { AuthenticatedUser } from './auth.types.js';
+import { PublicAuthHeadersInterceptor } from '../password-links/public-auth-headers.interceptor.js';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -19,7 +30,12 @@ export class AuthController {
     private readonly config: ConfigService,
   ) {}
 
+  /**
+   * Login is CSRF-exempt (it mints the token), so it gets the same Origin
+   * allow-list and no-store headers as the other public auth endpoints.
+   */
   @Public()
+  @UseInterceptors(PublicAuthHeadersInterceptor)
   @HttpCode(HttpStatus.OK)
   @Post('login')
   async login(
@@ -36,7 +52,10 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Post('refresh')
   async refresh(@Req() request: Request, @Res({ passthrough: true }) response: Response) {
-    const result = await this.auth.refresh(this.cookie(request, REFRESH_COOKIE));
+    const result = await this.auth.refresh(
+      this.cookie(request, REFRESH_COOKIE),
+      this.metadata(request),
+    );
     this.setCookies(response, result.tokens);
     return result.user;
   }

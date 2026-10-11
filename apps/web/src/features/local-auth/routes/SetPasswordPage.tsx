@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { z } from 'zod';
 import { CheckCircle2, KeyRound } from 'lucide-react';
 import { routePaths } from '@/constants/routePaths';
 import { Button } from '@/components/ui/Button.tsx';
 import { Skeleton } from '@/components/common/Skeleton.tsx';
 import { Alert } from '@/components/ui/Alert.tsx';
 import { interpolate } from '@/lib/formatters.ts';
+import { api } from '@/lib/apiClient.ts';
+import { useSession } from '@/hooks/useSession.ts';
 import { AuthLayout } from '@/components/common/AuthLayout.tsx';
 import { expiredState } from './navigation.ts';
 import { setPassword, validateToken } from '../api/localAuthApi.ts';
@@ -16,7 +19,7 @@ import { SUCCESS_REDIRECT_MS } from '../config.ts';
 import { TIPS, setPasswordCopy, setPassword as copy } from '../content.ts';
 import type { RuleCode } from '../domain/passwordRules.ts';
 import { useDocumentTitle, useFocusOnChange, useNoReferrer } from '../hooks/useAuthScreen.ts';
-import { captureTokenFromLocation, clearToken } from '../lib/tokenStore.ts';
+import { captureTokenFromLocation, clearToken, scrubTokenFromUrl } from '../lib/tokenStore.ts';
 
 type Phase =
   | { name: 'checking' }
@@ -29,6 +32,16 @@ function formatLocal(iso: string): string | null {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return null;
   return date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+/** Whoever was signed in on this browser must sign in again after the password changes. */
+async function signOutCurrentSession(): Promise<void> {
+  try {
+    await api.post('/auth/logout', z.undefined());
+  } catch {
+    // The local session is cleared regardless.
+  }
+  useSession.getState().signOut();
 }
 
 function messageFor(error: unknown): string {
@@ -60,7 +73,8 @@ export function SetPasswordPage() {
   const tokenRef = useRef<string | null>(null);
   const redirectTimer = useRef<number | null>(null);
 
-  const text = setPasswordCopy;
+  const text =
+    setPasswordCopy[phase.name === 'ready' || phase.name === 'success' ? phase.purpose : 'INVITE'];
   const title =
     phase.name === 'success'
       ? text.successTitle
@@ -117,6 +131,18 @@ export function SetPasswordPage() {
     };
   }, [attempt, goToExpired]);
 
+  useEffect(() => {
+    if (phase.name !== 'ready') return;
+    const remaining = new Date(phase.expiresAt).getTime() - Date.now();
+    if (Number.isNaN(remaining)) return;
+    // setTimeout overflows above ~24.8 days; links never live that long.
+    const timer = window.setTimeout(
+      () => goToExpired('expired', phase.purpose, tokenRef.current),
+      Math.max(0, Math.min(remaining, 2_147_483_647)),
+    );
+    return () => window.clearTimeout(timer);
+  }, [phase, goToExpired]);
+
   // Cancel a pending redirect if the user leaves first.
   useEffect(
     () => () => {
@@ -136,14 +162,20 @@ export function SetPasswordPage() {
   async function handleSubmit(newPassword: string): Promise<void> {
     const token = tokenRef.current;
     if (token === null || phase.name !== 'ready') return;
+    if (Date.now() >= new Date(phase.expiresAt).getTime()) {
+      goToExpired('expired', phase.purpose, token);
+      return;
+    }
 
     setSaving(true);
     setError(null);
     setFailedRules([]);
     try {
       await setPassword(token, newPassword);
+      scrubTokenFromUrl();
       clearToken();
       tokenRef.current = null;
+      if (useSession.getState().isAuthenticated) await signOutCurrentSession();
       setPhase({ name: 'success', purpose: phase.purpose });
       redirectTimer.current = window.setTimeout(goToSignIn, SUCCESS_REDIRECT_MS);
     } catch (cause) {

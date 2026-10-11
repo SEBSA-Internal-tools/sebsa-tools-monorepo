@@ -50,7 +50,7 @@ export function SubmissionConfirmedPage() {
   }
 
   const { taskId, taskCode, title, reviewRound, reviewCycle } = location.state;
-  const roundNumber = reviewRound ?? reviewCycle ?? 1;
+  const roundNumber = reviewRound ?? reviewCycle ?? 0;
 
   return (
     <PageContainer className="max-w-3xl space-y-4">

@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, type OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { argon2id, hash } from 'argon2';
 import { Prisma, type PasswordLinkPurpose, type UserStatus } from '@prisma/client';
@@ -8,32 +8,27 @@ import { PrismaService } from '../../prisma/prisma.service.js';
 import { ApiException } from '../../common/api-error.js';
 import { RateLimiterService } from '../../common/rate-limiter.service.js';
 import { Mailer } from '../../integrations/mail/mailer.js';
+import { MailTemplates } from '../../integrations/mail/templates/mail-templates.service.js';
 import type { AuthenticatedUser } from '../auth/auth.types.js';
 import { AuditService } from '../audit/audit.service.js';
 import { assertCanManageUser } from '../user-roles/role-policy.js';
 import { assignedRoleCodes } from '../users/user-response.js';
 
-/*
- * One-time password links: the NestJS implementation of the contract in
- * docs/18-security.md ("Password links"), ported from the frontend's
- * specification mock (apps/web/src/mocks/passwordLinks.ts) and held to the same
- * cases (password-links.service.spec.ts).
- */
+// One-time password links; the contract is in docs/18-security.md ("Password links").
 
-export const INVITE_TTL_MS = 24 * 60 * 60 * 1000;
-export const RESET_TTL_MS = 60 * 60 * 1000;
 /** Wrong passwords tolerated on one link before it answers 429. */
 export const MAX_SET_PASSWORD_ATTEMPTS = 5;
 /** Forgot-password requests per email per window (counted even with no account). */
 export const MAX_FORGOT_REQUESTS = 3;
 export const FORGOT_WINDOW_MS = 15 * 60 * 1000;
-export const RESEND_COOLDOWN_MS = 60 * 1000;
 /** Per-IP ceiling across the public endpoints, on top of the per-subject limits. */
 export const MAX_PUBLIC_REQUESTS_PER_IP = 30;
 export const IP_WINDOW_MS = 15 * 60 * 1000;
 /** Real tokens are 43 characters; the cap stops hashing arbitrary payloads. */
 const MAX_TOKEN_LENGTH = 256;
 const MAX_EMAIL_LENGTH = 254;
+/** Forgot-password replies take at least this long, so timing does not reveal an account. */
+export const FORGOT_MIN_RESPONSE_MS = 400;
 
 type Db = Prisma.TransactionClient | PrismaService;
 
@@ -46,6 +41,7 @@ export interface IssuedLink {
   linkId: string;
   token: string;
   expiresAt: Date;
+  issuedAt: Date;
 }
 
 interface LinkSubject {
@@ -76,8 +72,10 @@ function isEligible(status: UserStatus, deletedAt: Date | null, purpose: Passwor
 }
 
 @Injectable()
-export class PasswordLinksService {
+export class PasswordLinksService implements OnModuleDestroy {
   private readonly logger = new Logger(PasswordLinksService.name);
+  private readonly background = new Set<Promise<void>>();
+  forgotMinResponseMs = FORGOT_MIN_RESPONSE_MS;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -85,7 +83,45 @@ export class PasswordLinksService {
     private readonly limiter: RateLimiterService,
     private readonly audit: AuditService,
     private readonly config: ConfigService,
+    private readonly templates: MailTemplates,
   ) {}
+
+  async onModuleDestroy(): Promise<void> {
+    await this.drainBackground();
+  }
+
+  /** Waits for detached sends (forgot-password, notices) to finish. */
+  async drainBackground(): Promise<void> {
+    while (this.background.size > 0) await Promise.allSettled([...this.background]);
+  }
+
+  private ttlMs(purpose: PasswordLinkPurpose): number {
+    return purpose === 'INVITE'
+      ? this.config.getOrThrow<number>('passwordLinks.inviteTtlMs')
+      : this.config.getOrThrow<number>('passwordLinks.resetTtlMs');
+  }
+
+  /** The link timings the screens show; the values come from configuration only. */
+  linkPolicy() {
+    return {
+      inviteTtlMinutes: this.ttlMs('INVITE') / 60_000,
+      resetTtlMinutes: this.ttlMs('RESET') / 60_000,
+      resendCooldownSeconds:
+        this.config.getOrThrow<number>('passwordLinks.resendCooldownMs') / 1000,
+    };
+  }
+
+  private runDetached(label: string, work: () => Promise<unknown>): void {
+    const task: Promise<void> = work()
+      .then(() => undefined)
+      .catch((error: unknown) => {
+        this.logger.warn(
+          `${label} failed: ${error instanceof Error ? error.message : 'unknown error'}`,
+        );
+      })
+      .finally(() => this.background.delete(task));
+    this.background.add(task);
+  }
 
   /* ------------------------------------------------------------- issuing */
 
@@ -102,14 +138,12 @@ export class PasswordLinksService {
       data: { revokedAt: now },
     });
     const token = randomBytes(32).toString('base64url');
-    const expiresAt = new Date(
-      now.getTime() + (purpose === 'INVITE' ? INVITE_TTL_MS : RESET_TTL_MS),
-    );
+    const expiresAt = new Date(now.getTime() + this.ttlMs(purpose));
     const link = await db.passwordLink.create({
       data: { userId, purpose, tokenHash: hashToken(token), expiresAt },
       select: { id: true },
     });
-    return { linkId: link.id, token, expiresAt };
+    return { linkId: link.id, token, expiresAt, issuedAt: now };
   }
 
   /** Emails the link and records whether the transport accepted it. Never throws. */
@@ -118,27 +152,21 @@ export class PasswordLinksService {
     user: LinkSubject,
     purpose: PasswordLinkPurpose,
   ): Promise<'SENT' | 'FAILED'> {
-    const url = `${this.frontendOrigin()}/set-password#token=${link.token}`;
-    const isInvite = purpose === 'INVITE';
+    const input = {
+      name: user.fullName,
+      token: link.token,
+      expiresAt: link.expiresAt,
+      issuedAt: link.issuedAt,
+    };
+    const content =
+      purpose === 'INVITE' ? this.templates.userInvite(input) : this.templates.passwordReset(input);
     let emailStatus: 'SENT' | 'FAILED' = 'SENT';
     try {
       await this.mailer.send({
         to: user.email,
-        subject: isInvite
-          ? 'You have been invited to the Service Delivery Portal'
-          : 'Reset your Service Delivery Portal password',
-        text: [
-          `Hello ${user.fullName},`,
-          '',
-          isInvite
-            ? 'An administrator created your account. Set your password to sign in:'
-            : 'Use this link to choose a new password:',
-          url,
-          '',
-          isInvite
-            ? 'The link works once and expires in 24 hours.'
-            : 'The link works once and expires in 60 minutes. If you did not ask for it, ignore this email.',
-        ].join('\n'),
+        toName: user.fullName,
+        ...content,
+        tags: [purpose === 'INVITE' ? 'user-invite' : 'password-reset'],
       });
     } catch (error) {
       emailStatus = 'FAILED';
@@ -148,7 +176,15 @@ export class PasswordLinksService {
         }`,
       );
     }
-    await this.prisma.passwordLink.update({ where: { id: link.linkId }, data: { emailStatus } });
+    try {
+      await this.prisma.passwordLink.update({ where: { id: link.linkId }, data: { emailStatus } });
+    } catch (error) {
+      this.logger.warn(
+        `Could not record email status for link ${link.linkId}: ${
+          error instanceof Error ? error.message : 'unknown error'
+        }`,
+      );
+    }
     return emailStatus;
   }
 
@@ -202,8 +238,8 @@ export class PasswordLinksService {
       await this.countFailure(link.id);
       throw new ApiException('PASSWORD_POLICY', 'PASSWORD_POLICY', [], { failedRules });
     }
+    // Not counted: the browser cannot check this rule, it does not know the name.
     if (isPersonalPassword(newPassword, { name: link.user.fullName, email: link.user.email })) {
-      await this.countFailure(link.id);
       throw new ApiException('PASSWORD_PERSONAL', 'PASSWORD_PERSONAL');
     }
 
@@ -249,6 +285,20 @@ export class PasswordLinksService {
         },
       });
     });
+
+    const { email, fullName } = link.user;
+    this.runDetached('Password-changed notice', () =>
+      this.mailer.send({
+        to: email,
+        toName: fullName,
+        ...this.templates.passwordChanged({
+          name: fullName,
+          at: now,
+          firstPassword: link.purpose === 'INVITE',
+        }),
+        tags: ['password-changed'],
+      }),
+    );
   }
 
   /**
@@ -256,16 +306,23 @@ export class PasswordLinksService {
    * waiting on its invite gets the invite again, since that is the link it can use.
    */
   async forgotPassword(raw: unknown, ip: string | undefined): Promise<void> {
+    const startedAt = Date.now();
     this.limitIp(ip);
-    if (typeof raw !== 'string' || raw.length > MAX_EMAIL_LENGTH) return;
-    const email = raw.trim().toLowerCase();
-
-    // Counted per address whether or not it has an account, so the limit itself
-    // cannot be used to tell the two apart.
-    if (!this.limiter.consume(`forgot:${email}`, MAX_FORGOT_REQUESTS, FORGOT_WINDOW_MS)) {
-      throw new ApiException('RATE_LIMITED', 'Too many requests. Try again later.');
+    if (typeof raw === 'string' && raw.length <= MAX_EMAIL_LENGTH) {
+      const email = raw.trim().toLowerCase();
+      // Counted per address whether or not it has an account, so the limit itself
+      // cannot be used to tell the two apart.
+      if (!this.limiter.consume(`forgot:${email}`, MAX_FORGOT_REQUESTS, FORGOT_WINDOW_MS)) {
+        throw new ApiException('RATE_LIMITED', 'Too many requests. Try again later.');
+      }
+      // Lookup and send run after the reply, so known and unknown addresses take the same time.
+      this.runDetached('Forgot-password link', () => this.sendForgotLink(email));
     }
+    const wait = this.forgotMinResponseMs - (Date.now() - startedAt);
+    if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+  }
 
+  private async sendForgotLink(email: string): Promise<void> {
     const user = await this.prisma.user.findFirst({
       where: { email, deletedAt: null },
       select: { id: true, email: true, fullName: true, status: true },
@@ -283,7 +340,7 @@ export class PasswordLinksService {
       where: { tokenHash: hashToken(token) },
       include: linkWithUser,
     });
-    if (link?.usedAt !== null) return;
+    if (link?.usedAt !== null || link.revokedAt !== null) return;
     if (!isEligible(link.user.status, link.user.deletedAt, link.purpose)) return;
 
     if ((await this.resendWaitSeconds(link.userId, link.purpose)) > 0) {
@@ -305,6 +362,33 @@ export class PasswordLinksService {
     return { invite: { expiresAt: sent.expiresAt.toISOString(), emailStatus: sent.emailStatus } };
   }
 
+  /** Users tab "Send reset link" for an active account. Same authorisation as editing the user. */
+  async sendResetLink(userId: string, actor: AuthenticatedUser) {
+    const user = await this.managedUser(userId, actor);
+    if (user.status !== 'ACTIVE') {
+      throw new ApiException(
+        'NOT_ACTIVE',
+        user.status === 'INVITED'
+          ? 'This user has not set a password yet. Resend the invite instead.'
+          : 'Reactivate this user before sending a reset link.',
+      );
+    }
+    const wait = await this.resendWaitSeconds(user.id, 'RESET');
+    if (wait > 0) {
+      throw new ApiException('RATE_LIMITED', `Wait ${String(wait)}s before sending another link.`);
+    }
+    const sent = await this.issueAndDeliver(user, 'RESET');
+    await this.audit.record(this.prisma, actor, {
+      actionType: 'PASSWORD_RESET_LINK_SENT',
+      entityType: 'USER',
+      entityId: user.id,
+      targetUserId: user.id,
+      description: `${actor.name} sent a password reset link to ${user.fullName}`,
+      metadata: { targetLabel: user.fullName, emailStatus: sent.emailStatus },
+    });
+    return { reset: { expiresAt: sent.expiresAt.toISOString(), emailStatus: sent.emailStatus } };
+  }
+
   /**
    * Withdraws an invite. The account never signed in and owns nothing, so it is
    * removed outright — which is also what lets the admin invite the address
@@ -314,7 +398,13 @@ export class PasswordLinksService {
     const user = await this.invitedUser(userId, actor);
     await this.prisma.$transaction(async (tx) => {
       await tx.userRole.deleteMany({ where: { userId: user.id } });
-      await tx.user.delete({ where: { id: user.id } });
+      // Conditional on the state checked above: if the user set their password
+      // in the meantime, the account is ACTIVE and must not be deleted. The
+      // throw rolls back the role removal too.
+      const removed = await tx.user.deleteMany({ where: { id: user.id, status: 'INVITED' } });
+      if (removed.count !== 1) {
+        throw new ApiException('NOT_INVITED', 'This user has already accepted the invite.');
+      }
       await this.audit.record(tx, actor, {
         actionType: 'INVITE_REVOKED',
         entityType: 'USER',
@@ -371,6 +461,14 @@ export class PasswordLinksService {
   }
 
   private async invitedUser(userId: string, actor: AuthenticatedUser) {
+    const user = await this.managedUser(userId, actor);
+    if (user.status !== 'INVITED') {
+      throw new ApiException('NOT_INVITED', 'This user is no longer in the invited state.');
+    }
+    return user;
+  }
+
+  private async managedUser(userId: string, actor: AuthenticatedUser) {
     const user = await this.prisma.user.findFirst({
       where: { id: userId, deletedAt: null },
       include: { userRoles: { where: { role: { deletedAt: null } }, include: { role: true } } },
@@ -384,9 +482,6 @@ export class PasswordLinksService {
         'Only a Super Admin can manage a privileged account.',
       );
     }
-    if (user.status !== 'INVITED') {
-      throw new ApiException('NOT_INVITED', 'This user is no longer in the invited state.');
-    }
     return user;
   }
 
@@ -399,13 +494,18 @@ export class PasswordLinksService {
     if (!last) return 0;
     return Math.max(
       0,
-      Math.ceil((last.createdAt.getTime() + RESEND_COOLDOWN_MS - Date.now()) / 1000),
+      Math.ceil(
+        (last.createdAt.getTime() +
+          this.config.getOrThrow<number>('passwordLinks.resendCooldownMs') -
+          Date.now()) /
+          1000,
+      ),
     );
   }
 
   private async countFailure(linkId: string) {
-    await this.prisma.passwordLink.update({
-      where: { id: linkId },
+    await this.prisma.passwordLink.updateMany({
+      where: { id: linkId, failedAttempts: { lt: MAX_SET_PASSWORD_ATTEMPTS } },
       data: { failedAttempts: { increment: 1 } },
     });
   }
@@ -415,11 +515,6 @@ export class PasswordLinksService {
     if (!this.limiter.consume(`ip:${ip}`, MAX_PUBLIC_REQUESTS_PER_IP, IP_WINDOW_MS)) {
       throw new ApiException('RATE_LIMITED', 'Too many requests. Try again later.');
     }
-  }
-
-  private frontendOrigin(): string {
-    const origins = this.config.get<string[]>('frontendOrigins', ['http://localhost:5175']);
-    return (origins[0] ?? 'http://localhost:5175').replace(/\/+$/, '');
   }
 }
 

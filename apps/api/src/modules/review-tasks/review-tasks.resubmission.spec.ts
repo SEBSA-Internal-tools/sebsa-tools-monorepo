@@ -62,6 +62,7 @@ function services(prisma: unknown) {
   const notifications = {
     create: vi.fn().mockResolvedValue(undefined),
     createMany: vi.fn().mockResolvedValue(undefined),
+    queueEmailForTriggerRows: vi.fn().mockResolvedValue(1),
   };
   const service = new ReviewTasksService(prisma as never, audit as never, notifications as never);
   return { audit, notifications, service };
@@ -70,6 +71,7 @@ function services(prisma: unknown) {
 function resubmitHarness(options: {
   resubmissionReviewerId?: string | null;
   followUp: { id: string; fullName: string; status: string; reviewerRoles: number };
+  handovers?: unknown[];
 }) {
   const baseTask = storedTask({ resubmissionReviewerId: options.resubmissionReviewerId ?? null });
   const tx = {
@@ -90,6 +92,7 @@ function resubmitHarness(options: {
           storedTask({
             ...data,
             status: (data['status'] as TaskStatus | undefined) ?? TaskStatus.RESUBMITTED,
+            handovers: options.handovers ?? [],
           }),
         ),
       ),
@@ -194,6 +197,35 @@ describe('resubmission routing', () => {
   });
 });
 
+describe('resubmission response', () => {
+  const followUp = { id: FOLLOW_UP_ID, fullName: 'Follow Up', status: 'ACTIVE', reviewerRoles: 1 };
+  const resubmit = (handovers: unknown[]) =>
+    resubmitHarness({ resubmissionReviewerId: FOLLOW_UP_ID, followUp, handovers }).service.submit(
+      TASK_ID,
+      actor(['DEVELOPER']),
+    );
+
+  it('serializes a task with no handover history', async () => {
+    await expect(resubmit([])).resolves.toMatchObject({
+      status: 'InReview',
+      reviewerId: FOLLOW_UP_ID,
+      handedOverByName: null,
+    });
+  });
+
+  it('names the reviewer who handed the task over', async () => {
+    await expect(
+      resubmit([{ status: 'REASSIGNED', fromReviewer: { fullName: 'Earlier Reviewer' } }]),
+    ).resolves.toMatchObject({ handedOverByName: 'Earlier Reviewer' });
+  });
+
+  it('does not fail when a handover row carries no reviewer relation', async () => {
+    await expect(resubmit([{ status: 'REASSIGNED' }])).resolves.toMatchObject({
+      handedOverByName: null,
+    });
+  });
+});
+
 describe('changeResubmissionReviewer', () => {
   const requester = { id: REQUESTER_ID, fullName: 'Requester' };
   const newReviewer = { id: '00000000-0000-4000-8000-000000000022', fullName: 'New Reviewer' };
@@ -255,9 +287,14 @@ describe('changeResubmissionReviewer', () => {
         newValue: { reviewerId: newReviewer.id, reviewerName: 'New Reviewer' },
       }),
     );
-    expect(notifications.create).toHaveBeenCalledWith(
+    expect(notifications.createMany).toHaveBeenCalledWith(
       tx,
-      expect.objectContaining({ recipientId: newReviewer.id }),
+      expect.arrayContaining([
+        expect.objectContaining({
+          recipientId: newReviewer.id,
+          email: expect.objectContaining({ event: 'FOLLOW_UP_REVIEWER_CHANGED' }),
+        }),
+      ]),
     );
   });
 

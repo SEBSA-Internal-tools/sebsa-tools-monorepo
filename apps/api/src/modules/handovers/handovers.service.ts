@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import {
   HandoverStatus,
   NotificationType,
@@ -12,10 +7,12 @@ import {
   TaskStatus,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { ApiException } from '../../common/api-error.js';
 import type { AuthenticatedUser } from '../auth/auth.types.js';
 import { AuditService } from '../audit/audit.service.js';
 import type { ReassignHandoverDto } from './dto/reassign-handover.dto.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
+import { taskEmail } from '../notifications/task-email.js';
 import { retryPrismaTransaction } from '../../common/prisma-errors.js';
 import { reviewDraftSchema } from '@sdp/contracts';
 
@@ -100,7 +97,7 @@ export class HandoversService {
         });
         if (!handover) throw new NotFoundException(`Handover ${id} was not found`);
         if (handover.status !== HandoverStatus.PENDING) {
-          throw new ConflictException('This handover has already been resolved');
+          throw new ApiException('ALREADY_RESOLVED', 'This handover has already been resolved');
         }
 
         const reviewer = await tx.user.findFirst({
@@ -111,9 +108,9 @@ export class HandoversService {
             userRoles: { some: { role: { code: 'REVIEWER', deletedAt: null } } },
           },
         });
-        if (!reviewer) throw new BadRequestException('Select an active Reviewer');
+        if (!reviewer) throw new ApiException('INVALID_REVIEWER', 'Select an active Reviewer');
         if (reviewer.id === handover.task.developerId) {
-          throw new BadRequestException('A developer cannot review their own task');
+          throw new ApiException('SELF_REVIEW', 'A developer cannot review their own task');
         }
 
         const now = new Date();
@@ -127,7 +124,7 @@ export class HandoversService {
           },
         });
         if (resolved.count < 1) {
-          throw new ConflictException('This handover was already reassigned');
+          throw new ApiException('ALREADY_RESOLVED', 'This handover was already reassigned');
         }
 
         const assigned = await tx.task.updateMany({
@@ -139,7 +136,10 @@ export class HandoversService {
           data: { currentReviewerId: reviewer.id, status: TaskStatus.IN_REVIEW },
         });
         if (assigned.count !== 1) {
-          throw new ConflictException('The handed-over task is no longer available to reassign');
+          throw new ApiException(
+            'INVALID_STATE',
+            'The handed-over task is no longer available to reassign',
+          );
         }
 
         await tx.taskReviewerAssignment.updateMany({
@@ -190,13 +190,47 @@ export class HandoversService {
           },
           newValue: { reviewerId: reviewer.id, reviewerName: reviewer.fullName },
         });
-        await this.notifications.create(tx, {
-          taskId: handover.taskId,
-          recipientId: reviewer.id,
-          type: NotificationType.TASK_ASSIGNED,
-          title: `${handover.task.title} reassigned to you`,
-          message: `${actor.name} reassigned this review task to ${reviewer.fullName}.`,
-        });
+        const reassignedEmail = taskEmail(
+          'HANDOVER_REASSIGNED',
+          actor.name,
+          {
+            reviewerId: reviewer.id,
+            reviewerName: reviewer.fullName,
+            previousReviewerName: handover.fromReviewer.fullName,
+            reason: handover.reason ?? undefined,
+          },
+          now,
+        );
+        const fromReviewerId = handover.fromReviewerId;
+        await this.notifications.createMany(tx, [
+          {
+            taskId: handover.taskId,
+            recipientId: reviewer.id,
+            type: NotificationType.TASK_ASSIGNED,
+            title: `${handover.task.title} reassigned to you`,
+            message: `${actor.name} reassigned this review task to ${reviewer.fullName}.`,
+            email: reassignedEmail,
+          },
+          {
+            taskId: handover.taskId,
+            recipientId: handover.task.developerId,
+            type: NotificationType.TASK_ASSIGNED,
+            title: `${handover.task.title} has a new reviewer`,
+            message: `${actor.name} assigned ${reviewer.fullName} to review your task.`,
+            email: reassignedEmail,
+          },
+          ...(fromReviewerId === reviewer.id || fromReviewerId === actor.id
+            ? []
+            : [
+                {
+                  taskId: handover.taskId,
+                  recipientId: fromReviewerId,
+                  type: NotificationType.TASK_REASSIGNED,
+                  title: `${handover.task.title} handover resolved`,
+                  message: `${actor.name} reassigned the task you handed over to ${reviewer.fullName}.`,
+                },
+              ]),
+        ]);
 
         const updated = await tx.handoverTask.findUnique({
           where: { id },
@@ -216,7 +250,7 @@ export class HandoversService {
       });
       if (!handover) throw new NotFoundException(`Handover ${id} was not found`);
       if (handover.status !== HandoverStatus.PENDING) {
-        throw new ConflictException('This handover has already been resolved');
+        throw new ApiException('ALREADY_RESOLVED', 'This handover has already been resolved');
       }
       const now = new Date();
       const resolved = await tx.handoverTask.updateMany({
@@ -228,8 +262,35 @@ export class HandoversService {
         },
       });
       if (resolved.count !== 1) {
-        throw new ConflictException('This handover has already been resolved');
+        throw new ApiException('ALREADY_RESOLVED', 'This handover has already been resolved');
       }
+      // Back in the open queue: whoever picks it next starts their own session
+      // and judgement on the draft.
+      await tx.codeReviewForm.updateMany({
+        where: {
+          taskId: handover.taskId,
+          reviewCycleNumber: Math.max(handover.task.currentReviewCycle, 1),
+          status: 'DRAFT',
+        },
+        data: {
+          currentReviewSessionId: null,
+          reviewRank: null,
+          previousFeedbackReviewNote: null,
+          previousFeedbackAcknowledged: null,
+        },
+      });
+      await this.notifications.createMany(
+        tx,
+        [...new Set([handover.task.developerId, handover.fromReviewerId])]
+          .filter((recipientId) => recipientId !== actor.id)
+          .map((recipientId) => ({
+            taskId: handover.taskId,
+            recipientId,
+            type: NotificationType.TASK_HANDOVER,
+            title: `${handover.task.title} returned to the review queue`,
+            message: `${actor.name} returned the handed-over task to the open review queue.`,
+          })),
+      );
       await this.audit.record(tx, actor, {
         actionType: 'HANDOVER_RETURNED_TO_QUEUE',
         entityType: 'HANDOVER',

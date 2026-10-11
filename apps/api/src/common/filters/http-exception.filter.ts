@@ -16,9 +16,11 @@ import { ApiException, type ApiErrorResponse } from '../api-error.js';
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost): void {
-    const ctx = host.switchToHttp();
-    const response = ctx.getResponse<Response>();
+    this.send(exception, host.switchToHttp().getResponse<Response>());
+  }
 
+  /** Also used by the Express error middleware that guards the body parsers. */
+  send(exception: unknown, response: Response): void {
     const { status, code, message, details } = this.toPublicError(exception);
     const extra = exception instanceof ApiException ? exception.extra : {};
     const payload: ApiErrorResponse = {
@@ -47,6 +49,9 @@ export class HttpExceptionFilter implements ExceptionFilter {
         details: exception.details,
       };
     }
+
+    const bodyParserError = this.fromBodyParser(exception);
+    if (bodyParserError) return bodyParserError;
 
     if (!(exception instanceof HttpException)) {
       return {
@@ -82,16 +87,55 @@ export class HttpExceptionFilter implements ExceptionFilter {
       [HttpStatus.FORBIDDEN]: 'FORBIDDEN',
       [HttpStatus.NOT_FOUND]: 'NOT_FOUND',
       [HttpStatus.CONFLICT]: 'INVALID_STATE',
-      [HttpStatus.UNPROCESSABLE_ENTITY]: 'INVALID_STATE',
+      [HttpStatus.PAYLOAD_TOO_LARGE]: 'PAYLOAD_TOO_LARGE',
+      [HttpStatus.UNSUPPORTED_MEDIA_TYPE]: 'UNSUPPORTED_MEDIA_TYPE',
+      [HttpStatus.UNPROCESSABLE_ENTITY]: 'RULE_VIOLATION',
       [HttpStatus.TOO_MANY_REQUESTS]: 'RATE_LIMITED',
     };
     const isServerError = status >= Number(HttpStatus.INTERNAL_SERVER_ERROR);
 
     return {
       status: isServerError ? HttpStatus.INTERNAL_SERVER_ERROR : status,
-      code: isServerError ? 'INTERNAL_ERROR' : (explicitCode ?? codeByStatus[status] ?? 'INTERNAL_ERROR'),
+      code: isServerError
+        ? 'INTERNAL_ERROR'
+        : (explicitCode ?? codeByStatus[status] ?? 'INTERNAL_ERROR'),
       message: isServerError ? 'An unexpected server error occurred' : message,
       details: validationDetails,
     };
+  }
+
+  /**
+   * Errors raised by Express's body parser (see `common/http/body-parsers.ts`)
+   * are plain `http-errors` objects, not `HttpException`s. Without this they
+   * would surface as a 500 and hide the real cause from the client.
+   */
+  private fromBodyParser(exception: unknown) {
+    if (typeof exception !== 'object' || exception === null || !('type' in exception)) return null;
+    switch (exception.type) {
+      case 'entity.too.large':
+        return {
+          status: HttpStatus.PAYLOAD_TOO_LARGE,
+          code: 'PAYLOAD_TOO_LARGE',
+          message: 'The request is too large.',
+          details: [],
+        };
+      case 'entity.parse.failed':
+        return {
+          status: HttpStatus.BAD_REQUEST,
+          code: 'VALIDATION_FAILED',
+          message: 'The request body is not valid JSON.',
+          details: [],
+        };
+      case 'charset.unsupported':
+      case 'encoding.unsupported':
+        return {
+          status: HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+          code: 'UNSUPPORTED_MEDIA_TYPE',
+          message: 'The request encoding is not supported.',
+          details: [],
+        };
+      default:
+        return null;
+    }
   }
 }

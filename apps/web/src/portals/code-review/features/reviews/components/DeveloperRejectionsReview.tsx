@@ -285,7 +285,7 @@ export function DeveloperRejectionsReview({
           {allRejectionsAccepted ? (
             <Alert
               tone="success"
-              title="All rejections accepted. Zero developer corrections were required. Task can be approved with counted cycle reduced by 1."
+              title="All rejections accepted. Zero developer corrections were required. Task can be approved with cycle reduced by 1."
             />
           ) : hasOverruled ? (
             <Alert

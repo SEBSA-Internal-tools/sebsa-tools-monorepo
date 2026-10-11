@@ -33,8 +33,8 @@ const taskShape = {
   /** Monotonic immutable review round (zero until a reviewer starts reviewing). */
   historicalCycle: z.number().int().min(0).optional(),
 
-  /** The actual chronological / historical review attempt sequence (monotonic, never decrements). */
-  reviewRound: z.number().int().min(1).default(1),
+  /** The actual chronological / historical review attempt sequence (monotonic, never decrements). Zero until a reviewer starts reviewing. */
+  reviewRound: z.number().int().min(0).default(0),
 
   /** Presentation alias for `reviewCycle`; kept synchronized at the contract boundary. */
   countedCycle: z.number().int().min(0).default(0),
@@ -78,14 +78,11 @@ function normalizeTaskCycles(input: unknown): unknown {
   const task = input as Record<string, unknown>;
   const reviewCycle = task['countedCycle'] ?? task['reviewCycle'] ?? 0;
   const historicalCycle = task['reviewRound'] ?? task['historicalCycle'] ?? reviewCycle;
-  const reviewRound =
-    typeof historicalCycle === 'number' ? Math.max(1, historicalCycle) : historicalCycle;
-
   return {
     ...task,
     reviewCycle,
     historicalCycle,
-    reviewRound,
+    reviewRound: historicalCycle,
     countedCycle: reviewCycle,
   };
 }

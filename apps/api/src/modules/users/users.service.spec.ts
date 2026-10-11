@@ -40,9 +40,13 @@ function harness(found: ReturnType<typeof existingUser> | null = existingUser())
     revokeAllFor: vi.fn().mockResolvedValue({ count: 0 }),
     inviteStates: vi.fn().mockResolvedValue(new Map()),
   };
-  const workload = { assertCanRemoveReviewer: vi.fn().mockResolvedValue(undefined) };
+  const workload = {
+    assertCanRemoveReviewer: vi.fn().mockResolvedValue(undefined),
+    assertNoPendingWork: vi.fn().mockResolvedValue(undefined),
+  };
   const tx = {
     $executeRaw: vi.fn().mockResolvedValue(1),
+    refreshSession: { updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
     user: {
       create: vi.fn(),
       update: vi
@@ -231,5 +235,53 @@ describe('UsersService', () => {
       'DELETE',
       undefined,
     );
+  });
+
+  describe('changing a user email', () => {
+    it('sends the account back to INVITED, ends every session and invites the new address', async () => {
+      const { audit, passwordLinks, service, tx } = harness();
+
+      const result = await service.update(USER_ID, { email: 'New.Address@example.com' }, actor);
+
+      expect(tx.refreshSession.updateMany).toHaveBeenCalledWith({
+        where: { userId: USER_ID, revokedAt: null },
+        data: { revokedAt: expect.any(Date) },
+      });
+      expect(passwordLinks.revokeAllFor).toHaveBeenCalledWith(tx, USER_ID);
+      expect(tx.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            email: 'new.address@example.com',
+            status: 'INVITED',
+            passwordHash: null,
+          }),
+        }),
+      );
+      expect(passwordLinks.createLink).toHaveBeenCalledWith(tx, USER_ID, 'INVITE');
+      expect(passwordLinks.deliver).toHaveBeenCalledWith(LINK, expect.anything(), 'INVITE');
+      expect(audit.record).toHaveBeenCalledWith(
+        tx,
+        actor,
+        expect.objectContaining({
+          actionType: 'USER_EMAIL_CHANGED',
+          oldValue: { email: 'd***@example.com' },
+        }),
+      );
+      expect(result).toMatchObject({ inviteExpiresAt: LINK.expiresAt.toISOString() });
+    });
+
+    it('leaves the password alone when only the letter case of the email differs', async () => {
+      const { passwordLinks, service, tx } = harness();
+      await service.update(USER_ID, { email: 'Developer@Example.com' }, actor);
+      expect(tx.user.update.mock.calls[0]?.[0]).not.toHaveProperty('data.passwordHash');
+      expect(passwordLinks.createLink).not.toHaveBeenCalled();
+    });
+
+    it('refuses to change your own email this way', async () => {
+      const { service } = harness(existingUser({ id: actor.id }));
+      await expect(
+        service.update(actor.id, { email: 'other@example.com' }, actor),
+      ).rejects.toMatchObject({ code: 'SELF_LOCKOUT' });
+    });
   });
 });

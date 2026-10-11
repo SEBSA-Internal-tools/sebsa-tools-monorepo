@@ -11,7 +11,7 @@ import { AuthLayout } from '@/components/common/AuthLayout.tsx';
 import { forgotPassword } from '../api/localAuthApi.ts';
 import { LocalAuthError } from '../api/types.ts';
 import { AuthCard, CardHeading, PanelCopy } from '../components/AuthParts.tsx';
-import { RESEND_COOLDOWN_SECONDS } from '../config.ts';
+import { formatLinkDuration, useLinkPolicy } from '../hooks/useLinkPolicy.ts';
 import { forgot as copy } from '../content.ts';
 import {
   useCountdown,
@@ -54,6 +54,7 @@ export function ForgotPasswordPage() {
   // The address the confirmation was sent for, so "Send again" reuses it.
   const [sentTo, setSentTo] = useState<string | null>(null);
   const cooldown = useCountdown();
+  const policy = useLinkPolicy();
 
   useDocumentTitle(copy.title);
   useNoReferrer();
@@ -65,7 +66,7 @@ export function ForgotPasswordPage() {
     try {
       await forgotPassword(address);
       setSentTo(address);
-      cooldown.start(RESEND_COOLDOWN_SECONDS);
+      if (policy) cooldown.start(policy.resendCooldownSeconds);
       return true;
     } catch (cause) {
       setBanner(failureMessage(cause));
@@ -147,7 +148,13 @@ export function ForgotPasswordPage() {
               >
                 {copy.sentTitle}
               </h2>
-              <p className="mt-2 text-sm leading-relaxed text-ink-500">{copy.sentText}</p>
+              <p className="mt-2 text-sm leading-relaxed text-ink-500">
+                {policy
+                  ? interpolate(copy.sentTextWithDuration, {
+                      duration: formatLinkDuration(policy.resetTtlMinutes),
+                    })
+                  : copy.sentText}
+              </p>
             </div>
 
             <div aria-live="polite" className="mt-4 text-left">

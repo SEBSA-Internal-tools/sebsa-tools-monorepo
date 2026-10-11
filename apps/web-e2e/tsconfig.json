@@ -13,5 +13,5 @@
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true
   },
-  "include": ["playwright.config.ts", "src/**/*.ts"]
+  "include": ["playwright.config.ts", "tests/**/*.ts", "../api/prisma/e2e-fixtures.ts"]
 }

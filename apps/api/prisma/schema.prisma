@@ -645,23 +645,39 @@ model HandoverTask {
 }
 
 model Notification {
-  id               String           @id @default(uuid()) @db.Uuid
-  taskId           String?          @map("task_id") @db.Uuid
-  recipientId      String           @map("recipient_id") @db.Uuid
-  notificationType NotificationType @map("notification_type")
-  title            String           @db.VarChar(255)
-  message          String           @db.Text
-  isRead           Boolean          @default(false) @map("is_read")
-  readAt           DateTime?        @map("read_at") @db.Timestamptz(6)
-  emailSent        Boolean          @default(false) @map("email_sent")
-  emailSentAt      DateTime?        @map("email_sent_at") @db.Timestamptz(6)
-  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
-  task             Task?            @relation(fields: [taskId], references: [id], onDelete: Restrict)
-  recipient        User             @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Restrict)
+  id                 String                   @id @default(uuid()) @db.Uuid
+  taskId             String?                  @map("task_id") @db.Uuid
+  recipientId        String                   @map("recipient_id") @db.Uuid
+  notificationType   NotificationType         @map("notification_type")
+  title              String                   @db.VarChar(255)
+  message            String                   @db.Text
+  isRead             Boolean                  @default(false) @map("is_read")
+  readAt             DateTime?                @map("read_at") @db.Timestamptz(6)
+  emailSent          Boolean                  @default(false) @map("email_sent")
+  emailSentAt        DateTime?                @map("email_sent_at") @db.Timestamptz(6)
+  // Null means in-app only. All five columns are nullable so adding them never rewrites existing rows.
+  emailStatus        NotificationEmailStatus? @map("email_status")
+  emailAttempts      Int?                     @map("email_attempts")
+  emailNextAttemptAt DateTime?                @map("email_next_attempt_at") @db.Timestamptz(6)
+  emailLastError     String?                  @map("email_last_error") @db.VarChar(500)
+  payload            Json?
+  createdAt          DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  task               Task?                    @relation(fields: [taskId], references: [id], onDelete: Restrict)
+  recipient          User                     @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Restrict)
 
   @@index([taskId])
   @@index([recipientId])
+  @@index([emailStatus, emailNextAttemptAt])
   @@map("notifications")
+}
+
+enum NotificationEmailStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
+
+  @@map("notification_email_status")
 }
 
 model AuditLog {

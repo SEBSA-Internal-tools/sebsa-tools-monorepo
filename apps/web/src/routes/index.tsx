@@ -14,28 +14,29 @@ export const routeTree: RouteObject[] = [
     element: <ScrollRestorationLayout />,
     children: [
       {
-        /*
-         * Signed-out screens. One guard for all of them: a signed-in user is sent
-         * on to the CRP home instead. The three password screens belong to the
-         * temporary local sign-in and are lazy so they stay out of the entry
-         * bundle — most visits never open them.
-         */
+        // Signed-out screens: a signed-in user is sent on to the CRP home instead.
         element: <RequireGuest />,
         errorElement: <RouteError />,
         children: [
           { path: routePaths.login, element: <LoginRoute /> },
           {
-            path: routePaths.setPassword,
-            lazy: async () => {
-              const module = await import('@/features/local-auth/routes/SetPasswordPage');
-              return { Component: module.SetPasswordPage };
-            },
-          },
-          {
             path: routePaths.forgotPassword,
             lazy: async () => {
               const module = await import('@/features/local-auth/routes/ForgotPasswordPage');
               return { Component: module.ForgotPasswordPage };
+            },
+          },
+        ],
+      },
+      {
+        // Emailed links must open even when someone is already signed in on this browser.
+        errorElement: <RouteError />,
+        children: [
+          {
+            path: routePaths.setPassword,
+            lazy: async () => {
+              const module = await import('@/features/local-auth/routes/SetPasswordPage');
+              return { Component: module.SetPasswordPage };
             },
           },
           {

@@ -11,6 +11,7 @@ import {
   Put,
   Query,
   Res,
+  HttpCode,
 } from '@nestjs/common';
 import { ApiNoContentResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
@@ -68,6 +69,8 @@ export class ReviewsController {
     return this.reviews.saveDraft(taskId, body, user, source === 'manual');
   }
 
+  // An action on an existing resource, not a creation: 200, not 201.
+  @HttpCode(HttpStatus.OK)
   @Post('tasks/:taskId/review')
   @ApiOkResponse()
   decide(
@@ -87,6 +90,8 @@ export class ReviewsController {
     return this.reviews.findResponses(taskId, user);
   }
 
+  // An action on an existing resource, not a creation: 200, not 201.
+  @HttpCode(HttpStatus.OK)
   @Post('tasks/:taskId/responses')
   @ApiOkResponse()
   saveResponse(
