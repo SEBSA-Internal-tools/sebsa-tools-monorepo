@@ -280,7 +280,12 @@ export function UserFormDialog({
         )}
 
         {privilegedChange ? (
-          <Field label={admin.users.privileged.reasonLabel} required error={errors.reason}>
+          <Field
+            label={admin.users.privileged.roleReasonLabel}
+            hint={admin.users.privileged.roleReasonHint}
+            required
+            error={errors.reason}
+          >
             <Textarea
               value={form.reason}
               onChange={(event) => {
@@ -291,7 +296,7 @@ export function UserFormDialog({
                 });
               }}
               rows={3}
-              placeholder={admin.users.privileged.reasonPlaceholder}
+              placeholder={admin.users.privileged.roleReasonPlaceholder}
             />
           </Field>
         ) : null}

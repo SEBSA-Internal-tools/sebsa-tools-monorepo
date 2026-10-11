@@ -36,6 +36,8 @@ APP_BASE_URL=http://localhost:5175
 | `PORT`                                     | `3000`                                 | host's port                        | API listen port                                                                           |
 | `DATABASE_URL`                             | —                                      | required, `sslmode=require`        | PostgreSQL connection                                                                     |
 | `DIRECT_URL`                               | derived                                | optional                           | Neon non-pooler URL, only for `npm run db:neon-patch`                                     |
+| `DB_TRANSACTION_TIMEOUT_MS`               | `15000`                                | optional (1000–60000)              | Interactive transaction limit; raise if a remote DB logs P2028 "Transaction already closed" |
+| `DB_TRANSACTION_MAX_WAIT_MS`              | `5000`                                 | optional (500–30000)               | How long a transaction waits for a pooled connection                                      |
 | `FRONTEND_ORIGIN`                          | `http://localhost:5175`                | required, `https://` only          | CORS allow-list, comma-separated                                                          |
 | `APP_BASE_URL`                             | first `FRONTEND_ORIGIN`                | `https://` public web URL          | Base of every link in emails                                                              |
 | `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` | —                                      | required, different, 32+ chars     | Cookie token signing                                                                      |

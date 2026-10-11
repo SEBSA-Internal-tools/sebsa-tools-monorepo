@@ -1,6 +1,7 @@
 // Must stay the first import: it points Prisma at the e2e database.
 import { hasE2eDatabase } from './db-env.js';
 import 'reflect-metadata';
+import { randomUUID } from 'node:crypto';
 import type { Server } from 'node:http';
 import { Test } from '@nestjs/testing';
 import type { NestExpressApplication } from '@nestjs/platform-express';
@@ -8,6 +9,7 @@ import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AppModule } from '../../src/app.module.ts';
 import { configureApp } from '../../src/app.setup.ts';
+import { PrismaService } from '../../src/prisma/prisma.service.ts';
 import { E2E_PASSWORD, E2E_USERS } from '../../prisma/e2e-fixtures.ts';
 
 /**
@@ -322,6 +324,183 @@ describe.skipIf(!hasE2eDatabase)('workflow rules and security (real database)', 
         .put(`/api/tasks/${taskId}/review`, { ...current, rank: null })
         .expect(200);
     });
+  });
+
+  describe('reviewer assignment and decisions', () => {
+    let prisma: PrismaService;
+    let reviewer: Session;
+    let devReviewer: Session;
+    let pickedTaskId = '';
+    const commentIds = Array.from({ length: 10 }, () => randomUUID());
+
+    async function createSubmittedTask(session: Session, crimId: string): Promise<string> {
+      const customers = (await as(session).get('/api/customers').expect(200)).body as {
+        id: string;
+        name: string;
+      }[];
+      const types = (await as(session).get('/api/task-types').expect(200)).body as { id: string }[];
+      const created = await as(session)
+        .post('/api/tasks', {
+          customerId: customers.find(({ name }) => name === 'E2E Customer')?.id,
+          crimId,
+          priority: 'Medium',
+          taskTypeIds: [Number(types[0]?.id)],
+          checklistAnswers: [
+            { questionId: '00000000-0000-4000-8000-0000000e2e11', answer: 'Yes' },
+            { questionId: '00000000-0000-4000-8000-0000000e2e12', answer: 'Yes' },
+          ],
+        })
+        .expect(201);
+      const id = (created.body as { id: string }).id;
+      await as(session).post(`/api/tasks/${id}/submit`).expect(200);
+      return id;
+    }
+
+    const draftWith = (ids: string[], rank: number | null) => ({
+      rank,
+      comments: ids.map((id, index) => ({
+        id,
+        reviewRound: 1,
+        text: `Finding ${String(index + 1)}`,
+        createdAt: new Date().toISOString(),
+        screenshots: [],
+      })),
+    });
+
+    const taskIds = (response: { body: unknown }) =>
+      (response.body as { items: { id: string }[] }).items.map(({ id }) => id);
+
+    beforeAll(async () => {
+      prisma = app.get(PrismaService);
+      reviewer = await signIn(E2E_USERS.reviewer.email);
+      devReviewer = await signIn(E2E_USERS.devReviewer.email);
+    });
+
+    it('never lets a developer pick or be assigned their own task, even as a reviewer', async () => {
+      const ownTaskId = await createSubmittedTask(devReviewer, 'CRIM-E2E-OWN');
+      await as(devReviewer).post(`/api/tasks/${ownTaskId}/pick`).expect(403);
+      const assigned = await as(admin).post(`/api/tasks/${ownTaskId}/assign`, {
+        reviewerId: userIds[E2E_USERS.devReviewer.email],
+      });
+      expect(assigned.status).toBeGreaterThanOrEqual(400);
+      expect(assigned.body).toMatchObject({ code: 'SELF_REVIEW' });
+
+      const stored = await prisma.task.findUniqueOrThrow({ where: { id: ownTaskId } });
+      expect(stored).toMatchObject({ status: 'SUBMITTED', currentReviewerId: null });
+      expect(await prisma.taskReviewerAssignment.count({ where: { taskId: ownTaskId } })).toBe(0);
+    });
+
+    it('lets a reviewer pick someone else’s task exactly once (SELF_PICKED)', async () => {
+      pickedTaskId = await createSubmittedTask(dev, 'CRIM-E2E-PICK');
+      const reviewerId = userIds[E2E_USERS.reviewer.email];
+      await as(dev).post(`/api/tasks/${pickedTaskId}/pick`).expect(403);
+
+      const picked = await as(reviewer).post(`/api/tasks/${pickedTaskId}/pick`).expect(200);
+      expect(picked.body).toMatchObject({ status: 'InReview', reviewerId });
+      const current = await prisma.taskReviewerAssignment.findMany({
+        where: { taskId: pickedTaskId, isCurrent: true },
+      });
+      expect(current).toEqual([
+        expect.objectContaining({ reviewerId, assignmentType: 'SELF_PICKED' }),
+      ]);
+
+      expect(
+        taskIds(await as(reviewer2).get('/api/tasks?scope=available').expect(200)),
+      ).not.toContain(pickedTaskId);
+      expect(taskIds(await as(reviewer).get('/api/tasks?scope=assigned').expect(200))).toContain(
+        pickedTaskId,
+      );
+      const second = await as(reviewer2).post(`/api/tasks/${pickedTaskId}/pick`).expect(409);
+      expect(second.body).toMatchObject({ code: 'ALREADY_PICKED' });
+    });
+
+    it('keeps the assignment history when an admin reassigns the review', async () => {
+      const newReviewerId = userIds[E2E_USERS.adminReviewer.email];
+      await as(admin)
+        .post(`/api/tasks/${pickedTaskId}/assign`, {
+          reviewerId: newReviewerId,
+          reason: 'Balancing workload',
+        })
+        .expect(200);
+
+      const assignments = await prisma.taskReviewerAssignment.findMany({
+        where: { taskId: pickedTaskId },
+        orderBy: { assignedAt: 'asc' },
+      });
+      expect(assignments[0]?.unassignedAt).toBeInstanceOf(Date);
+      expect(assignments).toEqual([
+        expect.objectContaining({ assignmentType: 'SELF_PICKED', isCurrent: false }),
+        expect.objectContaining({
+          reviewerId: newReviewerId,
+          assignmentType: 'ADMIN_REASSIGNED',
+          isCurrent: true,
+        }),
+      ]);
+      expect(
+        await prisma.taskStatusHistory.count({
+          where: { taskId: pickedTaskId, newStatus: 'IN_REVIEW' },
+        }),
+      ).toBe(2);
+    });
+
+    it('records a Changes Requested decision with many comments in one transaction', async () => {
+      const saved = (
+        await as(adminReviewer)
+          .put(`/api/tasks/${pickedTaskId}/review`, draftWith(commentIds, null))
+          .expect(200)
+      ).body as { comments: { id: string }[] };
+      const reorderedComments = [...saved.comments].reverse();
+      const reordered = reorderedComments.map(({ id }) => id);
+      await as(adminReviewer)
+        .post(`/api/tasks/${pickedTaskId}/review`, {
+          decision: 'ChangesRequested',
+          draft: { rank: 2, comments: reorderedComments },
+        })
+        .expect(200);
+
+      const forms = await prisma.codeReviewForm.findMany({
+        where: { taskId: pickedTaskId },
+        include: { findings: { orderBy: { findingNo: 'asc' } } },
+      });
+      expect(forms).toHaveLength(1);
+      expect(forms[0]).toMatchObject({ status: 'COMPLETED', decision: 'CHANGES_REQUESTED' });
+      expect(forms[0]?.findings.map(({ id, findingNo }) => [id, findingNo])).toEqual(
+        reordered.map((id, index) => [id, index + 1]),
+      );
+      expect(
+        await prisma.taskStatusHistory.count({
+          where: { taskId: pickedTaskId, newStatus: 'CHANGES_REQUESTED' },
+        }),
+      ).toBe(1);
+      expect(
+        await prisma.auditLog.count({
+          where: { taskId: pickedTaskId, action: 'CHANGES_REQUESTED' },
+        }),
+      ).toBe(1);
+    });
+
+    it('resubmits a task with no handover history back to the requesting reviewer', async () => {
+      for (const commentId of commentIds) {
+        await as(dev)
+          .post(`/api/tasks/${pickedTaskId}/responses`, { commentId, kind: 'Resolved' })
+          .expect(200);
+      }
+      const resubmitted = await as(dev).post(`/api/tasks/${pickedTaskId}/submit`).expect(200);
+      expect(resubmitted.body).toMatchObject({
+        status: 'InReview',
+        reviewerId: userIds[E2E_USERS.adminReviewer.email],
+        handedOverByName: null,
+      });
+    });
+
+    it('allows interactive transactions longer than the 5 s Prisma default', async () => {
+      await expect(
+        prisma.$transaction(async (tx) => {
+          await tx.$executeRaw`SELECT pg_sleep(5.5)`;
+          return 'committed';
+        }),
+      ).resolves.toBe('committed');
+    }, 30_000);
   });
 
   describe('account changes', () => {

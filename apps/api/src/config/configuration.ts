@@ -35,6 +35,12 @@ export function loadConfiguration(env: NodeJS.ProcessEnv = process.env) {
     nodeEnv,
     port: integer(env['PORT'], D.port),
     databaseUrl: env['DATABASE_URL'],
+    database: {
+      transactionOptions: {
+        timeout: integer(env['DB_TRANSACTION_TIMEOUT_MS'], D.transactionTimeoutMs),
+        maxWait: integer(env['DB_TRANSACTION_MAX_WAIT_MS'], D.transactionMaxWaitMs),
+      },
+    },
     frontendOrigins,
     /** Base of every link in an email: APP_BASE_URL, else the first frontend origin. */
     appBaseUrl: withoutTrailingSlash(

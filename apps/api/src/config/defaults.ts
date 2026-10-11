@@ -20,6 +20,9 @@ export const CONFIG_DEFAULTS = {
   resendCooldownSeconds: 60,
   /** EMAIL_DISPATCH_INTERVAL_MS */
   emailDispatchIntervalMs: 30_000,
+  /** DB_TRANSACTION_TIMEOUT_MS / DB_TRANSACTION_MAX_WAIT_MS — interactive transactions over a remote DB */
+  transactionTimeoutMs: 15_000,
+  transactionMaxWaitMs: 5_000,
   /** BREVO_API_URL */
   brevoApiUrl: 'https://api.brevo.com/v3',
   /** JWT_ISSUER / JWT_AUDIENCE */

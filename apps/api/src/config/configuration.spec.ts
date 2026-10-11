@@ -27,6 +27,10 @@ describe('configuration', () => {
     expect(config.passwordLinks.inviteTtlMs).toBe(CONFIG_DEFAULTS.inviteTtlHours * 3_600_000);
     expect(config.mail.brevoApiUrl).toBe(CONFIG_DEFAULTS.brevoApiUrl);
     expect(config.mail.fromName).toBe(CONFIG_DEFAULTS.appName);
+    expect(config.database.transactionOptions).toEqual({
+      timeout: CONFIG_DEFAULTS.transactionTimeoutMs,
+      maxWait: CONFIG_DEFAULTS.transactionMaxWaitMs,
+    });
   });
 
   it('takes every value from the environment when set', () => {
@@ -36,7 +40,10 @@ describe('configuration', () => {
       APP_NAME: 'Portal',
       INVITE_TTL_HOURS: '48',
       SDP_EMAIL_FROM_ADDRESS: 'noreply@example.com',
+      DB_TRANSACTION_TIMEOUT_MS: '20000',
+      DB_TRANSACTION_MAX_WAIT_MS: '8000',
     });
+    expect(config.database.transactionOptions).toEqual({ timeout: 20000, maxWait: 8000 });
     expect(config.frontendOrigins).toEqual(['https://a.example.com', 'https://b.example.com']);
     expect(config.appBaseUrl).toBe('https://portal.example.com');
     expect(config.appName).toBe('Portal');

@@ -61,6 +61,8 @@ const envSchema = z
     EMAIL_DISPATCH_INTERVAL_MS: z.coerce.number().int().min(1000).max(600000).optional(),
     PASSWORD_LINK_RESEND_COOLDOWN_SECONDS: z.coerce.number().int().min(10).max(3600).optional(),
     BREVO_API_URL: z.url().optional(),
+    DB_TRANSACTION_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60000).optional(),
+    DB_TRANSACTION_MAX_WAIT_MS: z.coerce.number().int().min(500).max(30000).optional(),
     E2E_MAIL_OUTBOX: z.string().optional(),
     BOOTSTRAP_ADMIN_EMAIL: z.string().optional(),
     BOOTSTRAP_ADMIN_PASSWORD: z.string().optional(),

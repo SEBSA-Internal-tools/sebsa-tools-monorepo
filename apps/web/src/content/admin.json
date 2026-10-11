@@ -143,9 +143,13 @@
     "updated": "{name} updated.",
     "privileged": {
       "managed": "Managed by Super Admin",
-      "reasonLabel": "Reason for privileged change",
-      "reasonPlaceholder": "Explain why this privileged access is changing",
-      "reasonRequired": "Provide a reason for this privileged change."
+      "roleReasonLabel": "Reason for Admin access change",
+      "roleReasonHint": "Required because Admin or Super Admin access is being granted or removed. Saved in the audit log.",
+      "roleReasonPlaceholder": "e.g. Taking over user and customer administration for the team",
+      "statusReasonLabel": "Reason for changing this Admin's account status",
+      "statusReasonHint": "Required for users with Admin or Super Admin access. Saved in the audit log.",
+      "statusReasonPlaceholder": "e.g. Left the company / returning from leave",
+      "reasonRequired": "Provide a reason for this Admin access change."
     },
     "actions": {
       "edit": "Edit {name}",

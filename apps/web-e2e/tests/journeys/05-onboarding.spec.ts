@@ -36,6 +36,11 @@ async function nextLinkFor(email: string, previous: string | null) {
   return link;
 }
 
+test('an unknown link token explains itself', async ({ page }) => {
+  await page.goto(`/set-password#token=${'0'.repeat(43)}`);
+  await expect(page.getByRole('heading', { name: "This link can't be used" })).toBeVisible();
+});
+
 test.describe.serial('new user onboarding', () => {
   test('an admin adds the user, who is listed as Invited', async ({ page }) => {
     await signIn(page, E2E_USERS.admin.email);

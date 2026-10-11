@@ -71,6 +71,7 @@ function services(prisma: unknown) {
 function resubmitHarness(options: {
   resubmissionReviewerId?: string | null;
   followUp: { id: string; fullName: string; status: string; reviewerRoles: number };
+  handovers?: unknown[];
 }) {
   const baseTask = storedTask({ resubmissionReviewerId: options.resubmissionReviewerId ?? null });
   const tx = {
@@ -91,6 +92,7 @@ function resubmitHarness(options: {
           storedTask({
             ...data,
             status: (data['status'] as TaskStatus | undefined) ?? TaskStatus.RESUBMITTED,
+            handovers: options.handovers ?? [],
           }),
         ),
       ),
@@ -192,6 +194,35 @@ describe('resubmission routing', () => {
     await service.submit(TASK_ID, actor(['DEVELOPER']));
 
     expect(tx.taskReviewerAssignment.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('resubmission response', () => {
+  const followUp = { id: FOLLOW_UP_ID, fullName: 'Follow Up', status: 'ACTIVE', reviewerRoles: 1 };
+  const resubmit = (handovers: unknown[]) =>
+    resubmitHarness({ resubmissionReviewerId: FOLLOW_UP_ID, followUp, handovers }).service.submit(
+      TASK_ID,
+      actor(['DEVELOPER']),
+    );
+
+  it('serializes a task with no handover history', async () => {
+    await expect(resubmit([])).resolves.toMatchObject({
+      status: 'InReview',
+      reviewerId: FOLLOW_UP_ID,
+      handedOverByName: null,
+    });
+  });
+
+  it('names the reviewer who handed the task over', async () => {
+    await expect(
+      resubmit([{ status: 'REASSIGNED', fromReviewer: { fullName: 'Earlier Reviewer' } }]),
+    ).resolves.toMatchObject({ handedOverByName: 'Earlier Reviewer' });
+  });
+
+  it('does not fail when a handover row carries no reviewer relation', async () => {
+    await expect(resubmit([{ status: 'REASSIGNED' }])).resolves.toMatchObject({
+      handedOverByName: null,
+    });
   });
 });
 

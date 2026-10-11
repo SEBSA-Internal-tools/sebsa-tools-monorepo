@@ -2009,7 +2009,7 @@ export class ReviewTasksService {
     const previousAdminAssignedReviewer =
       currentAssignment?.assignmentType === ReviewerAssignmentType.ADMIN_REASSIGNED &&
       currentAssignment.assignedBy !== null
-        ? reviewerAssignments.find(({ isCurrent }) => !isCurrent)?.reviewer.fullName
+        ? reviewerAssignments.find(({ isCurrent }) => !isCurrent)?.reviewer?.fullName
         : null;
     const status = {
       DRAFT: 'Draft',
@@ -2048,7 +2048,7 @@ export class ReviewTasksService {
       isChecklistComplete: task.checklistCompleted,
       isHandedOver: task.handovers.some(({ status }) => status === HandoverStatus.PENDING),
       handedOverByName:
-        previousAdminAssignedReviewer ?? task.handovers[0]?.fromReviewer.fullName ?? null,
+        previousAdminAssignedReviewer ?? task.handovers[0]?.fromReviewer?.fullName ?? null,
       noteToReviewer: task.noteToReviewer,
       createdAt: task.createdAt.toISOString(),
       submittedAt: task.submittedAt?.toISOString() ?? null,

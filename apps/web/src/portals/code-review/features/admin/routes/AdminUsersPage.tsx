@@ -568,7 +568,12 @@ export function AdminUsersPage() {
         }}
       >
         {statusChanging !== null && isPrivilegedRoleSet(statusChanging.user.roles) ? (
-          <Field label={admin.users.privileged.reasonLabel} required error={reasonError}>
+          <Field
+            label={admin.users.privileged.statusReasonLabel}
+            hint={admin.users.privileged.statusReasonHint}
+            required
+            error={reasonError}
+          >
             <Textarea
               value={reason}
               onChange={(event) => {
@@ -576,7 +581,7 @@ export function AdminUsersPage() {
                 setReasonError(undefined);
               }}
               rows={3}
-              placeholder={admin.users.privileged.reasonPlaceholder}
+              placeholder={admin.users.privileged.statusReasonPlaceholder}
             />
           </Field>
         ) : null}

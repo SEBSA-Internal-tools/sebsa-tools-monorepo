@@ -804,17 +804,10 @@ export class ReviewsService {
     }
     // Park every remaining finding number of this form out of the way, so the
     // unique (form, number) pair can be rewritten in the draft's order.
-    const remaining = await tx.reviewFinding.findMany({
+    await tx.reviewFinding.updateMany({
       where: { reviewFormId: form.id },
-      select: { id: true },
-      orderBy: { findingNo: 'asc' },
+      data: { findingNo: { multiply: -1 } },
     });
-    for (const [index, finding] of remaining.entries()) {
-      await tx.reviewFinding.update({
-        where: { id: finding.id },
-        data: { findingNo: -(index + 1) },
-      });
-    }
     for (const { comment, findingId, index } of incoming) {
       const existing = storedById.get(findingId);
       if (existing && !editable(existing)) {
