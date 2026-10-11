@@ -83,6 +83,54 @@ describe('ReviewTasksService review round and counted-cycle projection', () => {
       adjustedCycles: [],
     });
   });
+
+  it('labels history before the first pick as round zero', async () => {
+    const user = actor(['DEVELOPER']);
+    const taskId = '00000000-0000-0000-0000-000000000031';
+    const actions = [
+      'TASK_CREATED',
+      'TASK_SUBMITTED',
+      'TASK_PICKED',
+      'CHANGES_REQUESTED',
+      'TASK_RESUBMITTED',
+      'TASK_APPROVED',
+    ];
+    const service = serviceWith({
+      task: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: taskId,
+          status: TaskStatus.APPROVED,
+          developerId: user.id,
+          handovers: [],
+          codeReviewForms: [],
+        }),
+      },
+      auditLog: {
+        findMany: vi.fn().mockResolvedValue(
+          actions.map((action, index) => ({
+            id: `log-${String(index)}`,
+            action,
+            userId: user.id,
+            actorName: user.name,
+            metadata: null,
+            newValues: null,
+            createdAt: new Date(Date.UTC(2026, 0, 1, 0, index)),
+          })),
+        ),
+      },
+    });
+
+    const events = await service.findEvents(taskId, user);
+
+    expect(events.map(({ kind, reviewCycle }) => [kind, reviewCycle])).toEqual([
+      ['Created', 0],
+      ['Submitted', 0],
+      ['Picked', 1],
+      ['ChangesRequested', 1],
+      ['Resubmitted', 2],
+      ['Approved', 2],
+    ]);
+  });
 });
 
 describe('ReviewTasksService list visibility', () => {

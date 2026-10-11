@@ -97,15 +97,15 @@ export function HandoverDialog({
       size="md"
       icon={
         isSuccess ? (
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 ring-1 ring-emerald-500/20 dark:bg-emerald-500/20 dark:text-emerald-400">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 ring-1 ring-emerald-500/20">
             <Check className="size-5" aria-hidden="true" />
           </div>
         ) : hasSelectedRank ? (
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 ring-1 ring-amber-500/20 dark:bg-amber-500/20 dark:text-amber-400">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 ring-1 ring-amber-500/20">
             <AlertTriangle className="size-5" aria-hidden="true" />
           </div>
         ) : (
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 ring-1 ring-amber-500/20 dark:bg-amber-500/20 dark:text-amber-400">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 ring-1 ring-amber-500/20">
             <ArrowRightLeft className="size-5" aria-hidden="true" />
           </div>
         )
@@ -161,7 +161,7 @@ export function HandoverDialog({
     >
       {isSuccess ? (
         <div className="flex flex-col items-center justify-center space-y-4 py-6 text-center">
-          <div className="flex size-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 ring-8 ring-emerald-500/10 dark:bg-emerald-950/30 dark:text-emerald-400">
+          <div className="flex size-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 ring-8 ring-emerald-500/10">
             <Check className="size-8" aria-hidden="true" />
           </div>
           <div className="space-y-1.5">

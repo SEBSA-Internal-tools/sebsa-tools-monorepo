@@ -132,11 +132,11 @@ export function ReviewDecisionDialog({
       }
       icon={
         isSuccess ? null : isApprove ? (
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 ring-1 ring-emerald-500/20 dark:bg-emerald-500/20 dark:text-emerald-400">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 ring-1 ring-emerald-500/20">
             <CheckCircle2 className="size-5" aria-hidden="true" />
           </div>
         ) : (
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 ring-1 ring-amber-500/20 dark:bg-amber-500/20 dark:text-amber-400">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 ring-1 ring-amber-500/20">
             <AlertTriangle className="size-5" aria-hidden="true" />
           </div>
         )
@@ -184,8 +184,8 @@ export function ReviewDecisionDialog({
             className={cn(
               'flex size-14 scale-100 items-center justify-center rounded-full ring-8 transition-transform duration-300',
               isApprove
-                ? 'bg-emerald-100 text-emerald-600 ring-emerald-50 dark:bg-emerald-950 dark:text-emerald-400 dark:ring-emerald-900/30'
-                : 'bg-amber-100 text-amber-600 ring-amber-50 dark:bg-amber-950 dark:text-amber-400 dark:ring-amber-900/30',
+                ? 'bg-emerald-100 text-emerald-600 ring-emerald-50'
+                : 'bg-amber-100 text-amber-600 ring-amber-50',
             )}
           >
             <CheckCircle2 className="size-8" aria-hidden="true" />
@@ -233,8 +233,8 @@ export function ReviewDecisionDialog({
                 className={cn(
                   'font-semibold',
                   isApprove
-                    ? 'text-emerald-700 dark:text-emerald-400'
-                    : 'text-amber-700 dark:text-amber-400',
+                    ? 'text-emerald-700'
+                    : 'text-amber-700',
                 )}
               >
                 {rankLabel}

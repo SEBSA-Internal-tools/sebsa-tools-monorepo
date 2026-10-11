@@ -142,7 +142,7 @@ export function ReviewCommentCard({
       className={cn(
         'space-y-4 rounded-2xl border p-4 shadow-2xs transition-all duration-150 sm:p-5',
         isPreviousReviewer
-          ? 'border-slate-200/90 bg-white/95 dark:bg-slate-900/60'
+          ? 'border-slate-200 bg-white'
           : 'border-violet-200/80 bg-surface hover:border-violet-300',
       )}
     >
@@ -162,7 +162,7 @@ export function ReviewCommentCard({
             </span>
             <span className="text-sm font-bold text-ink-900">Review Comment #{index + 1}</span>
             {isPreviousReviewer && (
-              <span className="text-2xs inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 font-semibold text-slate-700">
+              <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
                 Read-only
               </span>
             )}

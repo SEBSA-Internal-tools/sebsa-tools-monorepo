@@ -291,12 +291,18 @@ export class ReviewTasksService {
       TASK_CANCELLED: 'Cancelled',
       COUNTED_CYCLE_ADJUSTED: 'CountedCycleAdjusted',
     };
-    // Each Request Changes closes a round, so an event belongs to round
-    // 1 + (decisions of that kind recorded before it). History can then be
-    // grouped by the round the event really happened in.
-    let round = 1;
+    // Round 0 until a reviewer first takes the task; each Request Changes then
+    // closes a round, so later events belong to the round they happened in.
+    const reviewStartActions = new Set([
+      'TASK_PICKED',
+      'TASK_ASSIGNED',
+      'REVIEWER_ASSIGNED',
+      'HANDOVER_REASSIGNED',
+    ]);
+    let round = 0;
     return logs.flatMap((log) => {
       const kind = kindByAction[log.action];
+      if (reviewStartActions.has(log.action)) round = Math.max(round, 1);
       const eventRound = round;
       if (log.action === 'CHANGES_REQUESTED') round += 1;
       if (!kind || !log.userId) return [];
