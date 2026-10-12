@@ -1,0 +1,62 @@
+[build]
+  base = "."
+  command = "npm run build:netlify"
+  publish = "dist/apps/web"
+  functions = "dist/netlify/functions"
+
+[build.environment]
+  NODE_VERSION = "24"
+  NPM_FLAGS = "--include=dev"
+  HUSKY = "0"
+  # Browser-visible size limit only. Backend credentials are never VITE_*.
+  VITE_MAX_API_REQUEST_BYTES = "4500000"
+
+[functions]
+  node_bundler = "esbuild"
+  external_node_modules = [
+    "@nestjs/common", "@nestjs/config", "@nestjs/core", "@nestjs/jwt",
+    "@nestjs/passport", "@nestjs/platform-express", "@nestjs/swagger",
+    "@sdp/netlify-prisma", "argon2", "class-transformer",
+    "class-validator", "cookie-parser", "express", "helmet", "passport",
+    "passport-jwt", "reflect-metadata", "rxjs", "serverless-http",
+    "swagger-ui-express", "zod"
+  ]
+  # Prisma's engine search makes file tracing include the unrelated local client.
+# The generated Netlify client carries its own runtime and Linux engine.
+included_files = [
+  "node_modules/@sdp/netlify-prisma/**",
+  "node_modules/argon2/prebuilds/linux-x64/**",
+  "!node_modules/.prisma/**",
+  "!node_modules/@prisma/client/**",
+  "!node_modules/@prisma/engines/**",
+  "!node_modules/typescript/**",
+  "!**/*.dll.node",
+  "!**/*.dll.node.tmp*"
+]
+
+[functions."email-schedule"]
+  schedule = "*/5 * * * *"
+
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/api/*"
+  [headers.values]
+    Cache-Control = "private, no-store"
+    Netlify-CDN-Cache-Control = "no-store"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "no-referrer"

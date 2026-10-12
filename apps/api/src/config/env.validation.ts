@@ -52,6 +52,7 @@ const envSchema = z
     INVITE_TTL_HOURS: z.coerce.number().int().min(1).max(168).optional(),
     RESET_TTL_MINUTES: z.coerce.number().int().min(10).max(1440).optional(),
     EMAIL_ENABLED: z.enum(['true', 'false']).default('false'),
+    EMAIL_DISPATCH_SECRET: z.string().min(32).optional(),
     SDP_BREVO_API_KEY: z.string().trim().optional(),
     SDP_EMAIL_FROM_ADDRESS: z.email().optional(),
     SDP_EMAIL_FROM_NAME: z

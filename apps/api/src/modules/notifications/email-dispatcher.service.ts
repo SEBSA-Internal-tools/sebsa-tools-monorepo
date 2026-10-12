@@ -44,7 +44,7 @@ export class EmailDispatcher implements OnModuleInit, OnModuleDestroy {
   }
 
   onModuleInit(): void {
-    if (!this.active) return;
+    if (!this.active || this.config.get<string>('mail.dispatchMode') === 'scheduled') return;
     const interval = this.config.getOrThrow<number>('mail.dispatchIntervalMs');
     this.timer = setInterval(() => void this.runOnce(), interval);
     this.timer.unref();
@@ -60,7 +60,13 @@ export class EmailDispatcher implements OnModuleInit, OnModuleDestroy {
 
   /** Runs shortly after the caller's transaction is expected to have committed. */
   kick(): void {
-    if (!this.active || this.stopped || this.kickTimer) return;
+    if (
+      !this.active ||
+      this.stopped ||
+      this.kickTimer ||
+      this.config.get<string>('mail.dispatchMode') === 'scheduled'
+    )
+      return;
     this.kickTimer = setTimeout(() => {
       this.kickTimer = undefined;
       void this.runOnce();
@@ -68,9 +74,9 @@ export class EmailDispatcher implements OnModuleInit, OnModuleDestroy {
     this.kickTimer.unref();
   }
 
-  runOnce(): Promise<void> {
+  runOnce(maxBatches = Number.MAX_SAFE_INTEGER): Promise<void> {
     if (this.running || this.stopped) return this.running ?? Promise.resolve();
-    this.running = this.drain()
+    this.running = this.drain(maxBatches)
       .catch((error: unknown) => {
         this.logger.warn(
           `Email dispatch failed: ${error instanceof Error ? error.message : 'unknown error'}`,
@@ -82,8 +88,8 @@ export class EmailDispatcher implements OnModuleInit, OnModuleDestroy {
     return this.running;
   }
 
-  private async drain(): Promise<void> {
-    for (;;) {
+  private async drain(maxBatches: number): Promise<void> {
+    for (let batch = 0; batch < maxBatches; batch += 1) {
       const claimed = await this.claim();
       for (const row of claimed) await this.deliver(row.id, row.attempts);
       if (claimed.length < BATCH_SIZE || this.stopped) return;

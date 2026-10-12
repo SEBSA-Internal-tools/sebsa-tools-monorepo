@@ -77,6 +77,8 @@ export function loadConfiguration(env: NodeJS.ProcessEnv = process.env) {
       fromName: nonEmpty(env['SDP_EMAIL_FROM_NAME']) ?? appName,
       supportEmail: nonEmpty(env['SDP_SUPPORT_EMAIL']) ?? fromAddress,
       dispatchIntervalMs: integer(env['EMAIL_DISPATCH_INTERVAL_MS'], D.emailDispatchIntervalMs),
+      dispatchMode: 'interval' as 'interval' | 'scheduled',
+      dispatchSecret: env['EMAIL_DISPATCH_SECRET'] ?? '',
       /** Test runs only: each email is appended here as one JSON line. */
       e2eOutboxFile: nonEmpty(env['E2E_MAIL_OUTBOX']),
     },

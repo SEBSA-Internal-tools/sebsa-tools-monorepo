@@ -165,3 +165,34 @@ describe('task email copy', () => {
     expect(body.details).toContainEqual(['Findings', '3']);
   });
 });
+
+it('leaves queued delivery to the Netlify scheduler without starting timers', async () => {
+  const scheduled = new EmailDispatcher(
+    { $queryRaw: vi.fn().mockResolvedValue([]) } as never,
+    {} as never,
+    templates,
+    testConfig({}, { mail: { enabled: true, dispatchMode: 'scheduled' } }) as never,
+  );
+  const interval = vi.spyOn(globalThis, 'setInterval');
+  const timeout = vi.spyOn(globalThis, 'setTimeout');
+  try {
+    scheduled.onModuleInit();
+    scheduled.kick();
+    expect(interval).not.toHaveBeenCalled();
+    expect(timeout).not.toHaveBeenCalled();
+    await scheduled.runOnce(1);
+  } finally {
+    await scheduled.onModuleDestroy();
+    interval.mockRestore();
+    timeout.mockRestore();
+  }
+});
+
+it('bounds a background invocation even when the queue keeps returning a full batch', async () => {
+  const { dispatcher, prisma } = harness(row());
+  prisma.$queryRaw
+    .mockReset()
+    .mockResolvedValue(Array.from({ length: 20 }, () => ({ id: 'n-1', attempts: 1 })));
+  await dispatcher.runOnce(2);
+  expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
+});
