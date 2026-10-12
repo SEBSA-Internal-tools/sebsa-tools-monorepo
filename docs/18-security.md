@@ -182,7 +182,7 @@ short.
 
 ## Headers, for deployment
 
-The API sets these itself (helmet, below); the host that serves the web build should send the same for the HTML:
+The API sets these itself (helmet, below). The host that serves the web build must send the same for the HTML. The NGINX config in the [Production hosting runbook](./27-production-hosting-runbook.md#phase-7-nginx-configuration) does this, with the full CSP:
 
 | Header                      | Value                                                  |
 | --------------------------- | ------------------------------------------------------ |
@@ -212,10 +212,16 @@ The backend is the only enforcement point ([ADR 0016](./adr/0016-nestjs-is-the-o
 **Sign-in**
 
 - 5 attempts per account and 30 per client IP per 15 minutes, then 429.
+- A browser that has signed in to an account before keeps its own 5-attempt
+  budget (`sdp_device`: HttpOnly, `SameSite=Strict`, path `/api/auth/login`,
+  HMAC-bound to the email). Failures from anywhere else therefore cannot lock
+  the owner out, while unknown browsers still share the per-account limit.
+- Once a budget is used up, even the correct password fails for it, so a locked
+  budget cannot be used as a password oracle.
 - Unknown and invited accounts get the same argon2 work as a wrong password, so
   response time does not reveal which emails exist; one generic 401 for all.
-- `TRUST_PROXY` must name the real proxy (hop count or addresses) so per-IP
-  limits see the client, not the load balancer.
+- `TRUST_PROXY=1` behind NGINX (a hop count, not an address list), so per-IP
+  limits see the client, not the proxy. NGINX overwrites `X-Forwarded-For`.
 
 **Accounts**
 

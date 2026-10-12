@@ -13,7 +13,14 @@ import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import type { Request, Response } from 'express';
 import { randomBytes } from 'node:crypto';
-import { ACCESS_COOKIE, CSRF_COOKIE, REFRESH_COOKIE, ROLE_LABELS } from './auth.constants.js';
+import {
+  ACCESS_COOKIE,
+  CSRF_COOKIE,
+  DEVICE_COOKIE,
+  DEVICE_COOKIE_MAX_AGE_MS,
+  REFRESH_COOKIE,
+  ROLE_LABELS,
+} from './auth.constants.js';
 import { authSettings } from './auth.config.js';
 import { AuthService, type AuthTokens } from './auth.service.js';
 import { CurrentUser } from './decorators/current-user.decorator.js';
@@ -43,8 +50,19 @@ export class AuthController {
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ) {
-    const result = await this.auth.login(dto, this.metadata(request));
+    const deviceToken = this.cookie(request, DEVICE_COOKIE);
+    const result = await this.auth.login(dto, {
+      ...this.metadata(request),
+      ...(deviceToken ? { deviceToken } : {}),
+    });
     this.setCookies(response, result.tokens);
+    response.cookie(DEVICE_COOKIE, result.deviceToken, {
+      httpOnly: true,
+      secure: authSettings(this.config).secureCookies,
+      sameSite: 'strict',
+      path: '/api/auth/login',
+      maxAge: DEVICE_COOKIE_MAX_AGE_MS,
+    });
     return result.user;
   }
 
