@@ -75,7 +75,7 @@ changes where Vite proxies them (default `http://localhost:3000`).
 The API's variables are listed in the root [README](../README.md#environment).
 In production the app must be served over HTTPS: session cookies are `Secure`,
 and the API refuses to start with `COOKIE_SECURE=false`, a non-https
-`FRONTEND_ORIGIN`, or a database URL without `sslmode=require`.
+`APP_BASE_URL` (or `FRONTEND_ORIGIN`), or a database URL without `sslmode=require`.
 
 ## Committing
 

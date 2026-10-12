@@ -131,7 +131,7 @@ Argon2id. The password is never trimmed, logged or echoed.
   notice.
 
 **Transport and headers.** The public routes need no CSRF cookie. They check
-`Origin` against `FRONTEND_ORIGIN` and set `Cache-Control: no-store` and
+`Origin` against the allowed origin (`APP_BASE_URL`, or `FRONTEND_ORIGIN` if set) and set `Cache-Control: no-store` and
 `Referrer-Policy: no-referrer`. The page adds
 `<meta name="referrer" content="no-referrer">` while a password screen is open.
 

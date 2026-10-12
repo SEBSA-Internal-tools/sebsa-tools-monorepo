@@ -21,7 +21,6 @@ Minimum for local development:
 NODE_ENV=development
 PORT=3000
 DATABASE_URL=postgresql://USER:PASSWORD@HOST/DBNAME?sslmode=require
-FRONTEND_ORIGIN=http://localhost:5175
 JWT_ACCESS_SECRET=<32+ random characters>
 JWT_REFRESH_SECRET=<a different 32+ random characters>
 EMAIL_ENABLED=false
@@ -38,8 +37,8 @@ APP_BASE_URL=http://localhost:5175
 | `DIRECT_URL`                               | derived                                | optional                           | Neon non-pooler URL, only for `npm run db:neon-patch`                                     |
 | `DB_TRANSACTION_TIMEOUT_MS`               | `15000`                                | optional (1000–60000)              | Interactive transaction limit; raise if a remote DB logs P2028 "Transaction already closed" |
 | `DB_TRANSACTION_MAX_WAIT_MS`              | `5000`                                 | optional (500–30000)               | How long a transaction waits for a pooled connection                                      |
-| `FRONTEND_ORIGIN`                          | `http://localhost:5175`                | required, `https://` only          | CORS allow-list, comma-separated                                                          |
-| `APP_BASE_URL`                             | first `FRONTEND_ORIGIN`                | `https://` public web URL          | Base of every link in emails                                                              |
+| `FRONTEND_ORIGIN`                          | origin of `APP_BASE_URL`               | optional, `https://` only          | CORS allow-list, comma-separated; set only for extra or different origins                 |
+| `APP_BASE_URL`                             | `http://localhost:5175`                | required, `https://` public web URL | Public web URL: base of every emailed link, and the CORS / `Origin` allow-list unless `FRONTEND_ORIGIN` is set |
 | `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` | —                                      | required, different, 32+ chars     | Cookie token signing                                                                      |
 | `JWT_ISSUER` / `JWT_AUDIENCE`              | `sebsa-code-review-api` / `sebsa-code-review-web`| optional                           | Token claims                                                                              |
 | `JWT_ACCESS_TTL_SECONDS` / `JWT_REFRESH_TTL_SECONDS` / `JWT_REMEMBER_TTL_SECONDS` | 900 / 7 days / 30 days | optional            | Token lifetimes                                                                           |
@@ -69,14 +68,14 @@ Nothing outside the files below hardcodes a port.
 | Port               | Default | Change with                         | Must also change                                                                  |
 | ------------------ | ------- | ----------------------------------- | --------------------------------------------------------------------------------- |
 | API                | 3000    | `PORT` in `apps/api/.env`           | `SDP_API_TARGET` for the dev server, or the reverse-proxy upstream when hosted    |
-| Web dev server     | 5175    | `SDP_WEB_PORT` shell var            | `FRONTEND_ORIGIN` and `APP_BASE_URL` in `apps/api/.env`                           |
+| Web dev server     | 5175    | `SDP_WEB_PORT` shell var            | `APP_BASE_URL` in `apps/api/.env`                           |
 | e2e API / web      | 3100 / 5185 | `E2E_API_PORT` / `E2E_WEB_PORT` | nothing; the e2e scripts pass them through                                        |
 
 The dev server uses `strictPort: true`: if the port is busy it stops instead of moving to the next free port, because a silent move would break CORS, emailed links and the e2e suite. Pick a free port explicitly, for example:
 
 ```bash
 SDP_WEB_PORT=5176 SDP_API_TARGET=http://localhost:3001 npm run dev
-# and in apps/api/.env: PORT=3001, FRONTEND_ORIGIN=http://localhost:5176, APP_BASE_URL=http://localhost:5176
+# and in apps/api/.env: PORT=3001, APP_BASE_URL=http://localhost:5176
 ```
 
 ## Hosting checklist
@@ -86,8 +85,7 @@ SDP_WEB_PORT=5176 SDP_API_TARGET=http://localhost:3001 npm run dev
 3. Set in the API environment:
    - `NODE_ENV=production`, `PORT=<internal port>`
    - `DATABASE_URL` with `sslmode=require`
-   - `FRONTEND_ORIGIN=https://<public web host>` (comma-separate if several)
-   - `APP_BASE_URL=https://<public web host>` (what users click in emails)
+   - `APP_BASE_URL=https://<public web host>` (email links and the allowed origin; add `FRONTEND_ORIGIN` only for extra origins)
    - `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` (new values, not the dev ones)
    - `TRUST_PROXY=1` behind NGINX (a hop count; not an address list)
    - `EMAIL_ENABLED=true`, `SDP_BREVO_API_KEY`, `SDP_EMAIL_FROM_ADDRESS`, optionally `SDP_SUPPORT_EMAIL`

@@ -71,6 +71,12 @@ describe('environment validation', () => {
     ).toThrow(/FRONTEND_ORIGIN/);
   });
 
+  it('accepts APP_BASE_URL alone as the production origin', () => {
+    const { FRONTEND_ORIGIN: _origin, ...rest } = production;
+    expect(() => validate({ ...rest, APP_BASE_URL: 'https://sdp.example.com' })).not.toThrow();
+    expect(() => validate(rest)).toThrow(/FRONTEND_ORIGIN/);
+  });
+
   it('refuses a database connection without TLS in production', () => {
     expect(() =>
       validate({ ...production, DATABASE_URL: 'postgresql://app:pw@db.example.com/sdp' }),
