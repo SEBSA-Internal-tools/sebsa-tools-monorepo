@@ -48,7 +48,7 @@ const STATUS_LABEL: Partial<Record<TaskStatus, string>> = {
  *      the admin-chosen follow-up reviewer, or else whoever requested the
  *      changes. `currentReviewerId` is null in this state, so nothing else
  *      would protect these;
- *  (c) pending handovers addressed to them.
+ *  (c) pending handovers they started or that are addressed to them.
  */
 @Injectable()
 export class ReviewerWorkloadService {
@@ -91,7 +91,7 @@ export class ReviewerWorkloadService {
         orderBy: { taskCode: 'asc' },
       }),
       db.handoverTask.findMany({
-        where: { status: 'PENDING', toReviewerId: userId },
+        where: { status: 'PENDING', OR: [{ fromReviewerId: userId }, { toReviewerId: userId }] },
         select: { task: { select: { id: true, taskCode: true, title: true, status: true } } },
       }),
     ]);
