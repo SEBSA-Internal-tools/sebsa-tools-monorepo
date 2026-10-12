@@ -1,5 +1,6 @@
 import type { z } from 'zod';
 import { apiErrorSchema } from '@sdp/contracts';
+import { logger } from './logger.ts';
 
 /**
  * The single HTTP seam between the application and its data.
@@ -155,6 +156,9 @@ async function request<TSchema extends z.ZodTypeAny>(
   const json: unknown = await response.json();
   const result = schema.safeParse(json);
   if (!result.success) {
+    logger.error(`Response from ${path} did not match its schema`, {
+      issues: result.error.issues.slice(0, 10),
+    });
     throw new ApiContractError(path, result.error.issues);
   }
   return result.data;

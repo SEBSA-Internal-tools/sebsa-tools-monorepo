@@ -474,6 +474,38 @@ describe('admin users tab', () => {
       within(screen.getByRole('table')).getByText('Charith Widanapathirana'),
     ).toBeInTheDocument();
   });
+
+  it('still lists every user for a Super Admin when one row breaks a write-side rule', async () => {
+    signInForTest({ ...user(ADMIN), roles: ['SuperAdmin'] });
+    db.users.push({
+      id: 'u-mid-cleanup',
+      name: 'Mid Cleanup',
+      email: 'odd!address@sebsaworld.com',
+      roles: [],
+      isActive: false,
+      createdAt: '2026-10-01T09:00:00.000Z',
+      status: 'DEACTIVATED',
+      inviteExpiresAt: null,
+      inviteEmailStatus: null,
+    });
+    const { user: actor } = renderAdmin('/crp/admin/users');
+
+    expect(await screen.findByText('Dheliya Kankanamge')).toBeInTheDocument();
+    await actor.type(screen.getByRole('searchbox', { name: /search users/i }), 'mid cleanup');
+    const row = (await screen.findByText('odd!address@sebsaworld.com')).closest('tr')!;
+    expect(within(row).getByText('No role')).toBeInTheDocument();
+  });
+
+  it('shows the server’s reason when the user list cannot be loaded', async () => {
+    apiStub.get('/users', () =>
+      apiError(403, 'FORBIDDEN', 'You do not have permission to perform this action'),
+    );
+    renderAdmin('/crp/admin/users');
+
+    expect(
+      await screen.findByText('You do not have permission to perform this action'),
+    ).toBeInTheDocument();
+  });
 });
 
 describe('admin customers tab', () => {
