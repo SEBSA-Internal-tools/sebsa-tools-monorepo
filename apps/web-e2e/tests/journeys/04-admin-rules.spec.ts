@@ -15,6 +15,20 @@ import {
  *  - changing a user's sign-in email sends them back to Invited: every session
  *    ends and they must set a new password from an invite to the new address.
  */
+test.describe('Users tab', () => {
+  for (const actor of [E2E_USERS.superAdmin, E2E_USERS.admin]) {
+    test(`lists every user for ${actor.name}`, async ({ page }) => {
+      await signIn(page, actor.email);
+      await page.goto('/crp/admin/users');
+
+      const table = page.getByRole('table');
+      await expect(table.getByText(E2E_USERS.superAdmin.email)).toBeVisible();
+      await expect(table.getByText(E2E_USERS.developer.email)).toBeVisible();
+      await expect(page.getByText(/this page ran into a problem/i)).toHaveCount(0);
+    });
+  }
+});
+
 test.describe('Super Admin transfer', () => {
   test('is blocked while the target reviewer holds review work, and lists it', async ({ page }) => {
     const task = await submittedTask(

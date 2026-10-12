@@ -25,6 +25,7 @@ import { tableFeaturesInUse, type ColumnList } from './dataTableColumns.ts';
 import { TableSkeleton } from './Skeleton.tsx';
 import { TablePageSize } from './TablePageSize.tsx';
 import { Alert } from '@/components/ui/Alert.tsx';
+import { ApiError } from '@/lib/apiClient.ts';
 import { EmptyState, ErrorState } from './states.tsx';
 
 /**
@@ -509,7 +510,10 @@ export function DataTable<TRow extends object>({
   if (hasError && rows.length === 0 && !isLoading) {
     return (
       <TableShell className={className} heading={heading} toolbar={toolbar}>
-        <ErrorState {...(onRetry ? { onRetry } : {})} />
+        <ErrorState
+          {...(error instanceof ApiError ? { message: error.message } : {})}
+          {...(onRetry ? { onRetry } : {})}
+        />
       </TableShell>
     );
   }

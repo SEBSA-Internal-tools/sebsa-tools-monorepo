@@ -15,12 +15,17 @@ export const userRolesSchema = z
 /* User                                                                        */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * A user as the server returns it. The write-side rules (at least one role,
+ * Super Admin exclusive, email format) live on the input schemas: enforcing
+ * them here let one non-conforming row reject the whole `GET /users` list.
+ */
 export const userSchema = z.object({
   id: idSchema,
   name: z.string().min(1),
-  email: z.string().email(),
+  email: z.string().min(1),
   /** Additive — a user may be Developer AND Reviewer AND Admin at once. */
-  roles: userRolesSchema,
+  roles: z.array(roleSchema),
   isActive: z.boolean(),
   createdAt: isoDateTimeSchema,
   /**

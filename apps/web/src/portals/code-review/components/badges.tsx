@@ -158,9 +158,12 @@ export function RoleBadges({
   size?: 'sm' | 'md';
   className?: string;
 }) {
+  if (roles.length === 0) {
+    return <span className={cn('text-xs text-ink-400', className)}>No role</span>;
+  }
   return (
     <span className={cn('inline-flex flex-wrap items-center gap-1', className)}>
-      {roles.map((role) => (
+      {[...new Set(roles)].map((role) => (
         <RoleBadge key={role} role={role} size={size} />
       ))}
     </span>

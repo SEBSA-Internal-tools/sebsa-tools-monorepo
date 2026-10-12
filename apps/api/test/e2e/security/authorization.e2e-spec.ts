@@ -1,4 +1,6 @@
-import { afterAll, beforeAll, describe, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { z } from 'zod';
+import { userSchema } from '@sdp/contracts';
 import { E2E_USERS } from '../../../prisma/e2e-fixtures.ts';
 import {
   createDraft,
@@ -64,6 +66,16 @@ describe.skipIf(!hasE2eDatabase)('VAPT: authorization', () => {
     await h.as(admin).delete(`/api/users/${targetId}`).expect(403);
     await h.as(devA).get('/api/system-audit-events').expect(403);
     await h.as(admin).get('/api/system-audit-events').expect(403);
+  });
+
+  it('serves the Users tab to Admin and Super Admin in the shape the web parses', async () => {
+    const superAdmin = await h.signIn(E2E_USERS.superAdmin.email);
+    for (const session of [admin, superAdmin]) {
+      const response = await h.as(session).get('/api/users').expect(200);
+      const parsed = z.array(userSchema).safeParse(response.body as unknown);
+      expect(parsed.success).toBe(true);
+      expect(parsed.data?.some((u) => u.email === E2E_USERS.superAdmin.email)).toBe(true);
+    }
   });
 
   it('lets only the assigned reviewer act on a picked review', async () => {
