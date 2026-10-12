@@ -987,21 +987,33 @@ export class ReviewTasksService {
           },
           include: taskInclude,
         });
-        await this.notifications.queueEmailForTriggerRows(tx, {
+        const resubmittedEmail = taskEmail(
+          'TASK_RESUBMITTED',
+          user.name,
+          {
+            reviewerId: resubmissionReviewerId,
+            developerName: user.name,
+            round: task.currentReviewCycle + 1,
+          },
+          now,
+        );
+        const triggerRows = await this.notifications.queueEmailForTriggerRows(tx, {
           taskId: id,
           recipientIds: [resubmissionReviewerId],
           types: [NotificationType.TASK_RESUBMITTED],
-          payload: taskEmail(
-            'TASK_RESUBMITTED',
-            user.name,
-            {
-              reviewerId: resubmissionReviewerId,
-              developerName: user.name,
-              round: task.currentReviewCycle + 1,
-            },
-            now,
-          ),
+          payload: resubmittedEmail,
         });
+        // Databases without the RESUBMITTED trigger branch insert no row.
+        if (triggerRows === 0) {
+          await this.notifications.create(tx, {
+            taskId: id,
+            recipientId: resubmissionReviewerId,
+            type: NotificationType.TASK_RESUBMITTED,
+            title: `${task.title} resubmitted for review`,
+            message: `${user.name} resubmitted the task for your review.`,
+            email: resubmittedEmail,
+          });
+        }
       }
       await this.audit.record(tx, user, {
         actionType: isResubmission ? 'TASK_RESUBMITTED' : 'TASK_SUBMITTED',

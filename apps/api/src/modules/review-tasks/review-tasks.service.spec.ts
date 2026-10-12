@@ -584,6 +584,182 @@ describe('ReviewTasksService resubmission assignment', () => {
   });
 });
 
+describe('ReviewTasksService resubmission notification', () => {
+  const developer = actor(['DEVELOPER']);
+  const taskId = '00000000-0000-4000-8000-000000000110';
+  const originalReviewer = '00000000-0000-4000-8000-000000000120';
+  const designatedReviewer = '00000000-0000-4000-8000-000000000121';
+  const adminId = '00000000-0000-4000-8000-000000000122';
+  const findingId = '00000000-0000-4000-8000-000000000130';
+
+  function harness(
+    options: {
+      status?: TaskStatus;
+      resubmissionReviewerId?: string | null;
+      followUpActive?: boolean;
+      answered?: boolean;
+      triggerRows?: number;
+    } = {},
+  ) {
+    const baseTask = {
+      id: taskId,
+      taskCode: 'TEST-02',
+      title: 'Resubmit task',
+      crimId: 'CRIM-2',
+      version: '0',
+      customerId: '00000000-0000-4000-8000-000000000030',
+      priority: 'MEDIUM',
+      status: options.status ?? TaskStatus.CHANGES_REQUESTED,
+      currentReviewCycle: 1,
+      developerId: developer.id,
+      currentReviewerId: null,
+      resubmissionReviewerId: options.resubmissionReviewerId ?? null,
+      checklistCompleted: true,
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-01-02T00:00:00.000Z'),
+      submittedAt: new Date('2026-01-01T01:00:00.000Z'),
+      customer: { name: 'Test', code: 'TEST', color: '#123456' },
+      developer: { fullName: developer.name },
+      currentReviewer: null,
+      reviewerAssignments: [],
+      taskTypes: [],
+      developerChecklist: { additionalRemarks: '', answers: [] },
+      codeReviewForms: [{ reviewerId: originalReviewer, decision: 'CHANGES_REQUESTED' }],
+      reviewCycles: [{ roundNumber: 1, counted: true, exclusionReason: null }],
+      handovers: [],
+    };
+    const followUpId = options.resubmissionReviewerId ?? originalReviewer;
+    const tx = {
+      auditLog: { count: vi.fn().mockResolvedValue(1) },
+      taskReviewerAssignment: {
+        updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+        create: vi.fn().mockResolvedValue({ id: 'assignment' }),
+      },
+      taskStatusHistory: { create: vi.fn().mockResolvedValue({}) },
+      notification: {
+        findMany: vi.fn().mockResolvedValue([]),
+        deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+      },
+      user: { findMany: vi.fn().mockResolvedValue([{ id: adminId }]) },
+      task: {
+        update: vi
+          .fn()
+          .mockResolvedValueOnce({ ...baseTask, status: TaskStatus.RESUBMITTED })
+          .mockResolvedValueOnce({
+            ...baseTask,
+            status: TaskStatus.IN_REVIEW,
+            currentReviewerId: followUpId,
+            currentReviewer: { fullName: 'Follow-up Reviewer' },
+          }),
+      },
+    };
+    const prisma = {
+      task: { findUnique: vi.fn().mockResolvedValue(baseTask) },
+      codeReviewForm: {
+        findFirst: vi.fn().mockResolvedValue({
+          reviewerId: originalReviewer,
+          findings: [{ id: findingId }],
+        }),
+      },
+      developerFindingResponse: {
+        findMany: vi
+          .fn()
+          .mockResolvedValue(
+            options.answered === false
+              ? []
+              : [{ findingId, decision: 'ACCEPTED', rejectionReason: null }],
+          ),
+      },
+      user: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: followUpId,
+          fullName: 'Follow-up Reviewer',
+          status: options.followUpActive === false ? 'INACTIVE' : 'ACTIVE',
+          deletedAt: null,
+          userRoles: [{ roleId: 2 }],
+        }),
+      },
+      $transaction: vi.fn((operation: (client: typeof tx) => Promise<unknown>) => operation(tx)),
+    };
+    notifications.create.mockClear();
+    notifications.createMany.mockClear();
+    notifications.queueEmailForTriggerRows.mockReset();
+    notifications.queueEmailForTriggerRows.mockResolvedValue(options.triggerRows ?? 0);
+    return { prisma, tx, service: serviceWith(prisma) };
+  }
+
+  const resubmittedFor = (recipientId: string) =>
+    expect.objectContaining({
+      taskId,
+      recipientId,
+      type: 'TASK_RESUBMITTED',
+      email: expect.objectContaining({ event: 'TASK_RESUBMITTED', reviewerId: recipientId }),
+    });
+
+  it('notifies the original reviewer once when the database trigger inserted no row', async () => {
+    const { service, tx } = harness();
+
+    await service.submit(taskId, developer);
+
+    expect(notifications.create).toHaveBeenCalledTimes(1);
+    expect(notifications.create).toHaveBeenCalledWith(tx, resubmittedFor(originalReviewer));
+  });
+
+  it('does not add a second row when the trigger already notified the reviewer', async () => {
+    const { service } = harness({ triggerRows: 1 });
+
+    await service.submit(taskId, developer);
+
+    expect(notifications.queueEmailForTriggerRows).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ recipientIds: [originalReviewer] }),
+    );
+    expect(notifications.create).not.toHaveBeenCalled();
+  });
+
+  it('notifies the admin-designated reviewer, not the reviewer who requested changes', async () => {
+    const { service, tx } = harness({ resubmissionReviewerId: designatedReviewer });
+
+    await service.submit(taskId, developer);
+
+    expect(notifications.create).toHaveBeenCalledTimes(1);
+    expect(notifications.create).toHaveBeenCalledWith(tx, resubmittedFor(designatedReviewer));
+    expect(notifications.create).not.toHaveBeenCalledWith(tx, resubmittedFor(originalReviewer));
+  });
+
+  it('falls back to the pool and notifies admins when the reviewer is unavailable', async () => {
+    const { service, tx } = harness({ followUpActive: false });
+
+    await service.submit(taskId, developer);
+
+    expect(notifications.create).not.toHaveBeenCalled();
+    expect(notifications.queueEmailForTriggerRows).not.toHaveBeenCalled();
+    expect(notifications.createMany).toHaveBeenCalledWith(tx, [
+      expect.objectContaining({ recipientId: adminId, type: 'TASK_RESUBMITTED' }),
+    ]);
+  });
+
+  it('creates no notification when the resubmission is incomplete', async () => {
+    const { prisma, service } = harness({ answered: false });
+
+    await expect(service.submit(taskId, developer)).rejects.toMatchObject({
+      code: 'RESPONSES_INCOMPLETE',
+    });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(notifications.create).not.toHaveBeenCalled();
+  });
+
+  it('creates no notification for a repeated resubmit of a task already back in review', async () => {
+    const { prisma, service } = harness({ status: TaskStatus.IN_REVIEW });
+
+    await expect(service.submit(taskId, developer)).rejects.toMatchObject({
+      code: 'INVALID_STATE',
+    });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(notifications.create).not.toHaveBeenCalled();
+  });
+});
+
 describe('ReviewTasksService task picking', () => {
   it('atomically claims an available task and records assignment and status history', async () => {
     const user = actor(['REVIEWER']);
