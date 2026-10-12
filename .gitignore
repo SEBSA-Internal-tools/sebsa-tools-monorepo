@@ -39,4 +39,4 @@ playwright-report
 *.sw?
 
 # Ignore docs folder
-docs/*
+docs/
