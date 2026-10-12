@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { originOf } from './configuration.js';
 import { CONFIG_DEFAULTS as D } from './defaults.js';
 
 /**
@@ -12,7 +13,8 @@ const envSchema = z
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
     PORT: z.coerce.number().int().positive().default(D.port),
     DATABASE_URL: z.url(),
-    FRONTEND_ORIGIN: z.string().default(D.frontendOrigin),
+    // Optional: defaults to the origin of APP_BASE_URL (configuration.ts).
+    FRONTEND_ORIGIN: z.string().optional(),
     JWT_ACCESS_SECRET: z.string().min(32).optional(),
     JWT_REFRESH_SECRET: z.string().min(32).optional(),
     JWT_ISSUER: z.string().min(1).default(D.jwtIssuer),
@@ -145,7 +147,12 @@ function assertProductionEmail(
  * never send the cookies back and every login would bounce. Fail at boot instead.
  */
 function assertProductionTransport(
-  env: { COOKIE_SECURE?: string | undefined; FRONTEND_ORIGIN: string; DATABASE_URL: string },
+  env: {
+    COOKIE_SECURE?: string | undefined;
+    FRONTEND_ORIGIN?: string | undefined;
+    APP_BASE_URL?: string | undefined;
+    DATABASE_URL: string;
+  },
   context: z.RefinementCtx,
 ): void {
   if (env.COOKIE_SECURE === 'false') {
@@ -155,14 +162,19 @@ function assertProductionTransport(
       message: 'COOKIE_SECURE cannot be false in production; serve the app over HTTPS',
     });
   }
-  const origins = env.FRONTEND_ORIGIN.split(',')
+  const configured = env.FRONTEND_ORIGIN?.trim();
+  const fromBaseUrl = env.APP_BASE_URL ? originOf(env.APP_BASE_URL) : '';
+  const effective = configured === undefined || configured === '' ? fromBaseUrl : configured;
+  const origins = effective
+    .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean);
   if (origins.length === 0 || origins.some((origin) => !origin.startsWith('https://'))) {
     context.addIssue({
       code: 'custom',
       path: ['FRONTEND_ORIGIN'],
-      message: 'Every FRONTEND_ORIGIN must be an https:// origin in production',
+      message:
+        'Set APP_BASE_URL (or FRONTEND_ORIGIN) to an https:// origin in production; every FRONTEND_ORIGIN must be https://',
     });
   }
   const sslMode = new URL(env.DATABASE_URL).searchParams.get('sslmode');

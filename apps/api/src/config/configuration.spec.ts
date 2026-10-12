@@ -52,6 +52,15 @@ describe('configuration', () => {
     expect(config.passwordLinks.inviteTtlMs).toBe(48 * 3_600_000);
   });
 
+  it('derives the allowed origin from APP_BASE_URL when FRONTEND_ORIGIN is not set', () => {
+    const config = loadConfiguration({ APP_BASE_URL: 'https://portal.example.com/' });
+    expect(config.frontendOrigins).toEqual(['https://portal.example.com']);
+    expect(config.appBaseUrl).toBe('https://portal.example.com');
+    expect(
+      loadConfiguration({ APP_BASE_URL: 'http://localhost:5175/sdp' }).frontendOrigins,
+    ).toEqual(['http://localhost:5175']);
+  });
+
   it('links to the first frontend origin when APP_BASE_URL is not set', () => {
     expect(loadConfiguration({ FRONTEND_ORIGIN: 'https://x.example.com' }).appBaseUrl).toBe(
       'https://x.example.com',

@@ -22,9 +22,24 @@ function integer(value: string | undefined, fallback: number): number {
 
 const withoutTrailingSlash = (url: string) => url.replace(/\/+$/, '');
 
+/** `https://host[:port]` of a URL, or the URL itself when it cannot be parsed. */
+export function originOf(url: string): string {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return withoutTrailingSlash(url);
+  }
+}
+
 export function loadConfiguration(env: NodeJS.ProcessEnv = process.env) {
   const nodeEnv = env['NODE_ENV'] ?? 'development';
-  const frontendOrigins = (nonEmpty(env['FRONTEND_ORIGIN']) ?? D.frontendOrigin)
+  // The web app's origin comes from APP_BASE_URL; FRONTEND_ORIGIN is only needed
+  // to allow more than one origin (or a different one) for CORS.
+  const configuredBaseUrl = nonEmpty(env['APP_BASE_URL']);
+  const frontendOrigins = (
+    nonEmpty(env['FRONTEND_ORIGIN']) ??
+    (configuredBaseUrl ? originOf(configuredBaseUrl) : D.frontendOrigin)
+  )
     .split(',')
     .map((origin) => withoutTrailingSlash(origin.trim()))
     .filter(Boolean);
@@ -43,9 +58,7 @@ export function loadConfiguration(env: NodeJS.ProcessEnv = process.env) {
     },
     frontendOrigins,
     /** Base of every link in an email: APP_BASE_URL, else the first frontend origin. */
-    appBaseUrl: withoutTrailingSlash(
-      nonEmpty(env['APP_BASE_URL']) ?? frontendOrigins[0] ?? D.frontendOrigin,
-    ),
+    appBaseUrl: withoutTrailingSlash(configuredBaseUrl ?? frontendOrigins[0] ?? D.frontendOrigin),
     appName,
     appTimezone: nonEmpty(env['APP_TIMEZONE']) ?? D.appTimezone,
     trustProxy: trustProxy(env['TRUST_PROXY']),

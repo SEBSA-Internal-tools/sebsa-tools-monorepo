@@ -52,7 +52,6 @@ Have these before touching a server:
    PORT=3000
    TRUST_PROXY=1
    DATABASE_URL=postgresql://<app-role>:<password>@<neon-pooler-host>/<db>?sslmode=require
-   FRONTEND_ORIGIN=https://portal.example.com
    APP_BASE_URL=https://portal.example.com
    JWT_ACCESS_SECRET=<generated>
    JWT_REFRESH_SECRET=<generated>

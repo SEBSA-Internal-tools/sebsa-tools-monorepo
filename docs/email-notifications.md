@@ -127,7 +127,7 @@ These stay in-app only, to avoid noise:
 | `APP_NAME`                               | no                             | Product name in emails; default "Service Delivery Portal"           |
 | `SDP_EMAIL_FROM_NAME`                    | no                             | Sender name; defaults to `APP_NAME`                                 |
 | `SDP_SUPPORT_EMAIL`                      | no                             | Reply-to and footer contact; defaults to the from address           |
-| `APP_BASE_URL`                           | yes in production (`https://`) | Base of every emailed link; defaults to the first `FRONTEND_ORIGIN` |
+| `APP_BASE_URL`                           | yes in production (`https://`) | Base of every emailed link, and the allowed web origin unless `FRONTEND_ORIGIN` is set |
 | `APP_TIMEZONE`                           | no                             | IANA zone for email times; default `Asia/Colombo`                   |
 | `INVITE_TTL_HOURS` / `RESET_TTL_MINUTES` | no                             | 1–168 / 10–1440; defaults 24 / 60                                   |
 | `PASSWORD_LINK_RESEND_COOLDOWN_SECONDS`  | no                             | Wait between resends; default 60                                    |
