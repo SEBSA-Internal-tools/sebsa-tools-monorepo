@@ -38,4 +38,5 @@ playwright-report
 *.sln
 *.sw?
 
-docs/security/*
+# Ignore docs folder
+docs/*
