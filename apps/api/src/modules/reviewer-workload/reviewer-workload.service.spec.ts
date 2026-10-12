@@ -80,6 +80,68 @@ describe('ReviewerWorkloadService.pendingFor', () => {
 
     await expect(service.pendingFor(REVIEWER_ID)).resolves.toEqual([]);
   });
+
+  it('looks up pending handovers the reviewer started or was given', async () => {
+    const { prisma, service } = harness({});
+
+    await service.pendingFor(REVIEWER_ID);
+
+    expect(prisma.handoverTask.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          status: 'PENDING',
+          OR: [{ fromReviewerId: REVIEWER_ID }, { toReviewerId: REVIEWER_ID }],
+        },
+      }),
+    );
+  });
+});
+
+describe('ReviewerWorkloadService pending handovers', () => {
+  const removals = ['DEACTIVATE', 'REMOVE_REVIEWER_ROLE', 'DELETE'] as const;
+
+  it.each(removals)('blocks %s for the originator of a pending handover', async (removal) => {
+    // fromReviewerId = reviewer, toReviewerId = null; the task waits in the pool.
+    const { audit, service } = harness({
+      handovers: [{ task: task('t6', 'C-1', TaskStatus.RESUBMITTED) }],
+    });
+
+    await expect(
+      service.assertCanRemoveReviewer({ id: REVIEWER_ID, fullName: 'Rev' }, admin, removal),
+    ).rejects.toMatchObject({
+      code: 'REVIEWER_HAS_PENDING_TASKS',
+      details: { tasks: [expect.objectContaining({ id: 't6', kind: 'Handover' })] },
+    });
+    expect(audit.record).toHaveBeenCalledTimes(1);
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.anything(),
+      admin,
+      expect.objectContaining({
+        targetUserId: REVIEWER_ID,
+        metadata: expect.objectContaining({ pendingTaskIds: ['t6'] }),
+      }),
+    );
+  });
+
+  it('still blocks the target of a pending handover', async () => {
+    const { prisma, service } = harness({
+      handovers: [{ task: task('t7', 'C-2', TaskStatus.IN_REVIEW) }],
+    });
+
+    await expect(
+      service.assertNoPendingWork(prisma as never, { id: REVIEWER_ID, fullName: 'Rev' }),
+    ).rejects.toMatchObject({ code: 'REVIEWER_HAS_PENDING_TASKS' });
+  });
+
+  it('releases the reviewer once the handover is reassigned or returned to the queue', async () => {
+    // Resolved and returned-to-queue handovers are not PENDING, so the query returns none.
+    const { audit, service } = harness({ handovers: [] });
+
+    await expect(
+      service.assertCanRemoveReviewer({ id: REVIEWER_ID, fullName: 'Rev' }, admin, 'DEACTIVATE'),
+    ).resolves.toBeUndefined();
+    expect(audit.record).not.toHaveBeenCalled();
+  });
 });
 
 describe('ReviewerWorkloadService.assertCanRemoveReviewer', () => {
