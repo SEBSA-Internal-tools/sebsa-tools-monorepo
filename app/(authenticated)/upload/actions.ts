@@ -78,6 +78,24 @@ export async function createEmployeeAction(input: CreateEmployeeInput): Promise<
     throw new Error('A profile photo is required.');
   }
 
+  const requiredOverviewFields = [
+    ['Full Name', input.name],
+    ['Designation', input.role],
+    ['Department', input.department],
+    ['First Name', input.firstName],
+    ['Last Name', input.lastName],
+    ['Display Name', input.displayName],
+    ['Company', input.company],
+    ['Employment Type', input.employmentType],
+  ] as const;
+  const missingField = requiredOverviewFields.find(([, value]) => !value?.trim());
+  if (missingField) {
+    throw new Error(`${missingField[0]} is required.`);
+  }
+  if (!['Permanent', 'Contract', 'Probationary'].includes(input.employmentType!)) {
+    throw new Error('Employment Type must be Permanent, Contract, or Probationary.');
+  }
+
   // 2. Perform all DB writes using the service-role client that bypasses RLS.
   //    The service-role key is server-only and never sent to the browser.
   const adminClient = createAdminClient();

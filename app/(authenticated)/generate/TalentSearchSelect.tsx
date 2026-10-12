@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Search, ChevronDown } from 'lucide-react';
 import type { Employee } from '@/types/domain';
+import { getCvDisplayName } from '@/lib/templates/buildTailoredCvFromEmployee';
 
 interface TalentSearchSelectProps {
   employees: Employee[];
@@ -42,13 +43,14 @@ export default function TalentSearchSelect({ employees, selectedId, onSelect }: 
   const containerRef = useRef<HTMLDivElement>(null);
 
   const selectedEmployee = employees.find((emp) => emp.rowId === selectedId);
-  const label = (emp: Employee) => `${emp.name} (${emp.role})`;
+  const label = (emp: Employee) => `${getCvDisplayName(emp)} (${emp.role})`;
 
   const filtered = employees.filter((emp) => {
     const q = query.trim().toLowerCase();
     if (!q) return true;
     return (
       emp.name.toLowerCase().includes(q) ||
+      getCvDisplayName(emp).toLowerCase().includes(q) ||
       emp.role.toLowerCase().includes(q) ||
       emp.department.toLowerCase().includes(q)
     );
@@ -145,7 +147,7 @@ export default function TalentSearchSelect({ employees, selectedId, onSelect }: 
                 } ${emp.rowId === selectedId ? 'font-black text-indigo-700' : 'font-semibold text-slate-700'}`}
               >
                 <span className="truncate">
-                  {highlightMatch(emp.name, query)} <span className="text-slate-400 font-medium">({highlightMatch(emp.role, query)})</span>
+                  {highlightMatch(getCvDisplayName(emp), query)} <span className="text-slate-400 font-medium">({highlightMatch(emp.role, query)})</span>
                 </span>
                 <span className="text-[10px] text-slate-400 font-bold shrink-0">{highlightMatch(emp.department, query)}</span>
               </button>

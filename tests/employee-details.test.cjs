@@ -10,7 +10,8 @@ function load(path, imports = {}) {
   return module.exports;
 }
 const details = load('lib/employeeDetails.ts');
-const repo = load('repositories/employee-repository.ts', { '@/lib/employeeDetails': details });
+const text = load('lib/text.ts');
+const repo = load('repositories/employee-repository.ts', { '@/lib/employeeDetails': details, '@/lib/text': text });
 function database() {
   const calls = [];
   const client = { from(table) {
@@ -20,6 +21,12 @@ function database() {
   return { client, calls };
 }
 const base = { name: 'Jane Doe', email: 'jane@example.com', role: 'Engineer', department: 'Engineering', skills: [] };
+test('positions use title case and designations use uppercase without changing acronyms', () => {
+  assert.equal(text.toTitleCase('senior software engineer'), 'Senior Software Engineer');
+  assert.equal(text.toTitleCase('SQL developer'), 'SQL Developer');
+  assert.equal(text.toTitleCase('iOS engineer'), 'iOS Engineer');
+  assert.equal(text.toUpperCaseText('Senior Software Engineer'), 'SENIOR SOFTWARE ENGINEER');
+});
 test('old records return null details and omitted updates preserve them', async () => {
   assert.ok(Object.values(details.employeeDetailsFromRow({})).every(v => v === null));
   const { client, calls } = database();
@@ -62,7 +69,7 @@ test('all optional details are saved during employee and admin creation', async 
     const inserted = calls.find(c => c.table === 'profiles' && c.insert).insert;
     assert.deepEqual(details.employeeDetailsFromRow(inserted), values);
     assert.equal(inserted.full_name, base.name);
-    assert.equal(inserted.role_title, base.role);
+    assert.equal(inserted.role_title, base.role.toUpperCase());
   }
 });
 test('creation normalizes empty optional values and rejects invalid values before writing', async () => {

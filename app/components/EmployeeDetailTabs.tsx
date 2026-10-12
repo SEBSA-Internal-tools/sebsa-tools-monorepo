@@ -3,6 +3,7 @@ import React, { useId, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { employeeDetailFields, profileTabs, type EmployeeDetails, type ProfileTab } from '@/lib/employeeDetails';
 import { inputCls } from './CvEntrySections';
+import { toUpperCaseText } from '@/lib/text';
 
 type Value = EmployeeDetails & { name: string; role: string; department: string; email: string };
 interface Props {
@@ -10,10 +11,11 @@ interface Props {
   onChange?: (value: Value) => void;
   departments?: { id: string; name: string }[];
   emailEditable?: boolean;
+  requireCompleteOverview?: boolean;
   children: React.ReactNode;
 }
 /** Shared by profile creation, detailed viewing, and updating. */
-export default function EmployeeDetailTabs({ value, onChange, departments = [], emailEditable = true, children }: Props) {
+export default function EmployeeDetailTabs({ value, onChange, departments = [], emailEditable = true, requireCompleteOverview = false, children }: Props) {
   const [active, setActive] = useState<ProfileTab>('Overview');
   const id = useId();
   const basicFields = [
@@ -28,15 +30,40 @@ export default function EmployeeDetailTabs({ value, onChange, departments = [], 
     { title: 'Secondary Emergency Contact', keys: ['secondaryEmergencyContact', 'secondaryEmergencyPhone', 'secondaryRelation'] },
   ] as const;
   const emergencyKeys = new Set<string>(emergencyGroups.flatMap(group => [...group.keys]));
+  const completeOverviewRequiredKeys = new Set([
+    'name',
+    'role',
+    'department',
+    'firstName',
+    'lastName',
+    'displayName',
+    'company',
+    'employmentType',
+  ]);
+  const placeholders: Partial<Record<keyof Value, string>> = {
+    name: 'e.g : Arachchige Kasun Madushan Perera',
+    role: 'e.g., Software Engineer',
+    firstName: 'e.g., Kasun',
+    lastName: 'e.g., Perera',
+    displayName: 'e.g., Kasun Perera',
+    company: 'e.g., SEBSA (Pvt) Ltd',
+    email: 'employee@sebsaworld.com',
+    companyEmail: 'employee@sebsaworld.com',
+  };
   const renderField = (field: typeof allFields[number], label: string = field.label) => {
     const tab = field.tab;
     const relationship = field.key === 'relation' || field.key === 'secondaryRelation';
           const fieldId = id + '-' + field.key;
           const editable = onChange && (field.key !== 'email' || emailEditable);
+          const required = field.key === 'email' || (requireCompleteOverview
+            ? completeOverviewRequiredKeys.has(field.key)
+            : field.key === 'name' || field.key === 'role');
           return <div key={field.key} className="space-y-2 min-w-0">
-            <label htmlFor={editable ? fieldId : undefined} className="block text-xs font-bold text-slate-500">{label}</label>
+            <label htmlFor={editable ? fieldId : undefined} className="block text-xs font-bold text-slate-500">
+              {label}{editable && required && <span className="ml-1 text-rose-500" aria-hidden="true">*</span>}
+            </label>
             {!editable ? <p className="text-sm leading-relaxed text-slate-800 break-words">{(value[field.key] ?? '') === '' ? 'Not provided' : value[field.key]}</p> : field.key === 'department' ?
-              <select id={fieldId} value={value.department} onChange={e => onChange({ ...value, department: e.target.value })} className={inputCls}>
+              <select id={fieldId} value={value.department} required={required} onInvalid={() => flushSync(() => setActive(tab))} onChange={e => onChange({ ...value, department: e.target.value })} className={inputCls}>
                 {!departments.some(d => d.name === value.department) && <option value={value.department}>{value.department || 'Select department'}</option>}
                 {departments.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
               </select> : field.key === 'gender' ?
@@ -47,9 +74,20 @@ export default function EmployeeDetailTabs({ value, onChange, departments = [], 
                 )}
                 <option value="Male">Male</option>
                 <option value="Female">Female</option>
+              </select> : field.key === 'employmentType' ?
+              <select id={fieldId} value={value.employmentType ?? ''} required={required} onInvalid={() => flushSync(() => setActive(tab))} onChange={e => onChange({ ...value, employmentType: e.target.value || null })} className={inputCls}>
+                <option value="">Select employment type</option>
+                {value.employmentType && !['Permanent', 'Contract', 'Probationary'].includes(value.employmentType) && (
+                  <option value={value.employmentType} disabled>{value.employmentType} (current value)</option>
+                )}
+                <option value="Permanent">Permanent</option>
+                <option value="Contract">Contract</option>
+                <option value="Probationary">Probationary</option>
               </select> : <input id={fieldId} aria-describedby={relationship ? fieldId + '-hint' : undefined} type={field.type} value={value[field.key] ?? ''} min={field.type === 'number' ? 0 : undefined} step={field.type === 'number' ? 1 : undefined}
-                onInvalid={() => flushSync(() => setActive(tab))} required={field.key === 'name' || field.key === 'role' || field.key === 'email'}
-                onChange={e => onChange({ ...value, [field.key]: field.type === 'number' ? (e.target.value === '' ? null : Number(e.target.value)) : e.target.value })} className={inputCls} />}
+                placeholder={placeholders[field.key]} onInvalid={() => flushSync(() => setActive(tab))} required={required}
+                onChange={e => onChange({ ...value, [field.key]: field.type === 'number'
+                  ? (e.target.value === '' ? null : Number(e.target.value))
+                  : field.key === 'role' ? toUpperCaseText(e.target.value) : e.target.value })} className={inputCls} />}
             {relationship && <p id={fieldId + '-hint'} className="text-xs leading-relaxed text-slate-400">e.g. Mother, Father, Spouse, Sibling, Guardian</p>}
           </div>;
   };

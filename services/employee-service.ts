@@ -16,6 +16,7 @@ import type {
 } from '@/types/domain';
 import type { CvAcademicEntry, CvExperienceEntry, CvProjectEntry, CvCertificationEntry } from '@/lib/cvTypes';
 import { getSignedAvatarUrl, DEFAULT_AVATAR } from '@/lib/avatar';
+import { toTitleCase, toUpperCaseText } from '@/lib/text';
 
 function formatDate(value: string | null | undefined): string {
   if (!value) return '';
@@ -27,8 +28,9 @@ function mapListRow(row: any): Employee {
   return {
     rowId: row.id,
     name: row.full_name,
+    displayName: row.display_name ?? null,
     email: row.email,
-    role: row.role_title ?? '',
+    role: toUpperCaseText(row.role_title ?? ''),
     experienceYears:
       row.years_experience != null ? `${row.years_experience}+ Years Experience` : undefined,
     department: row.departments?.name ?? 'Unassigned',
@@ -78,7 +80,7 @@ export async function getEmployeeById(
     .sort((a: any, b: any) => a.display_order - b.display_order)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .map((e: any) => ({
-      role: e.role_title,
+      role: toTitleCase(e.role_title),
       company: e.company,
       type: e.employment_type ?? 'Full-time',
       period: `${formatDate(e.start_date) || 'N/A'} — ${
@@ -100,7 +102,7 @@ export async function getEmployeeById(
     .map((e: any) => {
       const tasks = tryParseJson<string[]>(e.description);
       return {
-        position: e.role_title,
+        position: toTitleCase(e.role_title),
         company: e.company,
         period: `${formatDate(e.start_date) || 'N/A'} — ${
           e.is_current ? 'Present' : formatDate(e.end_date) || 'N/A'
@@ -159,7 +161,7 @@ export async function getEmployeeById(
     specialProjects: specialProjects.length > 0 ? specialProjects : undefined,
     cvCertifications: cvCertifications.length > 0 ? cvCertifications : undefined,
     cvAcademic: cvAcademic.length > 0 ? cvAcademic : undefined,
-    currentPosition: (row as any).role_title ?? undefined,
+    currentPosition: (row as any).role_title ? toUpperCaseText((row as any).role_title) : undefined,
     summary: (row as any).summary ?? undefined,
     status: (row as any).status ?? undefined,
     hasPendingChange: (row as any).pending_change != null,

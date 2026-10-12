@@ -38,6 +38,7 @@ import {
   ImageIcon,
   UserCircle2,
 } from 'lucide-react';
+import { toTitleCase } from '@/lib/text';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -546,7 +547,7 @@ export default function UploadPage() {
             </div>
 
             <fieldset disabled={status !== 'done' || departmentsLoading} className="min-w-0">
-            <EmployeeDetailTabs value={{ ...details, name: profile.name, role: profile.currentPosition, department, email }} departments={departments}
+            <EmployeeDetailTabs value={{ ...details, name: profile.name, role: profile.currentPosition, department, email }} departments={departments} requireCompleteOverview
               onChange={next => { setDetails(pickEmployeeDetails(next)); setProfile(p => ({ ...p, name: next.name, currentPosition: next.role })); setDepartment(next.department); setEmail(next.email); }}>
             <div className="space-y-8">
             {/* ── Objective ── */}
@@ -587,6 +588,7 @@ export default function UploadPage() {
                           type="text"
                           placeholder="e.g. Software Engineer"
                           value={exp.position}
+                          onBlur={(e) => updateExperience(i, 'position', toTitleCase(e.target.value))}
                           onChange={(e) => updateExperience(i, 'position', e.target.value)}
                           className={INPUT_CLS}
                         />

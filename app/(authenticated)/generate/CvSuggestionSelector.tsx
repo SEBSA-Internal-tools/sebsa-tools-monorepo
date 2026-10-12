@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { FileText, Briefcase, Lightbulb, Award, ArrowRight, Sparkles, Loader2, Plus, Trash2 } from 'lucide-react';
 import { SectionCard, EducationSection, textareaCls } from '@/app/components/CvEntrySections';
 import type { CvExperienceEntry, CvProjectEntry, CvCertificationEntry } from '@/lib/cvTypes';
+import { toTitleCase } from '@/lib/text';
 import type {
   CvSuggestion,
   CvSuggestionExperience,
@@ -232,7 +233,7 @@ export default function CvSuggestionSelector({
                 className={`${checkboxCls} mt-0.5`}
               />
               <div className="min-w-0 flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <input value={exp.position} onChange={(e) => updateExperience(exp.index, { position: e.target.value })} placeholder="Role" className={inputCls} />
+                <input value={exp.position} onBlur={(e) => updateExperience(exp.index, { position: toTitleCase(e.target.value) })} onChange={(e) => updateExperience(exp.index, { position: e.target.value })} placeholder="Role" className={inputCls} />
                 <input value={exp.company} onChange={(e) => updateExperience(exp.index, { company: e.target.value })} placeholder="Company" className={inputCls} />
                 <input value={exp.period} onChange={(e) => updateExperience(exp.index, { period: e.target.value })} placeholder="Period (optional)" className={`${smallInputCls} sm:col-span-2`} />
               </div>

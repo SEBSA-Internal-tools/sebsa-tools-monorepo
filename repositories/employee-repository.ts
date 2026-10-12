@@ -3,6 +3,7 @@ import type { UpdateEmployeeInput } from '@/types/domain';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { CreateEmployeeInput } from '@/types/domain';
 import type { CvExperienceEntry, CvAcademicEntry, CvProjectEntry, CvCertificationEntry } from '@/lib/cvTypes';
+import { toTitleCase, toUpperCaseText } from '@/lib/text';
 
 /**
  * Server-only. Raw Supabase queries for the `profiles` aggregate (profiles + experiences +
@@ -14,14 +15,14 @@ import type { CvExperienceEntry, CvAcademicEntry, CvProjectEntry, CvCertificatio
  */
 
 const LIST_SELECT = `
-  id, full_name, email, role_title, years_experience,
+  id, full_name, display_name, email, role_title, years_experience,
   avatar_url, updated_at, user_id,
   departments ( name )
 `;
 
 const DETAIL_SELECT = `
   ${LIST_SELECT},
-  ${employeeDetailFields.map(f => f.column).join(', ')},
+  ${employeeDetailFields.filter(f => f.key !== 'displayName').map(f => f.column).join(', ')},
   education, summary, status, pending_change, pending_change_submitted_at,
   experiences ( company, role_title, employment_type, start_date, end_date, is_current, description, display_order ),
   projects ( name, description, skills, display_order ),
@@ -109,7 +110,7 @@ export async function createEmployeeRow(
       ...detailColumns,
       full_name: input.name,
       email: input.email,
-      role_title: input.currentPosition ?? input.role,
+      role_title: toUpperCaseText(input.currentPosition ?? input.role),
       department_id: dept?.id ?? null,
       // Self-service submissions start as 'draft' (not searchable/usable) until an Admin
       // reviews them — see docs/04-rbac-security.md §0. Admin/Reviewer-created profiles keep
@@ -158,7 +159,7 @@ async function insertExperiences(
     const { startDate, endDate, isCurrent } = parsePeriod(exp.period);
     return {
       profile_id: profileId,
-      role_title: exp.position,
+      role_title: toTitleCase(exp.position),
       company: exp.company,
       employment_type: 'Full-time',
       start_date: startDate,
@@ -234,7 +235,7 @@ export async function updateEmployeeRow(
   const updateFields: any = {
     full_name: input.name,
     email: input.email,
-    role_title: input.currentPosition ?? input.role,
+    role_title: toUpperCaseText(input.currentPosition ?? input.role),
     department_id: dept?.id ?? null,
     education: educationJson,
     summary: input.summary ?? null,

@@ -118,7 +118,7 @@ export default function DownloadCvClient({ employee, isOwnProfile }: DownloadCvC
     try {
       await exportToPdf(
         anonymous ? 'anonymous-cv-preview-root' : 'cv-preview-root',
-        anonymous ? `${anonymousPreviewCv.name}_Anonymous_CV` : `${employee.name.replace(/\s+/g, '_')}_CV`
+        anonymous ? `${anonymousPreviewCv.name}_Anonymous_CV` : `${baseCv.name.replace(/\s+/g, '_')}_CV`
       );
       await recordCvDownloadAction(employee.rowId, { anonymous, customized: false });
     } catch (err) {
@@ -189,12 +189,12 @@ export default function DownloadCvClient({ employee, isOwnProfile }: DownloadCvC
         )}
         <div>
           <h2 className="text-3xl font-black tracking-tight text-slate-900 font-sans leading-none">
-            {isOwnProfile ? 'Download CV' : `Download CV — ${employee.name}`}
+            {isOwnProfile ? 'Download CV' : `Download CV — ${baseCv.name}`}
           </h2>
           <p className="text-sm font-medium text-slate-500 mt-2">
             {isOwnProfile
               ? 'Pick which of your own experience, projects, and certifications to include — no AI, no wording changes, just your existing profile content.'
-              : `Pick which of ${employee.name}'s experience, projects, and certifications to include — no AI, no wording changes, just their existing profile content.`}
+              : `Pick which of ${baseCv.name}'s experience, projects, and certifications to include — no AI, no wording changes, just their existing profile content.`}
           </p>
         </div>
       </div>

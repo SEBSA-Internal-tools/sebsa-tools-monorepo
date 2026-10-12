@@ -1,5 +1,11 @@
 import type { Employee, CreateEmployeeInput } from '@/types/domain';
 import type { TailoredCv } from '@/app/(authenticated)/generate/types';
+import { toTitleCase, toUpperCaseText } from '@/lib/text';
+
+/** CVs use the employee's preferred display name, while older profiles fall back to full name. */
+export function getCvDisplayName(employee: Pick<Employee, 'name' | 'displayName'>): string {
+  return employee.displayName?.trim() || employee.name;
+}
 
 /**
  * Converts an already-loaded (RLS-scoped) `Employee` straight into the `TailoredCv` shape that
@@ -17,9 +23,9 @@ import type { TailoredCv } from '@/app/(authenticated)/generate/types';
 export function buildTailoredCvFromEmployee(employee: Employee): TailoredCv {
   const experience =
     employee.cvExperience && employee.cvExperience.length > 0
-      ? employee.cvExperience
+      ? employee.cvExperience.map((entry) => ({ ...entry, position: toTitleCase(entry.position) }))
       : (employee.experience ?? []).map((exp) => ({
-          position: exp.role,
+          position: toTitleCase(exp.role),
           company: exp.company,
           period: exp.period,
           tasks: exp.desc ? [exp.desc] : [],
@@ -44,8 +50,8 @@ export function buildTailoredCvFromEmployee(employee: Employee): TailoredCv {
   const academic = employee.cvAcademic ?? [];
 
   return {
-    name: employee.name,
-    currentPosition: employee.currentPosition || employee.role,
+    name: getCvDisplayName(employee),
+    currentPosition: toUpperCaseText(employee.currentPosition || employee.role),
     summary: employee.summary ?? '',
     customerName: '',
     skillsAligned: employee.skills,
@@ -79,13 +85,13 @@ export function buildTailoredCvFromSelection(
   selection: TailoredCvSelection
 ): TailoredCv {
   return {
-    name: employee.name,
-    currentPosition: employee.currentPosition || employee.role,
+    name: getCvDisplayName(employee),
+    currentPosition: toUpperCaseText(employee.currentPosition || employee.role),
     summary: selection.summary,
     customerName,
     skillsAligned: [],
     academic: selection.academic,
-    experience: selection.experience,
+    experience: selection.experience.map((entry) => ({ ...entry, position: toTitleCase(entry.position) })),
     specialProjects: selection.specialProjects,
     certifications: selection.certifications,
     avatar: employee.avatar,
@@ -125,12 +131,12 @@ export function buildTailoredCvFromInput(
   fallbackAvatarUrl?: string | null
 ): TailoredCv {
   return {
-    name: input.name,
-    currentPosition: input.currentPosition || input.role,
+    name: input.displayName?.trim() || input.name,
+    currentPosition: toUpperCaseText(input.currentPosition || input.role),
     summary: input.summary ?? '',
     customerName: '',
     skillsAligned: input.skills,
-    experience: input.cvExperience ?? [],
+    experience: (input.cvExperience ?? []).map((entry) => ({ ...entry, position: toTitleCase(entry.position) })),
     academic: input.cvAcademic ?? [],
     specialProjects: input.specialProjects ?? [],
     certifications: input.cvCertifications ?? [],

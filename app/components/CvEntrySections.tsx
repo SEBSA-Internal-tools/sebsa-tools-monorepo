@@ -3,6 +3,7 @@
 import React from 'react';
 import { Hash, Briefcase, Lightbulb, GraduationCap, Award, Plus, Trash2, ChevronDown, ChevronUp, Lock } from 'lucide-react';
 import type { CvExperienceEntry, CvAcademicEntry, CvProjectEntry, CvCertificationEntry } from '@/lib/cvTypes';
+import { toTitleCase } from '@/lib/text';
 
 /**
  * Shared structured CV entry editors — collapsible add/remove sections for experience, special
@@ -271,6 +272,7 @@ export function ExperienceSection({
               <input
                 type="text"
                 value={exp.position}
+                onBlur={(e) => updateEntry(idx, { position: toTitleCase(e.target.value) })}
                 onChange={(e) => updateEntry(idx, { position: e.target.value })}
                 placeholder="e.g. Senior Software Engineer"
                 className={inputCls}

@@ -9,6 +9,7 @@ import { PageWrapper } from '../../components/PageWrapper';
 import { uploadProfilePictureAction } from '../upload/actions';
 import { getEmployeeDetailsAction, updateEmployeeAction } from './actions';
 import { ProjectSkillsInput } from '@/app/components/CvEntrySections';
+import { toTitleCase } from '@/lib/text';
 import {
   emptyCvProfile,
   type CvProfile,
@@ -873,6 +874,7 @@ export default function UpdateProfileClient({
                             type="text"
                             placeholder="e.g. Software Engineer"
                             value={exp.position}
+                            onBlur={(e) => updateExperience(i, 'position', toTitleCase(e.target.value))}
                             onChange={(e) => updateExperience(i, 'position', e.target.value)}
                             className={INPUT_CLS}
                           />

@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { User, Building2 } from 'lucide-react';
 import type { CvExperienceEntry, CvAcademicEntry, CvProjectEntry, CvCertificationEntry } from '@/lib/cvTypes';
+import { toUpperCaseText } from '@/lib/text';
 import {
   SectionCard,
   ExperienceSection,
@@ -92,7 +93,7 @@ export default function ProfileFieldsEditor({ value, onChange, departments, name
               type="text"
               required
               value={value.role}
-              onChange={(e) => patch({ role: e.target.value })}
+              onChange={(e) => patch({ role: toUpperCaseText(e.target.value) })}
               placeholder="e.g. Senior Software Engineer"
               className={inputCls}
             />

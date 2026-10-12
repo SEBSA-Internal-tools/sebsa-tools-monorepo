@@ -436,7 +436,7 @@ export default function EmployeeProfileClient({ employee, viewerRole }: Employee
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden border border-slate-200">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 shrink-0">
               <div>
-                <h4 className="text-sm font-black text-slate-800">CV Preview — {employee.name}</h4>
+                <h4 className="text-sm font-black text-slate-800">CV Preview — {tailoredCv.name}</h4>
                 <p className="text-[11px] text-slate-450 font-medium mt-0.5">
                   Rendered against the current profile data.
                 </p>

@@ -20,7 +20,7 @@ import {
   saveGeneratedCvAction,
 } from './actions';
 import { exportToPdf } from '@/lib/cvExport';
-import { anonymizeTailoredCv, buildTailoredCvFromSelection } from '@/lib/templates/buildTailoredCvFromEmployee';
+import { anonymizeTailoredCv, buildTailoredCvFromSelection, getCvDisplayName } from '@/lib/templates/buildTailoredCvFromEmployee';
 import {
   BrainCircuit,
   Sparkles,
@@ -118,7 +118,7 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
     () =>
       selectedEmployee && suggestion
         ? {
-            name: selectedEmployee.name,
+            name: getCvDisplayName(selectedEmployee),
             currentPosition: selectedEmployee.currentPosition || selectedEmployee.role,
             summary: suggestion.originalObjective,
             customerName: '',
@@ -157,6 +157,7 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
     if (employees.length === 0) return;
     const match = employees.find(
       (emp) => emp.name.toLowerCase() === preselectedName?.toLowerCase()
+        || getCvDisplayName(emp).toLowerCase() === preselectedName?.toLowerCase()
     );
     if (match) {
       setSelectedCandidateId(match.rowId);
@@ -366,7 +367,7 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
                     {selectedEmployee.avatar && !selectedEmployee.avatar.includes('unsplash.com') ? (
                       <img
                         src={selectedEmployee.avatar}
-                        alt={selectedEmployee.name}
+                        alt={getCvDisplayName(selectedEmployee)}
                         className="w-8 h-8 rounded-full object-cover border border-slate-200 shadow-sm"
                       />
                     ) : (
@@ -468,7 +469,7 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
                     {selectedEmployee.avatar && !selectedEmployee.avatar.includes('unsplash.com') ? (
                       <img
                         src={selectedEmployee.avatar}
-                        alt={selectedEmployee.name}
+                        alt={getCvDisplayName(selectedEmployee)}
                         className="w-11 h-11 rounded-full object-cover border-2 border-indigo-100 shadow-sm shrink-0"
                       />
                     ) : (
@@ -478,7 +479,7 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
                     )}
                     <div className="min-w-0">
                       <p className="text-xs font-black text-slate-800 truncate">
-                        {selectedEmployee.name}
+                        {getCvDisplayName(selectedEmployee)}
                       </p>
                       <p className="text-[10px] text-slate-500 font-medium truncate">
                         {selectedEmployee.role}

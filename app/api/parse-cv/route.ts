@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenAI, Type } from '@google/genai';
 import type { CvProfile } from '@/lib/cvTypes';
+import { toUpperCaseText } from '@/lib/text';
 
 /**
  * POST /api/parse-cv
@@ -178,5 +179,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  return NextResponse.json(profile);
+  return NextResponse.json({
+    ...profile,
+    currentPosition: toUpperCaseText(profile.currentPosition ?? ''),
+  });
 }
