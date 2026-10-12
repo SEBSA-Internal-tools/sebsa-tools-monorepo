@@ -5,9 +5,8 @@ import { E2E_PASSWORD, E2E_USERS } from '../../../prisma/e2e-fixtures.ts';
 import { hasE2eDatabase, startHarness, type Harness, type Session } from './security-harness.ts';
 
 /**
- * VAPT regression suite: authentication and session integrity.
- * Findings SDP-VAPT-004 (login lockout DoS) is encoded as `it.fails` — it turns
- * red when the behaviour changes, prompting the team to flip it to `it`.
+ * VAPT regression suite: authentication and session integrity, including the
+ * SDP-VAPT-004 device-cookie lockout fix.
  */
 const b64 = (o: object) => Buffer.from(JSON.stringify(o)).toString('base64url');
 
@@ -46,7 +45,9 @@ describe.skipIf(!hasE2eDatabase)('VAPT: authentication', () => {
     >;
     const forgeHs = (alg: string, key: string) => {
       const data = `${b64({ alg, typ: 'JWT' })}.${b64(claims)}`;
-      return `${data}.${createHmac(alg === 'HS512' ? 'sha512' : 'sha256', key).update(data).digest('base64url')}`;
+      return `${data}.${createHmac(alg === 'HS512' ? 'sha512' : 'sha256', key)
+        .update(data)
+        .digest('base64url')}`;
     };
     const tokens = {
       none: `${b64({ alg: 'none', typ: 'JWT' })}.${payload}.`,
@@ -96,7 +97,7 @@ describe.skipIf(!hasE2eDatabase)('VAPT: authentication', () => {
       .send({ email: 'ghost@example.com', password: 'Definitely-Wrong-1!' });
     expect(wrong.status).toBe(401);
     expect(unknown.status).toBe(401);
-    expect(wrong.body.code).toBe(unknown.body.code);
+    expect((wrong.body as { code: string }).code).toBe((unknown.body as { code: string }).code);
   });
 
   it('blocks login-CSRF: a cross-site form/text-plain POST is refused', async () => {
@@ -115,19 +116,32 @@ describe.skipIf(!hasE2eDatabase)('VAPT: authentication', () => {
     await request(h.server).get('/api/auth/me').set('Cookie', `sdp_access=${access}`).expect(401);
   });
 
-  // SDP-VAPT-004: five failed attempts lock a *known* account for 15 min, so an
-  // attacker can deny any user sign-in. When per-account lockout gains a
-  // recovery path (e.g. unlock on correct credentials, or CAPTCHA), flip to `it`.
-  it.fails('SDP-VAPT-004: a known account cannot be locked out by an attacker', async () => {
+  it('issues an HttpOnly, SameSite=Strict device cookie scoped to the login route', () => {
+    const device = dev.cookies.find((c) => c.startsWith('sdp_device=')) ?? '';
+    expect(device).toMatch(/HttpOnly/i);
+    expect(device).toMatch(/SameSite=Strict/i);
+    expect(device).toMatch(/Path=\/api\/auth\/login/i);
+  });
+
+  // SDP-VAPT-004 (remediated): failures from an attacker still lock the account
+  // for unknown browsers, but not for a browser that signed in to it before.
+  it('SDP-VAPT-004: a known account cannot be locked out by an attacker', async () => {
     const victim = E2E_USERS.adminReviewer.email;
+    const first = await h.signIn(victim);
+    const device = cookieValue(first.cookies, 'sdp_device');
+    const login = (cookie?: string) => {
+      const req = request(h.server).post('/api/auth/login');
+      if (cookie) req.set('Cookie', `sdp_device=${cookie}`);
+      return req.send({ email: victim, password: E2E_PASSWORD });
+    };
     for (let i = 0; i < 6; i += 1) {
       await request(h.server)
         .post('/api/auth/login')
         .send({ email: victim, password: `Wrong-${String(i)}!xZ` });
     }
-    const legit = await request(h.server)
-      .post('/api/auth/login')
-      .send({ email: victim, password: E2E_PASSWORD });
-    expect(legit.status).toBe(200);
+    expect((await login()).status).toBe(429);
+    expect((await login(`${device}x`)).status).toBe(429);
+    expect((await login(cookieValue(dev.cookies, 'sdp_device'))).status).toBe(429);
+    expect((await login(device)).status).toBe(200);
   });
 });

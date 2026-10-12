@@ -12,10 +12,9 @@ import {
 
 /**
  * VAPT regression suite: workflow state-machine integrity and concurrency.
- * SDP-VAPT-001 (double approve) and SDP-VAPT-002 (double submit) are encoded as
- * `it.fails`: they stay green while the TOCTOU races exist and go red once the
- * approve/submit updates are made conditional on the expected status inside the
- * transaction. SDP-VAPT-003 (cross-task finding oracle) is likewise `it.fails`.
+ * SDP-VAPT-001 (double approve) is remediated and asserted with `it`.
+ * SDP-VAPT-002 (double submit) and SDP-VAPT-003 (cross-task finding oracle) are
+ * still open and encoded as `it.fails`; flip them to `it` once fixed.
  */
 describe.skipIf(!hasE2eDatabase)('VAPT: workflow integrity', () => {
   let h: Harness;
@@ -69,26 +68,46 @@ describe.skipIf(!hasE2eDatabase)('VAPT: workflow integrity', () => {
     expect(maxSubmittedRows).toBe(1);
   });
 
-  // SDP-VAPT-001: two concurrent approvals both commit, producing a second
-  // COMPLETED "Approved" review form and a second TASK_APPROVED audit row for
-  // one task, and inflating currentReviewCycle. Re-check status under the row
-  // lock in the decide transaction, then flip to `it`.
-  it.fails('SDP-VAPT-001: concurrent approve creates exactly one approval form', async () => {
+  // SDP-VAPT-001 (remediated): the decide transaction now updates the task only
+  // while it is still IN_REVIEW for this reviewer, so a concurrent second
+  // decision rolls back with 409 instead of writing a second approval.
+  it('SDP-VAPT-001: concurrent approve creates exactly one approval form', async () => {
     let maxForms = 1;
+    let maxAudits = 1;
     for (let round = 0; round < 4; round += 1) {
       const task = await createSubmitted(h, dev);
       await h.as(rev).post(`/api/tasks/${task}/pick`).expect(200);
       await h.as(rev).put(`/api/tasks/${task}/review`, { rank: 1, comments: [] }).expect(200);
-      await Promise.all([
-        h.as(rev).post(`/api/tasks/${task}/review`, { decision: 'Approved', draft: { rank: 1, comments: [] } }),
-        h.as(rev).post(`/api/tasks/${task}/review`, { decision: 'Approved', draft: { rank: 1, comments: [] } }),
+      const results = await Promise.all([
+        h
+          .as(rev)
+          .post(`/api/tasks/${task}/review`, {
+            decision: 'Approved',
+            draft: { rank: 1, comments: [] },
+          }),
+        h
+          .as(rev)
+          .post(`/api/tasks/${task}/review`, {
+            decision: 'Approved',
+            draft: { rank: 1, comments: [] },
+          }),
       ]);
-      const forms = await prisma.codeReviewForm.count({
-        where: { taskId: task, decision: 'APPROVED' },
-      });
-      maxForms = Math.max(maxForms, forms);
+      const statuses = results.map(({ status }) => status);
+      expect(statuses).toContain(200);
+      expect(statuses.every((status) => status === 200 || status === 409)).toBe(true);
+      const stored = await prisma.task.findUnique({ where: { id: task } });
+      expect(stored?.status).toBe('APPROVED');
+      maxForms = Math.max(
+        maxForms,
+        await prisma.codeReviewForm.count({ where: { taskId: task, decision: 'APPROVED' } }),
+      );
+      maxAudits = Math.max(
+        maxAudits,
+        await prisma.auditLog.count({ where: { taskId: task, action: 'TASK_APPROVED' } }),
+      );
     }
     expect(maxForms).toBe(1);
+    expect(maxAudits).toBe(1);
   });
 
   // SDP-VAPT-003: a reviewer can embed another task's finding UUID in their own
@@ -100,20 +119,46 @@ describe.skipIf(!hasE2eDatabase)('VAPT: workflow integrity', () => {
     await h.as(rev2).post(`/api/tasks/${taskY}/pick`).expect(200);
     await h.as(rev2).put(`/api/tasks/${taskY}/review`, {
       rank: 2,
-      comments: [{ id: 'y1', reviewRound: 1, text: 'SECRET FINDING', createdAt: new Date().toISOString(), screenshots: [] }],
+      comments: [
+        {
+          id: 'y1',
+          reviewRound: 1,
+          text: 'SECRET FINDING',
+          createdAt: new Date().toISOString(),
+          screenshots: [],
+        },
+      ],
     });
-    const yReview = (await h.as(rev2).get(`/api/tasks/${taskY}/review`)).body as { comments: { id: string }[] };
+    const yReview = (await h.as(rev2).get(`/api/tasks/${taskY}/review`)).body as {
+      comments: { id: string }[];
+    };
     const foreignId = yReview.comments[0]?.id;
 
     const taskX = await createSubmitted(h, dev);
     await h.as(rev).post(`/api/tasks/${taskX}/pick`).expect(200);
     const wrong = await h.as(rev).put(`/api/tasks/${taskX}/review`, {
       rank: 2,
-      comments: [{ id: foreignId, reviewRound: 1, text: 'WRONG GUESS', createdAt: new Date().toISOString(), screenshots: [] }],
+      comments: [
+        {
+          id: foreignId,
+          reviewRound: 1,
+          text: 'WRONG GUESS',
+          createdAt: new Date().toISOString(),
+          screenshots: [],
+        },
+      ],
     });
     const right = await h.as(rev).put(`/api/tasks/${taskX}/review`, {
       rank: 2,
-      comments: [{ id: foreignId, reviewRound: 1, text: 'SECRET FINDING', createdAt: new Date().toISOString(), screenshots: [] }],
+      comments: [
+        {
+          id: foreignId,
+          reviewRound: 1,
+          text: 'SECRET FINDING',
+          createdAt: new Date().toISOString(),
+          screenshots: [],
+        },
+      ],
     });
     // Oracle today: wrong=403, right=200. Secure behaviour: no status difference
     // that depends on another task's finding text.

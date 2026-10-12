@@ -42,11 +42,19 @@ describe.skipIf(!hasE2eDatabase)('VAPT: input and transport', () => {
   });
 
   it('rejects malformed JSON and oversized bodies with a safe envelope', async () => {
-    const bad = await h.as(dev).post('/api/notifications/read-all').set('Content-Type', 'application/json').send('{"a":');
+    const bad = await h
+      .as(dev)
+      .post('/api/notifications/read-all')
+      .set('Content-Type', 'application/json')
+      .send('{"a":');
     expect(bad.status).toBe(400);
-    expect(bad.body.code).toBe('VALIDATION_FAILED');
+    expect(bad.body).toMatchObject({ code: 'VALIDATION_FAILED' });
     // An anonymous caller cannot unlock the large body parser with a forged cookie.
-    const big = Buffer.concat([Buffer.from('{"x":"'), Buffer.alloc(9 * 1024 * 1024, 0x61), Buffer.from('"}')]);
+    const big = Buffer.concat([
+      Buffer.from('{"x":"'),
+      Buffer.alloc(9 * 1024 * 1024, 0x61),
+      Buffer.from('"}'),
+    ]);
     await request(h.server)
       .post('/api/tasks/00000000-0000-4000-8000-000000000001/attachments')
       .set('Cookie', 'sdp_access=forged')
@@ -76,12 +84,25 @@ describe.skipIf(!hasE2eDatabase)('VAPT: input and transport', () => {
   it('validates uploaded images on decoded bytes, not the declared type', async () => {
     const task = await createDraft(h, dev);
     const reject = async (dataUrl: string) =>
-      (await h.as(dev).post(`/api/tasks/${task}/attachments`, { fileName: 'x.png', dataUrl })).status;
-    expect(await reject('data:image/svg+xml;base64,' + Buffer.from('<svg onload=alert(1)/>').toString('base64'))).toBe(415);
+      (await h.as(dev).post(`/api/tasks/${task}/attachments`, { fileName: 'x.png', dataUrl }))
+        .status;
+    expect(
+      await reject(
+        'data:image/svg+xml;base64,' + Buffer.from('<svg onload=alert(1)/>').toString('base64'),
+      ),
+    ).toBe(415);
     expect(await reject('javascript:alert(1)')).toBe(422);
     expect(await reject('https://evil.example/x.png')).toBe(422);
-    expect(await reject('data:image/png;base64,' + Buffer.from('<html><script>1</script></html>').toString('base64'))).toBe(415);
-    await h.as(dev).post(`/api/tasks/${task}/attachments`, { fileName: 'ok.png', dataUrl: PNG_DATA_URL }).expect(201);
+    expect(
+      await reject(
+        'data:image/png;base64,' +
+          Buffer.from('<html><script>1</script></html>').toString('base64'),
+      ),
+    ).toBe(415);
+    await h
+      .as(dev)
+      .post(`/api/tasks/${task}/attachments`, { fileName: 'ok.png', dataUrl: PNG_DATA_URL })
+      .expect(201);
     await h.as(dev).delete(`/api/tasks/${task}`).expect(204);
   });
 

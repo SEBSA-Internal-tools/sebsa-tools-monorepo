@@ -2,6 +2,8 @@ import { CONFIG_DEFAULTS } from '../../config/defaults.js';
 export const ACCESS_COOKIE = 'sdp_access';
 export const REFRESH_COOKIE = 'sdp_refresh';
 export const CSRF_COOKIE = 'sdp_csrf';
+export const DEVICE_COOKIE = 'sdp_device';
+export const DEVICE_COOKIE_MAX_AGE_MS = 180 * 24 * 60 * 60 * 1000;
 export const CSRF_HEADER = 'x-csrf-token';
 
 export const PUBLIC_ROUTE = Symbol('public-route');

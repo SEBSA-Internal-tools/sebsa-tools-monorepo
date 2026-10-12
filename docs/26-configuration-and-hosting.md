@@ -44,7 +44,7 @@ APP_BASE_URL=http://localhost:5175
 | `JWT_ISSUER` / `JWT_AUDIENCE`              | `sebsa-code-review-api` / `sebsa-code-review-web`| optional                           | Token claims                                                                              |
 | `JWT_ACCESS_TTL_SECONDS` / `JWT_REFRESH_TTL_SECONDS` / `JWT_REMEMBER_TTL_SECONDS` | 900 / 7 days / 30 days | optional            | Token lifetimes                                                                           |
 | `COOKIE_SECURE`                            | Secure in production only              | leave unset (`false` is refused)   | `Secure` flag on cookies                                                                  |
-| `TRUST_PROXY`                              | off                                    | `1` behind one proxy               | Express `trust proxy`; hop count or addresses, never `true`                               |
+| `TRUST_PROXY`                              | off                                    | `1` behind NGINX                   | Express `trust proxy`; use the hop count, not an address list, and never `true` ([why](./27-production-hosting-runbook.md#phase-9-trust-proxy-and-client-ip)) |
 | `SWAGGER_ENABLED`                          | on only in development                 | usually unset                      | API docs at `/api/docs`                                                                   |
 | `EMAIL_ENABLED`                            | `false`                                | must be `true`                     | `true` sends via Brevo; otherwise logs only                                               |
 | `SDP_BREVO_API_KEY`                        | —                                      | required when email enabled        | Brevo API key                                                                             |
@@ -89,29 +89,10 @@ SDP_WEB_PORT=5176 SDP_API_TARGET=http://localhost:3001 npm run dev
    - `FRONTEND_ORIGIN=https://<public web host>` (comma-separate if several)
    - `APP_BASE_URL=https://<public web host>` (what users click in emails)
    - `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` (new values, not the dev ones)
-   - `TRUST_PROXY=1` (or the proxy addresses) when behind a load balancer / TLS proxy
+   - `TRUST_PROXY=1` behind NGINX (a hop count; not an address list)
    - `EMAIL_ENABLED=true`, `SDP_BREVO_API_KEY`, `SDP_EMAIL_FROM_ADDRESS`, optionally `SDP_SUPPORT_EMAIL`
    - leave `COOKIE_SECURE` and `SWAGGER_ENABLED` unset
-4. Serve the web build and the API from the same origin through a reverse proxy: static files for everything, `/api/*` forwarded to the API unchanged. The `/api` prefix is fixed in `apps/api/src/app.setup.ts` (`setGlobalPrefix`) and `apps/web/src/lib/apiClient.ts` (`API_BASE`); change both together if it ever moves.
-
-```nginx
-server {
-  listen 443 ssl;
-  server_name portal.example.com;
-  root /srv/sdp/dist/apps/web;
-
-  location /api/ {
-    proxy_pass http://127.0.0.1:3000;
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-  }
-
-  location / {
-    try_files $uri /index.html;
-  }
-}
-```
+4. Serve the web build and the API from the same origin through NGINX: static files for everything, `/api/*` forwarded to the API unchanged. Follow the [Production hosting runbook](./27-production-hosting-runbook.md), which has the full hardened NGINX config and the deployment and test steps. The config covers TLS, security headers and CSP for the SPA, edge rate limits, per-route body limits, `.map` blocking, and an `X-Forwarded-For` that clients cannot spoof. The `/api` prefix is fixed in `apps/api/src/app.setup.ts` (`setGlobalPrefix`) and `apps/web/src/lib/apiClient.ts` (`API_BASE`); change both together if it ever moves.
 
 5. Check the API boot log: one line naming the email transport (`brevo`), sender, link base URL and link lifetimes. A Brevo key problem is logged as a warning.
 

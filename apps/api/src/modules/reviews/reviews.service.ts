@@ -357,14 +357,18 @@ export class ReviewsService {
         where: { id: review.id },
         data: { status: CodeReviewFormStatus.COMPLETED, decision, completedAt: now },
       });
-      await tx.task.update({
-        where: { id: taskId },
+      // Conditional on the state checked above, so a concurrent second decision rolls back.
+      const decided = await tx.task.updateMany({
+        where: { id: taskId, status: TaskStatus.IN_REVIEW, currentReviewerId: user.id },
         data: {
           status,
           currentReviewerId: decision === ReviewDecision.CHANGES_REQUESTED ? null : user.id,
           ...(decision === ReviewDecision.APPROVED ? { approvedAt: now } : {}),
         },
       });
+      if (decided.count !== 1) {
+        throw new ApiException('INVALID_STATE_TRANSITION', 'This review is not currently active');
+      }
       await tx.notification.deleteMany({
         where: unrelatedReviewNotificationWhere(
           taskId,

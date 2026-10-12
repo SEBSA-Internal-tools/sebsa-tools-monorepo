@@ -5,8 +5,10 @@ import type { Server } from 'node:http';
 import { Test } from '@nestjs/testing';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import request from 'supertest';
+import { argon2id, hash } from 'argon2';
 import { AppModule } from '../../../src/app.module.ts';
 import { configureApp } from '../../../src/app.setup.ts';
+import { PrismaService } from '../../../src/prisma/prisma.service.ts';
 import { E2E_PASSWORD } from '../../../prisma/e2e-fixtures.ts';
 
 /**
@@ -43,7 +45,7 @@ export async function startHarness(): Promise<Harness> {
   const app = moduleRef.createNestApplication<NestExpressApplication>({ bodyParser: false });
   configureApp(app);
   await app.init();
-  const server = app.getHttpServer() as Server;
+  const server: Server = app.getHttpServer();
 
   const signIn = async (email: string, password: string = E2E_PASSWORD): Promise<Session> => {
     const agent = request.agent(server);
@@ -57,16 +59,50 @@ export async function startHarness(): Promise<Harness> {
   const as = (session: Session) => ({
     get: (path: string) => session.agent.get(path),
     post: (path: string, body?: object) =>
-      session.agent.post(path).set('X-CSRF-Token', session.csrf).send(body ?? {}),
+      session.agent
+        .post(path)
+        .set('X-CSRF-Token', session.csrf)
+        .send(body ?? {}),
     put: (path: string, body: object) =>
       session.agent.put(path).set('X-CSRF-Token', session.csrf).send(body),
     patch: (path: string, body: object) =>
       session.agent.patch(path).set('X-CSRF-Token', session.csrf).send(body),
     delete: (path: string, body?: object) =>
-      session.agent.delete(path).set('X-CSRF-Token', session.csrf).send(body ?? {}),
+      session.agent
+        .delete(path)
+        .set('X-CSRF-Token', session.csrf)
+        .send(body ?? {}),
   });
 
   return { app, server, signIn, as };
+}
+
+/**
+ * An ACTIVE developer owned by these suites only, so other e2e files that edit
+ * the shared seed accounts (e.g. workflow changes `e2e.devrev`'s email) cannot
+ * break them when the suites run in sequence on one database.
+ */
+export async function ensureSecurityDeveloper(h: Harness): Promise<string> {
+  const email = 'e2e.vapt.devb@example.com';
+  const prisma = h.app.get(PrismaService);
+  const passwordHash = await hash(E2E_PASSWORD, {
+    type: argon2id,
+    memoryCost: 19_456,
+    timeCost: 2,
+    parallelism: 1,
+  });
+  const user = await prisma.user.upsert({
+    where: { email },
+    update: { passwordHash, status: 'ACTIVE', deletedAt: null },
+    create: { email, fullName: 'E2E VAPT Developer B', passwordHash, status: 'ACTIVE' },
+  });
+  const role = await prisma.role.findUniqueOrThrow({ where: { code: 'DEVELOPER' } });
+  await prisma.userRole.upsert({
+    where: { userId_roleId: { userId: user.id, roleId: role.id } },
+    update: {},
+    create: { userId: user.id, roleId: role.id },
+  });
+  return email;
 }
 
 const CHECKLIST_ANSWERS = [

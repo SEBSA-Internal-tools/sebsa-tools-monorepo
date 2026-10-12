@@ -74,6 +74,50 @@ describe('AuthService sign-in hardening', () => {
     ).rejects.toMatchObject({ code: 'RATE_LIMITED', status: 429 });
   });
 
+  it('keeps a previously signed-in device usable while the account is locked for others', async () => {
+    const { auth } = service(await activeUser('correct horse'));
+    const { deviceToken } = await auth.login(
+      { email: 'dev@example.com', password: 'correct horse' },
+      { ipAddress: '10.1.1.1' },
+    );
+    for (let attempt = 0; attempt < LOGIN_ATTEMPTS_PER_EMAIL; attempt += 1) {
+      await expect(
+        auth.login({ email: 'dev@example.com', password: 'wrong' }, { ipAddress: '10.0.0.9' }),
+      ).rejects.toMatchObject({ code: 'INVALID_CREDENTIALS' });
+    }
+    await expect(
+      auth.login(
+        { email: 'dev@example.com', password: 'correct horse' },
+        { ipAddress: '10.0.0.9' },
+      ),
+    ).rejects.toMatchObject({ code: 'RATE_LIMITED', status: 429 });
+    await expect(
+      auth.login(
+        { email: 'dev@example.com', password: 'correct horse' },
+        { ipAddress: '10.1.1.1', deviceToken },
+      ),
+    ).resolves.toMatchObject({ user: { email: 'dev@example.com' } });
+  });
+
+  it('ignores a device token issued to another account or tampered with', async () => {
+    const other = service({ ...(await activeUser('other pass')), email: 'other@example.com' });
+    const { deviceToken } = await other.auth.login(
+      { email: 'other@example.com', password: 'other pass' },
+      {},
+    );
+    const { auth } = service(await activeUser('correct horse'));
+    for (let attempt = 0; attempt < LOGIN_ATTEMPTS_PER_EMAIL; attempt += 1) {
+      await expect(
+        auth.login({ email: 'dev@example.com', password: 'wrong' }, {}),
+      ).rejects.toMatchObject({ code: 'INVALID_CREDENTIALS' });
+    }
+    for (const token of [deviceToken, `${deviceToken}x`, 'a.b']) {
+      await expect(
+        auth.login({ email: 'dev@example.com', password: 'correct horse' }, { deviceToken: token }),
+      ).rejects.toMatchObject({ code: 'RATE_LIMITED', status: 429 });
+    }
+  });
+
   it('does the same argon2 work for an unknown email as for a wrong password', async () => {
     vi.mocked(verify).mockClear();
     const { auth } = service(null);

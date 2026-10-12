@@ -3,6 +3,7 @@ import { E2E_USERS } from '../../../prisma/e2e-fixtures.ts';
 import {
   createDraft,
   createSubmitted,
+  ensureSecurityDeveloper,
   hasE2eDatabase,
   startHarness,
   type Harness,
@@ -25,7 +26,7 @@ describe.skipIf(!hasE2eDatabase)('VAPT: authorization', () => {
   beforeAll(async () => {
     h = await startHarness();
     devA = await h.signIn(E2E_USERS.developer.email);
-    devB = await h.signIn(E2E_USERS.devReviewer.email);
+    devB = await h.signIn(await ensureSecurityDeveloper(h));
     rev = await h.signIn(E2E_USERS.reviewer.email);
     rev2 = await h.signIn(E2E_USERS.reviewer2.email);
     admin = await h.signIn(E2E_USERS.admin.email);
@@ -47,12 +48,18 @@ describe.skipIf(!hasE2eDatabase)('VAPT: authorization', () => {
   });
 
   it('enforces function-level roles on admin and super-admin routes', async () => {
-    await h.as(devA).post('/api/users', { email: 'x@y.z', name: 'X', roles: ['DEVELOPER'] }).expect(403);
+    await h
+      .as(devA)
+      .post('/api/users', { email: 'x@y.z', name: 'X', roles: ['DEVELOPER'] })
+      .expect(403);
     await h.as(devA).get('/api/users').expect(403);
     await h.as(devA).get('/api/audit-logs').expect(403);
     await h.as(rev).post('/api/checklist-sections', { name: 'X' }).expect(403);
     // DELETE user and transfer-super-admin are Super-Admin only.
-    const users = (await h.as(admin).get('/api/users').expect(200)).body as { id: string; email: string }[];
+    const users = (await h.as(admin).get('/api/users').expect(200)).body as {
+      id: string;
+      email: string;
+    }[];
     const targetId = users.find((u) => u.email === E2E_USERS.reviewer2.email)?.id ?? '';
     await h.as(admin).delete(`/api/users/${targetId}`).expect(403);
     await h.as(devA).get('/api/system-audit-events').expect(403);
@@ -72,11 +79,17 @@ describe.skipIf(!hasE2eDatabase)('VAPT: authorization', () => {
   });
 
   it('scopes notifications to their recipient', async () => {
-    await h.as(devA).post('/api/notifications/00000000-0000-4000-8000-0000000000ff/read').expect(404);
+    await h
+      .as(devA)
+      .post('/api/notifications/00000000-0000-4000-8000-0000000000ff/read')
+      .expect(404);
   });
 
   it('refuses mass assignment of privileged task fields', async () => {
-    const customers = (await h.as(devA).get('/api/customers').expect(200)).body as { id: string; name: string }[];
+    const customers = (await h.as(devA).get('/api/customers').expect(200)).body as {
+      id: string;
+      name: string;
+    }[];
     const types = (await h.as(devA).get('/api/task-types').expect(200)).body as { id: string }[];
     await h
       .as(devA)

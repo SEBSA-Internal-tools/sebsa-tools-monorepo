@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
@@ -28,6 +28,7 @@ export interface AuthTokens {
 export interface RequestMetadata {
   userAgent?: string;
   ipAddress?: string;
+  deviceToken?: string;
 }
 
 /** Sign-in attempts allowed per normalised email, and per client IP, per window. */
@@ -76,9 +77,13 @@ export class AuthService {
         LOGIN_ATTEMPTS_PER_IP,
         LOGIN_WINDOW_MS,
       );
+    // A browser that has signed in to this account before gets its own counter
+    // (OWASP device cookies), so failures from elsewhere cannot lock it out.
+    const device = this.trustedDevice(metadata.deviceToken, email);
+    const accountKey = device ? `login-device:${device}` : `login-email:${email}`;
     if (
       !ipAllowed ||
-      !this.limiter.consume(`login-email:${email}`, LOGIN_ATTEMPTS_PER_EMAIL, LOGIN_WINDOW_MS)
+      !this.limiter.consume(accountKey, LOGIN_ATTEMPTS_PER_EMAIL, LOGIN_WINDOW_MS)
     ) {
       throw new ApiException(
         'RATE_LIMITED',
@@ -101,6 +106,7 @@ export class AuthService {
     const valid = await verify(user.passwordHash, dto.password);
     if (!valid) this.invalidCredentials();
     this.limiter.forget(`login-email:${email}`);
+    if (device) this.limiter.forget(accountKey);
     // Only someone who proved the password learns the account is switched off.
     if (user.status !== 'ACTIVE') {
       throw new ApiException(
@@ -111,7 +117,31 @@ export class AuthService {
 
     await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
     const tokens = await this.createSession(user.id, dto.remember ?? false, metadata);
-    return { user: this.toCurrentUser(user), tokens };
+    return { user: this.toCurrentUser(user), tokens, deviceToken: this.issueDeviceToken(email) };
+  }
+
+  private issueDeviceToken(email: string): string {
+    const nonce = randomBytes(16).toString('base64url');
+    return `${nonce}.${this.deviceMac(nonce, email)}`;
+  }
+
+  /** The device nonce when `token` was issued to this email, otherwise null. */
+  private trustedDevice(token: string | undefined, email: string): string | null {
+    if (!token || token.length > 128) return null;
+    const [nonce, mac, extra] = token.split('.');
+    if (!nonce || !mac || extra !== undefined) return null;
+    const expected = Buffer.from(this.deviceMac(nonce, email));
+    const supplied = Buffer.from(mac);
+    return expected.length === supplied.length && timingSafeEqual(expected, supplied)
+      ? nonce
+      : null;
+  }
+
+  private deviceMac(nonce: string, email: string): string {
+    const key = createHmac('sha256', authSecret(this.config, 'JWT_REFRESH_SECRET'))
+      .update('sdp-login-device')
+      .digest();
+    return createHmac('sha256', key).update(`${nonce}:${email}`).digest('base64url');
   }
 
   async refresh(refreshToken: string | undefined, metadata: RequestMetadata = {}) {
