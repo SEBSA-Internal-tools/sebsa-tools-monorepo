@@ -10,9 +10,10 @@ async function bootstrap(): Promise<void> {
   // Nest's default parser is replaced by `registerBodyParsers` (per-route limits).
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: false });
   configureApp(app);
+  app.enableShutdownHooks();
   const config = app.get(ConfigService);
   setupSwagger(app, config.getOrThrow<boolean>('swaggerEnabled'));
-  await app.listen(config.getOrThrow<number>('port'));
+  await app.listen(config.getOrThrow<number>('port'), '0.0.0.0');
 }
 
 void bootstrap();

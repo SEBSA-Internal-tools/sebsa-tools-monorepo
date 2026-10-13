@@ -87,7 +87,22 @@ const options = {
 
 const watch = process.argv.includes('--watch');
 
-if (!watch) {
+if (process.argv.includes('--netlify')) {
+  const { outfile: standaloneOutput, ...functionOptions } = options;
+  await build({
+    ...functionOptions,
+    entryPoints: [
+      path.join(dirname, 'src/netlify/api.ts'),
+      path.join(dirname, 'src/netlify/email-schedule.ts'),
+      path.join(dirname, 'src/netlify/emails-background.ts'),
+    ],
+    outdir: path.join(dirname, '../../dist/netlify/functions'),
+    outExtension: { '.js': '.mjs' },
+    sourcemap: false,
+    alias: { '@prisma/client': '@sdp/netlify-prisma' },
+    external: [...external.filter((name) => name !== '@prisma/client'), '@sdp/netlify-prisma'],
+  });
+} else if (!watch) {
   await build(options);
 } else {
   /** Restarts `node dist/apps/api/main.js` after every successful rebuild. */

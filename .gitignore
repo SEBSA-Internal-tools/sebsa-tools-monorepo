@@ -38,4 +38,10 @@ playwright-report
 *.sln
 *.sw?
 
-docs/security/*
+# Ignore docs folder
+docs/
+# Deployment credentials and local hosting metadata
+.env.*
+!.env*.example
+.vercel/
+.netlify/
