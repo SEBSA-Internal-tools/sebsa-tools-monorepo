@@ -107,6 +107,21 @@ async function toApiError(response: Response, path: string): Promise<ApiError> {
 async function send(path: string, options: RequestOptions): Promise<Response> {
   const { method = 'GET', body, signal, searchParams } = options;
 
+  const serializedBody = body === undefined ? undefined : JSON.stringify(body);
+  const maxBytes = Number(import.meta.env['VITE_MAX_API_REQUEST_BYTES'] ?? 0);
+  if (
+    serializedBody !== undefined &&
+    maxBytes > 0 &&
+    new TextEncoder().encode(serializedBody).byteLength > maxBytes
+  ) {
+    throw new ApiError({
+      statusCode: 413,
+      code: 'PAYLOAD_TOO_LARGE',
+      message:
+        'This request contains too much image data for the hosted service. Reduce the number or size of screenshots and try again.',
+    });
+  }
+
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (!['GET'].includes(method)) {
@@ -119,7 +134,7 @@ async function send(path: string, options: RequestOptions): Promise<Response> {
       method,
       headers,
       credentials: 'include',
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      ...(serializedBody === undefined ? {} : { body: serializedBody }),
       ...(signal ? { signal } : {}),
     });
   } catch (cause) {

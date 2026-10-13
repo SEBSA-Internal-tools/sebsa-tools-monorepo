@@ -1,0 +1,60 @@
+# Free pilot: both commands run from the repository root.
+# Upgrade to an always-on plan for reliable background email delivery.
+services:
+  - type: web
+    name: sdp-api
+    runtime: node
+    plan: free
+    branch: test
+    buildCommand: npm ci --include=dev && npm run build --workspace @sdp/api
+    # Free services have no pre-deploy hook. Override DATABASE_URL only for
+    # migrations, then start the API with its normal pooled DATABASE_URL.
+    startCommand: >-
+      DATABASE_URL="${DIRECT_URL:?Set DIRECT_URL to the Neon direct connection URL}"
+      npm run prisma:migrate:deploy --workspace @sdp/api
+      && exec node dist/apps/api/main.js
+    healthCheckPath: /api/health
+    buildFilter:
+      paths:
+        - apps/api/**
+        - packages/**
+        - package.json
+        - package-lock.json
+        - .npmrc
+        - tsconfig.base.json
+        - render.yaml
+    envVars:
+      - key: NODE_VERSION
+        value: 24
+      - key: NODE_ENV
+        value: production
+      - key: COOKIE_SECURE
+        value: 'true'
+      - key: SWAGGER_ENABLED
+        value: 'false'
+      - key: EMAIL_ENABLED
+        value: 'true'
+      - key: APP_TIMEZONE
+        value: Asia/Colombo
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: APP_BASE_URL
+        sync: false
+      # Start with Render's immediate proxy only. Verify client IP forwarding
+      # through Vercel before widening trust; never use TRUST_PROXY=true.
+      - key: TRUST_PROXY
+        value: '1'
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: SDP_BREVO_API_KEY
+        sync: false
+      - key: SDP_EMAIL_FROM_ADDRESS
+        sync: false
+      - key: SDP_EMAIL_FROM_NAME
+        value: Service Delivery Portal
+      - key: SDP_SUPPORT_EMAIL
+        sync: false

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import path, { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
@@ -21,6 +21,12 @@ const PROJECT_ROOT = fileURLToPath(new URL('.', import.meta.url));
  * pre-bundle the workspace packages and fails to resolve an entry, since they
  * publish `.ts` rather than built output.
  */
+// Read server-only SDP_* settings without exposing them to the browser.
+const developmentEnv = loadEnv('development', dirname, 'SDP_');
+const apiTarget =
+  process.env['SDP_API_TARGET'] ?? developmentEnv['SDP_API_TARGET'] ?? 'http://localhost:3000';
+const webPort = process.env['SDP_WEB_PORT'] ?? developmentEnv['SDP_WEB_PORT'] ?? '5175';
+
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
@@ -31,13 +37,13 @@ export default defineConfig({
     },
   },
   server: {
-    port: Number(process.env['SDP_WEB_PORT'] ?? 5175),
+    port: Number(webPort),
     proxy: {
       '/api': {
         // NestJS. The Playwright suite points this at its own e2e API
         // (SDP_API_TARGET=http://localhost:3100) so it never touches the API a
         // developer runs against the shared database.
-        target: process.env['SDP_API_TARGET'] ?? 'http://localhost:3000',
+        target: apiTarget,
         changeOrigin: true,
       },
     },
@@ -79,9 +85,7 @@ export default defineConfig({
   cacheDir: join(
     tmpdir(),
     'sdp-vite',
-    createHash('sha1')
-      .update(`${PROJECT_ROOT}:${process.env['SDP_WEB_PORT'] ?? '5175'}`)
-      .digest('hex'),
+    createHash('sha1').update(`${PROJECT_ROOT}:${webPort}`).digest('hex'),
   ),
   build: {
     outDir: '../../dist/apps/web',

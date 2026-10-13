@@ -9,6 +9,7 @@
   ],
   "scripts": {
     "dev": "nx run-many -t dev",
+    "build:netlify": "node scripts/build-netlify.mjs",
     "dev:web": "nx run @sdp/web:dev",
     "dev:api": "nx run @sdp/api:dev",
     "build": "nx run-many -t build",
