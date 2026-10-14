@@ -7,6 +7,8 @@
 .workspace-page {
   display: block;
   width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   padding: 20px 16px;
 
   @media (min-width: 768px) {
@@ -20,9 +22,11 @@
 
 .cso-container {
   width: 100%;
+  min-width: 0;
   max-width: 1300px;
   margin: 0 auto;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 28px;
 
   @media (min-width: 768px) {
@@ -144,13 +148,26 @@
   position: relative;
   overflow: hidden;
   width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   border-radius: 16px;
   background: var(--color-surface-dim);
   border: var(--border-glass);
   box-shadow: var(--shadow-subtle);
+
+  &.dashboard-active {
+    overflow: visible;
+
+    @media (max-width: 768px) {
+      .tab-content {
+        padding: 16px 12px;
+      }
+    }
+  }
 }
 
 .tab-content {
+  min-width: 0;
   padding: 24px 20px;
 
   @media (min-width: 768px) {

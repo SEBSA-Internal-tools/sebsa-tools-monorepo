@@ -202,14 +202,30 @@
       <!-- ══════════════════════════════════════════════ -->
       <!-- ROW 4 — Cases by Customer Over Time           -->
       <!-- ══════════════════════════════════════════════ -->
-      <div class="chart-card full-width">
+      <div class="chart-card full-width customer-month-card">
         <div class="chart-card-header">
           <h3>Cases by Customer Over Time</h3>
           <div class="month-filter">
-            <label>From</label>
-            <input type="month" [ngModel]="monthFrom()" (ngModelChange)="monthFrom.set($event)" />
-            <label>To</label>
-            <input type="month" [ngModel]="monthTo()" (ngModelChange)="monthTo.set($event)" />
+            <div class="month-filter-field">
+              <span class="filter-label">From</span>
+              <app-custom-datepicker
+                selectionMode="month"
+                placeholder="From month"
+                ariaLabel="Filter from month"
+                [ngModel]="monthFrom()"
+                (ngModelChange)="monthFrom.set($event)"
+              ></app-custom-datepicker>
+            </div>
+            <div class="month-filter-field">
+              <span class="filter-label">To</span>
+              <app-custom-datepicker
+                selectionMode="month"
+                placeholder="To month"
+                ariaLabel="Filter to month"
+                [ngModel]="monthTo()"
+                (ngModelChange)="monthTo.set($event)"
+              ></app-custom-datepicker>
+            </div>
           </div>
         </div>
         @if (customerMonthlyData().length === 0) {
@@ -218,20 +234,22 @@
             <p>No data for the selected period</p>
           </div>
         } @else {
-          <table class="data-table">
-            <thead>
-              <tr><th>Month</th><th>Customer</th><th>Case Count</th></tr>
-            </thead>
-            <tbody>
-              @for (row of customerMonthlyData(); track row.month + row.customerName) {
-                <tr>
-                  <td>{{ row.month }}</td>
-                  <td>{{ row.customerName }}</td>
-                  <td><strong>{{ row.count }}</strong></td>
-                </tr>
-              }
-            </tbody>
-          </table>
+          <div class="customer-month-table-scroll">
+            <table class="data-table">
+              <thead>
+                <tr><th>Month</th><th>Customer</th><th>Case Count</th></tr>
+              </thead>
+              <tbody>
+                @for (row of customerMonthlyData(); track row.month + row.customerName) {
+                  <tr>
+                    <td>{{ row.month }}</td>
+                    <td>{{ row.customerName }}</td>
+                    <td><strong>{{ row.count }}</strong></td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
         }
       </div>
 
@@ -298,7 +316,13 @@
                       [attr.stroke-dashoffset]="seg.dashoffset"
                       class="donut-segment"
                       [class.active]="activeMember() === seg.memberName"
+                      role="button"
+                      tabindex="0"
+                      [attr.aria-label]="'Show open cases for ' + seg.memberName"
+                      [attr.aria-pressed]="activeMember() === seg.memberName"
                       (click)="onMemberSegmentClick(seg.memberName)"
+                      (keydown.enter)="onMemberSegmentClick(seg.memberName)"
+                      (keydown.space)="$event.preventDefault(); onMemberSegmentClick(seg.memberName)"
                     />
                   }
                 </g>
@@ -313,15 +337,17 @@
               <!-- Legend -->
               <div class="donut-legend">
                 @for (seg of workloadSegments(); track seg.memberName) {
-                  <div
+                  <button
+                    type="button"
                     class="legend-item"
                     [class.active]="activeMember() === seg.memberName"
+                    [attr.aria-pressed]="activeMember() === seg.memberName"
                     (click)="onMemberSegmentClick(seg.memberName)"
                   >
                     <span class="legend-dot" [style.background]="seg.color"></span>
                     <span class="legend-name">{{ seg.memberName }}</span>
                     <span class="legend-count">{{ seg.count }}</span>
-                  </div>
+                  </button>
                 }
               </div>
             </div>

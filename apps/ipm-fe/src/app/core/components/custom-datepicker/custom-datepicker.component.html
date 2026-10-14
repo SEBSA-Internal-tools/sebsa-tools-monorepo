@@ -48,6 +48,9 @@
   @if (isOpen()) {
     <div
       class="datepicker-popup"
+      [class.month-popup]="selectionMode === 'month'"
+      [style.left.px]="selectionMode === 'month' ? monthPopupPosition().left : null"
+      [style.top.px]="selectionMode === 'month' ? monthPopupPosition().top : null"
       role="dialog"
       aria-modal="true"
     >
@@ -56,39 +59,44 @@
         <button
           type="button"
           class="nav-btn prev-btn"
-          (click)="prevMonth($event)"
-          aria-label="Previous month"
+          (click)="selectionMode === 'month' ? prevYear($event) : prevMonth($event)"
+          [attr.aria-label]="selectionMode === 'month' ? 'Previous year' : 'Previous month'"
         >
           <span class="material-symbols-outlined">chevron_left</span>
         </button>
 
-        <button
-          type="button"
-          class="month-year-btn"
-          (click)="toggleMonthYearPicker($event)"
-        >
-          <span>{{ currentMonthLabel() }}</span>
-          <span
-            class="material-symbols-outlined dropdown-indicator"
-            [class.rotated]="showMonthYearPicker()"
+        @if (selectionMode === 'month') {
+          <span class="month-year-btn">{{ viewYear() }}</span>
+        } @else {
+          <button
+            type="button"
+            class="month-year-btn"
+            (click)="toggleMonthYearPicker($event)"
           >
-            arrow_drop_down
-          </span>
-        </button>
+            <span>{{ currentMonthLabel() }}</span>
+            <span
+              class="material-symbols-outlined dropdown-indicator"
+              [class.rotated]="showMonthYearPicker()"
+            >
+              arrow_drop_down
+            </span>
+          </button>
+        }
 
         <button
           type="button"
           class="nav-btn next-btn"
-          (click)="nextMonth($event)"
-          aria-label="Next month"
+          (click)="selectionMode === 'month' ? nextYear($event) : nextMonth($event)"
+          [attr.aria-label]="selectionMode === 'month' ? 'Next year' : 'Next month'"
         >
           <span class="material-symbols-outlined">chevron_right</span>
         </button>
       </div>
 
       <!-- Month & Year Picker Overlay -->
-      @if (showMonthYearPicker()) {
+      @if (selectionMode === 'month' || showMonthYearPicker()) {
         <div class="month-year-grid">
+          @if (selectionMode === 'date') {
           <div class="year-selector-row">
             <button
               type="button"
@@ -108,13 +116,15 @@
               <span class="material-symbols-outlined">arrow_right</span>
             </button>
           </div>
+          }
 
           <div class="months-grid">
             @for (mName of monthNames; track $index) {
               <button
                 type="button"
                 class="month-cell"
-                [class.active]="viewMonth() === $index"
+                [class.active]="selectionMode === 'month' ? currentValue() === (viewYear() + '-' + ($index + 1).toString().padStart(2, '0')) : viewMonth() === $index"
+                [disabled]="selectionMode === 'month' && isMonthDisabled(viewYear() + '-' + ($index + 1).toString().padStart(2, '0'))"
                 (click)="selectMonth($index, $event)"
               >
                 {{ mName.slice(0, 3) }}
@@ -176,7 +186,7 @@
           class="footer-action-btn btn-today"
           (click)="setToday($event)"
         >
-          Today
+          {{ selectionMode === 'month' ? 'This month' : 'Today' }}
         </button>
       </div>
     </div>
