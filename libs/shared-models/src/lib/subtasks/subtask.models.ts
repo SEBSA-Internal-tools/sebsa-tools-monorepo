@@ -33,7 +33,14 @@ export interface CreateSubtaskRequest {
   subtaskTypeId?: string;
 }
 
-export type UpdateSubtaskRequest = Partial<CreateSubtaskRequest>;
+/** Nullable fields may be sent as `null` to clear them. */
+export type UpdateSubtaskRequest = Partial<
+  Omit<CreateSubtaskRequest, 'description' | 'dueDate' | 'subtaskTypeId'>
+> & {
+  description?: string | null;
+  dueDate?: string | null;
+  subtaskTypeId?: string | null;
+};
 
 export interface AssignSubtaskRequest {
   assigneeIds: string[];

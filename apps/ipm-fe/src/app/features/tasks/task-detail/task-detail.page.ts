@@ -17,6 +17,7 @@ import type {
   TaskType,
   TaskComplexityLevel,
   Subtask,
+  UpdateSubtaskRequest,
   UpdateTaskRequest,
 } from '@sebsa-pm-tool/shared-models';
 import {
@@ -75,6 +76,8 @@ export class TaskDetailPageComponent implements OnInit {
   isSaving = signal(false);
   errorMessage = signal('');
   isAddSubtaskModalOpen = signal(false);
+  /** Non-null while the subtask modal is open in edit mode. */
+  editingSubtask = signal<Subtask | null>(null);
 
   isDirty = signal(false);
   draft: TaskEditDraft = {
@@ -434,11 +437,27 @@ export class TaskDetailPageComponent implements OnInit {
     this.isAddSubtaskModalOpen.set(true);
   }
 
-  closeAddSubtaskModal(): void {
-    this.isAddSubtaskModalOpen.set(false);
+  openEditSubtaskModal(subtask: Subtask): void {
+    this.editingSubtask.set(subtask);
   }
 
-  onCreateSubtask(formData: SubtaskFormData): void {
+  closeSubtaskModal(): void {
+    this.isAddSubtaskModalOpen.set(false);
+    this.editingSubtask.set(null);
+  }
+
+  /** The modal emits `submitted` before `closed`, so `editingSubtask` is
+   * still set here when the modal was opened for editing. */
+  onSubmitSubtask(formData: SubtaskFormData): void {
+    const editing = this.editingSubtask();
+    if (editing) {
+      this.onUpdateSubtask(editing, formData);
+    } else {
+      this.onCreateSubtask(formData);
+    }
+  }
+
+  private onCreateSubtask(formData: SubtaskFormData): void {
     const current = this.task();
     if (!current) return;
 
@@ -453,13 +472,65 @@ export class TaskDetailPageComponent implements OnInit {
     this.isLoading.set(true);
     this.subtasksService.create(current.id, dto).subscribe({
       next: () => {
-        this.closeAddSubtaskModal();
+        this.closeSubtaskModal();
         this.isLoading.set(false);
         this.loadSubtasks(current.id);
       },
       error: () => {
         this.errorMessage.set('Failed to create subtask. Please try again.');
         this.isLoading.set(false);
+      },
+    });
+  }
+
+  private onUpdateSubtask(existing: Subtask, formData: SubtaskFormData): void {
+    const dto = this.buildSubtaskUpdate(existing, formData);
+    if (Object.keys(dto).length === 0) return;
+
+    this.errorMessage.set('');
+    this.subtasksService.update(existing.id, dto).subscribe({
+      next: (updated) =>
+        this.subtasks.update((list) => list.map((s) => (s.id === updated.id ? updated : s))),
+      error: (err) => {
+        this.errorMessage.set(err?.error?.message || 'Failed to update subtask. Please try again.');
+      },
+    });
+  }
+
+  /** Only changed fields are sent, so an untouched save doesn't log a
+   * no-op activity entry or re-notify existing assignees. Cleared fields
+   * are sent as `null`. */
+  private buildSubtaskUpdate(existing: Subtask, formData: SubtaskFormData): UpdateSubtaskRequest {
+    const dto: UpdateSubtaskRequest = {};
+
+    if (formData.title !== existing.title) dto.title = formData.title;
+
+    const description = formData.description || null;
+    if (description !== (existing.description || null)) dto.description = description;
+
+    const dueDate = formData.dueDate || null;
+    if (dueDate !== (existing.dueDate ? existing.dueDate.split('T')[0] : null)) dto.dueDate = dueDate;
+
+    const subtaskTypeId = formData.subtaskTypeId || null;
+    if (subtaskTypeId !== existing.subtaskTypeId) dto.subtaskTypeId = subtaskTypeId;
+
+    if (formData.status && formData.status !== existing.status) dto.status = formData.status;
+
+    const before = existing.assignees.map((a) => a.id).sort().join(',');
+    const after = [...formData.assigneeIds].sort().join(',');
+    if (before !== after) dto.assigneeIds = formData.assigneeIds;
+
+    return dto;
+  }
+
+  deleteSubtask(subtask: Subtask): void {
+    if (!confirm(`Delete subtask "${subtask.title}"? This cannot be undone.`)) return;
+
+    this.errorMessage.set('');
+    this.subtasksService.delete(subtask.id).subscribe({
+      next: () => this.subtasks.update((list) => list.filter((s) => s.id !== subtask.id)),
+      error: (err) => {
+        this.errorMessage.set(err?.error?.message || 'Failed to delete subtask. Please try again.');
       },
     });
   }
