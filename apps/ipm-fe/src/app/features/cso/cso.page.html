@@ -6,7 +6,7 @@
       <p class="sebsa-page-desc">Customer Success Organization — projects, tasks, and cross-project visibility.</p>
     </header>
 
-    <div class="cso-body">
+    <div class="cso-body" [class.dashboard-active]="activeTab === 'dashboard'">
       <cso-nav-tabs
         [activeTab]="activeTab"
         (tabChange)="onTabChange($event)"

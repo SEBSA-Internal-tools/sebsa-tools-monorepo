@@ -64,6 +64,7 @@ export class CustomDatepickerComponent implements ControlValueAccessor {
   @Input() customClass = '';
   @Input() disabled = false;
   @Input() isDueDate = false;
+  @Input() selectionMode: 'date' | 'month' = 'date';
   @Input() min = '';
   @Input() max = '';
   @Input() align: 'left' | 'right' | 'auto' = 'auto';
@@ -82,6 +83,7 @@ export class CustomDatepickerComponent implements ControlValueAccessor {
 
   readonly isOpen = signal(false);
   readonly isRightAligned = signal(false);
+  readonly monthPopupPosition = signal({ left: 0, top: 0 });
   readonly currentValue = signal<string>(''); // YYYY-MM-DD
   readonly viewYear = signal<number>(new Date().getFullYear());
   readonly viewMonth = signal<number>(new Date().getMonth()); // 0-11
@@ -90,7 +92,7 @@ export class CustomDatepickerComponent implements ControlValueAccessor {
   readonly weekDays = WEEK_DAYS;
   readonly monthNames = MONTH_NAMES;
 
-  private onChange: (value: string) => void = (_val: string): void => {
+  private onChange: (value: string) => void = (): void => {
     // Registered by ControlValueAccessor
   };
   private onTouched: () => void = (): void => {
@@ -106,6 +108,9 @@ export class CustomDatepickerComponent implements ControlValueAccessor {
     if (!val) return '';
     try {
       const [year, month, day] = val.split('-').map(Number);
+      if (this.selectionMode === 'month' && year && month) {
+        return `${this.monthNames[month - 1]} ${year}`;
+      }
       if (year && month && day) {
         const date = new Date(year, month - 1, day);
         return date.toLocaleDateString('en-US', {
@@ -221,12 +226,43 @@ export class CustomDatepickerComponent implements ControlValueAccessor {
     if (this.disabled) return;
     if (!this.isOpen()) {
       this.syncViewWithDate(this.currentValue());
-      this.showMonthYearPicker.set(false);
-      this.updateAlignment();
+      this.showMonthYearPicker.set(this.selectionMode === 'month');
+      if (this.selectionMode === 'month') {
+        this.updateMonthPopupPosition();
+      } else {
+        this.updateAlignment();
+      }
       this.isOpen.set(true);
     } else {
       this.close();
     }
+  }
+
+  @HostListener('window:resize')
+  onViewportChange(): void {
+    if (this.isOpen() && this.selectionMode === 'month') {
+      this.updateMonthPopupPosition();
+    }
+  }
+
+  private updateMonthPopupPosition(): void {
+    if (typeof window === 'undefined') return;
+
+    const rect = (this.elementRef.nativeElement as HTMLElement).getBoundingClientRect();
+    const gutter = 12;
+    const popupWidth = Math.min(300, window.innerWidth - gutter * 2);
+    const preferredLeft = rect.left + popupWidth <= window.innerWidth - gutter
+      ? rect.left
+      : rect.right - popupWidth;
+    const viewportLeft = Math.max(gutter, Math.min(preferredLeft, window.innerWidth - popupWidth - gutter));
+    const popupHeight = 300;
+    const viewportTop = rect.bottom + popupHeight + gutter <= window.innerHeight
+      ? rect.bottom + 6
+      : rect.top >= popupHeight + gutter
+        ? rect.top - popupHeight - 6
+        : gutter;
+
+    this.monthPopupPosition.set({ left: viewportLeft - rect.left, top: viewportTop - rect.top });
   }
 
   private updateAlignment(): void {
@@ -304,6 +340,14 @@ export class CustomDatepickerComponent implements ControlValueAccessor {
 
   selectMonth(monthIndex: number, event?: Event): void {
     if (event) event.stopPropagation();
+    if (this.selectionMode === 'month') {
+      const month = `${this.viewYear()}-${String(monthIndex + 1).padStart(2, '0')}`;
+      if (this.isMonthDisabled(month)) return;
+      this.viewMonth.set(monthIndex);
+      this.emitDate(month);
+      this.close();
+      return;
+    }
     this.viewMonth.set(monthIndex);
     this.showMonthYearPicker.set(false);
   }
@@ -319,6 +363,14 @@ export class CustomDatepickerComponent implements ControlValueAccessor {
   setToday(event?: Event): void {
     if (event) event.stopPropagation();
     const todayStr = this.formatDate(new Date());
+    if (this.selectionMode === 'month') {
+      const month = todayStr.slice(0, 7);
+      if (!this.isMonthDisabled(month)) {
+        this.emitDate(month);
+        this.close();
+      }
+      return;
+    }
     if (!this.isDateDisabled(todayStr)) {
       this.emitDate(todayStr);
       this.close();
@@ -342,7 +394,7 @@ export class CustomDatepickerComponent implements ControlValueAccessor {
   private syncViewWithDate(dateStr: string): void {
     if (dateStr) {
       const parts = dateStr.split('-');
-      if (parts.length === 3) {
+      if (parts.length === 3 || (this.selectionMode === 'month' && parts.length === 2)) {
         const y = parseInt(parts[0], 10);
         const m = parseInt(parts[1], 10) - 1;
         if (!isNaN(y) && !isNaN(m) && m >= 0 && m <= 11) {
@@ -367,10 +419,11 @@ export class CustomDatepickerComponent implements ControlValueAccessor {
   private normalizeDateString(val: string | Date | null | undefined): string {
     if (!val) return '';
     if (typeof val === 'string') {
-      return val.slice(0, 10);
+      return val.slice(0, this.selectionMode === 'month' ? 7 : 10);
     }
     if (val instanceof Date) {
-      return this.formatDate(val);
+      const formatted = this.formatDate(val);
+      return this.selectionMode === 'month' ? formatted.slice(0, 7) : formatted;
     }
     return '';
   }
@@ -392,6 +445,12 @@ export class CustomDatepickerComponent implements ControlValueAccessor {
     }
     if (this.min && dateStr < this.min) return true;
     if (this.max && dateStr > this.max) return true;
+    return false;
+  }
+
+  isMonthDisabled(month: string): boolean {
+    if (this.min && month < this.min.slice(0, 7)) return true;
+    if (this.max && month > this.max.slice(0, 7)) return true;
     return false;
   }
 
