@@ -18,7 +18,7 @@ import { SubtaskTypesService } from '../../../core/services/subtask-types.servic
 import { CustomSelectComponent } from '../../../core/components/custom-select/custom-select.component';
 import { CustomDatepickerComponent } from '../../../core/components/custom-datepicker/custom-datepicker.component';
 import { UserAvatarComponent } from '../../../core/components/user-avatar/user-avatar.component';
-import type { SubtaskType } from '@sebsa-pm-tool/shared-models';
+import type { Subtask, SubtaskStatus, SubtaskType } from '@sebsa-pm-tool/shared-models';
 
 type AssigneeCandidate = { id: string; name: string; email: string; avatarUrl?: string | null };
 
@@ -28,12 +28,15 @@ export interface SubtaskFormData {
   dueDate: string;
   assigneeIds: string[];
   subtaskTypeId?: string;
+  /** Only set in edit mode — new subtasks always start as TO_DO. */
+  status?: SubtaskStatus;
 }
 
 /** Lean by design — a Subtask has no priority/sprint/CSO/category, just
  * title, description, due date, assignees, and an optional Subtask Type.
  * `projectId` is only needed to scope the assignee picker to project
- * members. */
+ * members. Passing `subtask` switches the modal into edit mode, prefilled
+ * with that subtask's values. */
 @Component({
   standalone: true,
   selector: 'app-create-subtask-modal',
@@ -46,6 +49,7 @@ export class CreateSubtaskModalComponent implements OnChanges {
   @Input() isOpen = false;
   @Input({ required: true }) projectId = '';
   @Input() taskTitle = '';
+  @Input() subtask: Subtask | null = null;
   @Output() closed = new EventEmitter<void>();
   @Output() submitted = new EventEmitter<SubtaskFormData>();
 
@@ -60,6 +64,13 @@ export class CreateSubtaskModalComponent implements OnChanges {
   selectedAssigneeIds: string[] = [];
   assigneeSearch = '';
   selectedSubtaskTypeId = '';
+  status: SubtaskStatus = 'TO_DO';
+
+  readonly statusOptions: Array<{ value: SubtaskStatus; label: string }> = [
+    { value: 'TO_DO', label: 'To Do' },
+    { value: 'IN_PROGRESS', label: 'In Progress' },
+    { value: 'DONE', label: 'Done' },
+  ];
 
   readonly availableAssignees = signal<AssigneeCandidate[]>([]);
   readonly availableSubtaskTypes = signal<SubtaskType[]>([]);
@@ -71,7 +82,21 @@ export class CreateSubtaskModalComponent implements OnChanges {
     if (this.isOpen && this.projectId) {
       this.loadAssignees(this.projectId);
       this.loadSubtaskTypes();
+      if (this.subtask) this.populateForm(this.subtask);
     }
+  }
+
+  get isEditMode(): boolean {
+    return this.subtask !== null;
+  }
+
+  private populateForm(subtask: Subtask): void {
+    this.subtaskTitle = subtask.title;
+    this.description = subtask.description ?? '';
+    this.dueDate = subtask.dueDate ? subtask.dueDate.split('T')[0] : '';
+    this.selectedAssigneeIds = subtask.assignees.map((a) => a.id);
+    this.selectedSubtaskTypeId = subtask.subtaskTypeId ?? '';
+    this.status = subtask.status;
   }
 
   private loadSubtaskTypes(): void {
@@ -126,6 +151,7 @@ export class CreateSubtaskModalComponent implements OnChanges {
       dueDate: this.dueDate,
       assigneeIds: this.selectedAssigneeIds,
       subtaskTypeId: this.selectedSubtaskTypeId || undefined,
+      ...(this.isEditMode && { status: this.status }),
     };
 
     this.submitted.emit(formData);
@@ -140,6 +166,7 @@ export class CreateSubtaskModalComponent implements OnChanges {
     this.selectedAssigneeIds = [];
     this.assigneeSearch = '';
     this.selectedSubtaskTypeId = '';
+    this.status = 'TO_DO';
     this.isAssigneeDropdownOpen.set(false);
   }
 

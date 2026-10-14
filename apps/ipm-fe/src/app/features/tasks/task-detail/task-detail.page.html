@@ -218,6 +218,26 @@
                     {{ subtask.assignees[0].name.charAt(0) }}
                   </span>
                 }
+                <div class="subtask-actions">
+                  <button
+                    type="button"
+                    class="subtask-action-btn"
+                    (click)="$event.stopPropagation(); openEditSubtaskModal(subtask)"
+                    title="Edit subtask"
+                    aria-label="Edit subtask"
+                  >
+                    <span class="material-symbols-outlined">edit</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="subtask-action-btn delete"
+                    (click)="$event.stopPropagation(); deleteSubtask(subtask)"
+                    title="Delete subtask"
+                    aria-label="Delete subtask"
+                  >
+                    <span class="material-symbols-outlined">delete</span>
+                  </button>
+                </div>
               </div>
             }
           </div>
@@ -468,11 +488,12 @@
 }
 @if (task(); as t) {
   <app-create-subtask-modal
-    [isOpen]="isAddSubtaskModalOpen()"
+    [isOpen]="isAddSubtaskModalOpen() || editingSubtask() !== null"
     [projectId]="t.case.projectId"
     [taskTitle]="t.title"
-    (closed)="closeAddSubtaskModal()"
-    (submitted)="onCreateSubtask($event)"
+    [subtask]="editingSubtask()"
+    (closed)="closeSubtaskModal()"
+    (submitted)="onSubmitSubtask($event)"
   ></app-create-subtask-modal>
 }
 </section>
