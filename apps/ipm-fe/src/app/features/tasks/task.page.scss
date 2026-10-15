@@ -6,7 +6,7 @@
 :host {
   display: block;
   width: 100%;
-  background-color: var(--surface-page);
+  background-color: var(--surface-card);
 }
 
 .workspace-page {
@@ -17,7 +17,7 @@
   width: 100%;
   max-width: 1600px;
   margin: 0 auto;
-  background-color: var(--surface-page);
+  background-color: var(--surface-card);
 
   .sebsa-card,
   .workspace-card {
