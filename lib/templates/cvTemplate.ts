@@ -73,7 +73,7 @@ export const cvTemplateSource = `
         {{else}}
           {{#if certifications}}
           <div data-cv-field="Certifications" style="margin-bottom: 22px;">
-            <div style="display: flex; align-items: center; width: 100%; box-sizing: border-box; background: linear-gradient(to right, #7650E1, #4E1C90); color: #ffffff; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; padding: 0px 0px 12px 16px; line-height: 1; height: 30px; border-radius: 10px 0 10px 0; margin-bottom: 10px;">Academic</div>
+            <div style="display: flex; align-items: center; width: 100%; box-sizing: border-box; background: linear-gradient(to right, #7650E1, #4E1C90); color: #ffffff; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; padding: 0px 0px 12px 16px; line-height: 1; height: 30px; border-radius: 10px 0 10px 0; margin-bottom: 10px;">{{#if includeEducation}}Academic{{else}}Certifications{{/if}}</div>
             {{#each certifications}}
             <div style="margin-bottom: 12px;">
               <p style="font-size: 12.5px; font-weight: 700; color: #262626; margin: 0;">{{name}}</p>

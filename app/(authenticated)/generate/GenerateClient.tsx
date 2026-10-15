@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, Suspense } from 'react';
+import React, { useState, useMemo, Suspense } from 'react';
 import Image from 'next/image';
 import CvPreviewTemplate from './CvPreviewTemplate';
 import CvSectionEditor from './CvSectionEditor';
@@ -14,7 +14,7 @@ import { PageWrapper } from '../../components/PageWrapper';
 import OnePagePreview from '@/app/components/OnePagePreview';
 import TalentSearchSelect from './TalentSearchSelect';
 import type { Employee } from '@/types/domain';
-import type { TailoredCv, CvSuggestion } from './types';
+import type { CvTemplateId, TailoredCv, CvSuggestion } from './types';
 import {
   suggestCvContentAction,
   saveGeneratedCvAction,
@@ -37,6 +37,34 @@ import { recordCvDownloadAction } from '../audit-actions';
 
 interface GenerateClientProps {
   employees: Employee[];
+}
+
+function TemplateSelector({
+  value,
+  onChange,
+}: {
+  value: CvTemplateId;
+  onChange: (template: CvTemplateId) => void;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label htmlFor="cv-template-selector" className="text-xs font-bold text-slate-500 uppercase tracking-wide">
+        CV Template
+      </label>
+      <select
+        id="cv-template-selector"
+        value={value}
+        onChange={(event) => onChange(event.target.value as CvTemplateId)}
+        className="w-full bg-slate-50 border border-slate-200/80 rounded-xl px-4 py-3 text-xs font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-400 transition-all text-slate-700 cursor-pointer"
+      >
+        <option value="template1">Template 1 — Two-column layout</option>
+        <option value="template2">Template 2 — Full-width content</option>
+      </select>
+      <p className="text-[10px] text-slate-400">
+        Template 2 displays Objective, Experience, and Special Projects at full page width.
+      </p>
+    </div>
+  );
 }
 
 export default function GenerateClient({ employees }: GenerateClientProps) {
@@ -62,9 +90,18 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
   const [wizardStep, setWizardStep] = useState<1 | 2 | 3>(1);
 
   // ── Step 1 form state ───────────────────────────────────────────────────────
-  const [selectedCandidateId, setSelectedCandidateId] = useState('');
+  const [selectedCandidateId, setSelectedCandidateId] = useState(() => {
+    const requestedName = preselectedName?.trim().toLowerCase();
+    if (!requestedName) return '';
+    return employees.find(
+      (employee) =>
+        employee.name.toLowerCase() === requestedName ||
+        getCvDisplayName(employee).toLowerCase() === requestedName
+    )?.rowId ?? '';
+  });
   const [requiredSkills, setRequiredSkills] = useState('');
   const [preferredExp, setPreferredExp] = useState('');
+  const [selectedTemplate, setSelectedTemplate] = useState<CvTemplateId>('template1');
 
   // ── Generation state ────────────────────────────────────────────────────────
   const [customizingLoading, setCustomizingLoading] = useState(false);
@@ -91,7 +128,7 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
 
   // ── Derived ─────────────────────────────────────────────────────────────────
   const selectedEmployee = useMemo(
-    () => employees.find((emp) => emp.rowId === selectedCandidateId) || employees[0],
+    () => employees.find((emp) => emp.rowId === selectedCandidateId),
     [employees, selectedCandidateId]
   );
 
@@ -105,10 +142,11 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
         ? buildTailoredCvFromSelection(
             selectedEmployee,
             '',
-            buildSelectionFromDraft(suggestionDraft, suggestion.academic)
+            buildSelectionFromDraft(suggestionDraft),
+            selectedTemplate
           )
         : null,
-    [selectedEmployee, suggestion, suggestionDraft]
+    [selectedEmployee, suggestion, suggestionDraft, selectedTemplate]
   );
   const livePreviewCv = tailoredCv ?? draftPreviewCv;
 
@@ -153,20 +191,6 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
   const customizedPreviewCv = tailoredCv;
 
   // ── Pre-select employee from query param ────────────────────────────────────
-  useEffect(() => {
-    if (employees.length === 0) return;
-    const match = employees.find(
-      (emp) => emp.name.toLowerCase() === preselectedName?.toLowerCase()
-        || getCvDisplayName(emp).toLowerCase() === preselectedName?.toLowerCase()
-    );
-    if (match) {
-      setSelectedCandidateId(match.rowId);
-    } else {
-      const alex = employees.find((emp) => emp.name.includes('Alexander'));
-      setSelectedCandidateId(alex ? alex.rowId : employees[0].rowId);
-    }
-  }, [employees, preselectedName]);
-
   // ── Handlers ────────────────────────────────────────────────────────────────
 
   /**
@@ -177,6 +201,7 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
    */
   const handleCustomize = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!selectedEmployee) return;
 
     setCustomizingLoading(true);
     setCustomizingError(null);
@@ -195,6 +220,8 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
       setSuggestionDraft({
         includeObjective: true,
         objective: result.objective,
+        includeEducation: true,
+        academic: result.academic.map((entry, index) => ({ ...entry, index, relevant: true })),
         experience: result.experience,
         projects: result.projects,
         certifications: result.certifications,
@@ -215,7 +242,7 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
    */
   const handleSelectionApply = async (selection: CvSuggestionSelection) => {
     if (!selectedEmployee) return;
-    const cv = buildTailoredCvFromSelection(selectedEmployee, '', selection);
+    const cv = buildTailoredCvFromSelection(selectedEmployee, '', selection, selectedTemplate);
 
     setSaving(true);
     try {
@@ -383,6 +410,7 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
                 )}
               </div>
 
+              <TemplateSelector value={selectedTemplate} onChange={setSelectedTemplate} />
 
               {/* Mandatory Skills */}
               <div className="space-y-1.5">
@@ -416,7 +444,8 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
               {/* Submit */}
               <button
                 type="submit"
-                className="mt-4 py-4 bg-gradient-to-r from-sky-600 to-indigo-700 hover:from-sky-500 hover:to-indigo-600 text-white rounded-xl font-sans text-sm font-black shadow-lg shadow-sky-600/10 active:scale-[0.98] transition-transform flex items-center justify-center gap-2.5 cursor-pointer"
+                disabled={!selectedEmployee || customizingLoading}
+                className="mt-4 py-4 bg-gradient-to-r from-sky-600 to-indigo-700 hover:from-sky-500 hover:to-indigo-600 disabled:from-slate-300 disabled:to-slate-400 disabled:cursor-not-allowed disabled:shadow-none text-white rounded-xl font-sans text-sm font-black shadow-lg shadow-sky-600/10 active:scale-[0.98] transition-transform flex items-center justify-center gap-2.5 cursor-pointer"
               >
                 <BrainCircuit className="w-5 h-5" />
                 <span>Customize CV</span>
@@ -488,6 +517,10 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
                     </div>
                   </div>
                 )}
+
+                <div className="pt-4 border-t border-slate-100">
+                  <TemplateSelector value={selectedTemplate} onChange={setSelectedTemplate} />
+                </div>
 
                 {/* Live one-page CV preview — reflects the current selection (or, once past that
                     step, the edited content) in real time, so the one-page limit is visible while

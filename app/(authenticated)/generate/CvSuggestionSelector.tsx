@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
-import { FileText, Briefcase, Lightbulb, Award, ArrowRight, Sparkles, Loader2, Plus, Trash2 } from 'lucide-react';
-import { SectionCard, EducationSection, textareaCls } from '@/app/components/CvEntrySections';
-import type { CvExperienceEntry, CvProjectEntry, CvCertificationEntry } from '@/lib/cvTypes';
+import { FileText, Briefcase, Lightbulb, Award, ArrowRight, Sparkles, Loader2, Plus, Trash2, GraduationCap } from 'lucide-react';
+import { SectionCard, textareaCls } from '@/app/components/CvEntrySections';
+import type { CvAcademicEntry, CvExperienceEntry, CvProjectEntry, CvCertificationEntry } from '@/lib/cvTypes';
 import { toTitleCase } from '@/lib/text';
 import type {
   CvSuggestion,
@@ -14,6 +14,7 @@ import type {
 
 export interface CvSuggestionSelection {
   summary: string;
+  includeEducation: boolean;
   academic: CvSuggestion['academic'];
   experience: CvExperienceEntry[];
   specialProjects: CvProjectEntry[];
@@ -23,6 +24,8 @@ export interface CvSuggestionSelection {
 export interface CvSuggestionDraft {
   includeObjective: boolean;
   objective: string;
+  includeEducation: boolean;
+  academic: Array<CvAcademicEntry & { index: number; relevant: boolean }>;
   experience: CvSuggestionExperience[];
   projects: CvSuggestionProject[];
   certifications: CvSuggestionCertification[];
@@ -53,12 +56,16 @@ const nextIndex = (items: { index: number }[]) =>
  * logic or drifting from what "Continue" actually applies.
  */
 export function buildSelectionFromDraft(
-  draft: CvSuggestionDraft,
-  academic: CvSuggestion['academic']
+  draft: CvSuggestionDraft
 ): CvSuggestionSelection {
   return {
     summary: draft.includeObjective ? draft.objective : '',
-    academic,
+    includeEducation: draft.includeEducation,
+    academic: draft.includeEducation
+      ? draft.academic
+          .filter((entry) => entry.relevant)
+          .map(({ qualification, institution, period }) => ({ qualification, institution, period }))
+      : [],
     experience: draft.experience
       .filter((e) => e.relevant)
       .map((e) => ({
@@ -98,7 +105,15 @@ export default function CvSuggestionSelector({
   pageLimitExceeded = false,
 }: CvSuggestionSelectorProps) {
   const [isVerified, setIsVerified] = useState(false);
-  const { includeObjective, objective, experience, projects, certifications } = draft;
+  const { includeObjective, objective, includeEducation, academic, experience, projects, certifications } = draft;
+
+  const toggleAcademic = (index: number) =>
+    onDraftChange({
+      ...draft,
+      academic: academic.map((entry) =>
+        entry.index === index ? { ...entry, relevant: !entry.relevant } : entry
+      ),
+    });
 
   const toggleExperience = (index: number) =>
     onDraftChange({
@@ -181,12 +196,13 @@ export default function CvSuggestionSelector({
   });
 
   const selectedExperienceCount = experience.filter((e) => e.relevant).length;
+  const selectedAcademicCount = includeEducation ? academic.filter((entry) => entry.relevant).length : 0;
   const selectedProjectCount = projects.filter((p) => p.relevant).length;
   const selectedCertCount = certifications.filter((c) => c.relevant).length;
 
   const handleApply = async () => {
     if (!isVerified || applying || pageLimitExceeded) return;
-    await onApply(buildSelectionFromDraft(draft, suggestion.academic));
+    await onApply(buildSelectionFromDraft(draft));
   };
 
   return (
@@ -223,8 +239,42 @@ export default function CvSuggestionSelector({
         />
       </SectionCard>
 
-      {/* Academic — read-only, never selectable, never modified */}
-      <EducationSection academic={suggestion.academic} expanded onToggle={() => {}} onChange={() => {}} readOnly />
+      {/* Academic — profile content remains read-only but can be included per entry. */}
+      <SectionCard label="Academic" icon={GraduationCap} count={selectedAcademicCount} expanded onToggle={() => {}}>
+        <label className="flex items-center gap-2.5 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={includeEducation}
+            onChange={(event) => onDraftChange({ ...draft, includeEducation: event.target.checked })}
+            className={checkboxCls}
+          />
+          <span className="text-xs font-bold text-slate-700">Include Academic section in CV</span>
+        </label>
+
+        {academic.length === 0 && <p className="text-xs text-slate-400 italic">No education on record.</p>}
+        <div className={`space-y-2 ${!includeEducation ? 'opacity-50' : ''}`}>
+          {academic.map((entry) => (
+            <label
+              key={entry.index}
+              className={`flex items-start gap-2.5 border border-slate-200 rounded-xl p-4 bg-slate-50/30 ${includeEducation ? 'cursor-pointer' : 'cursor-not-allowed'}`}
+            >
+              <input
+                type="checkbox"
+                checked={entry.relevant}
+                onChange={() => toggleAcademic(entry.index)}
+                disabled={!includeEducation}
+                className={`${checkboxCls} mt-0.5 disabled:cursor-not-allowed`}
+              />
+              <div className="min-w-0">
+                <p className="text-xs font-black text-slate-800">{entry.qualification}</p>
+                <p className="text-[10px] text-slate-400 font-semibold mt-0.5">
+                  {entry.institution}{entry.period && ` (${entry.period})`}
+                </p>
+              </div>
+            </label>
+          ))}
+        </div>
+      </SectionCard>
 
       {/* Work Experience */}
       <SectionCard
