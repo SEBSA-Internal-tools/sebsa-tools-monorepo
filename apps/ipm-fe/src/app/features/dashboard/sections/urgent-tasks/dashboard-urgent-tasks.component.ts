@@ -8,13 +8,19 @@ import {
   inject,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
+
+export interface TaskCompletionRequest {
+  taskId: string;
+  succeed: () => void;
+  fail: () => void;
+}
 import type { DashboardUrgentTask } from '@sebsa-pm-tool/shared-models';
 
 @Component({
   standalone: true,
   selector: 'app-dashboard-urgent-tasks',
-  imports: [CommonModule],
+  imports: [CommonModule, RouterLink],
   templateUrl: './dashboard-urgent-tasks.component.html',
   styleUrl: './dashboard-urgent-tasks.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -25,11 +31,13 @@ export class DashboardUrgentTasksComponent {
   @Input() tasks: DashboardUrgentTask[] | null = null;
   @Input() loading = false;
 
-  @Output() taskCompleted = new EventEmitter<string>();
+  @Output() taskCompleted = new EventEmitter<TaskCompletionRequest>();
 
   readonly isCollapsed = signal<boolean>(false);
   readonly completingIds = signal<Set<string>>(new Set());
   readonly completedIds = signal<Set<string>>(new Set());
+
+  readonly completionError = signal('');
 
   readonly skeletonRows = [1, 2, 3];
 
@@ -53,21 +61,24 @@ export class DashboardUrgentTasksComponent {
       return;
     }
 
-    // Add to completing state
-    this.completingIds.update((s) => new Set(s).add(task.id));
-
-    // Emit event for parent to call API
-    this.taskCompleted.emit(task.id);
-
-    // After animation delay, mark as completed
-    setTimeout(() => {
-      this.completingIds.update((s) => {
-        const next = new Set(s);
-        next.delete(task.id);
-        return next;
-      });
-      this.completedIds.update((s) => new Set(s).add(task.id));
-    }, 450);
+    this.completionError.set('');
+    this.completingIds.update(ids => new Set(ids).add(task.id));
+    const release = () => this.completingIds.update(ids => {
+      const next = new Set(ids);
+      next.delete(task.id);
+      return next;
+    });
+    this.taskCompleted.emit({
+      taskId: task.id,
+      succeed: () => {
+        release();
+        this.completedIds.update(ids => new Set(ids).add(task.id));
+      },
+      fail: () => {
+        release();
+        this.completionError.set('Could not complete "' + task.title + '". Please try again.');
+      },
+    });
   }
 
   isTaskDone(taskId: string): boolean {

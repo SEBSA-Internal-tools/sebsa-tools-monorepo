@@ -43,9 +43,9 @@ $desktop: 1024px;
 }
 
 .error-banner {
-  background-color: #fce8e8;
+  background-color: var(--status-error-bg);
   border: 1px solid #f5c6c6;
-  color: #991b1b;
+  color: var(--status-error-fg);
   border-radius: 8px;
   padding: 12px 16px;
   margin-bottom: 20px;
@@ -155,7 +155,7 @@ $desktop: 1024px;
   }
 
   &::-webkit-scrollbar-track {
-    background: #f8fafc;
+    background: var(--surface-muted);
   }
 
   &::-webkit-scrollbar-thumb {
@@ -280,7 +280,7 @@ $desktop: 1024px;
 
   &.status-todo {
     background: rgba(148, 163, 184, 0.2);
-    color: #475569;
+    color: var(--text-primary);
   }
 
   &.status-inprogress {

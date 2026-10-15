@@ -8,7 +8,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import type { ProjectSummary, ProjectStatus, ProjectType } from '@sebsa-pm-tool/shared-models';
 
 const PROJECT_TYPE_ICONS: Record<ProjectType, string> = {
@@ -42,7 +42,7 @@ const STATUS_LABELS: Record<ProjectStatus, string> = {
 @Component({
   standalone: true,
   selector: 'projects-list',
-  imports: [CommonModule, FormsModule, CustomSelectComponent],
+  imports: [CommonModule, FormsModule, CustomSelectComponent, RouterLink],
   templateUrl: './projects-list.component.html',
   styleUrl: './projects-list.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -103,6 +103,17 @@ export class ProjectsListComponent {
 
   onNewProject(): void {
     this.newProjectClick.emit();
+  }
+
+  get hasActiveFilters(): boolean {
+    return !!this.searchQuery || this.selectedStatus !== 'all' || !!this.selectedCustomerId;
+  }
+
+  resetFilters(): void {
+    this.searchQuery = '';
+    this.selectedStatus = 'all';
+    this.selectedCustomerId = '';
+    this.onSearchChange();
   }
 
   onSearchChange(): void {

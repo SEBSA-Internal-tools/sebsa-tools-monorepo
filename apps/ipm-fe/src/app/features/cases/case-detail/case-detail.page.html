@@ -5,17 +5,17 @@
       Back
     </button>
     @if (kase()) {
-      <div class="header-actions-right">
+      <div class="header-actions-right"><span class="editor-state" [class.is-dirty]="isDirty()" role="status">{{ isSaving() ? 'Saving changes...' : isDirty() ? 'Unsaved changes' : 'All changes saved' }}</span>
         @if (isDirty()) {
-          <button type="button" class="discard-btn" (click)="discardChanges()" [disabled]="isSaving()">
+          <button type="button" class="discard-btn" (click)="discardChanges()" [disabled]="isSaving() || isUpdatingStatus()">
             Discard
           </button>
-          <button type="button" class="save-btn" (click)="saveChanges()" [disabled]="isSaving()">
+          <button type="button" class="save-btn" (click)="saveChanges()" [disabled]="isSaving() || isUpdatingStatus()">
             <span class="material-symbols-outlined">{{ isSaving() ? 'hourglass_empty' : 'save' }}</span>
             {{ isSaving() ? 'Saving…' : 'Save Changes' }}
           </button>
         }
-        <button type="button" class="delete-btn" (click)="deleteCase()">
+        <button type="button" class="delete-btn" (click)="deleteCase()" [disabled]="isSaving() || isUpdatingStatus()">
           <span class="material-symbols-outlined">delete</span>
           Delete
         </button>
@@ -44,7 +44,7 @@
             {{ getTypeLabel(kase.type) }}
           </span>
           <select
-            class="priority-pill-select"
+            class="priority-pill-select" aria-label="Case priority"
             [(ngModel)]="draft.priorityId"
             (ngModelChange)="markDirty()"
             [style.background]="selectedPriorityColor() + '22'"
@@ -66,7 +66,7 @@
             </select>
           }
         </div>
-        <input type="text" class="task-title-input" [(ngModel)]="draft.title" (ngModelChange)="markDirty()" placeholder="Case title" />
+        <input type="text" class="task-title-input" aria-label="Case title" [(ngModel)]="draft.title" (ngModelChange)="markDirty()" placeholder="Case title" />
         <p class="breadcrumb-trail">
           <a class="breadcrumb-link" [routerLink]="['/projects', kase.project.id]">{{ kase.project.name }}</a>
           <span class="breadcrumb-chevron">›</span>
@@ -87,7 +87,7 @@
           @for (status of statuses; track status.id) {
             <button
               type="button"
-              class="stepper-step"
+              class="stepper-step" [disabled]="isSaving() || isUpdatingStatus()"
               [class.active]="status.id === kase.status"
               [class.past]="isPastStatus(status)"
               (click)="onStatusClick(status.id)"
@@ -109,7 +109,7 @@
               Description
             </h3>
             <textarea
-              class="description-input"
+              class="description-input" aria-label="Case description"
               [(ngModel)]="draft.description"
               (ngModelChange)="markDirty()"
               placeholder="No description provided. Click here to add one…"

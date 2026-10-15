@@ -230,7 +230,7 @@
 
 .btn-create {
   padding: 10px 20px;
-  background: var(--brand-primary);
+  background: var(--brand-action);
   border: none;
   border-radius: 6px;
   color: white;
@@ -248,7 +248,7 @@
   }
 
   &:hover {
-    background: var(--brand-primary-hover);
+    background: var(--brand-action-hover);
     transform: translateY(-1px);
     box-shadow: 0 4px 12px var(--app-accent-shadow);
   }

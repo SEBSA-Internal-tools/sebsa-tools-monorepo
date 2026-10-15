@@ -7,7 +7,7 @@
 >
   <button
     type="button"
-    class="custom-select-trigger"
+    class="custom-select-trigger" aria-haspopup="listbox"
     [class.has-value]="
       currentValue() !== '' &&
       currentValue() !== null &&
@@ -30,7 +30,7 @@
   @if (isOpen()) {
     <div
       class="custom-select-dropdown"
-      role="listbox"
+      role="listbox" [attr.aria-label]="ariaLabel || placeholder"
     >
       @if (defaultOptionLabel) {
         <button

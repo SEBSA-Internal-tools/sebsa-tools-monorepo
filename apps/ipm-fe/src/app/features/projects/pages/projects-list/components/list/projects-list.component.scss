@@ -65,7 +65,7 @@
 
   h2 {
     margin: 0;
-    font-family: 'Sora', sans-serif;
+    font-family: var(--font-body);
     color: var(--text-primary);
     font-size: 1.3rem;
     font-weight: 600;
@@ -84,16 +84,12 @@
 
 .eyebrow {
   display: block;
-  font-family: 'Sora', sans-serif;
+  font-family: var(--font-body);
   font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  background: linear-gradient(135deg, #a855f7 0%, #7000ff 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  text-shadow: 0 4px 15px rgba(112, 0, 255, 0.25);
+  color: var(--brand-primary);
   margin-bottom: 6px;
 }
 
@@ -224,7 +220,7 @@
     padding: 10px 0;
     background: transparent;
     border: none;
-    font-family: 'Sora', sans-serif;
+    font-family: var(--font-body);
     color: var(--text-primary);
     font-size: 0.875rem;
     outline: none;
@@ -279,7 +275,7 @@
       border: var(--border-glass);
       border-radius: 8px;
       color: var(--text-primary);
-      font-family: 'Sora', sans-serif;
+      font-family: var(--font-body);
       font-weight: 500;
       font-size: 0.85rem;
       transition: all 0.2s ease;
@@ -312,12 +308,12 @@
       z-index: 1200;
       background: var(--surface-card, #ffffff);
       border: var(--border-glass);
-      border-radius: 10px;
+      border-radius: var(--radius-control);
       box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
     }
 
     .dropdown-option-item {
-      font-family: 'Sora', sans-serif;
+      font-family: var(--font-body);
       font-size: 0.84rem;
       color: var(--text-primary);
 
@@ -344,8 +340,8 @@
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   border-radius: 16px;
-  border: 1px solid #F1F5F9;
-  background: #FFFFFF;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-card);
 }
 
 .projects-list {
@@ -359,12 +355,12 @@
   grid-template-columns: 2fr 1.2fr 0.8fr 1fr 1.2fr 0.7fr;
   gap: 16px;
   padding: 16px 20px;
-  background: #FFFFFF;
-  border-bottom: 2px solid #E2E8F0;
+  background: var(--surface-card);
+  border-bottom: 2px solid var(--border-default);
   font-family: 'Inter', sans-serif;
   font-weight: 700;
   font-size: 0.75rem;
-  color: #475569;
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   position: sticky;
@@ -384,9 +380,9 @@
   gap: 16px;
   padding: 16px 20px;
   align-items: center;
-  border-bottom: 1px solid #F1F5F9;
-  background: #FFFFFF;
-  color: #334155;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface-card);
+  color: var(--text-primary);
   font-family: 'Inter', sans-serif;
   font-size: 0.875rem;
   font-weight: 400;
@@ -401,7 +397,7 @@
   }
 
   &:hover {
-    background: #F8FAFC;
+    background: var(--surface-muted);
   }
 
   &:focus {
@@ -421,7 +417,7 @@
     display: flex;
     align-items: center;
     min-width: 0;
-    font-family: 'Sora', sans-serif;
+    font-family: var(--font-body);
     font-size: 0.875rem;
     color: var(--text-primary);
 
@@ -581,7 +577,7 @@
 
   h3 {
     margin: 0;
-    font-family: 'Sora', sans-serif;
+    font-family: var(--font-body);
     color: var(--text-primary);
     font-size: 1.1rem;
     font-weight: 600;
@@ -593,3 +589,12 @@
     font-size: 0.9rem;
   }
 }
+
+.results-summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 32px; color: var(--text-secondary); font-size: 12px; }
+.reset-filters { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid var(--border-default); border-radius: 6px; background: var(--surface-card); color: var(--text-heading); font: inherit; cursor: pointer; }
+.reset-filters:hover { background: var(--surface-muted); }
+.reset-filters .material-symbols-outlined { font-size: 16px; }
+
+.list-item { cursor: default; }
+a.project-name { color: var(--text-heading); text-decoration: none; }
+a.project-name:hover { color: var(--brand-primary); text-decoration: underline; }

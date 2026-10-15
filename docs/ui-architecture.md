@@ -1,176 +1,126 @@
-# SEBSA PM Tool — Frontend Architecture & Design System Guidelines
+# SEBSA workspace UI architecture
 
-> **Brand Identity:** Luminous Depth  
-> **Aesthetic Archetype:** Modern Glassmorphic Dual-Theme (Light & Dark)  
-> **Target Framework:** Angular 19+ (SCSS Component Architecture)  
-> **Document Version:** 2.0.0  
+Version 3 ? Updated 15 October 2026
 
----
+## Design direction
 
-## Executive Summary
+SEBSA is a working environment for projects, cases, and tasks. The interface should put ownership, progress, and next actions ahead of decoration. Use quiet surfaces, readable labels, compact controls, and a restrained violet accent. This guide supersedes the previous Luminous Depth glassmorphism direction.
 
-This document serves as the canonical Design System and Frontend UI Architecture guideline for the **SEBSA PM Tool** Angular application. Designed under our unified brand identity **"Luminous Depth"**, the system enforces a strict dual-theme strategy (**Light Mode** and **Dark Mode**) driven by the `[data-theme="dark"]` attribute on the `<html>` document root element.
+## Research and application
 
-Custom user accent pickers and arbitrary color themes are strictly disabled to preserve brand consistency and visual integrity.
+The following official product references were reviewed on 15 October 2026. The applications below are design interpretations, not claims that SEBSA implements feature parity.
 
----
+| Reference | Documented pattern | SEBSA application |
+| --- | --- | --- |
+| [Asana navigation](https://help.asana.com/s/article/navigating-asana) | Sidebar navigation and a header containing actions and views for the current work | Stable sidebar, visible workspace context, shorter My work label |
+| [Linear display options](https://linear.app/docs/display-options) | View-specific display settings and configurable issue properties | Reduce visual competition around task content and keep properties in a separate column |
+| [Linear custom views](https://linear.app/docs/custom-views) | Filtered issue and project views | Preserve existing filters and task/case views; prioritize their visibility over large banners |
+| [Jira features](https://www.atlassian.com/software/jira/features) | Boards and timelines support different planning contexts | Preserve the existing project views and status workflows within a consistent shell |
 
-## 1. Dual-Theme Strategy & Architectural Rules
+These references support the information architecture. Typography, spacing, borders, and color choices below are SEBSA-specific design decisions.
 
-### 1.1 Theme Mechanics
-- **Default Theme**: Light Mode (`:root` selector without attributes or `[data-theme="light"]`).
-- **Dark Mode**: Activated by applying `[data-theme="dark"]` to `document.documentElement` (`<html data-theme="dark">`).
-- **Persistence**: User theme selection is stored in `localStorage` (`ipm-fe.theme`) and remembered across browser sessions.
+## Source of truth
 
-### 1.2 Theme Comparison Matrix
+Global tokens live in apps/ipm-fe/src/styles.scss. Component SCSS owns layout. Prefer semantic tokens over literal colors. Existing legacy token aliases remain supported so older screens inherit the theme.
 
-| Token Category | Light Mode Default (`:root`) | Dark Mode Override (`[data-theme="dark"]`) |
-| :--- | :--- | :--- |
-| **Background Canvas** | `#f8f9fa` (Soft off-white canvas, never pure `#fff`) | `#12121d` (Deep Purple dark void) |
-| **Surface Panels** | `#ffffff` (Elevated with soft drop shadows) | `#383845` / `rgba(56, 56, 69, 0.4)` (Frosted glass) |
-| **Glass / Panel Borders** | `1px solid rgba(0, 0, 0, 0.08)` | `1px solid rgba(255, 255, 255, 0.08)` |
-| **Brand Primary** | `#7000ff` (Electric Violet) | `#7000ff` (Electric Violet) |
-| **Accent Gradient** | Magenta (`#ff00ff`) to Violet (`#7000ff`) (used sparingly) | Magenta (`#ff00ff`) to Violet (`#7000ff`) (ambient glow) |
-| **Primary Text** | `#1e1e2d` (Dark slate/gray for high legibility) | `#f4f4f7` (Crisp off-white) |
-| **Secondary Text** | `rgba(30, 30, 45, 0.68)` | `rgba(244, 244, 247, 0.68)` |
-| **Shadows & Glows** | Soft elevation shadow `0 4px 20px rgba(0,0,0,0.06)` | Ambient purple glow `0 4px 15px rgba(112, 0, 255, 0.4)` |
+| Role | Token / guidance |
+| --- | --- |
+| Canvas | --surface-page: light neutral canvas; dark navy in dark mode |
+| Content surface | --surface-card |
+| Secondary surface | --surface-muted |
+| Brand/action | --brand-primary: #635bdb in light mode; lighter violet in dark mode |
+| Heading/body | --text-heading / --text-primary |
+| Supporting copy | --text-secondary; --text-muted for lower emphasis |
+| Dividers | --border-default / --border-subtle |
+| Typography | Inter with system sans-serif fallback; monospace for identifiers |
+| Elevation | Subtle card shadow; reserve stronger elevation for floating elements |
 
----
+Do not apply gradients to navigation text. Use color and background together for active navigation, and retain aria-current. Status must remain understandable from its label, not color alone.
 
-## 2. Core Color Palette & CSS Variables Mapping
+## Shell and navigation
 
-All components must consume these CSS Custom Properties defined in `apps/ipm-fe/src/styles.scss`.
+The desktop sidebar is 236px with the existing 78px collapsed mode. It uses themed surfaces and a divider, a workspace caption, and a prominent New Case action. Role-based visibility and administrative grouping remain intact. The header provides a workspace home link, theme control, notifications, and account actions. Mobile navigation retains its drawer and backdrop.
 
-```css
-/* ==========================================================================
-   Light Mode (Default :root)
-   ========================================================================== */
-:root {
-  --color-bg-main: #f8f9fa;
-  --color-brand-primary: #7000ff;
-  --color-accent-magenta: #ff00ff;
-  --color-accent-violet: #7000ff;
+## Page hierarchy
 
-  /* Brand Gradient (Used sparingly in Light Mode) */
-  --color-accent-gradient: linear-gradient(135deg, #ff00ff 0%, #7000ff 100%);
-  --color-accent-gradient-hover: linear-gradient(135deg, #ff33ff 0%, #851aff 100%);
-  --color-accent-gradient-active: linear-gradient(135deg, #e600e6 0%, #6300e6 100%);
+Use one clear page title, a short supporting sentence when useful, then working controls and content. Shared cards use 12px corners with restrained elevation. Avoid repeatedly nesting tinted panels inside cards. Tables and project lists should favor scanning, aligned metadata, and predictable actions. Do not animate decorative indicators continuously.
 
-  /* Surface & Panel Tokens */
-  --color-surface-bright: #ffffff;
-  --color-surface-dim: rgba(255, 255, 255, 0.85);
-  --color-surface-glass: rgba(255, 255, 255, 0.75);
-  --color-surface-glass-hover: rgba(255, 255, 255, 0.95);
-  --color-surface-glass-active: #ffffff;
+## Task details
 
-  /* Borders & Shadows */
-  --border-glass: 1px solid rgba(0, 0, 0, 0.08);
-  --border-glass-hover: 1px solid rgba(112, 0, 255, 0.25);
-  --border-glass-active: 1px solid rgba(112, 0, 255, 0.5);
+The task editor separates primary content from a 300px property column on wide screens. Description and subtask sections use dividers rather than nested tinted cards. Below 1024px the properties stack without a vertical divider. The header reports saving and unsaved states alongside the existing explicit Save and Discard controls. Editing remains explicit: changing a field does not imply autosave. Task title, description, priority, type, and complexity controls have accessible names. Status buttons expose their selected state through aria-pressed.
 
-  --backdrop-blur: blur(16px);
-  --backdrop-blur-heavy: blur(24px);
+## Interaction and accessibility
 
-  --shadow-subtle: 0 4px 20px rgba(0, 0, 0, 0.06);
-  --shadow-glow-purple: 0 4px 15px rgba(112, 0, 255, 0.25);
-  --shadow-glow-focus: 0 0 0 3px rgba(112, 0, 255, 0.2);
+- Preserve a visible focus indicator on links, buttons, and fields.
+- Honor prefers-reduced-motion across transitions and animations.
+- Keep destructive actions labeled and visually distinct.
+- Preserve existing loading, empty, permission, and error behavior.
+- Keep mobile inputs readable and controls reachable; avoid horizontal page overflow.
+- Verify light/dark modes and desktop/mobile layouts with populated and empty data before release.
 
-  /* Typography */
-  --text-primary: #1e1e2d;
-  --text-secondary: rgba(30, 30, 45, 0.68);
-  --text-muted: rgba(30, 30, 45, 0.45);
-  --text-brand: #7000ff;
+## Implementation scope
 
-  /* Status Colors */
-  --status-success: #00b87c;
-  --status-warning: #e69d00;
-  --status-error: #e62e5c;
-  --status-info: #0099e6;
-}
+This revision updates the shared foundation and shell, task editor, and selected dashboard, project-list, and assigned-work surfaces. It does not add new boards, search engines, reporting capabilities, or keyboard shortcuts. Remaining feature-specific styling should migrate incrementally to these same tokens. A production build validates compilation; authenticated visual and usability review is still required before claiming the whole product has been validated.
 
-/* ==========================================================================
-   Dark Mode Overrides ([data-theme="dark"])
-   ========================================================================== */
-[data-theme="dark"] {
-  --color-bg-main: #12121d;
-  --color-brand-primary: #7000ff;
-  --color-accent-magenta: #ff00ff;
-  --color-accent-violet: #7000ff;
+## Red and green review: orientation, focus, trust
 
-  --color-accent-gradient: linear-gradient(135deg, #ff00ff 0%, #7000ff 100%);
-  --color-accent-gradient-hover: linear-gradient(135deg, #ff33ff 0%, #851aff 100%);
-  --color-accent-gradient-active: linear-gradient(135deg, #e600e6 0%, #6300e6 100%);
+The second design pass treats the interface as a work environment rather than a set of independently styled screens. The red review challenged navigation context, repeated metrics, nested interactive controls, and misleading success feedback. The green implementation makes the following changes:
 
-  --color-surface-bright: #383845;
-  --color-surface-dim: rgba(18, 18, 29, 0.6);
-  --color-surface-glass: rgba(56, 56, 69, 0.4);
-  --color-surface-glass-hover: rgba(56, 56, 69, 0.55);
-  --color-surface-glass-active: rgba(56, 56, 69, 0.7);
+- Orientation: current-section context appears in the shell; parent navigation remains active on detail routes.
+- Focus: priority work precedes portfolio summaries; the dashboard introduction no longer duplicates summary metrics.
+- Native navigation: task and project titles are real links with separate completion and deletion actions.
+- Trust: task completion is pending until server confirmation, and failures remain actionable with an inline explanation. An unavailable priority queue is distinct from an empty queue.
+- Editing: status changes explicitly save immediately, use their own pending state, and keep the draft editor visible. Other fields retain explicit Save and Discard.
 
-  --border-glass: 1px solid rgba(255, 255, 255, 0.08);
-  --border-glass-hover: 1px solid rgba(255, 255, 255, 0.18);
-  --border-glass-active: 1px solid rgba(112, 0, 255, 0.4);
+The subsequent cross-screen pass adds dirty-navigation protection, dependency disclosure, accessible project-view selection, and generic account fallbacks. Authenticated visual evaluation across representative viewport sizes remains required before claiming complete usability validation.
 
-  --shadow-subtle: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-  --shadow-glow-purple: 0 4px 15px rgba(112, 0, 255, 0.4);
-  --shadow-glow-focus: 0 0 0 3px rgba(112, 0, 255, 0.35);
+## Cross-screen implementation coverage
 
-  --text-primary: #f4f4f7;
-  --text-secondary: rgba(244, 244, 247, 0.68);
-  --text-muted: rgba(244, 244, 247, 0.42);
-  --text-brand: #a855ff;
+Shared page gutters, panel/control/dialog corners, neutral colors, and missing legacy token aliases now form the common foundation. Global forced card/list/table painting has been removed; low-specificity .sebsa-table defaults allow configuration, calendars, and individual data tables to retain appropriate layouts. Components own horizontal scrolling.
 
-  --status-success: #00e699;
-  --status-warning: #ffb300;
-  --status-error: #ff3366;
-  --status-info: #00bfff;
-}
-```
+| Screen family | Applied treatment |
+| --- | --- |
+| Login and registration | Compact branding, natural page scrolling, theme-aware surfaces and inputs; registration labels/autocomplete corrected |
+| Dashboard | Priority-first hierarchy, condensed introduction, native work links, confirmed completion and explicit queue-unavailable state |
+| Projects and project views | Theme surfaces, compact corners, title links, result feedback, accessible view selection |
+| Customers and customer details | Shared typography, page gutters, neutral surfaces, restrained headers and borders |
+| Assigned work, task and case details | Consistent gutters, clear editing feedback, protected unsaved changes; progressive dependency form on tasks |
+| CSO board, queue, overview and KPI dashboard | Shared typography and spacing, themed neutral surfaces, paired semantic status chips |
+| Calendar, notifications, activity and settings | Shared page gutters, typography, corners and neutral surface treatment |
+| Users, departments, privilege groups, audit logs and configuration | Shared canvas/gutters, component-owned data tables, keyboard-scrollable administration tables |
+| Shared controls and creation dialogs | Common corner/surface vocabulary; dropdown arrow/Home/End navigation and predictable focus return |
 
----
+Validation includes production compilation and focused tests for completion success/failure/retry, dirty-navigation protection, and dropdown keyboard/focus behavior. Browser discovery returned no connected browser surface, so authenticated visual validation at desktop/mobile sizes remains unverified. No production data or permission configuration was changed.
 
-## 3. Typography Architecture
+## Purple identity and login redesign
 
-- **Font Family**: `"Sora", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`
-- **Weight 300 (Light)**: Headings & Page Titles (`letter-spacing: -0.03em`)
-- **Weight 400 (Regular)**: Body & Data fields (`letter-spacing: -0.01em`)
-- **Weight 600 (Semi-Bold)**: Actions, Buttons, Nav items (`letter-spacing: -0.015em`)
+IFS describes its identity as a vibrant purple-led palette ([official announcement](https://www.ifs.com/en/insights/news/ifs-refreshes-its-brand-ahead-of-milestone-launch)). SEBSA adopts an inspired purple family: primary #8427e2, hover #7020c4, deep plum #360065, and supporting lilac #cd92ff. These are SEBSA implementation choices, not a claim of current IFS brand certification or affiliation. Muted violet neutrals carry through light and dark surfaces. White on the primary purple exceeds WCAG AA normal-text contrast; lilac is reserved for dark decorative surfaces.
 
----
+The new login uses a deep-plum editorial panel with a static, decorative projects/cases/tasks motif and a focused form panel. Mobile hides the motif and reduces branding. Auth inputs retain explicit labels and autocomplete; password visibility remains keyboard accessible; loading is announced. Account requests remain linked to registration. The nonfunctional Microsoft action and mouse spotlight have been removed.
 
-## 4. Architectural Component Guidelines
+Solid primary actions use --brand-action and --brand-action-hover; those fills stay deep purple in both themes for white-label contrast. The separate --brand-primary token can become lighter in dark mode for readable links and accents.
 
-### 4.1 Cards & Panels (`.glass-card`)
-In Light Mode, cards render with clean white surface backgrounds and soft drop shadows. In Dark Mode, cards utilize frosted glass (`backdrop-filter: blur(16px)`) with semi-transparent fills.
+## Dashboard redesign and metric definitions
 
-### 4.2 Tactile Buttons (`.btn-primary`)
-Primary CTA buttons use the brand gradient (`#ff00ff` to `#7000ff`) with glowing shadows on hover. In Light Mode, gradient usage is balanced to maintain legibility and avoid glare.
+Dashboards share quiet neutral panels, compact headings, tabular figures, restrained purple actions and exception-only warning colors. The shared DashboardInsightsComponent presents a label, value, denominator/context, and a native drill-down link when an actual item is available. Secondary CSO charts use a native disclosure; exact creation-cohort counts are available as a table.
 
----
+| Dashboard | Primary insight and scope |
+| --- | --- |
+| Main portfolio | Weighted completed-task share from returned task counts; flagged live projects; live projects without tasks. The separate priority queue shows at most five tasks and is explicitly labeled as limited. |
+| CSO My work / Management | Open, overdue, unassigned, upcoming seven-day cases. Personal scope uses assignee IDs, including multi-assignee cases; management retains its role gate. |
+| CSO project board | The same case snapshot plus accessible CSO projects and native project links. Independent project/case loading and errors prevent failed loads looking empty. |
+| Project overview | Case snapshot, actual completed count, separate cancellations, blockers and valid-date coverage. Status/priority/age evidence is hidden until case loading succeeds. Sprint loading is independent. |
+| Customer detail | Active projects, nonterminal projects past their target date, and cases across loaded customer projects. Failed project requests do not show zero-valued insights. |
 
-## 5. Implementation & Theme Toggle Logic
+### Calculation rules
 
-The theme toggle switch modifies the `data-theme` attribute on `document.documentElement` and persists the selection in `localStorage`:
+- Open means status is neither DONE nor CANCELLED. Completed means DONE only. Cancellation is never credited as completed work.
+- Overdue means an open item with a valid due date earlier than the snapshot time. Missing dates are excluded from that denominator. Upcoming means now through seven days ahead.
+- Date coverage is valid dated open cases divided by all open cases. No open cases yields N/A, not 100%.
+- Age uses valid creation timestamps at or before the snapshot. Missing/invalid/future creation dates do not receive invented ages.
+- Creation cohorts show the current open population grouped by creation date; they are not historical backlog or resolution rates. Weekly buckets are clipped to the selected 7/30/90-day window. Customer monthly cohorts also use creation dates.
+- Joined assignee names describe assignment groups, not individual capacity, effort, or who completed the case.
+- SLA, resolution-duration, CSAT, and budget claims have been removed from these analytical views where supporting fields are unavailable. Existing project health flags remain explicitly rule-based. Overdue and blocked flag counts can overlap.
+- CSO requests carry a version guard so stale filtered requests cannot overwrite a newer dashboard snapshot. Unavailable data and incomplete customer labels have explicit feedback.
 
-```typescript
-// Theme toggle logic pattern
-export class AppShellComponent {
-  currentTheme: 'light' | 'dark' = 'dark';
-
-  ngOnInit(): void {
-    const saved = localStorage.getItem('ipm-fe.theme') as 'light' | 'dark' | null;
-    this.currentTheme = saved ?? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-    this.applyTheme();
-  }
-
-  toggleTheme(): void {
-    this.currentTheme = this.currentTheme === 'dark' ? 'light' : 'dark';
-    this.applyTheme();
-  }
-
-  private applyTheme(): void {
-    document.documentElement.setAttribute('data-theme', this.currentTheme);
-    localStorage.setItem('ipm-fe.theme', this.currentTheme);
-  }
-}
-```
+Validation adds metric-boundary, missing-data, cancellation, request-race, personal-scope, date-window, creation-cohort, and project/sprint loading tests. Authenticated populated desktop/mobile visual verification remains outstanding because the session has no connected browser.

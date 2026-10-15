@@ -61,12 +61,14 @@
       </div>
     </div>
 
+    @if (!isLoadingProjects() && !projectsError()) { <app-dashboard-insights title="Customer delivery" scope="Loaded projects for this customer" [items]="insights()"></app-dashboard-insights> }
+
     <div class="sebsa-card projects-section">
       <div class="section-header">
         <h2>Projects</h2>
       </div>
 
-      @if (isLoadingProjects()) {
+      @if (projectsError()) { <div class="error-banner" role="alert"><p>{{ projectsError() }}</p><button type="button" class="btn-primary" (click)="retryProjects()">Retry</button></div> } @else if (isLoadingProjects()) {
         <div class="loading-state small">
           <span class="material-symbols-outlined spin">progress_activity</span>
           <p>Loading projects…</p>
@@ -84,7 +86,7 @@
               <div class="col-project">Project</div>
               <div class="col-status">Status</div>
               <div class="col-members">Members</div>
-              <div class="col-tasks">Tasks</div>
+              <div class="col-tasks">Cases</div>
               <div class="col-updated">Last Updated</div>
             </div>
             @for (project of projects(); track project.id) {

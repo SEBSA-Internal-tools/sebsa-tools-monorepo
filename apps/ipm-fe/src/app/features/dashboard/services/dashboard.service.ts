@@ -121,7 +121,7 @@ export class DashboardService {
           shareReplay(1)
         ),
         urgentTasks$: liveSummary$.pipe(
-          map((res) => (res?.urgentTasks ? (res.urgentTasks as DashboardUrgentTask[]) : [])),
+          map((res) => res ? (res.urgentTasks ?? []) as DashboardUrgentTask[] : null),
           catchError(handleError),
           shareReplay(1)
         ),

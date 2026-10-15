@@ -1,6 +1,6 @@
 <div class="cso-dashboard-tab">
   <div class="tab-toolbar">
-    <p class="tab-subtitle">Live counts across every CSO project and CSO-tagged task you can see.</p>
+    <p class="tab-subtitle">Project delivery and case ownership across accessible CSO work.</p>
     <button type="button" class="btn-primary" (click)="openCreateModal()">
       <span class="material-symbols-outlined">add</span>
       New CSO Project
@@ -11,27 +11,18 @@
     <div class="error-banner">{{ errorMessage }}</div>
   }
 
-  <div class="stats-grid">
-    <div class="stat-card">
-      <span class="stat-label">CSO Projects</span>
-      <span class="stat-value">{{ csoProjects().length }}</span>
-    </div>
-    <div class="stat-card">
-      <span class="stat-label">CSO Tasks</span>
-      <span class="stat-value">{{ csoTasks().length }}</span>
-    </div>
-    <div class="stat-card critical">
-      <span class="stat-label">Overdue</span>
-      <span class="stat-value">{{ overdueCount() }}</span>
-    </div>
-  </div>
-
+  @if (isLoadingTasks()) { <p class="dashboard-context" role="status">Loading case insights...</p> }
+  @else if (caseError()) { <div class="error-banner" role="alert"><p>{{ caseError() }}</p><button type="button" class="btn-primary" (click)="reload()">Retry</button></div> }
+  @else { <app-dashboard-insights title="CSO delivery pulse" scope="All accessible CSO cases" [items]="insights()"></app-dashboard-insights> }
+  @if (!loadingProjects() && !projectError()) { <p class="dashboard-context">{{ csoProjects().length }} accessible CSO projects</p> }
   <div class="projects-card">
     <div class="card-header">
       <h3>CSO Projects</h3>
     </div>
 
-    @if (csoProjects().length === 0) {
+    @if (loadingProjects()) { <p class="dashboard-context" role="status">Loading projects...</p> }
+    @else if (projectError()) { <div class="error-banner" role="alert"><p>{{ projectError() }}</p><button type="button" class="btn-primary" (click)="reload()">Retry</button></div> }
+    @else if (csoProjects().length === 0) {
       <div class="empty-state">
         <span class="material-symbols-outlined">business</span>
         <p>No CSO projects yet.</p>
@@ -43,13 +34,13 @@
             <th>Project</th>
             <th>Customer</th>
             <th>Status</th>
-            <th>Tasks</th>
+            <th>Cases</th>
           </tr>
         </thead>
         <tbody>
           @for (project of csoProjects(); track project.id) {
-            <tr (click)="onProjectClick(project.id)" class="clickable-row">
-              <td>{{ project.name }}</td>
+            <tr>
+              <td><a [routerLink]="['/projects', project.id]">{{ project.name }}</a></td>
               <td>{{ project.customer.name }}</td>
               <td>
                 <span class="badge">{{ project.status | titlecase }}</span>

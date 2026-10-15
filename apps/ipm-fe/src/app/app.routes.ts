@@ -3,6 +3,7 @@ import { AppShellComponent } from './core/layouts/app-shell/app-shell.component'
 import { authGuard } from './core/guards/auth.guard';
 import { adminGuard } from './core/guards/admin.guard';
 import { superAdminGuard } from './core/guards/super-admin.guard';
+import { unsavedChangesGuard } from './core/guards/unsaved-changes.guard';
 import { staffGuard } from './core/guards/staff.guard';
 
 export const appRoutes: Route[] = [
@@ -38,11 +39,13 @@ export const appRoutes: Route[] = [
 			},
 			{
 				path: 'tasks/:id',
+        canDeactivate: [unsavedChangesGuard],
 				loadComponent: () =>
 					import('./features/tasks/task-detail/task-detail.page').then((m) => m.TaskDetailPageComponent),
 			},
 			{
 				path: 'cases/:id',
+        canDeactivate: [unsavedChangesGuard],
 				loadComponent: () =>
 					import('./features/cases/case-detail/case-detail.page').then((m) => m.CaseDetailPageComponent),
 			},

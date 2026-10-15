@@ -11,7 +11,7 @@
 }
 
 .app-shell {
-  --sidebar-width: 260px;
+  --sidebar-width: 236px;
 
   min-height: 100vh;
   height: 100vh;
@@ -43,9 +43,9 @@
   top: 0;
   display: flex;
   flex-direction: column;
-  padding: 20px 18px 24px;
-  background-color: #0F172A;
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 16px 12px 20px;
+  background-color: var(--surface-card);
+  border-right: 1px solid var(--border-default);
   overflow-y: auto;
   overflow-x: hidden;
   box-sizing: border-box;
@@ -59,10 +59,7 @@
   .nav-heading,
   .nav-item.active .nav-label,
   .nav-item.active .material-symbols-outlined {
-    background: linear-gradient(90deg, #FFFFFF 0%, #C4B5FD 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    background: none; color: inherit; -webkit-text-fill-color: currentColor;
   }
 }
 
@@ -71,13 +68,13 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 32px;
+  margin-bottom: 20px;
 }
 
 .sidebar-logo-mask {
   width: 160px;
   height: 48px;
-  background: linear-gradient(90deg, #FFFFFF 0%, #C4B5FD 100%);
+  background: var(--text-heading);
   -webkit-mask-image: url('/sebsa-logo.svg');
   -webkit-mask-size: contain;
   -webkit-mask-repeat: no-repeat;
@@ -91,7 +88,7 @@
 .new-task-button {
   width: 100%;
   margin-bottom: 20px;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   background-color: #5B21B6;
   color: #FFFFFF;
   border: 1px solid #5B21B6;
@@ -132,7 +129,7 @@
 .sidebar-footer {
   margin-top: auto;
   padding-top: 16px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid var(--border-default);
 }
 
 .nav-item {
@@ -143,9 +140,9 @@
   gap: 12px;
   padding: 10px 14px;
   border: none;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   background: transparent;
-  color: #CBD5E1;
+  color: var(--text-secondary);
   text-align: left;
   font-family: var(--font-body);
   font-size: 0.875rem;
@@ -156,46 +153,37 @@
 
   .nav-icon,
   .material-symbols-outlined {
-    color: #CBD5E1;
+    color: var(--text-secondary);
   }
 
   .nav-label {
-    background: linear-gradient(90deg, #FFFFFF 0%, #C4B5FD 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    background: none; color: inherit; -webkit-text-fill-color: currentColor;
     font-weight: 500;
   }
 
   &:hover:not(.active) {
-    background-color: rgba(255, 255, 255, 0.08);
+    background-color: var(--border-default);
 
     .nav-icon,
     .material-symbols-outlined {
-      color: #C4B5FD;
+      color: var(--brand-primary);
     }
 
     .nav-label {
-      background: linear-gradient(90deg, #FFFFFF 0%, #C4B5FD 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
+      background: none; color: inherit; -webkit-text-fill-color: currentColor;
     }
   }
 
   &.active {
-    background-color: rgba(255, 255, 255, 0.12);
+    background-color: var(--brand-primary-100); color: var(--brand-primary);
 
     .nav-icon,
     .material-symbols-outlined {
-      color: #C4B5FD;
+      color: var(--brand-primary);
     }
 
     .nav-label {
-      background: linear-gradient(90deg, #FFFFFF 0%, #C4B5FD 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
+      background: none; color: inherit; -webkit-text-fill-color: currentColor;
       font-weight: 600;
     }
 
@@ -222,8 +210,8 @@
   flex-shrink: 0;
   border-radius: 8px;
   border: none;
-  background: rgba(255, 255, 255, 0.08);
-  color: #cbd5e1;
+  background: var(--border-default);
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
 
@@ -631,7 +619,7 @@
 .notification-view-all-btn {
   width: 100%;
   padding: 8px 12px;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   border: 1px solid var(--border-default);
   background: var(--surface-card);
   color: var(--brand-primary);
@@ -642,7 +630,7 @@
   transition: all 0.15s ease;
 
   &:hover {
-    background: var(--brand-primary);
+    background: var(--brand-action);
     color: #ffffff;
     border-color: var(--brand-primary);
   }
@@ -800,7 +788,7 @@
   justify-content: center;
   width: 40px;
   height: 40px;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   border: 1px solid var(--border-default);
   background: var(--surface-muted);
   color: var(--text-heading);
@@ -827,8 +815,8 @@
   height: 36px;
   border-radius: 8px;
   border: none;
-  background: rgba(255, 255, 255, 0.08);
-  color: #cbd5e1;
+  background: var(--border-default);
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
   margin-left: auto;
@@ -956,7 +944,7 @@
   }
 
   .mobile-menu-btn {
-    border-radius: 10px;
+    border-radius: var(--radius-control);
     .material-symbols-outlined {
       font-size: 20px;
     }
@@ -1031,3 +1019,20 @@
     font-size: 0.9rem;
   }
 }
+
+.workspace-caption { margin: 0 12px 10px; color: var(--text-secondary); font-size: 10px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; }
+.sidebar.collapsed .workspace-caption { display: none; }
+.workspace-context { display: flex; align-items: center; gap: 10px; color: var(--text-heading); font-size: 13px; font-weight: 600; text-decoration: none;
+ .material-symbols-outlined { font-size: 19px; color: var(--brand-primary); }
+ span:last-child { color: var(--text-secondary); font-weight: 400; }
+}
+@media (max-width: 640px) { .workspace-context span:last-child { display: none; } }
+
+.skip-link { position: fixed; top: 8px; left: 8px; z-index: 10000; padding: 10px 16px; border-radius: 8px; background: var(--surface-card); color: var(--brand-primary); border: 1px solid var(--border-default); transform: translateY(-160%); text-decoration: none; }
+.skip-link:focus { transform: translateY(0); }
+
+.navbar-left { min-width: 0; gap: 12px; }
+.workspace-context { min-width: 0; }
+.workspace-context a { color: var(--text-secondary); text-decoration: none; }
+.workspace-context span:last-child { color: var(--text-heading); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 640px) { .workspace-context a, .workspace-context span[aria-hidden] { display: none; } .workspace-context span:last-child { display: inline; } }

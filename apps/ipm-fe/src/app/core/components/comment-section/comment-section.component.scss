@@ -15,7 +15,7 @@
   box-sizing: border-box;
   padding: 10px 12px;
   border: 1px solid var(--border-default);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   background-color: var(--surface-card);
   color: var(--text-primary);
   font-family: var(--font-body);
@@ -58,7 +58,7 @@
   margin: 0;
   padding: 4px;
   border: 1px solid var(--border-default);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   background-color: var(--surface-card);
   box-shadow: var(--shadow-elevated);
 }
@@ -352,7 +352,7 @@
 .selected-files {
   padding: 10px 12px;
   border: 1px solid var(--border-default);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   background-color: var(--surface-soft);
 
   .files-label {

@@ -4,7 +4,7 @@
 
   .btn-add-sprint {
     padding: 10px 16px;
-    background: var(--brand-primary);
+    background: var(--brand-action);
     border: none;
     border-radius: 6px;
     color: white;
@@ -18,7 +18,7 @@
     transition: all 0.2s ease;
 
     .material-symbols-outlined { font-size: 18px; }
-    &:hover { background: var(--brand-primary-hover); transform: translateY(-1px); box-shadow: 0 4px 12px var(--app-accent-shadow); }
+    &:hover { background: var(--brand-action-hover); transform: translateY(-1px); box-shadow: 0 4px 12px var(--app-accent-shadow); }
   }
 }
 
@@ -76,7 +76,7 @@
 
     .sprint-status {
       padding: 4px 12px;
-      border-radius: 20px;
+      border-radius: var(--radius-panel);
       font-size: 0.75rem;
       font-weight: 600;
       letter-spacing: 0.05em;
@@ -184,7 +184,7 @@
   .task-category { padding: 4px 8px; background: var(--app-hover); border-radius: 4px; color: var(--app-text-muted); display: inline-block; }
   .task-status {
     padding: 4px 8px; border-radius: 4px; display: inline-block; font-weight: 600;
-    &.status-new { background: #f3f4f6; color: #6b7280; }
+    &.status-new { background: var(--status-neutral-bg); color: var(--status-neutral-fg); }
     &.status-todo { background: #fef3c7; color: #92400e; }
     &.status-in-progress { background: #bfdbfe; color: #1e3a8a; }
     &.status-done { background: #dcfce7; color: #166534; }
@@ -232,7 +232,7 @@
   .empty-icon { font-size: 64px; color: var(--app-text-subtle); }
   h3 { margin: 0; font-size: 1.25rem; font-weight: 600; color: var(--app-text); }
   p { margin: 0; font-size: 0.9375rem; color: var(--app-text-muted); max-width: 400px; }
-  .btn-create-first { padding: 10px 20px; background: var(--brand-primary); border: none; border-radius: 6px; color: white; font-weight: 500; font-size: 0.875rem; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s ease; .material-symbols-outlined { font-size: 18px; } &:hover { background: var(--brand-primary-hover); transform: translateY(-1px); box-shadow: 0 4px 12px var(--app-accent-shadow); } }
+  .btn-create-first { padding: 10px 20px; background: var(--brand-action); border: none; border-radius: 6px; color: white; font-weight: 500; font-size: 0.875rem; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s ease; .material-symbols-outlined { font-size: 18px; } &:hover { background: var(--brand-action-hover); transform: translateY(-1px); box-shadow: 0 4px 12px var(--app-accent-shadow); } }
 }
 
 @media (max-width: 768px) {

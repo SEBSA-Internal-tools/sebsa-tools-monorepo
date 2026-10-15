@@ -10,13 +10,13 @@
           [(ngModel)]="searchQuery"
           (ngModelChange)="onSearchChange()"
           placeholder="Search projects..."
-          class="search-input"
+          class="search-input" aria-label="Search projects"
         />
         <button
           type="button"
           *ngIf="searchQuery"
           (click)="searchQuery = ''; onSearchChange()"
-          class="clear-btn"
+          class="clear-btn" aria-label="Clear project search"
         >
           <span class="material-symbols-outlined">close</span>
         </button>
@@ -50,6 +50,12 @@
     </div>
   </div>
 
+  <div class="results-summary">
+    <span role="status">{{ filteredProjects().length }} of {{ projects?.length || 0 }} projects</span>
+    @if (hasActiveFilters) {
+      <button type="button" class="reset-filters" (click)="resetFilters()"><span class="material-symbols-outlined" aria-hidden="true">filter_alt_off</span>Clear filters</button>
+    }
+  </div>
   <!-- Projects List View -->
   <div class="projects-list-container">
     @if (filteredProjects().length > 0) {
@@ -69,18 +75,13 @@
           <div
             class="list-item"
             [class]="statusClass(project.status)"
-            role="button"
-            tabindex="0"
-            (click)="onProjectClick(project.id, $event)"
-            (keydown.enter)="onProjectClick(project.id, $event)"
-            (keydown.space)="onProjectClick(project.id, $event)"
           >
             <div class="col-project">
               <div class="project-cell">
                 <span class="material-symbols-outlined project-icon">{{
                   projectTypeIcon(project.type)
                 }}</span>
-                <span class="project-name">{{ project.name }}</span>
+                <a class="project-name" [routerLink]="['/projects', project.id]">{{ project.name }}</a>
                 @if (project.isCsoProject) {
                   <span class="cso-badge">CSO</span>
                 }
@@ -107,7 +108,7 @@
                 type="button"
                 class="btn-delete"
                 (click)="onDeleteProject(project.id)"
-                title="Delete project"
+                title="Delete project" [attr.aria-label]="'Delete project ' + project.name"
               >
                 <span class="material-symbols-outlined">delete</span>
               </button>
@@ -118,8 +119,15 @@
     } @else {
       <div class="empty-state">
         <span class="material-symbols-outlined empty-icon">folder_open</span>
-        <h3>No projects found</h3>
-        <p>Try adjusting your search or filters to find projects.</p>
+        @if (hasActiveFilters) {
+          <h3>No matching projects</h3>
+          <p>Try another search or clear your filters.</p>
+          <button type="button" class="reset-filters" (click)="resetFilters()">Clear filters</button>
+        } @else {
+          <h3>Your projects start here</h3>
+          <p>Create a project to organize cases, tasks, and your team.</p>
+          <button type="button" class="btn-primary" (click)="onNewProject()">Create project</button>
+        }
       </div>
     }
   </div>

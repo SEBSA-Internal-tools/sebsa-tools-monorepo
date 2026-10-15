@@ -1,4 +1,6 @@
-import { Component, ChangeDetectionStrategy, OnInit, inject, signal } from '@angular/core';
+import { Component, ChangeDetectionStrategy, OnInit, inject, signal, computed } from '@angular/core';
+import { DashboardInsightsComponent } from '../../../../core/components/dashboard-insights/dashboard-insights.component';
+import type { DashboardInsight } from '../../../../core/utils/work-insights';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { CustomersService } from '../../../../core/services/customers.service';
@@ -39,7 +41,7 @@ const STATUS_BADGE_CLASS: Record<ProjectStatus, string> = {
 @Component({
   standalone: true,
   selector: 'app-customer-detail-page',
-  imports: [CommonModule, CreateCustomerModalComponent],
+  imports: [CommonModule, CreateCustomerModalComponent, DashboardInsightsComponent],
   templateUrl: './customer-detail.page.html',
   styleUrl: './customer-detail.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -54,7 +56,19 @@ export class CustomerDetailPageComponent implements OnInit {
   readonly projects = signal<ProjectSummary[]>([]);
   readonly isLoading = signal(false);
   readonly isLoadingProjects = signal(false);
+  readonly projectsError = signal('');
   readonly errorMessage = signal('');
+
+  readonly insights = computed<DashboardInsight[]>(() => {
+    const projects = this.projects();
+    const active = projects.filter(project => project.status === 'ACTIVE');
+    const late = projects.filter(project => !['COMPLETED', 'ARCHIVED'].includes(project.status) && !!project.targetEndDate && Date.parse(project.targetEndDate) < Date.now());
+    return [
+      { label: 'Active projects', value: active.length, description: 'Projects currently marked active' },
+      { label: 'Past target date', value: late.length, description: 'Excludes completed and archived projects', tone: late.length ? 'warning' : 'neutral', ...(late[0] ? {link: ['/projects', late[0].id], linkLabel: 'Review project target'} : {}) },
+      { label: 'Cases', value: projects.reduce((sum, project) => sum + project.caseCount, 0), description: 'Cases across the loaded customer projects' },
+    ];
+  });
 
   isEditModalOpen = false;
 
@@ -85,17 +99,20 @@ export class CustomerDetailPageComponent implements OnInit {
 
   private loadProjects(customerId: string): void {
     this.isLoadingProjects.set(true);
+    this.projectsError.set('');
     this.projectsService.getProjects().subscribe({
       next: (projects) => {
         this.projects.set(projects.filter((p) => p.customer.id === customerId));
         this.isLoadingProjects.set(false);
       },
       error: () => {
-        this.projects.set([]);
+        this.projectsError.set('Customer project insights are unavailable. Reopen this view to retry.');
         this.isLoadingProjects.set(false);
       },
     });
   }
+
+  retryProjects(): void { const customer = this.customer(); if (customer) this.loadProjects(customer.id); }
 
   goBack(): void {
     this.router.navigate(['/customers']);

@@ -7,13 +7,15 @@ import {
   ChangeDetectionStrategy,
   HostListener,
 } from '@angular/core';
+import { DashboardInsightsComponent } from '../../core/components/dashboard-insights/dashboard-insights.component';
+import type { DashboardInsight } from '../../core/utils/work-insights';
 import { CommonModule } from '@angular/common';
-import { Observable, tap, catchError, of, Subject, takeUntil } from 'rxjs';
+import { Observable, map, tap, catchError, of, Subject, takeUntil } from 'rxjs';
 import { DashboardService } from './services/dashboard.service';
 import { DashboardHeroComponent } from './sections/hero/dashboard-hero.component';
 import { DashboardSummaryCardsComponent } from './sections/summary-cards/dashboard-summary-cards.component';
 import { DashboardProjectHealthMatrixComponent } from './sections/project-health-matrix/dashboard-project-health-matrix.component';
-import { DashboardUrgentTasksComponent } from './sections/urgent-tasks/dashboard-urgent-tasks.component';
+import { DashboardUrgentTasksComponent, type TaskCompletionRequest } from './sections/urgent-tasks/dashboard-urgent-tasks.component';
 import type { DashboardUrgentTask } from '@sebsa-pm-tool/shared-models';
 import type {
   HeroData,
@@ -26,7 +28,7 @@ import type {
   standalone: true,
   selector: 'app-dashboard-page',
   imports: [
-    CommonModule,
+    CommonModule, DashboardInsightsComponent,
     DashboardHeroComponent,
     DashboardSummaryCardsComponent,
     DashboardProjectHealthMatrixComponent,
@@ -44,6 +46,8 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   readonly errorMessage = signal('');
   readonly activeCardFilter = signal<string | null>(null);
 
+  readonly loadedAt = signal<Date | null>(null);
+  portfolioInsights$!: Observable<DashboardInsight[] | null>;
   hero$!: Observable<HeroData | null>;
   summaryCards$!: Observable<SummaryCard[] | null>;
   projectHealthMatrix$!: Observable<ProjectHealthMatrix[] | null>;
@@ -74,7 +78,9 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
 
     this.hero$ = data.hero$.pipe(
       tap((val) => {
-        if (val) this.isLoading.set(false);
+        this.isLoading.set(false);
+        if (val) this.loadedAt.set(new Date());
+        if (!val) this.errorMessage.set('Dashboard data is unavailable. Please retry.');
       }),
       catchError((err) => {
         console.error('Dashboard load error:', err);
@@ -91,8 +97,22 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     );
 
     this.urgentTasks$ = data.urgentTasks$.pipe(
-      catchError(() => of([]))
+      catchError(() => of(null))
     );
+
+    this.portfolioInsights$ = data.projectHealthMatrix$.pipe(map(projects => {
+      if (!projects) return null;
+      const live = projects.filter(project => !['COMPLETED', 'ARCHIVED'].includes(project.status));
+      const review = live.filter(project => project.healthStatus !== 'success');
+      const total = projects.reduce((sum, project) => sum + project.totalTasks, 0);
+      const done = projects.reduce((sum, project) => sum + project.completedTasks, 0);
+      const empty = live.filter(project => project.totalTasks === 0);
+      return [
+        { label: 'Task completion', value: total ? Math.round(done / total * 100) + '%' : 'N/A', description: done + ' completed of ' + total + ' tasks across accessible projects' },
+        { label: 'Projects to review', value: review.length, description: 'Flagged by the existing project health indicators', tone: review.length ? 'warning' : 'neutral', ...(review[0] ? {link: ['/projects', review[0].id], linkLabel: 'Review a flagged project'} : {}) },
+        { label: 'Projects without tasks', value: empty.length, description: 'Excludes completed and archived projects', ...(empty[0] ? {link: ['/projects', empty[0].id], linkLabel: 'Plan the next step'} : {}) },
+      ] as DashboardInsight[];
+    }));
 
     this.projectHealthMatrix$ = data.projectHealthMatrix$.pipe(
       tap(() => this.isLoading.set(false)),
@@ -116,18 +136,17 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     this.activeCardFilter.set(null);
   }
 
-  onTaskCompleted(taskId: string): void {
+  onTaskCompleted(request: TaskCompletionRequest): void {
     this.dashboardService
-      .completeTask(taskId)
+      .completeTask(request.taskId)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: () => {
-          // Re-sync after animation completes
-          setTimeout(() => {
-            this.refreshSilently();
-          }, 600);
+          request.succeed();
+          this.refreshSilently();
         },
         error: (err) => {
+          request.fail();
           console.error('Failed to complete task:', err);
         },
       });

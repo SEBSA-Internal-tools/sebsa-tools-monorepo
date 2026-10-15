@@ -1,3 +1,4 @@
+<a class="skip-link" href="#workspace-content">Skip to content</a>
 <main class="app-shell" [class.sidebar-collapsed]="isSidebarCollapsed">
   <!-- Mobile Sidebar Backdrop Overlay -->
   @if (isMobileSidebarOpen) {
@@ -16,7 +17,7 @@
     aria-label="Primary navigation"
   >
     <section class="brand-block">
-      <div class="sidebar-logo-mask"></div>
+      <div class="sidebar-logo-mask" role="img" aria-label="SEBSA"></div>
       <button
         type="button"
         class="mobile-sidebar-close-btn"
@@ -45,13 +46,14 @@
       <span class="button-label">New Case</span>
     </button>
 
+    <p class="workspace-caption">Workspace</p>
     <nav class="nav-list">
       @for (item of visibleNavigationItems; track item.path) {
         <a
           class="nav-item"
           [routerLink]="item.path"
-          routerLinkActive="active"
-          [routerLinkActiveOptions]="{ exact: true }"
+          routerLinkActive="active" ariaCurrentWhenActive="page"
+          [routerLinkActiveOptions]="{ exact: false }"
           [title]="isSidebarCollapsed ? item.label : ''"
           (click)="closeMobileSidebar()"
         >
@@ -87,7 +89,7 @@
                 <a
                   class="nav-item nav-subitem"
                   [routerLink]="child.path"
-                  routerLinkActive="active"
+                  routerLinkActive="active" ariaCurrentWhenActive="page"
                   (click)="closeMobileSidebar()"
                 >
                   <span class="nav-icon" aria-hidden="true">
@@ -103,7 +105,7 @@
     </nav>
 
     <div class="sidebar-footer">
-      <a class="nav-item settings-item" routerLink="/settings" routerLinkActive="active" (click)="closeMobileSidebar()">
+      <a class="nav-item settings-item" routerLink="/settings" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileSidebar()">
         <span class="nav-icon" aria-hidden="true">
           <span class="material-symbols-outlined">settings</span>
         </span>
@@ -126,6 +128,7 @@
         >
           <span class="material-symbols-outlined" aria-hidden="true">menu</span>
         </button>
+        <nav class="workspace-context" aria-label="Current location"><a routerLink="/dashboard">SEBSA</a><span aria-hidden="true">/</span><span>{{ currentSection }}</span></nav>
       </div>
       <!-- Right: header actions -->
       <div class="navbar-actions">
@@ -243,8 +246,8 @@
         @if (isProfileMenuOpen) {
           <div class="profile-menu">
             <div class="profile-menu-header">
-              <span class="profile-menu-name">{{ authService.currentUser()?.name || 'Hiruni Wijethilaka' }}</span>
-              <span class="profile-menu-email">{{ authService.currentUser()?.email || 'hiruni@sebsa.com' }}</span>
+              <span class="profile-menu-name">{{ authService.currentUser()?.name || 'Your account' }}</span>
+              <span class="profile-menu-email">{{ authService.currentUser()?.email || 'Account details unavailable' }}</span>
             </div>
             <a class="profile-menu-item" routerLink="/settings" (click)="isProfileMenuOpen = false">
               <span class="material-symbols-outlined" aria-hidden="true">manage_accounts</span>
@@ -260,7 +263,7 @@
       </div>
   </header>
 
-    <section class="page-content">
+    <section class="page-content" id="workspace-content" tabindex="-1" aria-label="Workspace content">
       <router-outlet></router-outlet>
     </section>
   </div>

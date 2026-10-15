@@ -1,13 +1,13 @@
-.hero-section {
+.dashboard-intro {
   display: grid;
-  grid-template-columns: 1.4fr 0.6fr;
+  grid-template-columns: 1fr;
   gap: 24px;
-  padding: 28px 36px;
+  padding: 8px 0 16px;
   align-items: center;
-  border-radius: 24px;
-  background: var(--surface-card);
-  border: 1px solid var(--border-default);
-  box-shadow: var(--shadow-card);
+  border-radius: 12px;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
   position: relative;
   overflow: hidden;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
@@ -44,8 +44,8 @@
       width: 6px;
       height: 6px;
       border-radius: 50%;
-      background: var(--brand-primary);
-      animation: pulseDot 2s infinite ease-in-out;
+      background: var(--brand-action);
+      animation: none;
     }
 
     .eyebrow-text {
@@ -110,7 +110,7 @@
     justify-content: center;
     width: 36px;
     height: 36px;
-    border-radius: 10px;
+    border-radius: var(--radius-control);
     background: var(--surface-card);
     border: 1px solid var(--border-default);
     flex-shrink: 0;

@@ -1,0 +1,23 @@
+@mixin surfaces {
+  .chart-card, .table-card, .info-card, .sprint-status-card { background: var(--surface-card); border: 1px solid var(--border-default); border-radius: 12px; box-shadow: none; padding: 20px; min-width: 0; overflow-x: auto; }
+  .chart-card:hover, .table-card:hover { box-shadow: none; transform: none; }
+  .chart-card-header, .card-header { padding: 0 0 14px; border-bottom: 1px solid var(--border-subtle); margin-bottom: 16px; }
+  .chart-card-header h3, .card-header h3 { font-size: 14px; font-weight: 600; letter-spacing: -.02em; color: var(--text-heading); margin: 0; }
+  .data-table { width: 100%; border-collapse: collapse; min-width: 300px; }
+  .data-table th { color: var(--text-secondary); font-size: 11px; font-weight: 500; padding: 10px 12px; text-transform: none; letter-spacing: 0; background: var(--surface-muted); }
+  .data-table td { padding: 12px; font-size: 12px; border-bottom: 1px solid var(--border-subtle); }
+  .data-table tbody tr:last-child td { border-bottom: 0; }
+  .dashboard-context, .chart-note { color: var(--text-secondary); font-size: 11px; line-height: 1.7; }
+  .dashboard-context { display: flex; flex-wrap: wrap; gap: 8px 24px; margin: 0; }
+  .dashboard-load-error { border: 1px solid var(--status-error-solid); border-radius: 8px; padding: 16px; background: var(--status-error-bg); color: var(--status-error-fg); font-size: 12px; }
+  .coverage-value { display: block; font-size: 42px; font-weight: 500; letter-spacing: -.05em; color: var(--text-heading); margin: 24px 0 12px; }
+  .coverage-track { height: 6px; background: var(--surface-muted); border-radius: 4px; overflow: hidden; margin: 20px 0; }
+  .coverage-track span { display: block; height: 100%; background: var(--brand-primary); }
+  .review-list { border: 1px solid var(--border-default); border-radius: 12px; background: var(--surface-card); padding: 18px 20px; }
+  .review-list h3 { margin: 0 0 12px; font-size: 13px; font-weight: 600; color: var(--text-heading); }
+  .review-list a { display: flex; gap: 16px; align-items: center; padding: 10px 0; border-top: 1px solid var(--border-subtle); color: var(--text-primary); text-decoration: none; font-size: 12px; }
+  .review-list a:hover { color: var(--brand-primary); }
+  .review-list a span:first-child { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .review-list time { color: var(--status-error-fg); font-size: 11px; white-space: nowrap; }
+  @media(max-width: 640px) { .chart-card, .table-card, .info-card, .sprint-status-card { padding: 16px; } }
+}

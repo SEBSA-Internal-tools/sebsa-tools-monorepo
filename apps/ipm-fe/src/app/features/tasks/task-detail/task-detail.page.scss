@@ -11,8 +11,8 @@
 .task-detail-page {
   display: flex;
   flex-direction: column;
-  gap: 28px;
-  padding: 40px 60px;
+  gap: 24px;
+  padding: 28px 32px 48px;
   max-width: 1600px;
   margin: 0 auto;
 
@@ -28,6 +28,12 @@
 }
 
 .header-actions {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  padding: 12px 0;
+  background: var(--surface-page);
+  border-bottom: 1px solid var(--border-default);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -44,7 +50,7 @@
   font-weight: 600;
   font-size: 0.875rem;
   padding: 8px 16px;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
@@ -76,12 +82,12 @@
   font-weight: 600;
   font-size: 0.875rem;
   padding: 8px 16px;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
   color: #ffffff;
-  background: var(--brand-primary);
+  background: var(--brand-action);
   border: 1px solid var(--brand-primary);
   cursor: pointer;
   transition: all 0.2s ease;
@@ -91,7 +97,7 @@
   }
 
   &:hover:not(:disabled) {
-    background: var(--brand-primary-hover);
+    background: var(--brand-action-hover);
   }
 
   &:disabled {
@@ -105,7 +111,7 @@
   font-weight: 600;
   font-size: 0.875rem;
   padding: 8px 16px;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   display: inline-flex;
   align-items: center;
   color: var(--text-secondary);
@@ -129,7 +135,7 @@
   font-weight: 600;
   font-size: 0.875rem;
   padding: 8px 16px;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
@@ -140,7 +146,7 @@
   transition: all 0.2s ease;
 
   &:hover {
-    background: #fee2e2;
+    background: var(--status-error-bg);
   }
 }
 
@@ -156,7 +162,7 @@
   text-align: center;
   background: var(--surface-card);
   border: 1px solid var(--border-default);
-  border-radius: 24px;
+  border-radius: 12px;
 }
 
 .loader {
@@ -187,9 +193,9 @@
   display: flex;
   flex-direction: column;
   gap: 32px;
-  padding: 36px 40px;
+  padding: 28px 32px;
   background: var(--surface-card);
-  border-radius: 24px;
+  border-radius: 12px;
   border: 1px solid var(--border-default);
   box-shadow: var(--shadow-card);
   box-sizing: border-box;
@@ -305,7 +311,7 @@
   color: var(--text-heading);
   line-height: 1.25;
   border: 1px solid transparent;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   padding: 4px 8px;
   margin: 0 0 0 -8px;
   background: transparent;
@@ -426,7 +432,7 @@
     width: var(--stepper-dot-size);
     height: var(--stepper-dot-size);
     border-radius: 50%;
-    background: #ffffff;
+    background: var(--surface-card);
     border: 2px solid var(--border-strong);
     transition: all 0.2s ease;
   }
@@ -441,14 +447,14 @@
 
   &.past {
     .stepper-dot {
-      background: var(--brand-primary);
+      background: var(--brand-action);
       border-color: var(--brand-primary);
     }
   }
 
   &.active {
     .stepper-dot {
-      background: var(--brand-primary);
+      background: var(--brand-action);
       border-color: var(--brand-primary);
       box-shadow: 0 0 0 4px var(--brand-primary-100);
     }
@@ -466,7 +472,7 @@
 
 .task-body {
   display: grid;
-  grid-template-columns: 1fr 340px;
+  grid-template-columns: minmax(0, 1fr) 300px;
   gap: 32px;
 
   @media (max-width: 1024px) {
@@ -477,7 +483,7 @@
 .task-main {
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: 24px;
 }
 
 .task-sidebar {
@@ -490,7 +496,7 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: 24px 28px;
+  padding: 20px;
   background: var(--surface-muted);
   border: 1px solid var(--border-default);
   border-radius: 16px;
@@ -509,7 +515,7 @@
   gap: 8px;
   margin: 0;
   font-family: var(--font-heading);
-  font-size: 1.05rem;
+  font-size: .875rem;
   font-weight: 700;
   color: var(--text-heading);
   flex-wrap: wrap;
@@ -590,7 +596,7 @@
   padding: 10px 14px;
   background: var(--surface-card);
   border: 1px solid var(--border-default);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   color: var(--text-heading);
   font-family: var(--font-body);
   font-size: 0.875rem;
@@ -634,7 +640,7 @@
     width: 22px;
     height: 22px;
     border-radius: 50%;
-    background: var(--brand-primary);
+    background: var(--brand-action);
     color: #ffffff;
     font-size: 0.65rem;
     font-weight: 700;
@@ -914,7 +920,7 @@
   padding: 4px;
   background: var(--surface-card);
   border: 1px solid var(--border-default);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   box-shadow: var(--shadow-elevated);
 }
 
@@ -941,7 +947,7 @@
   padding: 8px 16px;
   border-radius: 8px;
   border: 1px solid var(--brand-primary);
-  background: var(--brand-primary);
+  background: var(--brand-action);
   color: #ffffff;
   font-family: var(--font-body);
   font-size: 0.82rem;
@@ -950,7 +956,7 @@
   transition: all 0.15s ease;
 
   &:hover:not(:disabled) {
-    background: var(--brand-primary-hover);
+    background: var(--brand-action-hover);
   }
 
   &:disabled {
@@ -1098,7 +1104,7 @@
   color: var(--text-heading);
   background: var(--surface-card);
   border: 1px solid var(--border-default);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   padding: 8px 10px;
   cursor: pointer;
 
@@ -1114,3 +1120,18 @@
   vertical-align: -0.15em;
   margin-right: 0.15em;
 }
+
+.task-main, .task-sidebar { min-width: 0; }
+.task-main > .section-block { background: var(--surface-card); border: 0; border-bottom: 1px solid var(--border-default); border-radius: 0; padding: 0 0 24px; }
+.task-sidebar { padding-left: 24px; border-left: 1px solid var(--border-default); }
+.editor-state { color: var(--text-secondary); font-size: 12px; }
+.editor-state.is-dirty { color: var(--status-warning-fg); }
+.task-title-input { letter-spacing: -.035em; }
+@media (max-width: 1024px) { .task-sidebar { padding-left: 0; border-left: 0; } }
+@media (max-width: 640px) { .editor-state { width: 100%; } }
+
+.status-save-note { margin: 0; color: var(--text-secondary); font-size: 12px; line-height: 1.5; }
+.stepper-step:disabled { cursor: wait; opacity: .65; }
+
+.dependency-disclosure summary { color: var(--brand-primary); cursor: pointer; font-size: 13px; font-weight: 600; padding: 8px 0; }
+.dependency-disclosure[open] summary { margin-bottom: 12px; }

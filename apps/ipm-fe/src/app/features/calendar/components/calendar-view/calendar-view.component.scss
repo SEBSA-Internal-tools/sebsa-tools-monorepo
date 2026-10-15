@@ -43,7 +43,7 @@
   align-items: center;
   background-color: var(--surface-muted);
   border: 1px solid var(--border-default);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   padding: 2px;
   gap: 2px;
 }
@@ -131,7 +131,7 @@
   .search-input {
     background-color: var(--surface-muted);
     border: 1px solid var(--border-default);
-    border-radius: 10px;
+    border-radius: var(--radius-control);
     padding: 7px 28px 7px 32px;
     font-family: var(--font-body);
     font-size: 13px;
@@ -202,7 +202,7 @@
   background-color: var(--surface-muted);
   border: 1px solid var(--border-default);
   color: var(--text-secondary);
-  border-radius: 20px;
+  border-radius: var(--radius-panel);
   padding: 4px 10px;
   font-size: 12px;
   font-weight: 500;
@@ -220,7 +220,7 @@
     font-size: 10px;
     font-weight: 700;
     padding: 1px 5px;
-    border-radius: 10px;
+    border-radius: var(--radius-control);
   }
 
   &:hover {
@@ -233,7 +233,7 @@
     border-color: var(--brand-primary);
     color: var(--brand-primary);
     font-weight: 600;
-    .preset-badge { background-color: var(--brand-primary); color: #fff; }
+    .preset-badge { background-color: var(--brand-action); color: #fff; }
   }
 
   &.chip-overdue.active {
@@ -525,7 +525,7 @@
     flex-shrink: 0;
 
     &.today-badge {
-      background-color: var(--brand-primary);
+      background-color: var(--brand-action);
       color: #fff;
       box-shadow: 0 2px 6px rgba(112, 0, 255, 0.35);
     }
@@ -553,7 +553,7 @@
     font-weight: 700;
     color: var(--brand-primary);
     background-color: var(--brand-primary-100);
-    border-radius: 10px;
+    border-radius: var(--radius-control);
     padding: 1px 5px;
   }
 
@@ -725,7 +725,7 @@
     font-size: 17px; font-weight: 700; color: var(--text-heading);
     margin: 3px auto; width: 30px; height: 30px;
     display: flex; align-items: center; justify-content: center; border-radius: 50%;
-    &.today-badge { background-color: var(--brand-primary); color: #fff; }
+    &.today-badge { background-color: var(--brand-action); color: #fff; }
   }
   .col-count-chip { font-size: 11px; color: var(--text-muted); }
 }
@@ -1140,7 +1140,7 @@
   h3 { font-size: 15px; color: var(--text-heading); margin: 0 0 4px 0; }
   p { font-size: 12px; color: var(--text-secondary); margin: 0 0 12px 0; }
   .btn-clear-filters {
-    background-color: var(--brand-primary); color: #fff; border: none; padding: 7px 14px; border-radius: 7px; font-weight: 600; cursor: pointer;
+    background-color: var(--brand-action); color: #fff; border: none; padding: 7px 14px; border-radius: 7px; font-weight: 600; cursor: pointer;
   }
 }
 
@@ -1200,7 +1200,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      border-radius: 10px;
+      border-radius: var(--radius-control);
       border: 1px solid rgba(99, 102, 241, 0.2);
     }
 
@@ -1268,7 +1268,7 @@
     flex-direction: column;
     gap: 8px;
     padding: 12px 14px;
-    border-radius: 10px;
+    border-radius: var(--radius-control);
     border: 1px solid var(--border-default);
     background-color: var(--surface-card);
     cursor: pointer;
@@ -1539,7 +1539,7 @@
       gap: 10px;
       background-color: var(--surface-muted);
       border: 1px solid var(--border-default);
-      border-radius: 10px;
+      border-radius: var(--radius-control);
       padding: 12px;
 
       .meta-item {
@@ -1670,7 +1670,7 @@
       color: var(--text-primary); font-size: 12px; font-weight: 600; padding: 7px 14px; border-radius: 7px; cursor: pointer;
     }
     .btn-primary {
-      background-color: var(--brand-primary); border: none; color: #fff;
+      background-color: var(--brand-action); border: none; color: #fff;
       font-size: 12px; font-weight: 600; padding: 7px 14px; border-radius: 7px; cursor: pointer;
       display: inline-flex; align-items: center; gap: 5px;
       .material-symbols-outlined { font-size: 15px; }
@@ -1713,13 +1713,13 @@
 .priority-urgent { background-color: #fee2e2; color: #991b1b; border-color: #fca5a5; }
 .priority-high { background-color: #ffedd5; color: #9a3412; border-color: #fdba74; }
 .priority-medium { background-color: #e0f2fe; color: #075985; border-color: #7dd3fc; }
-.priority-low { background-color: #f1f5f9; color: #475569; border-color: #cbd5e1; }
+.priority-low { background-color: var(--surface-muted); color: var(--text-primary); border-color: #cbd5e1; }
 
 .status-pill {
   font-size: 10px;
   font-weight: 600;
   padding: 2px 7px;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
 }
 
 .status-to-do { background-color: var(--status-neutral-bg); color: var(--status-neutral-fg); border-color: #cbd5e1; }

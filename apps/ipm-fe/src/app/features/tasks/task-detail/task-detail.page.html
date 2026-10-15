@@ -9,13 +9,13 @@
   Back
 </button>
 @if (task()) {
-  <div class="header-actions-right">
+  <div class="header-actions-right"><span class="editor-state" [class.is-dirty]="isDirty()" role="status">{{ isSaving() ? 'Saving changes...' : isDirty() ? 'Unsaved changes' : 'All changes saved' }}</span>
     @if (isDirty()) {
       <button
         type="button"
         class="discard-btn"
         (click)="discardChanges()"
-        [disabled]="isSaving()"
+        [disabled]="isSaving() || isUpdatingStatus()"
       >
         Discard
       </button>
@@ -23,7 +23,7 @@
         type="button"
         class="save-btn"
         (click)="saveChanges()"
-        [disabled]="isSaving()"
+        [disabled]="isSaving() || isUpdatingStatus()"
       >
         <span class="material-symbols-outlined">{{ isSaving() ? 'hourglass_empty' : 'save' }}</span>
         {{ isSaving() ? 'Saving…' : 'Save Changes' }}
@@ -32,7 +32,7 @@
     <button
       type="button"
       class="delete-btn"
-      (click)="deleteTask()"
+      (click)="deleteTask()" [disabled]="isSaving() || isUpdatingStatus()"
     >
       <span class="material-symbols-outlined">delete</span>
       Delete
@@ -76,7 +76,7 @@
   <div class="task-header">
     <div class="task-header-top">
       <select
-        class="priority-pill-select"
+        class="priority-pill-select" aria-label="Task priority"
         [(ngModel)]="draft.priorityId"
         (ngModelChange)="markDirty()"
         [style.background]="selectedPriorityColor() + '22'"
@@ -90,7 +90,7 @@
         }
       </select>
 
-      <select class="priority-pill-select" [(ngModel)]="draft.taskTypeId" (ngModelChange)="onTaskTypeSelect($event)">
+      <select class="priority-pill-select" aria-label="Task type" [(ngModel)]="draft.taskTypeId" (ngModelChange)="onTaskTypeSelect($event)">
         <option value="">No task type</option>
         @for (type of availableTaskTypes(); track type.id) {
           <option [value]="type.id">{{ type.name }}</option>
@@ -98,7 +98,7 @@
       </select>
 
       @if (draft.taskTypeId && availableComplexityLevels().length > 0) {
-        <select class="priority-pill-select" [(ngModel)]="draft.complexityLevelId" (ngModelChange)="markDirty()">
+        <select class="priority-pill-select" aria-label="Complexity" [(ngModel)]="draft.complexityLevelId" (ngModelChange)="markDirty()">
           <option value="">No complexity</option>
           @for (level of availableComplexityLevels(); track level.id) {
             <option [value]="level.id">{{ level.name }}</option>
@@ -117,7 +117,7 @@
     </div>
     <input
       type="text"
-      class="task-title-input"
+      class="task-title-input" aria-label="Task title"
       [(ngModel)]="draft.title"
       (ngModelChange)="markDirty()"
       placeholder="Task title"
@@ -144,12 +144,13 @@
       <span class="material-symbols-outlined">timeline</span>
       Status
     </h3>
+    <p class="status-save-note" role="status">{{ isUpdatingStatus() ? 'Updating status...' : 'Status changes save immediately. Other edits use Save changes.' }}</p>
     <div class="stepper">
       @for (status of statuses; track status.id) {
         <button
           type="button"
-          class="stepper-step"
-          [class.active]="status.id === task.status"
+          class="stepper-step" [disabled]="isUpdatingStatus() || isSaving()"
+          [class.active]="status.id === task.status" [attr.aria-pressed]="status.id === task.status"
           [class.past]="isPastStatus(status)"
           (click)="onStatusClick(status.id)"
           [title]="enteredStatusAt(status.id) ? ('Since ' + formatDate(enteredStatusAt(status.id))) : status.name"
@@ -174,7 +175,7 @@
           Description
         </h3>
         <textarea
-          class="description-input"
+          class="description-input" aria-label="Task description"
           [(ngModel)]="draft.description"
           (ngModelChange)="markDirty()"
           placeholder="No description provided. Click here to add one…"
@@ -266,57 +267,55 @@
               }
             </div>
           }
+          @if (deps.blocks.length > 0) {
           <div class="dependency-group">
             <p class="dependency-group-label">Blocks</p>
-            @if (deps.blocks.length === 0) {
-              <p class="empty-placeholder small">None</p>
-            }
             @for (ref of deps.blocks; track ref.dependencyId) {
               <div class="dependency-item">
                 <a class="dependency-link" [routerLink]="['/tasks', ref.id]">
                   {{ ref.title }}
                 </a>
-                <button type="button" class="remove-dependency-btn" (click)="removeDependency(ref.dependencyId)" title="Remove">
+                <button type="button" class="remove-dependency-btn" (click)="removeDependency(ref.dependencyId)" title="Remove dependency" aria-label="Remove dependency">
                   <span class="material-symbols-outlined">close</span>
                 </button>
               </div>
             }
           </div>
+          }
+          @if (deps.relatesTo.length > 0) {
           <div class="dependency-group">
             <p class="dependency-group-label">Relates To</p>
-            @if (deps.relatesTo.length === 0) {
-              <p class="empty-placeholder small">None</p>
-            }
             @for (ref of deps.relatesTo; track ref.dependencyId) {
               <div class="dependency-item">
                 <a class="dependency-link" [routerLink]="['/tasks', ref.id]">
                   {{ ref.title }}
                 </a>
-                <button type="button" class="remove-dependency-btn" (click)="removeDependency(ref.dependencyId)" title="Remove">
+                <button type="button" class="remove-dependency-btn" (click)="removeDependency(ref.dependencyId)" title="Remove dependency" aria-label="Remove dependency">
                   <span class="material-symbols-outlined">close</span>
                 </button>
               </div>
             }
           </div>
+          }
+          @if (deps.duplicateOf.length > 0) {
           <div class="dependency-group">
             <p class="dependency-group-label">Duplicate Of</p>
-            @if (deps.duplicateOf.length === 0) {
-              <p class="empty-placeholder small">None</p>
-            }
             @for (ref of deps.duplicateOf; track ref.dependencyId) {
               <div class="dependency-item">
                 <a class="dependency-link" [routerLink]="['/tasks', ref.id]">
                   {{ ref.title }}
                 </a>
-                <button type="button" class="remove-dependency-btn" (click)="removeDependency(ref.dependencyId)" title="Remove">
+                <button type="button" class="remove-dependency-btn" (click)="removeDependency(ref.dependencyId)" title="Remove dependency" aria-label="Remove dependency">
                   <span class="material-symbols-outlined">close</span>
                 </button>
               </div>
             }
           </div>
+          }
         }
 
         <!-- Add Dependency form -->
+        <details class="dependency-disclosure"><summary>Add a dependency</summary>
         <div class="add-dependency-form">
           <app-custom-select
             [(ngModel)]="newDependencyType"
@@ -328,7 +327,7 @@
           @if (selectedDependencyTaskId) {
             <div class="project-display">
               <span class="project-name">{{ selectedDependencyTaskTitle() }}</span>
-              <button type="button" class="clear-btn" (click)="clearDependencyTask()" title="Clear">
+              <button type="button" class="clear-btn" (click)="clearDependencyTask()" title="Clear selected task" aria-label="Clear selected task">
                 <span class="material-symbols-outlined">close</span>
               </button>
             </div>
@@ -354,6 +353,7 @@
             Add
           </button>
         </div>
+        </details>
       </div>
 
       <!-- Comments -->

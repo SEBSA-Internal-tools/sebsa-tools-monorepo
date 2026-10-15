@@ -5,7 +5,7 @@
 }
 
 .admin-users-container {
-  padding: 32px 40px;
+  padding: var(--page-gutter);
   width: 100%;
   max-width: 100%;
   margin: 0;
@@ -269,3 +269,6 @@
     opacity: 0.9;
   }
 }
+
+.admin-table-scroll { max-width: 100%; overflow-x: auto; overscroll-behavior-inline: contain; }
+.admin-table-scroll table { min-width: 620px; }

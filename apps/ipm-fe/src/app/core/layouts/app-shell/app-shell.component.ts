@@ -44,7 +44,7 @@ export class AppShellComponent implements OnInit {
 
   private readonly navigationItems: NavItem[] = [
     { label: 'Dashboard', icon: 'home', path: '/dashboard' },
-    { label: 'Assigned Works', icon: 'assignment_ind', path: '/tasks' },
+    { label: 'My work', icon: 'assignment_ind', path: '/tasks' },
     { label: 'Projects', icon: 'folder_open', path: '/projects' },
     { label: 'Customers', icon: 'domain', path: '/customers', hiddenForRoles: ['REGULAR_USER'] },
     { label: 'CSO', icon: 'groups', path: '/cso' },
@@ -119,6 +119,13 @@ export class AppShellComponent implements OnInit {
    * explicit click then wins over that until the user clicks again. */
   protected isGroupExpanded(group: NavGroup): boolean {
     return this.manuallyToggledGroups.get(group.label) ?? this.isGroupActive(group);
+  }
+
+  protected get currentSection(): string {
+    const path = this.router.url.split(/[?#]/)[0];
+    const items = [...this.visibleNavigationItems, ...this.visibleNavigationGroups.flatMap(group => group.children)];
+    const match = items.find(item => path === item.path || path.startsWith(item.path + '/'));
+    return match?.label ?? (path.startsWith('/cases/') ? 'Case details' : 'Workspace');
   }
 
   protected isGroupActive(group: NavGroup): boolean {

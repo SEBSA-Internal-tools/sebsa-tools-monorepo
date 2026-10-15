@@ -162,7 +162,7 @@
 
 .error-banner {
   padding: 12px 16px;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   background: var(--status-error-bg);
   color: var(--status-error-fg);
   border: 1px solid var(--status-error-solid);
@@ -180,7 +180,7 @@
   padding: 28px 32px;
   background: var(--surface-card);
   border: 1px solid var(--border-subtle);
-  border-radius: 20px;
+  border-radius: var(--radius-panel);
   box-shadow: var(--shadow-card);
   box-sizing: border-box;
   width: 100%;
@@ -279,7 +279,7 @@
   line-height: 1.55;
   background: var(--surface-muted);
   padding: 12px 16px;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   border: 1px solid var(--border-subtle);
   word-break: break-word;
 }
@@ -318,7 +318,7 @@
     justify-content: space-between;
     padding: 10px 14px;
     min-width: 100%;
-    border-radius: 10px;
+    border-radius: var(--radius-control);
 
     .count-value {
       font-size: 1.25rem;
@@ -339,7 +339,7 @@
   padding: 28px 32px;
   background: var(--surface-card);
   border: 1px solid var(--border-subtle);
-  border-radius: 20px;
+  border-radius: var(--radius-panel);
   box-shadow: var(--shadow-card);
   box-sizing: border-box;
   width: 100%;

@@ -1,16 +1,17 @@
 .login-container {
   display: flex;
-  height: 100vh;
-  width: 100vw;
+  min-height: 100vh;
+  min-height: 100dvh;
+  width: 100%;
   margin: 0;
   padding: 0;
-  overflow: hidden;
-  font-family: 'Segoe UI', 'Inter', sans-serif;
+  overflow: clip;
+  font-family: var(--font-body);
 }
 
 .left-panel {
-  flex: 1;
-  background-color: #0b1a30;
+  flex: 0 0 42%;
+  background: linear-gradient(160deg, var(--brand-navy), var(--brand-midnight-blue));
   position: relative;
   display: flex;
   align-items: center;
@@ -33,12 +34,14 @@
   text-align: center;
   color: white;
   z-index: 1;
-  max-width: 80%;
+  max-width: 400px;
+  padding: 24px;
 
   .brand-logo {
-    max-width: 380px;
+    width: 180px;
+    max-width: 100%;
     height: auto;
-    margin-bottom: -20px;
+    margin-bottom: 24px;
   }
 
   .brand-dash {
@@ -48,7 +51,7 @@
   }
 
   h1 {
-    font-size: 2rem;
+    font-size: 1.65rem;
     font-weight: 700;
     margin: 0 0 16px;
     letter-spacing: -0.02em;
@@ -64,7 +67,7 @@
 
 .right-panel {
   flex: 1;
-  background-color: #fcfcfd;
+  background-color: var(--surface-page);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -74,18 +77,18 @@
 
 .login-form-container {
   width: 100%;
-  max-width: 420px;
-  padding: 40px;
+  max-width: 400px;
+  padding: 32px;
 
   h2 {
-    font-size: 1.75rem;
-    color: #111827;
+    font-size: 1.5rem;
+    color: var(--text-heading);
     margin: 0 0 8px;
     font-weight: 700;
   }
 
   .subtitle {
-    color: #6b7280;
+    color: var(--text-secondary);
     font-size: 0.95rem;
     margin: 0 0 32px;
   }
@@ -93,14 +96,14 @@
 
 .error-alert {
   display: flex;
-  background-color: #fce8e8;
+  background-color: var(--status-error-bg);
   border: 1px solid #f5c6c6;
-  border-radius: 4px;
+  border-radius: var(--radius-control);
   padding: 16px;
   margin-bottom: 24px;
 
   .error-icon {
-    color: #d32f2f;
+    color: var(--status-error-fg);
     margin-right: 12px;
     font-size: 1.25rem;
   }
@@ -110,13 +113,13 @@
     flex-direction: column;
 
     strong {
-      color: #7f1d1d;
+      color: var(--status-error-fg);
       font-size: 0.85rem;
       margin-bottom: 4px;
     }
 
     span {
-      color: #991b1b;
+      color: var(--status-error-fg);
       font-size: 0.8rem;
       line-height: 1.4;
     }
@@ -149,7 +152,7 @@
     display: block;
     font-size: 0.8rem;
     font-weight: 500;
-    color: #374151;
+    color: var(--text-primary);
     margin-bottom: 8px;
   }
 
@@ -161,7 +164,7 @@
     .input-icon {
       position: absolute;
       left: 12px;
-      color: #9ca3af;
+      color: var(--text-muted);
       font-size: 1.2rem;
       pointer-events: none;
     }
@@ -169,18 +172,19 @@
     input,
     select {
       width: 100%;
-      padding: 12px 40px;
-      border: 1px solid #d1d5db;
-      border-radius: 4px;
+      min-height: 44px;
+      padding: 10px 40px;
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-control);
       font-size: 0.95rem;
-      color: #111827;
-      background-color: #ffffff;
+      color: var(--text-heading);
+      background-color: var(--surface-card);
       transition: border-color 0.2s, box-shadow 0.2s;
       appearance: none;
 
       &:focus {
         outline: none;
-        border-color: #d92561;
+        border-color: var(--brand-primary);
         box-shadow: 0 0 0 3px rgba(217, 37, 97, 0.1);
       }
 
@@ -205,14 +209,14 @@
         ::ng-deep .custom-select-trigger {
           padding-left: 40px;
           min-height: 48px;
-          border-radius: 4px;
-          border-color: #d1d5db;
-          background-color: #ffffff;
+          border-radius: var(--radius-control);
+          border-color: var(--border-default);
+          background-color: var(--surface-card);
           font-size: 0.95rem;
 
           &:focus-visible,
           .custom-select-wrapper.open & {
-            border-color: #d92561;
+            border-color: var(--brand-primary);
             box-shadow: 0 0 0 3px rgba(217, 37, 97, 0.1);
           }
         }
@@ -223,11 +227,12 @@
 
 .sign-in-button {
   width: 100%;
-  background-color: var(--brand-primary);
+  background-color: var(--brand-action);
   color: white;
   border: none;
-  border-radius: 4px;
-  padding: 14px;
+  border-radius: var(--radius-control);
+  min-height: 44px;
+  padding: 10px 14px;
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
@@ -235,7 +240,7 @@
   transition: background-color 0.2s;
 
   &:hover {
-    background-color: var(--brand-primary-hover);
+    background-color: var(--brand-action-hover);
   }
 }
 
@@ -244,13 +249,13 @@
   text-align: center;
 
   p {
-    color: #6b7280;
+    color: var(--text-secondary);
     font-size: 0.85rem;
     line-height: 1.5;
     margin: 0;
 
     a {
-      color: #d92561;
+      color: var(--brand-primary);
       text-decoration: none;
 
       &:hover {
@@ -263,7 +268,7 @@
 .copyright {
   margin-top: 24px;
   text-align: center;
-  color: #9ca3af;
+  color: var(--text-muted);
   font-size: 0.75rem;
 }
 
@@ -284,7 +289,7 @@
     display: flex;
     flex: none;
     padding: 36px 20px 28px;
-    background-color: #0b1a30;
+    background: linear-gradient(160deg, var(--brand-navy), var(--brand-midnight-blue));
 
     .brand-content {
       max-width: 100%;
@@ -328,3 +333,7 @@
     padding-bottom: 12px;
   }
 }
+
+.right-panel { flex: 1; padding: 24px 0; min-width: 0; }
+.brand-dash { display: none; }
+@media (max-width: 900px) { .left-panel { flex-basis: auto; padding: 20px; } .left-panel .brand-content .brand-logo { max-width: 140px; margin-bottom: 12px; } .right-panel { padding: 24px 16px; } .login-form-container { max-width: 360px; } }

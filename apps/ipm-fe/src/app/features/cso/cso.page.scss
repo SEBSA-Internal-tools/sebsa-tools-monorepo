@@ -1,3 +1,9 @@
+:host {
+  display: block;
+  min-height: 100%;
+  background-color: var(--surface-page);
+}
+
 // =============================================================================
 // CSO Page — Luminous Depth Design System
 // (mirrors projects-list.page.scss / projects-hero.component.scss so the
@@ -5,6 +11,8 @@
 // =============================================================================
 
 .workspace-page {
+  min-height: 100%;
+  background-color: var(--surface-page);
   display: block;
   width: 100%;
   padding: 20px 16px;
@@ -19,18 +27,19 @@
 }
 
 .cso-container {
+  background-color: var(--surface-page);
   width: 100%;
   max-width: 1300px;
   margin: 0 auto;
   display: grid;
-  gap: 28px;
+  gap: var(--content-gap);
 
   @media (min-width: 768px) {
-    gap: 32px;
+    gap: var(--content-gap);
   }
 
   @media (min-width: 1024px) {
-    gap: 40px;
+    gap: var(--content-gap);
   }
 }
 
@@ -44,9 +53,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 36px 40px;
-  border-radius: 16px;
-  background: var(--color-surface-dim);
+  padding: 24px 28px;
+  border-radius: 12px;
+  background: var(--surface-card);
   backdrop-filter: var(--backdrop-blur-heavy);
   -webkit-backdrop-filter: var(--backdrop-blur-heavy);
   border: var(--border-glass);
@@ -66,7 +75,7 @@
 
   h1 {
     margin: 0 0 12px;
-    font-family: 'Sora', sans-serif;
+    font-family: var(--font-body);
     color: var(--text-primary);
     font-size: clamp(1.8rem, 4vw, 2.5rem);
     line-height: 1.2;
@@ -77,7 +86,7 @@
   .description {
     margin: 0;
     max-width: 700px;
-    font-family: 'Sora', sans-serif;
+    font-family: var(--font-body);
     font-size: 0.95rem;
     line-height: 1.6;
     color: var(--text-secondary);
@@ -86,16 +95,12 @@
 
 .eyebrow {
   display: block;
-  font-family: 'Sora', sans-serif;
+  font-family: var(--font-body);
   font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  background: linear-gradient(135deg, #a855f7 0%, #7000ff 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  text-shadow: 0 4px 15px rgba(112, 0, 255, 0.25);
+  color: var(--brand-primary);
   margin-bottom: 8px;
 }
 
@@ -144,8 +149,8 @@
   position: relative;
   overflow: hidden;
   width: 100%;
-  border-radius: 16px;
-  background: var(--color-surface-dim);
+  border-radius: 12px;
+  background: var(--surface-card);
   border: var(--border-glass);
   box-shadow: var(--shadow-subtle);
 }
@@ -171,7 +176,7 @@
   gap: 4px;
   padding: 4px;
   margin-bottom: 20px;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   background: var(--color-surface-glass);
   border: var(--border-glass);
 }
@@ -185,7 +190,7 @@
   border-radius: 7px;
   background: transparent;
   color: var(--text-muted);
-  font-family: 'Sora', sans-serif;
+  font-family: var(--font-body);
   font-weight: 600;
   font-size: 0.85rem;
   cursor: pointer;
@@ -205,4 +210,14 @@
     color: #fff;
     box-shadow: var(--shadow-glow-purple);
   }
+}
+
+.sebsa-page-header {
+  background: var(--surface-card);
+  padding: 24px 28px;
+  margin-bottom: 0;
+}
+
+@media (max-width: 768px) {
+  .sebsa-page-header { padding: 24px 18px; }
 }
