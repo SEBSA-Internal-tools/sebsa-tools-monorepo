@@ -1,10 +1,34 @@
 <div class="login-container">
-  <div class="left-panel">
+  <div class="left-panel" (mousemove)="onPanelMouseMove($event)" (mouseleave)="onPanelMouseLeave()">
+    <div class="panel-glow"></div>
+    @if (spotlightEnabled) {
+      <div
+        class="cursor-spotlight"
+        [class.active]="spotlightActive()"
+        [style.left.%]="spotlightX()"
+        [style.top.%]="spotlightY()"
+      ></div>
+    }
     <div class="brand-content">
       <img src="/sebsa-logo.svg" alt="SEBSA Logo" class="brand-logo" />
       <div class="brand-dash"></div>
       <h1>Internal Project Management</h1>
       <p>Orchestrating complexity with precision and clarity.</p>
+
+      <ul class="feature-list">
+        <li>
+          <span class="material-symbols-outlined">task_alt</span>
+          <span>Track tasks, milestones &amp; cases in real time</span>
+        </li>
+        <li>
+          <span class="material-symbols-outlined">groups</span>
+          <span>Collaborate across teams from one workspace</span>
+        </li>
+        <li>
+          <span class="material-symbols-outlined">verified_user</span>
+          <span>Enterprise-grade security for SEBSA data</span>
+        </li>
+      </ul>
     </div>
   </div>
 
