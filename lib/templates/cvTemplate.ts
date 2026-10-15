@@ -128,9 +128,18 @@ export const cvTemplateSource = `
           <table style="width: 100%; border-collapse: collapse; margin-top: 4px;">
             {{#each specialProjects}}
             <tr>
-              <td style="width: 12px; vertical-align: top; font-size: 12px; color: #404040; line-height: 1.55; padding: 0;">•</td>
-              <td style="vertical-align: top; font-size: 12px; color: #404040; line-height: 1.55; padding: 0 0 10px 0; text-align: justify;">
-                <span style="font-weight: 700; color: #262626;">{{title}}</span> - {{brief}}
+              <td style="vertical-align: top; padding: 0 0 10px 0;">
+                <p style="font-size: 12px; font-weight: 700; color: #262626; margin: 0 0 3px 0;">{{title}}</p>
+                {{#if descriptionPoints}}
+                <table style="width: 100%; border-collapse: collapse;">
+                  {{#each descriptionPoints}}
+                  <tr>
+                    <td style="width: 12px; vertical-align: top; font-size: 12px; color: #404040; line-height: 1.55; padding: 0;">•</td>
+                    <td style="vertical-align: top; font-size: 12px; color: #404040; line-height: 1.55; padding: 0 0 3px 0; text-align: justify;">{{this}}</td>
+                  </tr>
+                  {{/each}}
+                </table>
+                {{/if}}
               </td>
             </tr>
             {{/each}}

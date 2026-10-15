@@ -88,6 +88,8 @@ export default function CvSectionEditor({ cv, onChange }: CvSectionEditorProps) 
         expanded={expanded.projects}
         onToggle={() => toggle('projects')}
         onChange={(specialProjects) => patch({ specialProjects })}
+        descriptionAsPoints
+        showSkills={false}
       />
 
       <EducationSection

@@ -3,6 +3,7 @@
 import React, { useMemo } from 'react';
 import Handlebars from 'handlebars';
 import { cvTemplateSource } from '@/lib/templates/cvTemplate';
+import { splitProjectDescription } from '@/lib/projectDescription';
 import type { TailoredCv } from './types';
 
 interface CvPreviewTemplateProps {
@@ -24,7 +25,13 @@ export default function CvPreviewTemplate({ cv, onChange, id = 'cv-preview-root'
   const compiledHtml = useMemo(() => {
     try {
       const template = Handlebars.compile(cvTemplateSource);
-      const html = template(cv);
+      const html = template({
+        ...cv,
+        specialProjects: cv.specialProjects.map((project) => ({
+          ...project,
+          descriptionPoints: splitProjectDescription(project.brief),
+        })),
+      });
       if (highlightFields.length === 0) return html;
       const selectors = highlightFields
         .map((field) => `[data-cv-field="${field.replace(/["\\]/g, '')}"]`)

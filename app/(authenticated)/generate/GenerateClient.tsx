@@ -148,8 +148,8 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
     [selectedEmployee, suggestion]
   );
 
-  // The final preview uses the exact object persisted to generated_cvs.content, including edited
-  // and manually added project skills. This keeps Preview & Export faithful to Apply to CV.
+  // The final preview uses the exact object persisted to generated_cvs.content. This keeps
+  // Preview & Export faithful to Apply to CV.
   const customizedPreviewCv = tailoredCv;
 
   // ── Pre-select employee from query param ────────────────────────────────────
@@ -193,6 +193,7 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
       );
       setSuggestion(result);
       setSuggestionDraft({
+        includeObjective: true,
         objective: result.objective,
         experience: result.experience,
         projects: result.projects,

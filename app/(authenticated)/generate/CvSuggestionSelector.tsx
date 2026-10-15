@@ -21,6 +21,7 @@ export interface CvSuggestionSelection {
 }
 
 export interface CvSuggestionDraft {
+  includeObjective: boolean;
   objective: string;
   experience: CvSuggestionExperience[];
   projects: CvSuggestionProject[];
@@ -56,7 +57,7 @@ export function buildSelectionFromDraft(
   academic: CvSuggestion['academic']
 ): CvSuggestionSelection {
   return {
-    summary: draft.objective,
+    summary: draft.includeObjective ? draft.objective : '',
     academic,
     experience: draft.experience
       .filter((e) => e.relevant)
@@ -71,7 +72,7 @@ export function buildSelectionFromDraft(
       .map((p) => ({
         title: p.title,
         brief: p.brief,
-        skills: p.skills.filter((s) => s.relevant).map((s) => s.text),
+        skills: [],
       })),
     certifications: draft.certifications
       .filter((c) => c.relevant)
@@ -97,7 +98,7 @@ export default function CvSuggestionSelector({
   pageLimitExceeded = false,
 }: CvSuggestionSelectorProps) {
   const [isVerified, setIsVerified] = useState(false);
-  const { objective, experience, projects, certifications } = draft;
+  const { includeObjective, objective, experience, projects, certifications } = draft;
 
   const toggleExperience = (index: number) =>
     onDraftChange({
@@ -119,16 +120,6 @@ export default function CvSuggestionSelector({
       ...draft,
       projects: projects.map((p) => (p.index === index ? { ...p, relevant: !p.relevant } : p)),
     });
-  const toggleProjectSkill = (projIndex: number, skillIndex: number) =>
-    onDraftChange({
-      ...draft,
-      projects: projects.map((p) =>
-        p.index !== projIndex
-          ? p
-          : { ...p, skills: p.skills.map((s) => (s.index === skillIndex ? { ...s, relevant: !s.relevant } : s)) }
-      ),
-    });
-
   const toggleCertification = (index: number) =>
     onDraftChange({
       ...draft,
@@ -156,18 +147,29 @@ export default function CvSuggestionSelector({
 
   const updateProject = (index: number, patch: Partial<CvSuggestionProject>) =>
     onDraftChange({ ...draft, projects: projects.map((item) => item.index === index ? { ...item, ...patch } : item) });
-  const updateProjectSkill = (projectIndex: number, skillIndex: number, text: string) =>
-    onDraftChange({
-      ...draft,
-      projects: projects.map((item) => item.index === projectIndex
-        ? { ...item, skills: item.skills.map((skill) => skill.index === skillIndex ? { ...skill, text } : skill) }
-        : item),
-    });
+  const updateProjectPoint = (projectIndex: number, pointIndex: number, text: string) => {
+    const project = projects.find((item) => item.index === projectIndex);
+    if (!project) return;
+    const points = project.brief.split(/\r?\n/);
+    points[pointIndex] = text;
+    updateProject(projectIndex, { brief: points.join('\n') });
+  };
+  const addProjectPoint = (projectIndex: number) => {
+    const project = projects.find((item) => item.index === projectIndex);
+    if (!project) return;
+    updateProject(projectIndex, { brief: `${project.brief}\n` });
+  };
+  const removeProjectPoint = (projectIndex: number, pointIndex: number) => {
+    const project = projects.find((item) => item.index === projectIndex);
+    if (!project) return;
+    const points = project.brief.split(/\r?\n/).filter((_, index) => index !== pointIndex);
+    updateProject(projectIndex, { brief: points.join('\n') });
+  };
   const addProject = () => onDraftChange({
     ...draft,
     projects: [...projects, {
       index: nextIndex(projects), title: '', brief: '', relevant: true,
-      skills: [{ index: 0, text: '', relevant: true }],
+      skills: [],
     }],
   });
 
@@ -202,12 +204,22 @@ export default function CvSuggestionSelector({
 
       {/* Objective — the one AI-generated field */}
       <SectionCard label="Objective / Summary" icon={FileText} expanded onToggle={() => {}}>
+        <label className="flex items-center gap-2.5 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={includeObjective}
+            onChange={(event) => onDraftChange({ ...draft, includeObjective: event.target.checked })}
+            className={checkboxCls}
+          />
+          <span className="text-xs font-bold text-slate-700">Include Objective section in CV</span>
+        </label>
         <textarea
           rows={5}
           value={objective}
           onChange={(e) => onDraftChange({ ...draft, objective: e.target.value })}
+          disabled={!includeObjective}
           placeholder="Customized objective for this opportunity..."
-          className={textareaCls}
+          className={`${textareaCls} disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400`}
         />
       </SectionCard>
 
@@ -276,23 +288,26 @@ export default function CvSuggestionSelector({
               />
               <div className="min-w-0 flex-1 space-y-2">
                 <input value={proj.title} onChange={(e) => updateProject(proj.index, { title: e.target.value })} placeholder="Project title" className={inputCls} />
-                <textarea rows={3} value={proj.brief} onChange={(e) => updateProject(proj.index, { brief: e.target.value })} placeholder="Project description" className={smallInputCls} />
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase block">Project Description Points</label>
+                  {proj.brief.split(/\r?\n/).map((point, pointIndex) => (
+                    <div key={pointIndex} className="flex items-start gap-2">
+                      <span className="text-slate-400 mt-2 text-sm leading-none select-none">•</span>
+                      <textarea
+                        rows={2}
+                        value={point}
+                        onChange={(event) => updateProjectPoint(proj.index, pointIndex, event.target.value)}
+                        placeholder="Describe one project contribution or outcome..."
+                        className={smallInputCls}
+                      />
+                      <button type="button" onClick={() => removeProjectPoint(proj.index, pointIndex)} disabled={proj.brief.split(/\r?\n/).length <= 1} className="p-1 text-slate-400 hover:text-rose-600 disabled:opacity-25" aria-label="Remove project description point"><Trash2 className="w-3.5 h-3.5" /></button>
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => addProjectPoint(proj.index)} className="flex items-center gap-1 text-[10px] font-bold text-indigo-600"><Plus className="w-3 h-3" /> Add description point</button>
+                </div>
               </div>
               <button type="button" onClick={() => onDraftChange({ ...draft, projects: projects.filter((item) => item.index !== proj.index) })} className="p-1.5 text-slate-400 hover:text-rose-600" aria-label="Remove project"><Trash2 className="w-4 h-4" /></button>
             </div>
-
-            {proj.relevant && (
-              <div className="pl-6.5 space-y-1.5">
-                {proj.skills.map((skill) => (
-                  <div key={skill.index} className="flex items-center gap-2">
-                    <input type="checkbox" checked={skill.relevant} onChange={() => toggleProjectSkill(proj.index, skill.index)} className={checkboxCls} aria-label="Include project skill" />
-                    <input value={skill.text} onChange={(e) => updateProjectSkill(proj.index, skill.index, e.target.value)} placeholder="Skill" className={smallInputCls} />
-                    <button type="button" onClick={() => updateProject(proj.index, { skills: proj.skills.filter((item) => item.index !== skill.index) })} className="p-1 text-slate-400 hover:text-rose-600" aria-label="Remove skill"><Trash2 className="w-3.5 h-3.5" /></button>
-                  </div>
-                ))}
-                <button type="button" onClick={() => updateProject(proj.index, { skills: [...proj.skills, { index: nextIndex(proj.skills), text: '', relevant: true }] })} className="flex items-center gap-1 text-[10px] font-bold text-indigo-600"><Plus className="w-3 h-3" /> Add skill</button>
-              </div>
-            )}
           </div>
         ))}
         <button type="button" onClick={addProject} className="flex items-center gap-2 px-3 py-2 border border-dashed border-indigo-300 rounded-lg text-xs font-bold text-indigo-700 hover:bg-indigo-50"><Plus className="w-4 h-4" /> Add project</button>
