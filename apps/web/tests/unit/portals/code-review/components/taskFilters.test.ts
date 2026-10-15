@@ -128,6 +128,25 @@ describe('filterTasks — bucket', () => {
 
     expect(kept).toHaveLength(0);
   });
+
+  it('strictly returns only Submitted tasks when status is Submitted', () => {
+    const kept = filterTasks(everyStatus, {
+      ...EMPTY_TASK_FILTERS,
+      status: 'Submitted',
+    });
+
+    expect(kept.map((t) => t.status)).toEqual(['Submitted']);
+  });
+
+  it('does not leak InReview or ReSubmitted tasks when filtering by Submitted even with awaitingReview bucket', () => {
+    const kept = filterTasks(everyStatus, {
+      ...EMPTY_TASK_FILTERS,
+      bucket: 'awaitingReview',
+      status: 'Submitted',
+    });
+
+    expect(kept.map((t) => t.status)).toEqual(['Submitted']);
+  });
 });
 
 describe('filterTasks — existing dimensions still hold', () => {

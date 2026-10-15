@@ -248,20 +248,29 @@ export class ReviewTasksService {
     if (!mayReadTask(user, task)) throw new ApiException('TASK_NOT_FOUND', 'Task not found.');
     const records = await this.prisma.auditLog.findMany({
       where: { taskId: id, action: { in: ['TASK_SUBMITTED', 'TASK_RESUBMITTED'] } },
-      select: { metadata: true },
+      select: { action: true, metadata: true, createdAt: true },
       orderBy: { createdAt: 'asc' },
     });
-    const submissions = records.flatMap(({ metadata }) => {
+    const submissions = records.flatMap(({ action, metadata, createdAt }) => {
       if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return [];
       const parsed = checklistSubmissionSchema.safeParse(metadata['checklistSubmission']);
-      return parsed.success ? [parsed.data] : [];
+      return parsed.success ? [{ action, submission: parsed.data, createdAt }] : [];
     });
-    if (submissions.length === 0 && task.submittedAt && task.developerChecklist) {
-      submissions.push(this.toChecklistSubmission(task, 1, task.submittedAt, task.developerId));
+
+    // The Developer Quality Checklist is completed and submitted ONCE for a task.
+    // Prefer the earliest valid TASK_SUBMITTED snapshot as canonical.
+    const originalSubmitted = submissions.find((s) => s.action === 'TASK_SUBMITTED');
+    const canonicalRecord = originalSubmitted ?? submissions[0];
+
+    if (canonicalRecord) {
+      return [{ ...canonicalRecord.submission, version: 1 }];
     }
-    // Newest first: the web client's ChecklistHistory treats the first entry as
-    // the submission currently under review.
-    return submissions.sort((left, right) => right.version - left.version);
+
+    if (task.submittedAt && task.developerChecklist) {
+      return [this.toChecklistSubmission(task, 1, task.submittedAt, task.developerId)];
+    }
+
+    return [];
   }
 
   async findEvents(id: string, user: AuthenticatedUser) {
@@ -321,6 +330,7 @@ export class ReviewTasksService {
           taskId: id,
           kind,
           reviewCycle: eventRound,
+          reviewRound: eventRound,
           actorId: log.userId,
           actorName: log.actorName,
           // The admin's or reviewer's own words when there are any.
@@ -852,11 +862,11 @@ export class ReviewTasksService {
 
     const submitted = await this.prisma.$transaction(async (tx) => {
       const now = new Date();
-      const submissionVersion =
-        (await tx.auditLog.count({
-          where: { taskId: id, action: { in: ['TASK_SUBMITTED', 'TASK_RESUBMITTED'] } },
-        })) + 1;
-      const checklistSubmission = this.toChecklistSubmission(task, submissionVersion, now, user.id);
+      // Developer Quality Checklist snapshot is created ONCE on initial submission.
+      // Resubmissions do not create additional checklist versions.
+      const checklistSubmission = !isResubmission
+        ? this.toChecklistSubmission(task, 1, now, user.id)
+        : null;
       const nextStatus = isResubmission ? TaskStatus.RESUBMITTED : TaskStatus.SUBMITTED;
       const existingResubmissionNotifications = isResubmission
         ? await tx.notification.findMany({
@@ -1026,7 +1036,9 @@ export class ReviewTasksService {
           status: updated.status,
           ...(resubmissionReviewerId === null ? {} : { currentReviewerId: resubmissionReviewerId }),
         },
-        metadata: { checklistSubmission: checklistSubmission as Prisma.InputJsonObject },
+        ...(checklistSubmission
+          ? { metadata: { checklistSubmission: checklistSubmission as Prisma.InputJsonObject } }
+          : {}),
       });
       if (!isResubmission) {
         const recipients = await tx.user.findMany({

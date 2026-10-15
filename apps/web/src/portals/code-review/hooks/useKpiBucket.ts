@@ -24,7 +24,7 @@ export function useActiveBucket(): KpiBucket | null {
   if (isKpiBucket(value)) return value;
   const status = searchParams.get('status') ?? searchParams.get('decision');
   if (status === 'Draft') return 'draft';
-  if (status === 'Submitted') return 'awaitingReview';
+  if (status === 'Submitted') return 'submitted';
   if (status === 'InReview') return 'inReview';
   if (status === 'ChangesRequested') return 'changesRequested';
   if (status === 'Approved') return 'approved';
@@ -62,8 +62,7 @@ export function useBucketSelection(): BucketSelection {
       if (location.pathname !== path) return false;
       if (current === bucket) return true;
       if (bucket === 'draft' && currentStatus === 'Draft') return true;
-      if ((bucket === 'awaitingReview' || bucket === 'submitted') && currentStatus === 'Submitted')
-        return true;
+      if (bucket === 'submitted' && currentStatus === 'Submitted') return true;
       if (bucket === 'inReview' && currentStatus === 'InReview') return true;
       if (bucket === 'changesRequested' && currentStatus === 'ChangesRequested') return true;
       if (bucket === 'approved' && currentStatus === 'Approved') return true;
@@ -92,6 +91,9 @@ export function useBucketSelection(): BucketSelection {
           if (path === ROUTES.reviewer.history) {
             nextParams.set('decision', mappedStatus);
           }
+        } else {
+          nextParams.delete('status');
+          nextParams.delete('decision');
         }
       }
       const qs = nextParams.toString();

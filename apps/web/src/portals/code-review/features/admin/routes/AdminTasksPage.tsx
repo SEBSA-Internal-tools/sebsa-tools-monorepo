@@ -48,8 +48,7 @@ import {
 } from '@/portals/code-review/components/taskListNavigation.ts';
 
 const ADMIN_STATUS_TO_BUCKET: Partial<Record<TaskStatus, KpiBucket>> = {
-  Submitted: 'awaitingReviewAdmin',
-  ReSubmitted: 'awaitingReviewAdmin',
+  Submitted: 'submitted',
   InReview: 'inReview',
   ChangesRequested: 'changesRequested',
   Approved: 'approved',
@@ -110,7 +109,10 @@ export function AdminTasksPage() {
   // Status is navigation state because the summary cards live in the parent
   // layout. Both cards and the dropdown therefore read the same URL value.
   const currentStatus = useMemo(
-    () => (filters.status !== ALL ? filters.status : bucket ? BUCKET_TO_STATUS[bucket] : ALL),
+    () =>
+      filters.status !== ALL
+        ? filters.status
+        : (bucket ? BUCKET_TO_STATUS[bucket] : undefined) ?? ALL,
     [bucket, filters.status],
   );
 
