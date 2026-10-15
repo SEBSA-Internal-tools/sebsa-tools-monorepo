@@ -38,6 +38,7 @@ function mapListRow(row: any): Employee {
     lastUpdated: formatDate(row.updated_at),
     avatar: row.avatar_url ?? DEFAULT_AVATAR,
     isAccountLinked: row.user_id != null,
+    accountUserId: row.user_id ?? null,
   };
 }
 

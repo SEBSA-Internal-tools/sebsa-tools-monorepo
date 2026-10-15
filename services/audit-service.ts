@@ -3,7 +3,22 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { UpdateEmployeeInput, Employee } from '@/types/domain';
 
-export type AuditAction = 'CREATE' | 'UPDATE' | 'DELETE' | 'DOWNLOAD' | 'APPROVE' | 'REJECT';
+// `audit_logs.action` is free text in Postgres (0011_audit_logs.sql) — this union is the
+// application-side contract, so new event types are added here rather than in a migration.
+export type AuditAction =
+  | 'CREATE'
+  | 'UPDATE'
+  | 'DELETE'
+  | 'DOWNLOAD'
+  | 'APPROVE'
+  | 'REJECT'
+  // Account access lifecycle (app/(authenticated)/repository/actions.ts). Logged separately
+  // from profile CRUD because granting and revoking sign-in access is an access-control event,
+  // which the retention/privacy protocol tracks distinctly from profile edits.
+  | 'ACCOUNT_INVITED'
+  | 'ACCOUNT_INVITE_RESENT'
+  | 'ACCOUNT_DEACTIVATED'
+  | 'ACCOUNT_REACTIVATED';
 export type AuditMetadata = Record<string, unknown>;
 
 export interface AuditChange {
