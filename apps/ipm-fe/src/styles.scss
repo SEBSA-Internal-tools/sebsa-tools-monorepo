@@ -280,8 +280,10 @@ code, pre, .font-mono, .task-id, .crim-id {
 .sebsa-page-desc {
   color: var(--text-secondary);
   font-size: 0.875rem;
-  max-width: 600px;
+  width: 100%;
+  min-width: 0;
   line-height: 1.5;
+  overflow-wrap: anywhere;
   margin: 0;
 }
 

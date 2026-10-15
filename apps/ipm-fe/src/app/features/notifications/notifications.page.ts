@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { NotificationService } from '../../core/services/notification.service';
+import { ConfirmationService } from '../../core/services/confirmation.service';
 import type { NotificationDto, NotificationType } from '@sebsa-pm-tool/shared-models';
 
 type FilterTab = 'ALL' | 'UNREAD' | 'ASSIGNMENTS' | 'STATUS_CHANGE' | 'DEADLINES';
@@ -14,6 +15,7 @@ type FilterTab = 'ALL' | 'UNREAD' | 'ASSIGNMENTS' | 'STATUS_CHANGE' | 'DEADLINES
   styleUrl: './notifications.page.scss',
 })
 export class NotificationsPageComponent implements OnInit {
+  private readonly confirmation = inject(ConfirmationService);
   private readonly router = inject(Router);
   protected readonly notificationService = inject(NotificationService);
 
@@ -50,7 +52,8 @@ export class NotificationsPageComponent implements OnInit {
     this.notificationService.markAllAsRead().subscribe();
   }
 
-  deleteNotification(id: string): void {
+  async deleteNotification(id: string): Promise<void> {
+    if (!(await this.confirmation.confirm({ title: 'Dismiss notification', message: 'Dismiss this notification?', consequence: 'It will be removed from your notification list. The related work will remain.', confirmLabel: 'Dismiss notification' }))) return;
     this.notificationService.deleteNotification(id).subscribe();
   }
 

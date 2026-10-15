@@ -23,8 +23,6 @@
 .cso-container {
   width: 100%;
   min-width: 0;
-  max-width: 1300px;
-  margin: 0 auto;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 28px;
@@ -65,8 +63,8 @@
 .hero-content {
   position: relative;
   z-index: 1;
-  max-width: 750px;
   width: 100%;
+  min-width: 0;
 
   h1 {
     margin: 0 0 12px;
@@ -80,7 +78,7 @@
 
   .description {
     margin: 0;
-    max-width: 700px;
+    width: 100%;
     font-family: 'Sora', sans-serif;
     font-size: 0.95rem;
     line-height: 1.6;

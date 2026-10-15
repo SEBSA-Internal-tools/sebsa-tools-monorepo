@@ -6,6 +6,7 @@ import { CommentsService } from '../../services/comments.service';
 import { AttachmentsService } from '../../services/attachments.service';
 import { ToastService } from '../../services/toast.service';
 import { AuthService } from '../../services/auth.service';
+import { ConfirmationService } from '../../services/confirmation.service';
 import { UserAvatarComponent } from '../user-avatar/user-avatar.component';
 
 /** Matches the server-side cap in CreateCommentDto. */
@@ -37,6 +38,7 @@ export interface MentionableUser {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CommentSectionComponent implements OnChanges {
+  private readonly confirmation = inject(ConfirmationService);
   @Input({ required: true }) targetType!: CommentTargetType;
   @Input({ required: true }) targetId!: string;
   /** Project members available to mention. */
@@ -257,8 +259,8 @@ export class CommentSectionComponent implements OnChanges {
     });
   }
 
-  protected remove(commentId: string): void {
-    if (!window.confirm('Delete this comment? This cannot be undone.')) return;
+  protected async remove(commentId: string): Promise<void> {
+    if (!(await this.confirmation.confirm({ title: 'Delete comment', message: 'Delete this comment or reply?', consequence: 'The selected comment or reply will be permanently removed and cannot be restored.', confirmLabel: 'Delete comment' }))) return;
 
     this.comments.delete(commentId).subscribe({
       next: () => {
