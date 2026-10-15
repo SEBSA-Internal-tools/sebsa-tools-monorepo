@@ -12,6 +12,7 @@ import { ProjectsService, Sprint } from '../../../../services/projects.service';
 import { SprintService } from '../../../../services/sprint.service';
 import { AuthService } from '../../../../../../core/services/auth.service';
 import { CasesService, type CaseView } from '../../../../../../core/services/cases.service';
+import { ConfirmationService } from '../../../../../../core/services/confirmation.service';
 import { AddSprintModalComponent } from '../../../../components/modals/add-sprint/add-sprint-modal.component';
 
 interface ExpandedState {
@@ -29,6 +30,7 @@ type UserRole = 'PM' | 'DEVELOPER' | 'VIEWER';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ProjectSprintComponent implements OnInit {
+  private readonly confirmation = inject(ConfirmationService);
   @Input() projectId!: string;
 
   private projectsService = inject(ProjectsService);
@@ -237,9 +239,9 @@ export class ProjectSprintComponent implements OnInit {
       });
   }
 
-  onDeleteSprint(sprintId: string): void {
-    if (confirm('Are you sure you want to delete this sprint? All associated cases will be unassigned.')) {
-      this.sprintService.deleteSprint(this.projectId, sprintId).subscribe({
+  async onDeleteSprint(sprintId: string): Promise<void> {
+    if (!(await this.confirmation.confirm({ title: 'Delete sprint', message: 'Delete this sprint?', consequence: 'The sprint will be permanently deleted and all associated cases will be unassigned from it.', confirmLabel: 'Delete sprint' }))) return;
+    this.sprintService.deleteSprint(this.projectId, sprintId).subscribe({
         next: () => {
           this.loadSprints();
         },
@@ -247,8 +249,7 @@ export class ProjectSprintComponent implements OnInit {
           console.error('Failed to delete sprint:', err);
           this.errorMessage.set('Failed to delete sprint. Please try again.');
         },
-      });
-    }
+    });
   }
 
   onUpdateSprintStatus(sprintId: string, newStatus: Sprint['status']): void {

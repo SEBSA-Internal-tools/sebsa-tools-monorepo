@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { JiraProjectLink, ProjectsService } from '../../../../services/projects.service';
 import { ToastService } from '../../../../../../core/services/toast.service';
+import { ConfirmationService } from '../../../../../../core/services/confirmation.service';
 
 /**
  * Per-project integration settings. Only Jira today, and only the project ->
@@ -19,6 +20,7 @@ import { ToastService } from '../../../../../../core/services/toast.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ProjectIntegrationsComponent implements OnChanges {
+  private readonly confirmation = inject(ConfirmationService);
   @Input({ required: true }) projectId!: string;
 
   private readonly projectsService = inject(ProjectsService);
@@ -90,14 +92,14 @@ export class ProjectIntegrationsComponent implements OnChanges {
     });
   }
 
-  protected unlink(): void {
+  protected async unlink(): Promise<void> {
     const current = this.link();
     if (!current) return;
 
-    const warning = current.linkedCaseCount
-      ? `Stop syncing with ${current.jiraProjectKey}? ${current.linkedCaseCount} case(s) will keep what they last pulled but stop updating.`
-      : `Stop syncing with ${current.jiraProjectKey}?`;
-    if (!window.confirm(warning)) return;
+    const consequence = current.linkedCaseCount
+      ? `${current.linkedCaseCount} linked case(s) will keep their last synced data but stop receiving updates.`
+      : 'This project will stop syncing with Jira. Existing project data will remain.';
+    if (!(await this.confirmation.confirm({ title: 'Unlink Jira project', message: `Stop syncing with ${current.jiraProjectKey}?`, consequence, confirmLabel: 'Unlink project' }))) return;
 
     this.projectsService.unlinkJiraProject(this.projectId).subscribe({
       next: () => {

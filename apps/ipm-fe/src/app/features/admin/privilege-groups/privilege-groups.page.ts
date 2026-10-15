@@ -4,6 +4,7 @@ import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@ang
 import { FormsModule } from '@angular/forms';
 import { PrivilegeGroup } from '@sebsa-pm-tool/shared-models';
 import { PrivilegeGroupsService } from '../../../core/services/privilege-groups.service';
+import { ConfirmationService } from '../../../core/services/confirmation.service';
 
 interface PrivilegeGroupFormState {
   name: string;
@@ -36,6 +37,7 @@ const EMPTY_FORM: PrivilegeGroupFormState = {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PrivilegeGroupsPageComponent implements OnInit {
+  private readonly confirmation = inject(ConfirmationService);
   private readonly privilegeGroupsService = inject(PrivilegeGroupsService);
 
   protected readonly groups = signal<PrivilegeGroup[]>([]);
@@ -100,8 +102,8 @@ export class PrivilegeGroupsPageComponent implements OnInit {
     });
   }
 
-  remove(group: PrivilegeGroup): void {
-    if (!confirm(`Delete privilege group "${group.name}"?`)) return;
+  async remove(group: PrivilegeGroup): Promise<void> {
+    if (!(await this.confirmation.confirm({ title: 'Delete privilege group', message: `Delete "${group.name}"?`, consequence: 'This privilege group will be permanently removed. Users assigned to it may lose its permissions.', confirmLabel: 'Delete group' }))) return;
     this.errorMessage.set('');
     this.privilegeGroupsService.remove(group.id).subscribe({
       next: () => this.loadGroups(),

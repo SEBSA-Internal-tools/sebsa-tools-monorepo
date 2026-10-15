@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { CustomersService } from '../../../../core/services/customers.service';
 import { ProjectsService } from '../../../projects/services/projects.service';
+import { ConfirmationService } from '../../../../core/services/confirmation.service';
 import {
   CreateCustomerModalComponent,
   type CustomerFormData,
@@ -45,6 +46,7 @@ const STATUS_BADGE_CLASS: Record<ProjectStatus, string> = {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CustomerDetailPageComponent implements OnInit {
+  private readonly confirmation = inject(ConfirmationService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly customersService = inject(CustomersService);
@@ -129,10 +131,10 @@ export class CustomerDetailPageComponent implements OnInit {
     });
   }
 
-  deleteCustomer(): void {
+  async deleteCustomer(): Promise<void> {
     const current = this.customer();
     if (!current) return;
-    if (!confirm(`Delete "${current.name}"? This cannot be undone.`)) return;
+    if (!(await this.confirmation.confirm({ title: 'Delete customer', message: `Delete "${current.name}"?`, consequence: 'This customer will be permanently deleted and cannot be restored. The action may be blocked if projects still use this customer.', confirmLabel: 'Delete customer' }))) return;
 
     this.customersService.deleteCustomer(current.id).subscribe({
       next: () => this.router.navigate(['/customers']),
