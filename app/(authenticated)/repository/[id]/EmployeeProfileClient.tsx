@@ -9,6 +9,7 @@ import type { Employee } from '@/types/domain';
 import type { CvExperienceEntry } from '@/lib/cvTypes';
 import { isAdminOrAbove, type UserRole } from '@/lib/roles';
 import CvPreviewTemplate from '../../generate/CvPreviewTemplate';
+import AccountStatusControl from '../AccountStatusControl';
 import { buildTailoredCvFromEmployee } from '@/lib/templates/buildTailoredCvFromEmployee';
 import {
   ArrowLeft,
@@ -39,6 +40,7 @@ export default function EmployeeProfileClient({ employee, viewerRole }: Employee
   // a pencil icon instead of a standalone "Update Profile" sidebar page/menu item, so editing
   // starts from the profile you're already looking at rather than a separate employee picker.
   const canEditAnyProfile = isAdminOrAbove(viewerRole);
+  const canManageAccounts = isAdminOrAbove(viewerRole);
 
   const handleBack = () => {
     router.push('/repository');
@@ -209,18 +211,21 @@ export default function EmployeeProfileClient({ employee, viewerRole }: Employee
 
               {/* Verify Match button CTA */}
               <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between">
-                <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded flex items-center gap-1.5 ${
-                  isPendingApproval
-                    ? 'bg-amber-50 border border-amber-200/50 text-amber-700'
-                    : employee.isAccountLinked
-                    ? 'bg-emerald-50 border border-emerald-200/50 text-emerald-700'
-                    : 'bg-slate-50 border border-slate-200/50 text-slate-400'
-                }`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${
-                    isPendingApproval ? 'bg-amber-500' : employee.isAccountLinked ? 'bg-emerald-500' : 'bg-slate-400'
-                  }`} />
-                  {isPendingApproval ? 'Pending Approval' : `Account ${employee.isAccountLinked ? 'Active' : 'Inactive'}`}
-                </span>
+                {/* Profile approval outranks account status here: a profile still awaiting
+                    approval isn't live yet, so its login state isn't the useful thing to show. */}
+                {isPendingApproval ? (
+                  <span className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded flex items-center gap-1.5 bg-amber-50 border border-amber-200/50 text-amber-700">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                    Pending Approval
+                  </span>
+                ) : (
+                  <AccountStatusControl
+                    rowId={employee.rowId}
+                    employeeName={employee.name}
+                    status={employee.accountStatus ?? 'inactive'}
+                    canManage={canManageAccounts}
+                  />
+                )}
                 {canGenerateCv && (
                   <button
                     onClick={() => router.push(`/generate?name=${encodeURIComponent(employee.name)}`)}

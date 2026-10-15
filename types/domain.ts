@@ -1,4 +1,5 @@
 import type { EmployeeDetails } from '@/lib/employeeDetails';
+import type { AccountStatus } from '@/lib/accountStatus';
 import type {
   CvExperienceEntry,
   CvAcademicEntry,
@@ -48,6 +49,13 @@ export interface Employee extends EmployeeDetails {
   avatar: string;
   /** True once this profile is linked to a real login (self-claimed or self-registered). */
   isAccountLinked: boolean;
+  /** `profiles.user_id`. Server-side only — pages strip it before handing the Employee to a
+   *  Client Component, since the browser needs the derived status, not the auth id. */
+  accountUserId?: string | null;
+  /** Login lifecycle state, derived from Supabase Auth by services/account-service.ts rather
+   *  than stored on the row. Only populated by callers that enrich it (the repository list and
+   *  detail pages); undefined elsewhere. */
+  accountStatus?: AccountStatus;
   /** Only populated by getEmployeeById (detail view) — listEmployees always returns 'published'. */
   status?: 'draft' | 'published' | 'archived';
   hasPendingChange?: boolean;

@@ -6,6 +6,7 @@ import { PageWrapper } from '../../components/PageWrapper';
 import type { Employee } from '@/types/domain';
 import { isAdminOrAbove, isReviewerOrAbove, type UserRole } from '@/lib/roles';
 import { deleteEmployeeAction } from './actions';
+import AccountStatusControl from './AccountStatusControl';
 import {
   Search,
   Filter,
@@ -32,6 +33,8 @@ export default function RepositoryClient({ employees, viewerRole, departments }:
   // someone else's existing profile stays Admin/Super-Admin-only.
   const canCreateEmployees = isReviewerOrAbove(viewerRole);
   const canDeleteEmployees = isAdminOrAbove(viewerRole);
+  // Inviting and deactivating are account-lifecycle actions, same tier as deleting a profile.
+  const canManageAccounts = isAdminOrAbove(viewerRole);
 
   const deleteEmployee = (rowId: string) => {
     startDeleteTransition(async () => {
@@ -217,16 +220,15 @@ export default function RepositoryClient({ employees, viewerRole, departments }:
                       {emp.lastUpdated}
                     </td>
 
-                    {/* Account link status — Active once the employee has claimed/self-registered */}
-                    <td className="py-4 px-6">
-                      <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded flex items-center gap-1.5 w-fit ${
-                        emp.isAccountLinked
-                          ? 'bg-emerald-50 border border-emerald-200/50 text-emerald-700'
-                          : 'bg-slate-100 border border-slate-200 text-slate-400'
-                      }`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${emp.isAccountLinked ? 'bg-emerald-500' : 'bg-slate-400'}`} />
-                        {emp.isAccountLinked ? 'Active' : 'Inactive'}
-                      </span>
+                    {/* Account lifecycle — clickable for Admin/Super Admin, read-only otherwise.
+                        Stop propagation so opening the dialog doesn't also navigate to the profile. */}
+                    <td className="py-4 px-6" onClick={(e) => e.stopPropagation()}>
+                      <AccountStatusControl
+                        rowId={emp.rowId}
+                        employeeName={emp.name}
+                        status={emp.accountStatus ?? 'inactive'}
+                        canManage={canManageAccounts}
+                      />
                     </td>
 
                     {/* Actions button strip (visible on hover) */}
