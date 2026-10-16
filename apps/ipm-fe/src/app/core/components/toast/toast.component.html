@@ -1,4 +1,4 @@
-<div class="toast-container">
+<div class="toast-container" aria-live="polite" aria-relevant="additions">
   @for (notification of notifications(); track notification.id) {
     <div class="toast" [class]="'toast-' + notification.type">
       <div class="toast-content">

@@ -3,7 +3,7 @@
 // Archetype: Clean SaaS Dashboard (Lavender-Gray Canvas, 24px White Cards, Purple Accent)
 // =============================================================================
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap');
 
 // =============================================================================
 // 1. Root Theme Variables
@@ -11,33 +11,47 @@
 
 :root {
   color-scheme: light;
+  --page-gutter: 28px;
+  --content-gap: 20px;
+  --radius-panel: 12px;
+  --radius-control: 8px;
+  --radius-dialog: 16px;
+  --app-primary: var(--brand-primary);
+  --app-text-secondary: var(--text-secondary);
+  --surface-soft: var(--surface-muted);
+  --surface-hover: var(--surface-muted);
+  --shadow-sm: var(--shadow-card);
 
   // --- Semantic Brand Palette ---
-  --brand-primary:        #7000ff;   // Brand/Primary 600 (Main buttons, active states, links)
-  --brand-primary-hover:  #5b00db;   // Primary hover
-  --brand-primary-100:    #f3e8ff;   // Light primary tint
-  --brand-primary-50:     #faf5ff;   // Softest primary tint
-  --brand-navy:           #0f172a;   // Brand/Navy 900 (Solid navy surfaces only)
-  --brand-violet:         #7c3aed;   // Brand/Violet 600 Accent
-  --brand-purple-heart:   #6b21a8;
-  --brand-midnight-blue:  #020617;
+  --brand-primary:        #8427e2;   // Brand/Primary 600 (Main buttons, active states, links)
+  --brand-primary-hover:  #7020c4;   // Primary hover
+  --brand-primary-100:    #f2e8fc;   // Light primary tint
+  --brand-primary-50:     #faf7fd;   // Softest primary tint
+  --brand-action:         #8427e2;
+  --brand-action-hover:   #7020c4;
+  --brand-plum:           #360065;
+  --brand-lilac:          #cd92ff;
+  --brand-navy:           #281b36;   // Brand/Navy 900 (Solid navy surfaces only)
+  --brand-violet:         #8427e2;   // Brand/Violet 600 Accent
+  --brand-purple-heart:   #5b168d;
+  --brand-midnight-blue:  #160b27;
   --brand-surface:        #ffffff;
 
   // --- Surface & Canvas Tokens ---
-  --surface-page:         #f3f4f8;   // Light lavender-gray canvas
+  --surface-page:         #f8f7fa;   // Light lavender-gray canvas
   --surface-card:         #ffffff;   // White card background
-  --surface-muted:        #f8fafc;   // Soft input/header background
+  --surface-muted:        #f7f5fa;   // Soft input/header background
 
   // --- Typography & Content Colors ---
-  --text-heading:         #0f172a;   // Dark Navy (Poppins headings & title text)
-  --text-primary:         #334155;   // Dark Slate Gray (Main body text)
-  --text-secondary:       #64748b;   // Muted Slate Gray
-  --text-muted:           #94a3b8;   // Light gray for hints & placeholders
-  --text-link:            #7000ff;   // Purple link color
+  --text-heading:         #281b36;   // Dark Navy (Poppins headings & title text)
+  --text-primary:         #453c50;   // Dark Slate Gray (Main body text)
+  --text-secondary:       #70657d;   // Muted Slate Gray
+  --text-muted:           #697586;   // Light gray for hints & placeholders
+  --text-link:            #8427e2;   // Purple link color
 
   // --- Borders & Dividers ---
-  --border-default:       #e2e8f0;   // Light gray border
-  --border-subtle:        #f1f5f9;   // Soft divider
+  --border-default:       #e6e0eb;   // Light gray border
+  --border-subtle:        #f2eef5;   // Soft divider
 
   // --- Status & State Color Tokens (Two-Tone System) ---
   --status-success-bg:    #ecfdf5;   // Soft mint green background
@@ -56,33 +70,33 @@
   --status-info-fg:       #2563eb;   // Dark blue text
   --status-info-solid:    #3b82f6;   // Saturated solid blue
 
-  --status-purple-bg:     #f3e8ff;   // Light purple background
-  --status-purple-fg:     #7c3aed;   // Dark purple text
-  --status-purple-solid:  #7000ff;   // Saturated solid purple
+  --status-purple-bg:     #f2e8fc;   // Light purple background
+  --status-purple-fg:     #8427e2;   // Dark purple text
+  --status-purple-solid:  #8427e2;   // Saturated solid purple
 
   --status-pink-bg:       #fce7f3;   // Soft pink background
   --status-pink-fg:       #db2777;   // Dark pink text
   --status-pink-solid:    #ec4899;   // Saturated solid pink
 
-  --status-neutral-bg:    #f1f5f9;   // Slate gray tint
-  --status-neutral-fg:    #64748b;   // Dark slate text
-  --status-neutral-solid: #64748b;   // Solid slate gray
+  --status-neutral-bg:    #f2eef5;   // Slate gray tint
+  --status-neutral-fg:    #70657d;   // Dark slate text
+  --status-neutral-solid: #70657d;   // Solid slate gray
 
   // --- Fonts & Typography ---
-  --font-heading:         'Poppins', sans-serif;
+  --font-heading:         'Inter', 'Segoe UI', sans-serif;
   --font-body:            'Inter', sans-serif;
   --font-mono:            'Roboto Mono', monospace;
 
   // --- Shadows & Elevations ---
-  --shadow-card:          0 4px 20px rgba(15, 23, 42, 0.04);
+  --shadow-card:          0 1px 3px rgba(15, 23, 42, 0.035);
   --shadow-elevated:      0 8px 30px rgba(15, 23, 42, 0.08);
-  --shadow-glow-focus:    0 0 0 3px rgba(112, 0, 255, 0.15);
-  --shadow-glow-purple:   0 4px 14px 0 rgba(112, 0, 255, 0.25);
+  --shadow-glow-focus:    0 0 0 3px rgba(132, 39, 226, 0.15);
+  --shadow-glow-purple:   0 4px 14px 0 rgba(132, 39, 226, 0.25);
 
   // --- Self-fix: used by this very stylesheet (.sebsa-card:hover) but never
   // defined anywhere — without this, hovering any card resolves to an
   // invalid custom property and silently drops the border-color change.
-  --border-strong:        #cbd5e1;
+  --border-strong:        #d8cfe0;
 
   // ---------------------------------------------------------------------------
   // Legacy Compatibility Mapping — many components across the app (built
@@ -107,7 +121,7 @@
   --app-accent:           var(--brand-primary);
   --app-accent-strong:    var(--brand-primary-hover);
   --app-accent-soft:      var(--brand-primary-100);
-  --app-accent-shadow:    rgba(112, 0, 255, 0.2);
+  --app-accent-shadow:    rgba(132, 39, 226, 0.2);
   --app-accent-on:        #ffffff;
 
   --color-brand-primary:       var(--brand-primary);
@@ -126,7 +140,7 @@
 
   --shadow-subtle:        var(--shadow-card);
 
-  --surface-panel:        #f1f5f9;   // Muted ash panel (page headers, search inputs)
+  --surface-panel:        #f2eef5;   // Muted ash panel (page headers, search inputs)
 
   --text-brand:           var(--brand-primary);
 
@@ -147,25 +161,25 @@
 :root[data-theme='dark'] {
   color-scheme: dark;
 
-  --brand-primary:        #9d5cff;
-  --brand-primary-hover:  #b47bff;
-  --brand-primary-100:    #2e1a52;
-  --brand-primary-50:     #241340;
-  --brand-surface:        #0f172a;
+  --brand-primary:        #bb85f3;
+  --brand-primary-hover:  #ceabf8;
+  --brand-primary-100:    #382049;
+  --brand-primary-50:     #291936;
+  --brand-surface:        #281b36;
 
-  --surface-page:         #0b1220;
-  --surface-card:         #131c2e;
-  --surface-muted:        #1a2438;
+  --surface-page:         #100d16;
+  --surface-card:         #1b1623;
+  --surface-muted:        #241d2e;
 
-  --text-heading:         #f1f5f9;
-  --text-primary:         #cbd5e1;
+  --text-heading:         #f2eef5;
+  --text-primary:         #d8cfe0;
   --text-secondary:       #94a3b8;
-  --text-muted:           #64748b;
-  --text-link:            #b794ff;
+  --text-muted:           #95a1b5;
+  --text-link:            #cd92ff;
 
-  --border-default:       #29344a;
-  --border-subtle:        #1f2937;
-  --border-strong:        #3c4a63;
+  --border-default:       #3a3048;
+  --border-subtle:        #2d2536;
+  --border-strong:        #51435e;
 
   --status-success-bg:    rgba(16, 185, 129, 0.15);
   --status-success-fg:    #34d399;
@@ -186,16 +200,16 @@
   --status-pink-fg:       #f472b6;
 
   --status-neutral-bg:    rgba(148, 163, 184, 0.15);
-  --status-neutral-fg:    #cbd5e1;
+  --status-neutral-fg:    #d8cfe0;
 
   --shadow-card:          0 4px 20px rgba(0, 0, 0, 0.35);
   --shadow-elevated:      0 8px 30px rgba(0, 0, 0, 0.45);
   --shadow-glow-focus:    0 0 0 3px rgba(157, 92, 255, 0.25);
   --shadow-glow-purple:   0 4px 14px 0 rgba(157, 92, 255, 0.3);
 
-  --color-surface-glass-hover: #202c44;
+  --color-surface-glass-hover: #30263d;
 
-  --surface-panel:        #1a2438;
+  --surface-panel:        #241d2e;
 }
 
 // =============================================================================
@@ -234,18 +248,19 @@ code, pre, .font-mono, .task-id, .crim-id {
 // =============================================================================
 
 .workspace-page,
-.page-container,
-.tasks-page-container,
-.cso-container,
-.admin-users-container {
-  background-color: var(--surface-card);
+.page-container {
+  background-color: var(--surface-page);
+}
+
+.tasks-page-container, .cso-container, .admin-users-container {
+  background-color: var(--surface-page);
 }
 
 .sebsa-page-header {
-  background-color: var(--surface-panel);
+  background-color: var(--surface-card);
   border: 1px solid var(--border-default);
-  border-radius: 24px;
-  padding: 48px 40px; /* Increased to match CSO/Projects layout sizes */
+  border-radius: 12px;
+  padding: 24px 28px;
   margin-bottom: 24px;
   text-align: left;
   display: flex;
@@ -271,13 +286,14 @@ code, pre, .font-mono, .task-id, .crim-id {
 
 .sebsa-page-title {
   color: var(--text-heading);
-  font-family: 'Poppins', sans-serif;
-  font-size: 2rem;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+  font-size: 1.65rem;
   font-weight: 600;
   margin: 0 0 12px 0;
 }
 
 .sebsa-page-desc {
+  max-width: 600px;
   color: var(--text-secondary);
   font-size: 0.875rem;
   width: 100%;
@@ -295,7 +311,7 @@ code, pre, .font-mono, .task-id, .crim-id {
 .glass-card,
 .workspace-card {
   background: var(--surface-card);
-  border-radius: 24px;
+  border-radius: 12px;
   box-shadow: var(--shadow-card);
   padding: 28px;
   border: 1px solid var(--border-default);
@@ -346,7 +362,7 @@ code, pre, .font-mono, .task-id, .crim-id {
 .btn-primary,
 .btn-primary-solid,
 .sebsa-btn-primary {
-  background-color: var(--brand-primary) !important;
+  background-color: var(--brand-action) !important;
   color: var(--app-accent-on) !important;
   font-weight: 600 !important;
   border: none !important;
@@ -365,7 +381,7 @@ code, pre, .font-mono, .task-id, .crim-id {
   }
 
   &:hover:not(:disabled) {
-    background-color: var(--brand-primary-hover) !important;
+    background-color: var(--brand-action-hover) !important;
     color: var(--app-accent-on) !important;
     border-color: var(--brand-primary-hover) !important;
     box-shadow: none !important;
@@ -413,11 +429,11 @@ code, pre, .font-mono, .task-id, .crim-id {
 .btn-navy-soft {
   @extend .btn;
   color: var(--brand-navy);
-  background: #f1f5f9;
+  background: #f2eef5;
   border: 1px solid transparent;
 
   &:hover:not(:disabled) {
-    background: #e2e8f0;
+    background: #e6e0eb;
   }
 }
 
@@ -428,7 +444,7 @@ code, pre, .font-mono, .task-id, .crim-id {
   border: 1px solid var(--border-default);
 
   &:hover:not(:disabled) {
-    background: #f8fafc;
+    background: #f7f5fa;
     border-color: var(--brand-navy);
   }
 }
@@ -664,153 +680,25 @@ body, input, button, table {
 }
 
 h1, h2, h3, h4, h5, h6, .sebsa-page-title {
-  font-family: 'Poppins', sans-serif !important;
+  font-family: 'Inter', 'Segoe UI', sans-serif !important;
 }
 
-/* Task 1: Remove Main Container Borders on Table Pages */
-.table-container, .page-body, .list-card {
-  border: none !important;
-  box-shadow: none !important;
-  background-color: var(--surface-card);
-}
-
-/* Restore Clear Ash Borders to Dashboard Cards & Metric Boxes */
-.dashboard-card,
-.metric-card,
-.stat-box,
-.overview-card,
-.summary-card,
-.card-item,
-.hero-section,
-.cards-grid .card,
-.dashboard-page .card,
-app-dashboard-hero .hero-section,
-app-dashboard-summary-cards .card,
-app-dashboard-portfolio .portfolio-card,
-app-dashboard-timeline .timeline-card,
-app-dashboard-workload .workload-card,
-app-dashboard-activity .activity-card {
-  border: 1px solid var(--border-strong) !important; /* Clear dark ash border */
-  background-color: var(--surface-card) !important;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05) !important; /* Soft depth shadow */
-}
-
-/* Remove Border from Project Health Matrix Card */
-.health-matrix-container,
-app-dashboard-project-health-matrix .health-matrix-container {
-  border: none !important;
-  box-shadow: none !important;
-  background-color: var(--surface-card) !important;
-}
-
-/* Task 2: Ash Search Bars */
-input[type="search"], .search-bar input, .search-box, .sebsa-search {
-  background-color: var(--surface-panel) !important;
-  border: 1px solid var(--border-default) !important;
-  color: var(--text-heading);
-  border-radius: 8px;
-  padding: 10px 16px;
-}
-
-// =============================================================================
-// Task Table Blueprint — Absolute Global Source of Truth (HTML & Grid Tables)
-// =============================================================================
-
-/* 1. Standard HTML Tables */
-table, .sebsa-table {
-  width: 100% !important;
-  border-collapse: collapse !important;
-  background-color: var(--surface-card) !important;
-  margin-bottom: 0 !important;
-
-  th {
-    color: var(--text-secondary) !important;
-    font-weight: 700 !important;
-    text-transform: uppercase !important;
-    font-size: 0.75rem !important;
-    letter-spacing: 0.05em !important;
-    padding: 16px 20px !important;
-    background-color: var(--surface-card) !important;
-    border: none !important;
-    border-bottom: 2px solid var(--border-default) !important;
-    text-align: left !important;
-    font-family: 'Inter', sans-serif !important;
-  }
-
-  td {
-    padding: 16px 20px !important;
-    color: var(--text-primary) !important;
-    font-size: 0.875rem !important;
-    font-weight: 400 !important;
-    line-height: 1.5 !important;
-    background-color: var(--surface-card) !important;
-    border: none !important;
-    border-bottom: 1px solid var(--border-subtle) !important;
-    text-align: left !important;
-    font-family: 'Inter', sans-serif !important;
-  }
-
-  tr:hover td {
-    background-color: var(--surface-muted) !important;
-  }
-}
-
-/* 2. Grid & Flex List Tables (Projects List, Customers List, Task List) */
-.list-header, .table-header {
-  background-color: var(--surface-card) !important;
-  color: var(--text-secondary) !important;
-  font-weight: 700 !important;
-  font-size: 0.75rem !important;
-  text-transform: uppercase !important;
-  letter-spacing: 0.05em !important;
-  padding: 16px 20px !important;
-  border-bottom: 2px solid var(--border-default) !important;
-  font-family: 'Inter', sans-serif !important;
-}
-
-.list-item, .table-row {
-  background-color: var(--surface-card) !important;
-  color: var(--text-primary) !important;
-  font-size: 0.875rem !important;
-  font-weight: 400 !important;
-  line-height: 1.5 !important;
-  padding: 16px 20px !important;
-  border-bottom: 1px solid var(--border-subtle) !important;
-  font-family: 'Inter', sans-serif !important;
-  transition: background 0.15s ease !important;
-
-  &:hover {
-    background-color: var(--surface-muted) !important;
-  }
-}
-
-.projects-list-container,
-.customers-list-container,
-.tasks-table-container {
-  background-color: var(--surface-card) !important;
-  border: 1px solid var(--border-subtle) !important;
-  border-radius: 16px !important;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02) !important;
+// Data table defaults stay low-specificity so calendar and configuration layouts
+// retain their own geometry. Paint belongs to the owning component.
+:where(.sebsa-table) {
+  width: 100%; border-collapse: collapse; background: var(--surface-card);
+  th { padding: 12px 16px; text-align: left; font-size: 11px; font-weight: 600; color: var(--text-secondary); background: var(--surface-muted); border-bottom: 1px solid var(--border-default); }
+  td { padding: 14px 16px; font-size: 13px; border-bottom: 1px solid var(--border-subtle); }
+  tbody tr:hover { background: var(--surface-muted); }
 }
 
 /* Task 3: Glossy User Count Badge */
 .sebsa-glossy-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 28px;
-  height: 28px;
-  padding: 0 8px;
-  margin-left: 12px;
-  font-size: 0.875rem;
-  font-weight: 700;
-  color: #5B21B6; /* Deep Purple */
-  background: linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 100%);
-  border: 1px solid #FFFFFF;
-  border-radius: 14px;
-  box-shadow: 0 2px 6px rgba(91, 33, 182, 0.15), inset 0 1px 2px rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(4px);
-  vertical-align: middle;
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 24px; padding: 2px 8px; margin-left: 8px;
+  font-size: 12px; font-weight: 600; color: var(--brand-primary);
+  background: var(--brand-primary-100); border: 1px solid var(--border-default);
+  border-radius: 6px; vertical-align: middle;
 }
 
 // =============================================================================
@@ -912,16 +800,6 @@ input[type="date"] {
 }
 
 @media (max-width: 768px) {
-  /* Global responsive horizontal scrolling for HTML data tables */
-  .sebsa-table,
-  table {
-    display: block !important;
-    width: 100% !important;
-    overflow-x: auto !important;
-    -webkit-overflow-scrolling: touch !important;
-    white-space: nowrap !important;
-  }
-
   /* Universal Dropdown & Popover Containment */
   .custom-select-dropdown,
   .datepicker-popup,
@@ -940,3 +818,18 @@ input[type="date"] {
 }
 
 
+
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media (max-width: 768px) { :root { --page-gutter: 16px; --content-gap: 16px; } }

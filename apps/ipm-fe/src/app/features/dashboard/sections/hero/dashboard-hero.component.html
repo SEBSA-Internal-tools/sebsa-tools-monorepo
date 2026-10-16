@@ -1,5 +1,5 @@
 @if (data) {
-  <header class="hero-section workspace-card">
+  <header class="dashboard-intro">
     <div class="hero-content">
       <div class="eyebrow-badge">
         <span class="pulse-dot"></span>
@@ -8,38 +8,14 @@
       <h1>{{ data.title }}</h1>
       <p class="description">{{ data.description }}</p>
     </div>
-
-    <div class="hero-stats">
-      @for (stat of data.stats; track stat.icon) {
-        <div class="stat-box">
-          <div class="stat-icon-wrapper">
-            <span class="material-symbols-outlined">{{ stat.icon }}</span>
-          </div>
-          <div class="stat-text">
-            <strong>{{ stat.value }}</strong>
-            <span>{{ stat.label }}</span>
-          </div>
-        </div>
-      }
-    </div>
   </header>
 } @else {
   <!-- Hero Shimmer Skeleton -->
-  <header class="hero-section workspace-card skeleton-hero" aria-hidden="true">
+  <header class="dashboard-intro skeleton-hero" aria-hidden="true">
     <div class="hero-content">
       <div class="skeleton-pill skeleton-shimmer" style="width: 160px; height: 24px; border-radius: 9999px;"></div>
       <div class="skeleton-pill skeleton-shimmer" style="width: 70%; height: 32px; border-radius: 8px;"></div>
       <div class="skeleton-pill skeleton-shimmer" style="width: 90%; height: 16px; border-radius: 6px;"></div>
-    </div>
-    <div class="hero-stats">
-      <div class="stat-box skeleton-stat-box">
-        <div class="skeleton-circle skeleton-shimmer" style="width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;"></div>
-        <div class="skeleton-pill skeleton-shimmer" style="width: 80px; height: 28px; border-radius: 6px;"></div>
-      </div>
-      <div class="stat-box skeleton-stat-box">
-        <div class="skeleton-circle skeleton-shimmer" style="width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;"></div>
-        <div class="skeleton-pill skeleton-shimmer" style="width: 80px; height: 28px; border-radius: 6px;"></div>
-      </div>
     </div>
   </header>
 }

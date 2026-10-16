@@ -15,14 +15,14 @@
 .customers-container {
   width: 100%;
   display: grid;
-  gap: 28px;
+  gap: var(--content-gap);
 
   @media (min-width: 768px) {
-    gap: 32px;
+    gap: var(--content-gap);
   }
 
   @media (min-width: 1024px) {
-    gap: 40px;
+    gap: var(--content-gap);
   }
 }
 
@@ -31,7 +31,7 @@
   border-radius: 8px;
   background: rgba(239, 68, 68, 0.1);
   border: 1px solid rgba(239, 68, 68, 0.25);
-  color: #991b1b;
+  color: var(--status-error-fg);
   font-size: 0.9rem;
 }
 

@@ -45,7 +45,7 @@
   align-items: center;
   gap: 8px;
   padding: 10px 16px;
-  background: var(--brand-primary);
+  background: var(--brand-action);
   color: white;
   border: none;
   border-radius: 8px;
@@ -61,7 +61,7 @@
   }
 
   &:hover {
-    background: var(--brand-primary-hover);
+    background: var(--brand-action-hover);
     box-shadow: 0 4px 12px var(--app-accent-shadow);
     transform: translateY(-1px);
   }
@@ -204,7 +204,7 @@
   padding: 4px 10px;
   background: rgba(59, 130, 246, 0.1);
   color: #3b82f6;
-  border-radius: 20px;
+  border-radius: var(--radius-panel);
   font-size: 0.8rem;
   font-weight: 600;
 }
@@ -339,7 +339,7 @@
 .role-name-input {
   padding: 10px 14px;
   border: 1px solid var(--app-border, #e2e8f0);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   background: var(--app-surface-soft, #f8fafc);
   color: var(--app-text, #0f172a);
   font-size: 0.875rem;
@@ -391,10 +391,10 @@
   gap: 6px;
   padding: 10px 16px;
   min-height: 40px;
-  background: var(--brand-primary);
+  background: var(--brand-action);
   color: white;
   border: none;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   font-weight: 600;
   font-size: 0.875rem;
   cursor: pointer;
@@ -406,7 +406,7 @@
   }
 
   &:hover {
-    background: var(--brand-primary-hover);
+    background: var(--brand-action-hover);
   }
 
   &:disabled {

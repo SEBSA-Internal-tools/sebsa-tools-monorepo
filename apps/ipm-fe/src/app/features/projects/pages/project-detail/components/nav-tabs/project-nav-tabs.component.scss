@@ -69,17 +69,17 @@
       align-items: center;
       gap: 8px;
       padding: 10px 18px;
-      background: var(--brand-primary);
+      background: var(--brand-action);
       color: white;
       border: none;
-      border-radius: 999px;
+      border-radius: var(--radius-control);
       font-weight: 700;
       font-size: 0.9rem;
       cursor: pointer;
       transition: all 0.2s ease;
       white-space: nowrap;
       flex-shrink: 0;
-      box-shadow: 0 12px 24px var(--app-accent-shadow);
+      box-shadow: none;
 
       .material-symbols-outlined {
         font-size: 18px;
@@ -92,7 +92,7 @@
       }
 
       &:hover {
-        background: var(--brand-primary-hover);
+        background: var(--brand-action-hover);
         box-shadow: 0 4px 12px var(--app-accent-shadow);
         transform: translateY(-1px);
       }

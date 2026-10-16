@@ -231,7 +231,7 @@
 
   &.new {
     background: rgba(148, 163, 184, 0.15);
-    color: #64748b;
+    color: var(--text-secondary);
   }
 
   &.todo {

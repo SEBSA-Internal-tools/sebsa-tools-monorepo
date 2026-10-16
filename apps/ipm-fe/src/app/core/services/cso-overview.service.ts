@@ -14,6 +14,8 @@ export interface CsoOverviewFilters {
 
 export interface CsoTaskView {
   id: string;
+  rawStatus?: CaseStatus;
+  assigneeIds?: string[];
   title: string;
   priority: string;
   priorityColor: string | null;
@@ -55,9 +57,17 @@ export class CsoOverviewService {
 
   private readonly _isLoading = signal(false);
   readonly isLoading = this._isLoading.asReadonly();
+  readonly errorMessage = signal('');
+  readonly loadedAt = signal<Date | null>(null);
+
+  private activeRequest = 0;
+  readonly detailsWarning = signal('');
 
   load(filters: CsoOverviewFilters): void {
+    const request = ++this.activeRequest;
+    this.detailsWarning.set('');
     this._isLoading.set(true);
+    this.errorMessage.set('');
 
     let params = new HttpParams().set('isCsoLabeled', 'true');
     if (filters.projectId) params = params.set('projectId', filters.projectId);
@@ -67,15 +77,18 @@ export class CsoOverviewService {
 
     this.http
       .get<BackendCaseSummary[]>('/api/cases', { params })
-      .pipe(switchMap((cases) => this.resolveDetails(cases)))
+      .pipe(switchMap((cases) => this.resolveDetails(cases, request)))
       .subscribe({
         next: (views) => {
+          if (request !== this.activeRequest) return;
           this._tasks.set(views);
+          this.loadedAt.set(new Date());
           this._isLoading.set(false);
         },
         error: (err) => {
+          if (request !== this.activeRequest) return;
           console.error('Failed to load CSO cases:', err);
-          this._tasks.set([]);
+          this.errorMessage.set('CSO case data is unavailable. Retry to load the latest snapshot.');
           this._isLoading.set(false);
         },
       });
@@ -83,11 +96,14 @@ export class CsoOverviewService {
 
   /** customerName isn't present on the flat cases response (project only
    *  carries {id, name}), so resolve it via one /api/projects call. */
-  private resolveDetails(cases: BackendCaseSummary[]): Observable<CsoTaskView[]> {
+  private resolveDetails(cases: BackendCaseSummary[], request: number): Observable<CsoTaskView[]> {
     if (cases.length === 0) return of([]);
 
     return this.http.get<ProjectSummary[]>('/api/projects').pipe(
-      catchError(() => of([])),
+      catchError(() => {
+        if (request === this.activeRequest) this.detailsWarning.set('Customer labels are unavailable. Case totals are still available.');
+        return of([]);
+      }),
       map((projects) => {
         const customerNameByProjectId = new Map(
           projects.map((project) => [project.id, project.customer?.name]),
@@ -100,6 +116,8 @@ export class CsoOverviewService {
   private toCsoTaskView(kase: BackendCaseSummary, customerName: string | undefined): CsoTaskView {
     return {
       id: kase.id,
+      rawStatus: kase.status,
+      assigneeIds: kase.assignees?.map(assignee => assignee.id) ?? [],
       title: kase.title,
       priority: kase.priority?.name ?? '',
       priorityColor: kase.priority?.color ?? null,

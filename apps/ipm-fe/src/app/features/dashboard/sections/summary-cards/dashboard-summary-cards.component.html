@@ -25,12 +25,12 @@
         (click)="onCardClick(card)"
         role="button"
         tabindex="0"
-        (keydown.enter)="onCardClick(card)"
+        (keydown.enter)="onCardClick(card)" (keydown.space)="$event.preventDefault(); onCardClick(card)"
         [attr.aria-pressed]="isCardActive(card)"
         [title]="isCardActive(card) ? 'Click to clear filter' : 'Click to filter project list'"
       >
         <div class="card-header-row">
-          <span class="card-label">{{ card.label }}</span>
+          <span class="card-label">{{ displayLabel(card) }}</span>
           <div class="card-icon-circle">
             <span class="material-symbols-outlined">{{ card.icon }}</span>
           </div>
@@ -48,7 +48,7 @@
             <span class="material-symbols-outlined cue-icon">
               {{ isCardActive(card) ? 'filter_list_off' : 'filter_list' }}
             </span>
-            <span class="cue-label">{{ isCardActive(card) ? 'Active Filter (Click to Reset)' : 'Click to Filter' }}</span>
+            <span class="cue-label">{{ isCardActive(card) ? 'Clear filter' : 'Explore projects' }}</span>
           </span>
         </div>
       </div>

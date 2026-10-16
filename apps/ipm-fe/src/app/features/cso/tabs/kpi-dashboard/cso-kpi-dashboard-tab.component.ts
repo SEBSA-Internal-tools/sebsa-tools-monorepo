@@ -7,15 +7,15 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import { RouterLink } from '@angular/router';
+import { DashboardInsightsComponent } from '../../../../core/components/dashboard-insights/dashboard-insights.component';
+import { summarizeWork, workInsights } from '../../../../core/utils/work-insights';
 import { FormsModule } from '@angular/forms';
-import type { ProjectSummary } from '@sebsa-pm-tool/shared-models';
 import { AuthService } from '../../../../core/services/auth.service';
-import { CustomDatepickerComponent } from '../../../../core/components/custom-datepicker/custom-datepicker.component';
 import {
   CsoOverviewService,
   type CsoTaskView,
 } from '../../../../core/services/cso-overview.service';
-import { ProjectsService } from '../../../projects/services/projects.service';
 
 type DashboardTab = 'team' | 'management';
 type TrendRange = '7D' | '30D' | '90D';
@@ -40,14 +40,6 @@ const MEMBER_COLORS = [
 
 // ─── Interfaces ──────────────────────────────────────────────────────────────
 
-interface KpiCard {
-  id: string;
-  title: string;
-  value: string | number;
-  icon: string;
-  accent: string;
-  badge?: { label: string; cls: string };
-}
 
 interface StatusRow { status: string; count: number; pct: number; }
 
@@ -93,9 +85,9 @@ interface TrendLine {
   priority: string;
   color: string;
   points: string; // SVG polyline points attribute
+  counts: number[];
 }
 
-interface ResolutionPoint { label: string; resolved: number; }
 
 interface DateBucket { label: string; start: Date; end: Date; }
 
@@ -104,14 +96,13 @@ interface DateBucket { label: string; start: Date; end: Date; }
 @Component({
   standalone: true,
   selector: 'cso-kpi-dashboard-tab',
-  imports: [CommonModule, FormsModule, CustomDatepickerComponent],
+  imports: [CommonModule, FormsModule, RouterLink, DashboardInsightsComponent],
   templateUrl: './cso-kpi-dashboard-tab.component.html',
   styleUrl: './cso-kpi-dashboard-tab.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CsoKpiDashboardTabComponent implements OnInit {
   private readonly csoService = inject(CsoOverviewService);
-  private readonly projectsService = inject(ProjectsService);
   private readonly authService = inject(AuthService);
 
   // ─── Tab state ─────────────────────────────────────────────────────────────
@@ -119,142 +110,41 @@ export class CsoKpiDashboardTabComponent implements OnInit {
 
   // ─── Loading (from service signal) ─────────────────────────────────────────
   readonly isLoading = this.csoService.isLoading;
+  readonly loadError = this.csoService.errorMessage;
+  readonly loadedAt = this.csoService.loadedAt;
+  readonly detailsWarning = this.csoService.detailsWarning;
 
   // ─── Projects data ─────────────────────────────────────────────────────────
-  readonly allProjects = signal<ProjectSummary[]>([]);
-
-  readonly csoProjects = computed<ProjectSummary[]>(() =>
-    this.allProjects().filter((p) => p.isCsoProject),
-  );
-
-  readonly activeCustomers = computed<Set<string>>(() => {
-    const customers = new Set<string>();
-    this.csoProjects().forEach((p) => {
-      customers.add(p.customer.id);
-    });
-    return customers;
-  });
-
-  // ─── Permission gate ───────────────────────────────────────────────────────
-  /** Only ADMIN, EXECUTIVE, and SUPER_ADMIN may view the Management Dashboard */
   readonly isManagementAllowed = computed<boolean>(() => {
     const role = this.authService.currentUser()?.systemRole;
     return MANAGEMENT_ROLES.includes(role as (typeof MANAGEMENT_ROLES)[number]);
   });
 
   // ─── Current user ──────────────────────────────────────────────────────────
-  private readonly currentUserName = computed<string>(
-    () => this.authService.currentUser()?.name ?? '',
-  );
 
   // ─── Active dataset ────────────────────────────────────────────────────────
   /** Team tab → cases assigned to the logged-in user. Management → all cases. */
   readonly activeTasks = computed<CsoTaskView[]>(() => {
     const all = this.csoService.tasks();
     return this.activeTab() === 'team'
-      ? all.filter((t) => t.assignee === this.currentUserName())
-      : all;
+      ? all.filter((t) => !!this.authService.currentUser()?.id && t.assigneeIds?.includes(this.authService.currentUser()!.id))
+      : this.isManagementAllowed() ? all : [];
   });
 
   // ─── Trend range (shared between priority and resolution charts) ────────────
   readonly trendRange = signal<TrendRange>('30D');
 
   // ─── 9 KPI Cards ──────────────────────────────────────────────────────────
-  readonly kpiCards = computed<KpiCard[]>(() => {
-    const tasks = this.activeTasks();
-    const openTasks = tasks.filter((t) => t.statusLabel !== 'done');
-    const closedTasks = tasks.filter((t) => t.statusLabel === 'done');
+  readonly snapshotItems = computed(() => this.activeTasks().map(task => ({
+    id: task.id, title: task.title, status: task.rawStatus ?? (task.statusLabel === 'done' ? 'DONE' : 'IN_PROGRESS'),
+    dueDate: task.dueDate, createdAt: task.createdAt, assigneeIds: task.assigneeIds,
+  })));
+  readonly snapshot = computed(() => summarizeWork(this.snapshotItems()));
+  readonly insights = computed(() => workInsights(this.snapshotItems()));
+  readonly highPriorityOpen = computed(() => this.activeTasks().filter(task => task.statusLabel !== 'done' && ['CRITICAL', 'HIGH'].includes(task.priority.toUpperCase())).length);
+  readonly overdueCases = computed(() => this.snapshot().overdue.slice(0, 5));
+  reload(): void { this.csoService.load({}); }
 
-    const now = new Date();
-    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-
-    const newTasks = tasks.filter((t) => {
-      const refDate = t.createdAt || t.updatedAt || t.dueDate;
-      if (!refDate) return false;
-      const d = new Date(refDate);
-      return !isNaN(d.getTime()) && d >= sevenDaysAgo && d <= now;
-    });
-
-    const criticalHighOpen = openTasks.filter((t) =>
-      ['CRITICAL', 'HIGH'].includes((t.priority || '').toUpperCase()),
-    );
-
-    const avgAge =
-      openTasks.length > 0
-        ? Math.round(
-            openTasks.reduce((sum, t) => {
-              const refDate = t.createdAt || t.updatedAt || t.dueDate;
-              const days = refDate
-                ? Math.max(
-                    0,
-                    Math.floor(
-                      (now.getTime() - new Date(refDate).getTime()) / 86_400_000,
-                    ),
-                  )
-                : 0;
-              return sum + days;
-            }, 0) / openTasks.length,
-          )
-        : 0;
-
-    // Team vs Management scoped projects & customers count
-    const activeProjectIds = new Set(tasks.map((t) => t.projectId).filter(Boolean));
-    const activeCustomerNames = new Set(tasks.map((t) => t.customerName).filter(Boolean));
-
-    const projectsCount =
-      this.activeTab() === 'team'
-        ? activeProjectIds.size
-        : this.csoProjects().length;
-
-    const customersCount =
-      this.activeTab() === 'team'
-        ? activeCustomerNames.size
-        : this.activeCustomers().size;
-
-    // SLA Compliance: Percentage of cases completed on time or open and not overdue
-    const nonOverdueCount = tasks.filter((t) => {
-      if (!t.dueDate) return true;
-      const due = new Date(t.dueDate);
-      if (isNaN(due.getTime())) return true;
-      return t.statusLabel === 'done' || due >= now;
-    }).length;
-
-    const slaCompliancePct =
-      tasks.length > 0
-        ? Math.round((nonOverdueCount / tasks.length) * 100)
-        : 100;
-
-    const slaLabel =
-      slaCompliancePct >= 90 ? 'Compliant'
-      : slaCompliancePct >= 70 ? 'At Risk'
-      : 'Non-Compliant';
-
-    const slaCls =
-      slaCompliancePct >= 90 ? 'compliant'
-      : slaCompliancePct >= 70 ? 'at-risk'
-      : 'non-compliant';
-
-    return [
-      { id: 'total',         title: 'Total CSO Cases',          value: tasks.length,              icon: 'folder_open',         accent: '#6366f1' },
-      { id: 'open',          title: 'Open Cases',               value: openTasks.length,          icon: 'inbox',               accent: '#0ea5e9' },
-      { id: 'closed',        title: 'Closed Cases',             value: closedTasks.length,        icon: 'check_circle',        accent: '#10b981' },
-      { id: 'new7d',         title: 'New Cases (Last 7 Days)',   value: newTasks.length,           icon: 'new_releases',        accent: '#8b5cf6' },
-      { id: 'critHigh',      title: 'Critical / High Open',     value: criticalHighOpen.length,   icon: 'priority_high',       accent: '#ef4444' },
-      { id: 'projects',      title: 'Active CSO Projects',      value: projectsCount,             icon: 'business',            accent: '#f97316' },
-      { id: 'avgAge',        title: 'Average Case Age',         value: `${avgAge}d`,              icon: 'schedule',            accent: '#f59e0b' },
-      { id: 'customers',     title: 'Active Customers',         value: customersCount,            icon: 'group',             accent: '#06b6d4' },
-      {
-        id: 'slaCompliance',
-        title: 'SLA Compliance %',
-        value: `${slaCompliancePct}%`,
-        icon: 'verified',
-        accent: '#10b981',
-        badge: { label: slaLabel, cls: slaCls },
-      },
-    ];
-  });
-
-  // ─── Case Count by Statuses ────────────────────────────────────────────────
   readonly caseStatusTable = computed<StatusRow[]>(() => {
     const tasks = this.activeTasks();
     const total = tasks.length || 1;
@@ -274,7 +164,8 @@ export class CsoKpiDashboardTabComponent implements OnInit {
   // ─── Case Count by Case Age ────────────────────────────────────────────────
   readonly caseAgeTable = computed<AgeRow[]>(() => {
     const openTasks = this.activeTasks().filter((t) => t.statusLabel !== 'done');
-    const total = openTasks.length || 1;
+    const datedTasks = openTasks.filter(t => !!t.createdAt && Number.isFinite(Date.parse(t.createdAt)) && Date.parse(t.createdAt) <= Date.now());
+    const total = datedTasks.length || 1;
     const now = new Date();
 
     const buckets: Omit<AgeRow, 'count' | 'pct'>[] = [
@@ -286,8 +177,8 @@ export class CsoKpiDashboardTabComponent implements OnInit {
     ];
 
     return buckets.map((b) => {
-      const count = openTasks.filter((t) => {
-        const refDate = t.createdAt || t.updatedAt || t.dueDate;
+      const count = datedTasks.filter((t) => {
+        const refDate = t.createdAt;
         if (!refDate) return false;
         const age = Math.max(
           0,
@@ -306,7 +197,7 @@ export class CsoKpiDashboardTabComponent implements OnInit {
     const openTasks = this.activeTasks().filter((t) => t.statusLabel !== 'done');
     const buckets = this.buildDateBuckets(this.trendRange());
     const priorities = PRIORITY_ORDER.filter((p) =>
-      openTasks.some((t) => t.priority === p),
+      openTasks.some((t) => t.priority.toUpperCase() === p),
     );
 
     if (buckets.length === 0 || priorities.length === 0) return [];
@@ -319,12 +210,12 @@ export class CsoKpiDashboardTabComponent implements OnInit {
     });
 
     openTasks.forEach((t) => {
-      const refDate = t.createdAt || t.updatedAt || t.dueDate;
+      const refDate = t.createdAt;
       if (!refDate) return;
       const d = new Date(refDate);
       if (isNaN(d.getTime())) return;
       const bucket = buckets.find((b) => d >= b.start && d < b.end);
-      if (bucket) data[bucket.label][t.priority] = (data[bucket.label][t.priority] ?? 0) + 1;
+      if (bucket) data[bucket.label][t.priority.toUpperCase()] = (data[bucket.label][t.priority.toUpperCase()] ?? 0) + 1;
     });
 
     const maxVal = Math.max(
@@ -341,7 +232,7 @@ export class CsoKpiDashboardTabComponent implements OnInit {
           return `${x.toFixed(1)},${y.toFixed(1)}`;
         })
         .join(' ');
-      return { priority: p, color: PRIORITY_COLORS[p] ?? '#d1d5db', points };
+      return { priority: p, color: PRIORITY_COLORS[p] ?? '#d1d5db', points, counts: buckets.map(bucket => data[bucket.label][p]) };
     });
   });
 
@@ -350,51 +241,6 @@ export class CsoKpiDashboardTabComponent implements OnInit {
   );
 
   // ─── Resolution Trend ─────────────────────────────────────────────────────
-  readonly resolutionPoints = computed<ResolutionPoint[]>(() => {
-    const closedTasks = this.activeTasks().filter((t) => t.statusLabel === 'done');
-    const buckets = this.buildDateBuckets(this.trendRange());
-    const counts: Record<string, number> = {};
-    buckets.forEach((b) => (counts[b.label] = 0));
-
-    // TODO: replace dueDate with closedAt when backend provides it
-    closedTasks.forEach((t) => {
-      if (!t.dueDate) return;
-      const d = new Date(t.dueDate);
-      const bucket = buckets.find((b) => d >= b.start && d < b.end);
-      if (bucket) counts[bucket.label]++;
-    });
-
-    return buckets.map((b) => ({ label: b.label, resolved: counts[b.label] }));
-  });
-
-  readonly resolutionSvgLine = computed<string>(() => {
-    const pts = this.resolutionPoints();
-    if (pts.length === 0) return '';
-    const maxVal = Math.max(1, ...pts.map((p) => p.resolved));
-    const W = 720, H = 130, padY = 10;
-    return pts
-      .map((p, i) => {
-        const x = pts.length === 1 ? W / 2 : (i / (pts.length - 1)) * W;
-        const y = padY + H - (p.resolved / maxVal) * H;
-        return `${x.toFixed(1)},${y.toFixed(1)}`;
-      })
-      .join(' ');
-  });
-
-  readonly resolutionSvgArea = computed<string>(() => {
-    const pts = this.resolutionPoints();
-    if (pts.length === 0) return '';
-    const maxVal = Math.max(1, ...pts.map((p) => p.resolved));
-    const W = 720, H = 130, padY = 10, bottom = padY + H;
-    const coords = pts.map((p, i) => ({
-      x: pts.length === 1 ? W / 2 : (i / (pts.length - 1)) * W,
-      y: padY + H - (p.resolved / maxVal) * H,
-    }));
-    const line = coords.map((c) => `${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(' L');
-    return `M${coords[0].x.toFixed(1)},${bottom} L${line} L${coords[coords.length - 1].x.toFixed(1)},${bottom} Z`;
-  });
-
-  // ─── Workload by Members — Donut ──────────────────────────────────────────
   readonly workloadSegments = computed<WorkloadSegment[]>(() => {
     const openTasks = this.activeTasks().filter((t) => t.statusLabel !== 'done');
     const total = openTasks.length || 1;
@@ -451,7 +297,7 @@ export class CsoKpiDashboardTabComponent implements OnInit {
 
   // ─── Cases Completed by Member & Time Spent ───────────────────────────────
   readonly memberCompletionRows = computed<MemberCompletionRow[]>(() => {
-    const closedTasks = this.activeTasks().filter((t) => t.statusLabel === 'done');
+    const closedTasks = this.activeTasks().filter((t) => t.rawStatus === 'DONE');
     const map = new Map<string, number>();
     closedTasks.forEach((t) => {
       const key = t.assignee ?? 'Unassigned';
@@ -475,9 +321,8 @@ export class CsoKpiDashboardTabComponent implements OnInit {
     const rows: CustomerMonthRow[] = [];
 
     tasks.forEach((t) => {
-      if (!t.dueDate || !t.customerName) return;
-      // TODO: replace dueDate with createdAt when backend provides it
-      const month = t.dueDate.slice(0, 7); // "YYYY-MM"
+      if (!t.createdAt || !t.customerName || !Number.isFinite(Date.parse(t.createdAt))) return;
+      const month = t.createdAt.slice(0, 7); // "YYYY-MM"
       if (from && month < from) return;
       if (to   && month > to)   return;
 
@@ -500,10 +345,7 @@ export class CsoKpiDashboardTabComponent implements OnInit {
     // Load CSO tasks from the service
     this.csoService.load({});
 
-    // Load projects data
-    this.projectsService.getProjects().subscribe({
-      next: (projects) => this.allProjects.set(projects),
-    });
+
 
     // All computed signals will automatically react when data arrives
   }
@@ -542,7 +384,7 @@ export class CsoKpiDashboardTabComponent implements OnInit {
 
     for (let i = count - 1; i >= 0; i--) {
       const end   = new Date(now.getTime() - i * bucketDays * 86_400_000);
-      const start = new Date(end.getTime() - bucketDays * 86_400_000);
+      const start = new Date(Math.max(end.getTime() - bucketDays * 86_400_000, now.getTime() - days * 86_400_000));
       const label = start.toLocaleDateString('en', {
         month: 'short',
         day: 'numeric',

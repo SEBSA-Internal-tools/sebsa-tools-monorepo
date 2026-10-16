@@ -1,4 +1,4 @@
-import { Component, ChangeDetectionStrategy, OnInit, inject, signal, ChangeDetectorRef } from '@angular/core';
+import { HostListener, Component, ChangeDetectionStrategy, OnInit, inject, signal, ChangeDetectorRef } from '@angular/core';
 import { CommonModule, Location } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -76,6 +76,7 @@ export class TaskDetailPageComponent implements OnInit {
   task = signal<Task | null>(null);
   isLoading = signal(false);
   isSaving = signal(false);
+  isUpdatingStatus = signal(false);
   errorMessage = signal('');
   isAddSubtaskModalOpen = signal(false);
   /** Non-null while the subtask modal is open in edit mode. */
@@ -257,6 +258,14 @@ export class TaskDetailPageComponent implements OnInit {
     });
   }
 
+  @HostListener('window:beforeunload', ['$event'])
+  protectUnsavedChanges(event: BeforeUnloadEvent): void {
+    if (this.isDirty() || this.isSaving()) {
+      event.preventDefault();
+      event.returnValue = '';
+    }
+  }
+
   goBack(): void {
     this.location.back();
   }
@@ -330,7 +339,7 @@ export class TaskDetailPageComponent implements OnInit {
 
   saveChanges(): void {
     const current = this.task();
-    if (!current || !this.isDirty()) return;
+    if (!current || !this.isDirty() || this.isSaving() || this.isUpdatingStatus()) return;
 
     if (!this.draft.title.trim()) {
       this.errorMessage.set('Task title cannot be empty.');
@@ -379,7 +388,7 @@ export class TaskDetailPageComponent implements OnInit {
     this.errorMessage.set('');
 
     this.tasksService.deleteTask(current.id).subscribe({
-      next: () => this.router.navigate(['/cases', current.caseId]),
+      next: () => { this.isDirty.set(false); this.router.navigate(['/cases', current.caseId]); },
       error: (err) => {
         this.errorMessage.set(err?.error?.message || 'Failed to delete task.');
         this.isLoading.set(false);
@@ -399,20 +408,20 @@ export class TaskDetailPageComponent implements OnInit {
 
   onStatusClick(status: TaskStatus): void {
     const current = this.task();
-    if (!current || status === current.status) return;
+    if (!current || status === current.status || this.isUpdatingStatus() || this.isSaving()) return;
 
-    this.isLoading.set(true);
+    this.isUpdatingStatus.set(true);
     this.errorMessage.set('');
     this.tasksService.updateTaskDetails(current.id, { status }).subscribe({
       next: (response) => {
         this.task.set(response.task);
         this.warnings.set(response.warnings);
-        this.isLoading.set(false);
+        this.isUpdatingStatus.set(false);
         this.loadStatusHistory(current.id);
       },
       error: () => {
         this.errorMessage.set('Failed to update task status.');
-        this.isLoading.set(false);
+        this.isUpdatingStatus.set(false);
       },
     });
   }

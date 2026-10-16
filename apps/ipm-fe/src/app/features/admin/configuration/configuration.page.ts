@@ -27,11 +27,12 @@ import { ConfigurationPanelComponent } from '../../../core/components/configurat
   styles: [`
     :host {
       display: block;
+      min-height: 100%;
       width: 100%;
       background-color: var(--surface-card);
     }
     .page-container {
-      padding: 32px 40px;
+      padding: var(--page-gutter);
       width: 100%;
       box-sizing: border-box;
       display: flex;

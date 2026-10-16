@@ -2,10 +2,15 @@ import {
   Component,
   Input,
   ChangeDetectionStrategy,
+  DestroyRef,
+  computed,
   inject,
   OnInit,
   signal,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { DashboardInsightsComponent } from '../../../../../../core/components/dashboard-insights/dashboard-insights.component';
+import { summarizeWork, workInsights } from '../../../../../../core/utils/work-insights';
 import { CommonModule } from '@angular/common';
 import { ProjectsService, type Sprint } from '../../../../services/projects.service';
 import { CasesService, type CaseView } from '../../../../../../core/services/cases.service';
@@ -38,8 +43,7 @@ interface OverviewMetrics {
   totalCases: number;
   functionalCases: number;
   technicalCases: number;
-  healthPct: number;
-  healthLabel: 'Healthy' | 'At Risk' | 'Critical';
+  completedCases: number;
 }
 
 interface DonutSegment {
@@ -78,7 +82,7 @@ interface AgingRow {
 @Component({
   standalone: true,
   selector: 'project-overview',
-  imports: [CommonModule],
+  imports: [CommonModule, DashboardInsightsComponent],
   templateUrl: './project-overview.component.html',
   styleUrl: './project-overview.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -86,6 +90,14 @@ interface AgingRow {
 export class ProjectOverviewComponent implements OnInit {
   @Input() project!: Project;
 
+  private readonly destroyRef = inject(DestroyRef);
+  readonly caseSnapshot = signal<CaseView[]>([]);
+  readonly caseLoading = signal(true);
+  readonly caseError = signal('');
+  readonly sprintLoading = signal(true);
+  readonly sprintError = signal('');
+  readonly insights = computed(() => workInsights(this.caseSnapshot()));
+  readonly snapshot = computed(() => summarizeWork(this.caseSnapshot()));
   private casesService = inject(CasesService);
   private projectsService = inject(ProjectsService);
 
@@ -102,8 +114,7 @@ export class ProjectOverviewComponent implements OnInit {
     totalCases: 0,
     functionalCases: 0,
     technicalCases: 0,
-    healthPct: 0,
-    healthLabel: 'Healthy',
+    completedCases: 0,
   });
 
   readonly donutSegments = signal<DonutSegment[]>([]);
@@ -114,8 +125,28 @@ export class ProjectOverviewComponent implements OnInit {
   readonly agingTable = signal<AgingRow[]>([]);
 
   ngOnInit(): void {
-    this.casesService.cases$.subscribe(() => this.loadProjectData());
+    this.projectsService.getSprintsObservable(this.project.id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: sprints => {
+        this.sprintStats.set({ active: sprints.filter(sprint => sprint.status === 'ACTIVE').length, planned: sprints.filter(sprint => sprint.status === 'PLANNED').length, completed: sprints.filter(sprint => sprint.status === 'COMPLETED').length });
+        this.activeSprint.set(sprints.find(sprint => sprint.status === 'ACTIVE') ?? null);
+        this.allSprints.set(sprints); this.sprintLoading.set(false);
+      },
+      error: () => { this.sprintLoading.set(false); this.sprintError.set('Sprint data is unavailable.'); },
+    });
+    this.casesService.cases$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.loadProjectData());
     this.loadProjectData();
+    this.casesService.loadCases(this.project.id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: () => this.caseLoading.set(false),
+      error: () => { this.caseLoading.set(false); this.caseError.set('Project case insights are unavailable. Reopen this view to retry.'); },
+    });
+  }
+
+  retryCases(): void {
+    this.caseError.set(''); this.caseLoading.set(true);
+    this.casesService.loadCases(this.project.id, true).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: () => this.caseLoading.set(false),
+      error: () => { this.caseLoading.set(false); this.caseError.set('Project case insights are unavailable. Please retry.'); },
+    });
   }
 
   private isDone(kase: CaseView): boolean {
@@ -130,18 +161,8 @@ export class ProjectOverviewComponent implements OnInit {
     if (!this.project.id) return;
 
     const cases = this.casesService.getCasesByProject(this.project.id);
+    this.caseSnapshot.set(cases);
 
-    this.projectsService.getSprintsObservable(this.project.id).subscribe((sprints) => {
-      this.sprintStats.set({
-        active: sprints.filter((s: Sprint) => s.status === 'ACTIVE').length,
-        planned: sprints.filter((s: Sprint) => s.status === 'PLANNED').length,
-        completed: sprints.filter((s: Sprint) => s.status === 'COMPLETED').length,
-      });
-
-      const active = sprints.find((s: Sprint) => s.status === 'ACTIVE');
-      this.activeSprint.set(active || null);
-      this.allSprints.set(sprints);
-    });
 
     this.metrics.set(this.computeMetrics(cases));
     this.donutSegments.set(this.computeDonutSegments(cases));
@@ -155,15 +176,8 @@ export class ProjectOverviewComponent implements OnInit {
     const total = cases.length;
     const functional = cases.filter((c) => c.tag === 'FUNCTIONAL').length;
     const technical = cases.filter((c) => c.tag === 'TECHNICAL').length;
-    const done = cases.filter((c) => this.isDone(c)).length;
-    const inProgress = cases.filter((c) => this.isInProgress(c)).length;
-
-    const rawHealth = total === 0 ? 100 : ((done * 1.0 + inProgress * 0.4) / total) * 100;
-    const healthPct = Math.min(100, Math.round(rawHealth));
-    const healthLabel: 'Healthy' | 'At Risk' | 'Critical' =
-      healthPct >= 75 ? 'Healthy' : healthPct >= 40 ? 'At Risk' : 'Critical';
-
-    return { totalCases: total, functionalCases: functional, technicalCases: technical, healthPct, healthLabel };
+    const done = cases.filter(c => c.status === 'DONE').length;
+    return { totalCases: total, functionalCases: functional, technicalCases: technical, completedCases: done };
   }
 
   private computeDonutSegments(cases: CaseView[]): DonutSegment[] {
@@ -245,7 +259,7 @@ export class ProjectOverviewComponent implements OnInit {
     return [...statusGroups.entries()]
       .map(([status, group]) => {
         const days = group.map((c) => {
-          const ref = c.updatedAt ? new Date(c.updatedAt) : new Date(c.dueDate || today);
+          const ref = new Date(c.createdAt!);
           return Math.max(0, Math.floor((today.getTime() - ref.getTime()) / 86_400_000));
         });
         return {
@@ -265,15 +279,6 @@ export class ProjectOverviewComponent implements OnInit {
 
   getPriorityCount(priority: string): number {
     return this.donutSegments().find((s) => s.priority === priority)?.count ?? 0;
-  }
-
-  healthClass(): string {
-    const label = this.metrics().healthLabel;
-    return label === 'Healthy' ? 'healthy' : label === 'At Risk' ? 'at-risk' : 'critical';
-  }
-
-  healthLabel(): string {
-    return this.metrics().healthLabel;
   }
 
   statusClass(): string {

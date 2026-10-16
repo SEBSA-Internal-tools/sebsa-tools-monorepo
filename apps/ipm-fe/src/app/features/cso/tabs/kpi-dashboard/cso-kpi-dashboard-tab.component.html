@@ -2,30 +2,30 @@
 
   <!-- ── Header ── -->
   <div class="dashboard-header">
-    <h2>CSO Dashboard</h2>
-    <p class="subtitle">Performance metrics and case analytics</p>
+    <h2>Service insights</h2>
+    <p class="subtitle">{{ activeTab() === 'team' ? 'Cases assigned to you' : 'All accessible CSO cases' }} / current snapshot</p>
   </div>
 
   <!-- ── Tab Bar — always visible ── -->
-  <div class="dashboard-tabs" role="tablist">
+  <div class="dashboard-tabs" aria-label="Service insight views">
     <button
-      type="button" role="tab" class="tab-btn"
+      type="button"  class="tab-btn"
       [class.active]="activeTab() === 'team'"
-      [attr.aria-selected]="activeTab() === 'team'"
+      [attr.aria-pressed]="activeTab() === 'team'"
       (click)="setActiveTab('team')"
     >
       <span class="material-symbols-outlined">person</span>
-      <span class="tab-label-desktop">Team Dashboard</span>
-      <span class="tab-label-mobile">Team</span>
+      <span class="tab-label-desktop">My work</span>
+      <span class="tab-label-mobile">My work</span>
     </button>
     <button
-      type="button" role="tab" class="tab-btn"
+      type="button"  class="tab-btn"
       [class.active]="activeTab() === 'management'"
-      [attr.aria-selected]="activeTab() === 'management'"
+      [attr.aria-pressed]="activeTab() === 'management'"
       (click)="setActiveTab('management')"
     >
       <span class="material-symbols-outlined">manage_accounts</span>
-      <span class="tab-label-desktop">CSO Management Dashboard</span>
+      <span class="tab-label-desktop">Management</span>
       <span class="tab-label-mobile">Management</span>
     </button>
   </div>
@@ -46,37 +46,30 @@
         <div class="spinner"></div>
         <p>Loading dashboard data…</p>
       </div>
+    } @else if (loadError()) {
+      <div class="dashboard-load-error" role="alert"><p>{{ loadError() }}</p><button type="button" class="btn-primary" (click)="reload()">Retry</button></div>
     } @else {
 
       <!-- ══════════════════════════════════════════════ -->
       <!-- ROW 1 — 9 KPI Cards (3 × 3)                   -->
       <!-- ══════════════════════════════════════════════ -->
-      <div class="kpi-grid">
-        @for (card of kpiCards(); track card.id) {
-          <div class="kpi-card" [style.--accent]="card.accent" [title]="card.title + ': ' + card.value">
-            <div class="kpi-icon-wrap">
-              <span class="material-symbols-outlined">{{ card.icon }}</span>
-            </div>
-            <div class="kpi-body">
-              <span class="kpi-value">{{ card.value }}</span>
-              <span class="kpi-label" [title]="card.title">{{ card.title }}</span>
-              @if (card.badge) {
-                <span class="sla-badge" [class]="card.badge.cls">{{ card.badge.label }}</span>
-              }
-            </div>
-          </div>
-        }
-      </div>
+      <app-dashboard-insights title="What needs attention" [scope]="activeTab() === 'team' ? 'Assigned to you' : 'All accessible CSO cases'" [items]="insights()"></app-dashboard-insights>
+      @if (detailsWarning()) { <p class="chart-note" role="status">{{ detailsWarning() }}</p> }
+      <div class="dashboard-context"><span>{{ highPriorityOpen() }} high-priority open cases</span><span>Average open age: {{ snapshot().averageAge === null ? 'N/A' : snapshot().averageAge + ' days' }} ({{ snapshot().ageCoverage }} dated cases)</span>@if (loadedAt()) { <span>Updated {{ loadedAt() | date: 'shortTime' }}</span> }</div>
+      @if (overdueCases().length) {
+        <section class="review-list" aria-label="Overdue case review"><h3>Start with overdue work</h3>@for (item of overdueCases(); track item.id) { <a [routerLink]="['/cases', item.id]"><span>{{ item.title }}</span><time [attr.datetime]="item.dueDate">{{ item.dueDate | date: 'mediumDate' }}</time><span aria-hidden="true">&nearr;</span></a> }</section>
+      }
 
       <!-- ══════════════════════════════════════════════ -->
-      <!-- ROW 2 — Open Cases by Priority Trend          -->
+      <!-- ROW 2 — Open backlog by creation date          -->
       <!-- ══════════════════════════════════════════════ -->
+      <details class="analytics-details"><summary><strong>Explore case distribution and ownership</strong><span>Creation dates, case age, customer volume, and assignment groups</span></summary><div class="analytics-content">
       <div class="chart-card full-width">
         <div class="chart-card-header">
-          <h3>Open Cases by Priority Trend</h3>
+          <div><h3>Current open cases by creation date</h3><p class="chart-note">Current open cases grouped by creation date, not historical backlog.</p></div>
           <div class="range-btns">
             @for (r of ['7D', '30D', '90D']; track r) {
-              <button type="button" class="range-btn" [class.active]="trendRange() === r" (click)="setTrendRange(r)">
+              <button type="button" class="range-btn" [attr.aria-pressed]="trendRange() === r" [class.active]="trendRange() === r" (click)="setTrendRange(r)">
                 {{ r }}
               </button>
             }
@@ -86,11 +79,11 @@
         @if (priorityTrendLines().length === 0) {
           <div class="chart-empty">
             <span class="material-symbols-outlined">show_chart</span>
-            <p>No open cases in this period</p>
+            <p>No dated open cases created in this period</p>
           </div>
         } @else {
           <div class="line-chart-wrap">
-            <svg viewBox="0 0 720 150" class="line-chart-svg" preserveAspectRatio="none">
+            <svg role="img" aria-label="Current open cases by creation date and priority; exact counts below" viewBox="0 0 720 150" class="line-chart-svg" preserveAspectRatio="none">
               <!-- grid lines -->
               <line x1="0" y1="10"  x2="720" y2="10"  stroke="var(--app-border)" stroke-width="0.5" stroke-dasharray="4 4" />
               <line x1="0" y1="75"  x2="720" y2="75"  stroke="var(--app-border)" stroke-width="0.5" stroke-dasharray="4 4" />
@@ -114,6 +107,7 @@
               }
             </div>
           </div>
+          <details class="chart-data"><summary>View exact counts</summary><table class="data-table"><thead><tr><th>Priority</th>@for (label of trendBucketLabels(); track label) { <th>{{ label }}</th> }</tr></thead><tbody>@for (line of priorityTrendLines(); track line.priority) { <tr><th scope="row">{{ line.priority }}</th>@for (count of line.counts; track $index) { <td>{{ count }}</td> }</tr> }</tbody></table></details>
           <!-- Legend -->
           <div class="chart-legend">
             @for (line of priorityTrendLines(); track line.priority) {
@@ -131,9 +125,9 @@
       <!-- ══════════════════════════════════════════════ -->
       <div class="two-col-row">
 
-        <!-- Case Count by Statuses -->
+        <!-- Current status mix -->
         <div class="chart-card">
-          <div class="chart-card-header"><h3>Case Count by Statuses</h3></div>
+          <div class="chart-card-header"><h3>Current status mix</h3></div>
           @if (caseStatusTable().length === 0) {
             <div class="chart-empty"><p>No data</p></div>
           } @else {
@@ -167,15 +161,15 @@
           }
         </div>
 
-        <!-- Case Count by Case Age -->
+        <!-- Age of open cases -->
         <div class="chart-card">
-          <div class="chart-card-header"><h3>Case Count by Case Age</h3></div>
+          <div class="chart-card-header"><h3>Age of open cases</h3></div>
           <table class="data-table">
             <thead>
               <tr>
                 <th style="width: 35%;">Age Range</th>
                 <th style="width: 25%;">Count</th>
-                <th style="width: 40%;">% of Open</th>
+                <th style="width: 40%;">% with known age</th>
               </tr>
             </thead>
             <tbody>
@@ -200,35 +194,19 @@
       </div>
 
       <!-- ══════════════════════════════════════════════ -->
-      <!-- ROW 4 — Cases by Customer Over Time           -->
+      <!-- ROW 4 — Cases created by customer           -->
       <!-- ══════════════════════════════════════════════ -->
       <div class="chart-card full-width customer-month-card">
         <div class="chart-card-header">
-          <h3>Cases by Customer Over Time</h3>
+          <div><h3>Cases created by customer</h3><p class="chart-note">Cases without a known customer or creation date are excluded.</p></div>
           <div class="month-filter">
-            <div class="month-filter-field">
-              <span class="filter-label">From</span>
-              <app-custom-datepicker
-                selectionMode="month"
-                placeholder="From month"
-                ariaLabel="Filter from month"
-                [ngModel]="monthFrom()"
-                (ngModelChange)="monthFrom.set($event)"
-              ></app-custom-datepicker>
-            </div>
-            <div class="month-filter-field">
-              <span class="filter-label">To</span>
-              <app-custom-datepicker
-                selectionMode="month"
-                placeholder="To month"
-                ariaLabel="Filter to month"
-                [ngModel]="monthTo()"
-                (ngModelChange)="monthTo.set($event)"
-              ></app-custom-datepicker>
-            </div>
+            <label for="cso-month-from">From</label>
+            <input id="cso-month-from" type="month" [ngModel]="monthFrom()" (ngModelChange)="monthFrom.set($event)" />
+            <label for="cso-month-to">To</label>
+            <input id="cso-month-to" type="month" [ngModel]="monthTo()" (ngModelChange)="monthTo.set($event)" />
           </div>
         </div>
-        @if (customerMonthlyData().length === 0) {
+        @if (monthFrom() && monthTo() && monthFrom() > monthTo()) { <p class="chart-note" role="status">Choose a start month on or before the end month.</p> } @else if (customerMonthlyData().length === 0) {
           <div class="chart-empty">
             <span class="material-symbols-outlined">calendar_month</span>
             <p>No data for the selected period</p>
@@ -258,44 +236,16 @@
       <!-- ══════════════════════════════════════════════ -->
       <div class="chart-row">
 
-        <!-- Resolution Trend -->
+        <section class="chart-card">
+          <div class="chart-card-header"><h3>Due-date coverage</h3></div>
+          <strong class="coverage-value">{{ snapshot().dateCoverage === null ? 'N/A' : snapshot().dateCoverage + '%' }}</strong>
+          <p class="chart-note">{{ snapshot().dated.length }} of {{ snapshot().open.length }} open cases have a valid due date.</p>
+          <div class="coverage-track"><span [style.width.%]="snapshot().dateCoverage || 0"></span></div>
+          <p class="chart-note">{{ snapshot().open.length - snapshot().dated.length }} open cases need a due date. Past-due counts exclude these cases.</p>
+        </section>
+        <!-- Open cases by assignment Donut -->
         <div class="chart-card">
-          <div class="chart-card-header"><h3>Resolution Trend</h3></div>
-          @if (resolutionPoints().length === 0) {
-            <div class="chart-empty">
-              <span class="material-symbols-outlined">trending_up</span>
-              <p>No resolved cases in this period</p>
-            </div>
-          } @else {
-            <div class="line-chart-wrap">
-              <svg viewBox="0 0 720 150" class="line-chart-svg" preserveAspectRatio="none">
-                <line x1="0" y1="10"  x2="720" y2="10"  stroke="var(--app-border)" stroke-width="0.5" stroke-dasharray="4 4" />
-                <line x1="0" y1="75"  x2="720" y2="75"  stroke="var(--app-border)" stroke-width="0.5" stroke-dasharray="4 4" />
-                <line x1="0" y1="140" x2="720" y2="140" stroke="var(--app-border)" stroke-width="0.5" />
-                <!-- Area fill -->
-                <path [attr.d]="resolutionSvgArea()" fill="rgba(16,185,129,0.15)" />
-                <!-- Line -->
-                <polyline
-                  [attr.points]="resolutionSvgLine()"
-                  stroke="#10b981"
-                  stroke-width="2.5"
-                  fill="none"
-                  stroke-linejoin="round"
-                  stroke-linecap="round"
-                />
-              </svg>
-              <div class="x-labels">
-                @for (pt of resolutionPoints(); track pt.label) {
-                  <span>{{ pt.label }}</span>
-                }
-              </div>
-            </div>
-          }
-        </div>
-
-        <!-- Workload by Members Donut -->
-        <div class="chart-card">
-          <div class="chart-card-header"><h3>Workload by Members</h3></div>
+          <div class="chart-card-header"><h3>Open cases by assignment</h3></div>
           @if (workloadSegments().length === 0) {
             <div class="chart-empty">
               <span class="material-symbols-outlined">donut_large</span>
@@ -304,7 +254,7 @@
           } @else {
             <div class="donut-layout">
               <!-- SVG Donut -->
-              <svg viewBox="0 0 180 180" class="donut-svg">
+              <svg aria-hidden="true" viewBox="0 0 180 180" class="donut-svg">
                 <g transform="rotate(-90 90 90)">
                   @for (seg of workloadSegments(); track seg.memberName) {
                     <circle
@@ -337,13 +287,7 @@
               <!-- Legend -->
               <div class="donut-legend">
                 @for (seg of workloadSegments(); track seg.memberName) {
-                  <button
-                    type="button"
-                    class="legend-item"
-                    [class.active]="activeMember() === seg.memberName"
-                    [attr.aria-pressed]="activeMember() === seg.memberName"
-                    (click)="onMemberSegmentClick(seg.memberName)"
-                  >
+                  <button type="button" class="legend-item" [class.active]="activeMember() === seg.memberName" [attr.aria-pressed]="activeMember() === seg.memberName" (click)="onMemberSegmentClick(seg.memberName)">
                     <span class="legend-dot" [style.background]="seg.color"></span>
                     <span class="legend-name">{{ seg.memberName }}</span>
                     <span class="legend-count">{{ seg.count }}</span>
@@ -357,10 +301,10 @@
       </div>
 
       <!-- ══════════════════════════════════════════════ -->
-      <!-- ROW 6 — Open Cases by Each Member             -->
+      <!-- ROW 6 — Priority mix by assignment             -->
       <!-- ══════════════════════════════════════════════ -->
       <div class="chart-card full-width">
-        <div class="chart-card-header"><h3>Open Cases by Each Member</h3></div>
+        <div class="chart-card-header"><h3>Priority mix by assignment group</h3></div>
         @if (memberOpenRows().length === 0) {
           <div class="chart-empty">
             <span class="material-symbols-outlined">group</span>
@@ -370,7 +314,7 @@
           <table class="data-table">
             <thead>
               <tr>
-                <th>Member</th>
+                <th>Assignee group</th>
                 <th>Total Open</th>
                 <th>Critical</th>
                 <th>High</th>
@@ -410,7 +354,7 @@
       <!-- ROW 7 — Cases Completed by Member             -->
       <!-- ══════════════════════════════════════════════ -->
       <div class="chart-card full-width">
-        <div class="chart-card-header"><h3>Cases Completed by Member &amp; Time Spent</h3></div>
+        <div class="chart-card-header"><h3>Completed cases by current assignment group</h3></div>
         @if (memberCompletionRows().length === 0) {
           <div class="chart-empty">
             <span class="material-symbols-outlined">task_alt</span>
@@ -420,12 +364,8 @@
           <table class="data-table">
             <thead>
               <tr>
-                <th>Member</th>
+                <th>Assignee group</th>
                 <th>Cases Completed</th>
-                <th>Total Time Spent</th>
-                <th>Avg Time / Case</th>
-                <th>Avg CSAT</th>
-                <th>SLA Met %</th>
               </tr>
             </thead>
             <tbody>
@@ -433,22 +373,14 @@
                 <tr>
                   <td><strong>{{ row.memberName }}</strong></td>
                   <td><strong>{{ row.completed }}</strong></td>
-                  <td class="todo-cell" title="Requires closedAt field from backend">—</td>
-                  <td class="todo-cell" title="Requires closedAt field from backend">—</td>
-                  <td class="todo-cell" title="Requires csatScore field from backend">—</td>
-                  <td class="todo-cell" title="Requires resolvedWithinSla field from backend">—</td>
                 </tr>
               }
             </tbody>
           </table>
-          <p class="todo-note">
-            <span class="material-symbols-outlined">info</span>
-            Time Spent, CSAT, and SLA columns require additional backend fields:
-            <code>closedAt</code>, <code>csatScore</code>, <code>resolvedWithinSla</code>
-          </p>
         }
       </div>
 
+      </div></details>
     }<!-- /isLoading -->
   }<!-- /permission -->
 

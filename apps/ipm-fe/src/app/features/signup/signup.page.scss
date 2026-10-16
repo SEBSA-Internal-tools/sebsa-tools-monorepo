@@ -1,16 +1,17 @@
 .login-container {
   display: flex;
-  height: 100vh;
-  width: 100vw;
+  min-height: 100vh;
+  min-height: 100dvh;
+  width: 100%;
   margin: 0;
   padding: 0;
-  overflow: hidden;
+  overflow: clip;
   font-family: var(--font-body);
 }
 
 .left-panel {
-  flex: 1.5;
-  background: linear-gradient(160deg, var(--brand-navy) 0%, var(--brand-midnight-blue) 100%);
+  flex: 0 0 42%;
+  background: linear-gradient(160deg, var(--brand-navy), var(--brand-midnight-blue));
   position: relative;
   display: flex;
   align-items: center;
@@ -48,14 +49,14 @@
   text-align: center;
   color: white;
   z-index: 1;
-  max-width: 560px;
-  padding: 0 24px;
+  max-width: 400px;
+  padding: 24px;
 
   .brand-logo {
-    max-width: 340px;
+    width: 180px;
+    max-width: 100%;
     height: auto;
-    margin-bottom: 4px;
-    filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.35));
+    margin-bottom: 24px;
   }
 
   .brand-dash {
@@ -67,13 +68,11 @@
   }
 
   h1 {
-    font-family: var(--font-heading);
-    font-size: clamp(1.45rem, 2.1vw, 1.9rem);
+    font-size: 1.65rem;
     font-weight: 700;
     margin: 0 0 14px;
     letter-spacing: -0.02em;
     color: white;
-    white-space: nowrap;
   }
 
   p {
@@ -129,12 +128,11 @@
 
 .login-form-container {
   width: 100%;
-  max-width: 420px;
-  padding: 40px;
+  max-width: 400px;
+  padding: 32px;
 
   h2 {
-    font-size: 1.75rem;
-    font-family: var(--font-heading);
+    font-size: 1.5rem;
     color: var(--text-heading);
     margin: 0 0 8px;
     font-weight: 700;
@@ -150,8 +148,8 @@
 .error-alert {
   display: flex;
   background-color: var(--status-error-bg);
-  border: 1px solid var(--status-error-solid);
-  border-radius: 4px;
+  border: 1px solid #f5c6c6;
+  border-radius: var(--radius-control);
   padding: 16px;
   margin-bottom: 24px;
 
@@ -217,7 +215,7 @@
     .input-icon {
       position: absolute;
       left: 12px;
-      color: var(--text-secondary);
+      color: var(--text-muted);
       font-size: 1.2rem;
       pointer-events: none;
     }
@@ -225,9 +223,10 @@
     input,
     select {
       width: 100%;
-      padding: 12px 40px;
+      min-height: 44px;
+      padding: 10px 40px;
       border: 1px solid var(--border-default);
-      border-radius: 4px;
+      border-radius: var(--radius-control);
       font-size: 0.95rem;
       color: var(--text-heading);
       background-color: var(--surface-card);
@@ -241,7 +240,7 @@
       &:focus {
         outline: none;
         border-color: var(--brand-primary);
-        box-shadow: var(--shadow-glow-focus);
+        box-shadow: 0 0 0 3px rgba(217, 37, 97, 0.1);
       }
 
       &.error-input {
@@ -265,16 +264,15 @@
         ::ng-deep .custom-select-trigger {
           padding-left: 40px;
           min-height: 48px;
-          border-radius: 4px;
+          border-radius: var(--radius-control);
           border-color: var(--border-default);
           background-color: var(--surface-card);
-          color: var(--text-heading);
           font-size: 0.95rem;
 
           &:focus-visible,
           .custom-select-wrapper.open & {
             border-color: var(--brand-primary);
-            box-shadow: var(--shadow-glow-focus);
+            box-shadow: 0 0 0 3px rgba(217, 37, 97, 0.1);
           }
         }
       }
@@ -284,11 +282,12 @@
 
 .sign-in-button {
   width: 100%;
-  background-color: var(--brand-primary);
+  background-color: var(--brand-action);
   color: white;
   border: none;
-  border-radius: 4px;
-  padding: 14px;
+  border-radius: var(--radius-control);
+  min-height: 44px;
+  padding: 10px 14px;
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
@@ -296,7 +295,7 @@
   transition: background-color 0.2s;
 
   &:hover {
-    background-color: var(--brand-primary-hover);
+    background-color: var(--brand-action-hover);
   }
 }
 
@@ -324,7 +323,7 @@
 .copyright {
   margin-top: 24px;
   text-align: center;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   font-size: 0.75rem;
 }
 
@@ -334,8 +333,9 @@
 @media (max-width: 900px) {
   .login-container {
     flex-direction: column;
-    height: 100vh;
-    height: 100dvh;
+    height: auto;
+    min-height: 100vh;
+    min-height: 100dvh;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
   }
@@ -344,6 +344,7 @@
     display: flex;
     flex: none;
     padding: 36px 20px 28px;
+    background: linear-gradient(160deg, var(--brand-navy), var(--brand-midnight-blue));
 
     .brand-content {
       max-width: 100%;
@@ -393,3 +394,7 @@
     padding-bottom: 12px;
   }
 }
+
+.right-panel { flex: 1; padding: 24px 0; min-width: 0; }
+.brand-dash { display: none; }
+@media (max-width: 900px) { .left-panel { flex-basis: auto; padding: 20px; } .left-panel .brand-content .brand-logo { max-width: 140px; margin-bottom: 12px; } .right-panel { padding: 24px 16px; } .login-form-container { max-width: 360px; } }

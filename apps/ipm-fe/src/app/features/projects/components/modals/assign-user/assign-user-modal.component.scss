@@ -194,7 +194,7 @@ select.form-input {
 
   .btn-add-user {
     padding: 10px 16px;
-    background: var(--brand-primary);
+    background: var(--brand-action);
     border: none;
     border-radius: 6px;
     color: white;
@@ -218,7 +218,7 @@ select.form-input {
     }
 
     &:hover:not(:disabled) {
-      background: var(--brand-primary-hover);
+      background: var(--brand-action-hover);
       transform: translateY(-1px);
       box-shadow: 0 4px 12px var(--app-accent-shadow);
     }
@@ -448,7 +448,7 @@ select.form-input {
 
 .btn-assign {
   padding: 10px 20px;
-  background: var(--brand-primary);
+  background: var(--brand-action);
   border: none;
   border-radius: 6px;
   color: white;
@@ -466,7 +466,7 @@ select.form-input {
   }
 
   &:hover:not(:disabled) {
-    background: var(--brand-primary-hover);
+    background: var(--brand-action-hover);
     transform: translateY(-1px);
     box-shadow: 0 4px 12px var(--app-accent-shadow);
   }

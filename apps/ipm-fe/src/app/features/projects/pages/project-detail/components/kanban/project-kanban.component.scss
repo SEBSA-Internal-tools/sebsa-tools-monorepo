@@ -379,11 +379,11 @@
   letter-spacing: 0.03em;
   white-space: nowrap;
   background: rgba(100, 116, 139, 0.15);
-  color: #475569;
+  color: var(--text-primary);
 
   &.type-subtask {
     background: rgba(100, 116, 139, 0.15);
-    color: #475569;
+    color: var(--text-primary);
   }
 
   &.type-bug {

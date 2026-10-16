@@ -1,6 +1,7 @@
 import {
   Component,
   ChangeDetectionStrategy,
+  ChangeDetectorRef,
   Input,
   Output,
   EventEmitter,
@@ -47,6 +48,7 @@ export class CustomSelectComponent<T = unknown>
   implements ControlValueAccessor
 {
   private readonly elementRef = inject(ElementRef);
+  private readonly changeDetector = inject(ChangeDetectorRef);
 
   private readonly _options = signal<unknown[]>([]);
 
@@ -225,7 +227,32 @@ export class CustomSelectComponent<T = unknown>
   onEscape(): void {
     if (this.isOpen()) {
       this.close();
+      this.focusTrigger();
     }
+  }
+
+  @HostListener('keydown', ['$event'])
+  onKeydown(event: KeyboardEvent): void {
+    if (this.disabled) return;
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+    if (!this.isOpen() && (event.key === 'Home' || event.key === 'End')) return;
+    event.preventDefault();
+    this.open();
+    this.changeDetector.detectChanges();
+    queueMicrotask(() => {
+      const root = this.elementRef.nativeElement as HTMLElement;
+      const options = Array.from(root.querySelectorAll<HTMLButtonElement>('[role="option"]'));
+      if (!options.length) return;
+      const current = options.indexOf(root.ownerDocument.activeElement as HTMLButtonElement);
+      const index = event.key === 'Home' ? 0 : event.key === 'End' ? options.length - 1
+        : event.key === 'ArrowDown' ? (current + 1) % options.length
+        : (current <= 0 ? options.length - 1 : current - 1);
+      options[index].focus();
+    });
+  }
+
+  private focusTrigger(): void {
+    (this.elementRef.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('.custom-select-trigger')?.focus();
   }
 
   toggleOpen(event?: Event): void {
@@ -253,6 +280,7 @@ export class CustomSelectComponent<T = unknown>
     this.valueChange.emit(val);
     this.selectionChange.emit(val);
     this.close();
+    this.focusTrigger();
   }
 
   selectDefaultOption(): void {

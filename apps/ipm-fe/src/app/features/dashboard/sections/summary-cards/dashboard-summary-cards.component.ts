@@ -19,6 +19,12 @@ export class DashboardSummaryCardsComponent {
 
   readonly skeletonCards = [1, 2, 3, 4];
 
+  displayLabel(card: SummaryCard): string {
+    if (card.label.toLowerCase().includes('delivery health')) return 'Completed task share';
+    if (card.label.toLowerCase().includes('blocked & at risk')) return 'Overdue + blocked flags';
+    return card.label;
+  }
+
   getCardKey(card: SummaryCard): string {
     const label = card.label.toLowerCase();
     if (label.includes('active project')) return 'ACTIVE_PROJECTS';
