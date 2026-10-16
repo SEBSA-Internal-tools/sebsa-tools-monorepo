@@ -13,7 +13,7 @@ import { CustomSelectComponent } from '../../core/components/custom-select/custo
   selector: 'app-signup-page',
   imports: [CommonModule, FormsModule, RouterLink, CustomSelectComponent],
   templateUrl: './signup.page.html',
-  styleUrls: ['./signup.page.scss'],
+  styleUrls: ['../login/login.page.scss', './signup.page.scss'],
 })
 export class SignupPageComponent implements OnInit {
   private readonly authService = inject(AuthService);
@@ -34,27 +34,8 @@ export class SignupPageComponent implements OnInit {
   readonly isRegistered = signal(false);
   readonly successMessage = signal('');
 
-  readonly spotlightEnabled =
-    typeof window !== 'undefined' &&
-    window.matchMedia('(hover: hover) and (pointer: fine)').matches &&
-    !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  readonly spotlightActive = signal(false);
-  readonly spotlightX = signal(50);
-  readonly spotlightY = signal(50);
-
-  onPanelMouseMove(event: MouseEvent) {
-    if (!this.spotlightEnabled) return;
-
-    const panel = event.currentTarget as HTMLElement;
-    const rect = panel.getBoundingClientRect();
-    this.spotlightX.set(((event.clientX - rect.left) / rect.width) * 100);
-    this.spotlightY.set(((event.clientY - rect.top) / rect.height) * 100);
-    this.spotlightActive.set(true);
-  }
-
-  onPanelMouseLeave() {
-    this.spotlightActive.set(false);
-  }
+  readonly isSubmitting = signal(false);
+  readonly showPassword = signal(false);
 
   ngOnInit(): void {
     this.departmentsService.list().subscribe({
@@ -63,6 +44,9 @@ export class SignupPageComponent implements OnInit {
   }
 
   register(): void {
+    if (this.isSubmitting()) return;
+
+    this.isSubmitting.set(true);
     this.authService
       .register({
         name: this.name,
@@ -73,13 +57,19 @@ export class SignupPageComponent implements OnInit {
       .subscribe({
         next: (response) => {
           this.hasError.set(false);
+          this.isSubmitting.set(false);
           this.successMessage.set(response.message);
           this.isRegistered.set(true);
         },
         error: (error: HttpErrorResponse) => {
           this.hasError.set(true);
+          this.isSubmitting.set(false);
           this.errorMessage.set(error.error?.message ?? 'Registration failed. Please try again.');
         },
       });
+  }
+
+  togglePasswordVisibility(): void {
+    this.showPassword.update((value) => !value);
   }
 }
