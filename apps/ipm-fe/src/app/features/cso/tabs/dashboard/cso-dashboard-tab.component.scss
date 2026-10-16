@@ -1,3 +1,4 @@
+@use '../../../../core/styles/dashboard' as dashboard;
 .cso-dashboard-tab {
   display: block;
 }
@@ -40,9 +41,9 @@
 }
 
 .error-banner {
-  background-color: #fce8e8;
+  background-color: var(--status-error-bg);
   border: 1px solid #f5c6c6;
-  color: #991b1b;
+  color: var(--status-error-fg);
   border-radius: 8px;
   padding: 12px 16px;
   margin-bottom: 20px;
@@ -76,11 +77,11 @@
   font-size: 0.8rem;
   color: var(--text-muted);
   font-weight: 600;
-  font-family: 'Sora', sans-serif;
+  font-family: var(--font-body);
 }
 
 .stat-value {
-  font-family: 'Sora', sans-serif;
+  font-family: var(--font-body);
   font-size: 1.8rem;
   font-weight: 700;
   color: var(--text-primary);
@@ -102,7 +103,7 @@
 
   h3 {
     margin: 0;
-    font-family: 'Sora', sans-serif;
+    font-family: var(--font-body);
     font-size: 1rem;
     font-weight: 700;
     color: var(--text-primary);
@@ -195,3 +196,5 @@
     gap: 10px;
   }
 }
+
+@include dashboard.surfaces;

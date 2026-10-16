@@ -2,8 +2,8 @@
   <!-- Matrix Header & Filter Controls -->
   <div class="matrix-header">
     <div class="header-titles">
-      <h2>Project Health & Status Matrix</h2>
-      <p class="subtitle">Real-time delivery progress, performance indicators, and risk monitoring</p>
+      <h2>Project delivery</h2>
+      <p class="subtitle">Current project progress and rule-based flags. Overdue and blocked flags may overlap.</p>
     </div>
 
     <!-- Search & Status Filter Bar -->
@@ -66,7 +66,7 @@
             <th class="col-health">Health</th>
             <th class="col-completion">Completion</th>
             <th class="col-timeline">Timeline</th>
-            <th class="col-risks">Risks</th>
+            <th class="col-risks">Flags</th>
             <th class="col-team">Team</th>
             <th class="col-action"></th>
           </tr>
@@ -155,7 +155,7 @@
                 </span>
               </div>
             </th>
-            <th class="col-risks sortable" (click)="toggleSort('risks')" title="Sort by risks count">
+            <th class="col-risks sortable" (click)="toggleSort('risks')" title="Sort by flag count">
               <div class="th-content">
                 <span>Risks</span>
                 <span class="material-symbols-outlined sort-icon" [class.is-sorted]="sortField() === 'risks'">

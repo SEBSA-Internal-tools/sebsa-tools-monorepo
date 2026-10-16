@@ -3,7 +3,7 @@
   flex-direction: column;
   min-height: 100vh;
   width: 100%;
-  background: var(--surface-card);
+  background: var(--app-background);
 }
 
 .page-error {
@@ -65,7 +65,7 @@
   transition: all 0.2s ease;
 
   &:hover {
-    transform: translateY(-2px);
+    transform: none;
     box-shadow: var(--shadow-elevated);
     border-color: var(--border-strong);
   }
@@ -73,7 +73,7 @@
   .kpi-icon-box {
     width: 42px;
     height: 42px;
-    border-radius: 10px;
+    border-radius: var(--radius-control);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -177,3 +177,5 @@
     }
   }
 }
+
+.project-kpi-card { box-shadow: none; border-radius: 12px; }

@@ -1,7 +1,7 @@
 .health-matrix-container {
   background: var(--surface-card);
   border: 1px solid var(--border-default);
-  border-radius: 24px;
+  border-radius: var(--radius-panel);
   padding: 28px;
   box-shadow: var(--shadow-card);
   margin-bottom: 24px;
@@ -143,7 +143,7 @@
       }
 
       &.active {
-        background: var(--brand-primary);
+        background: var(--brand-action);
         border-color: var(--brand-primary);
         color: #ffffff;
       }
@@ -519,7 +519,7 @@
     width: 26px;
     height: 26px;
     border-radius: 50%;
-    background: var(--brand-primary);
+    background: var(--brand-action);
     color: #ffffff;
     font-family: var(--font-body);
     font-size: 0.68rem;

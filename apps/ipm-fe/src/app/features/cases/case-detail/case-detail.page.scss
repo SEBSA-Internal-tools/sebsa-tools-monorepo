@@ -12,7 +12,7 @@
   display: flex;
   flex-direction: column;
   gap: 28px;
-  padding: 40px 60px;
+  padding: var(--page-gutter);
   max-width: 1600px;
   margin: 0 auto;
 
@@ -44,7 +44,7 @@
   font-weight: 600;
   font-size: 0.875rem;
   padding: 8px 16px;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
@@ -76,12 +76,12 @@
   font-weight: 600;
   font-size: 0.875rem;
   padding: 8px 16px;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
   color: #ffffff;
-  background: var(--brand-primary);
+  background: var(--brand-action);
   border: 1px solid var(--brand-primary);
   cursor: pointer;
   transition: all 0.2s ease;
@@ -91,7 +91,7 @@
   }
 
   &:hover:not(:disabled) {
-    background: var(--brand-primary-hover);
+    background: var(--brand-action-hover);
   }
 
   &:disabled {
@@ -105,7 +105,7 @@
   font-weight: 600;
   font-size: 0.875rem;
   padding: 8px 16px;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   display: inline-flex;
   align-items: center;
   color: var(--text-secondary);
@@ -129,7 +129,7 @@
   font-weight: 600;
   font-size: 0.875rem;
   padding: 8px 16px;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
@@ -156,7 +156,7 @@
   text-align: center;
   background: var(--surface-card);
   border: 1px solid var(--border-default);
-  border-radius: 24px;
+  border-radius: var(--radius-panel);
 }
 
 .loader {
@@ -187,9 +187,9 @@
   display: flex;
   flex-direction: column;
   gap: 32px;
-  padding: 36px 40px;
+  padding: 24px 28px;
   background: var(--surface-card);
-  border-radius: 24px;
+  border-radius: var(--radius-panel);
   border: 1px solid var(--border-default);
   box-shadow: var(--shadow-card);
   box-sizing: border-box;
@@ -304,7 +304,7 @@
   color: var(--text-heading);
   line-height: 1.25;
   border: 1px solid transparent;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   padding: 4px 8px;
   margin: 0 0 0 -8px;
   background: transparent;
@@ -425,7 +425,7 @@
     width: var(--stepper-dot-size);
     height: var(--stepper-dot-size);
     border-radius: 50%;
-    background: #ffffff;
+    background: var(--surface-card);
     border: 2px solid var(--border-strong);
     transition: all 0.2s ease;
   }
@@ -440,14 +440,14 @@
 
   &.past {
     .stepper-dot {
-      background: var(--brand-primary);
+      background: var(--brand-action);
       border-color: var(--brand-primary);
     }
   }
 
   &.active {
     .stepper-dot {
-      background: var(--brand-primary);
+      background: var(--brand-action);
       border-color: var(--brand-primary);
       box-shadow: 0 0 0 4px var(--brand-primary-100);
     }
@@ -465,7 +465,7 @@
 
 .task-body {
   display: grid;
-  grid-template-columns: 1fr 340px;
+  grid-template-columns: minmax(0, 1fr) 300px;
   gap: 32px;
 
   @media (max-width: 1024px) {
@@ -589,7 +589,7 @@
   padding: 10px 14px;
   background: var(--surface-card);
   border: 1px solid var(--border-default);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   color: var(--text-heading);
   font-family: var(--font-body);
   font-size: 0.875rem;
@@ -633,7 +633,7 @@
     width: 22px;
     height: 22px;
     border-radius: 50%;
-    background: var(--brand-primary);
+    background: var(--brand-action);
     color: #ffffff;
     font-size: 0.65rem;
     font-weight: 700;
@@ -886,7 +886,7 @@
   padding: 4px;
   background: var(--surface-card);
   border: 1px solid var(--border-default);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   box-shadow: var(--shadow-elevated);
 }
 
@@ -913,7 +913,7 @@
   padding: 8px 16px;
   border-radius: 8px;
   border: 1px solid var(--brand-primary);
-  background: var(--brand-primary);
+  background: var(--brand-action);
   color: #ffffff;
   font-family: var(--font-body);
   font-size: 0.82rem;
@@ -922,7 +922,7 @@
   transition: all 0.15s ease;
 
   &:hover:not(:disabled) {
-    background: var(--brand-primary-hover);
+    background: var(--brand-action-hover);
   }
 
   &:disabled {
@@ -1070,7 +1070,7 @@
   color: var(--text-heading);
   background: var(--surface-card);
   border: 1px solid var(--border-default);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   padding: 8px 10px;
   cursor: pointer;
 
@@ -1208,7 +1208,7 @@
 .jira-description {
   margin: 0;
   padding: 12px 14px;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   background: var(--surface-muted);
   border: 1px solid var(--border-subtle);
   font-family: var(--font-body);
@@ -1218,3 +1218,7 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+.task-main, .task-sidebar { min-width: 0; }
+.editor-state { color: var(--text-secondary); font-size: 12px; }
+.editor-state.is-dirty { color: var(--status-warning-fg); }

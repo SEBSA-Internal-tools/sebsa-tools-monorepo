@@ -1,18 +1,18 @@
 :host {
   display: block;
   width: 100%;
-  background-color: var(--surface-card);
+  background-color: var(--surface-page);
 }
 
 .admin-users-container {
-  padding: 32px 40px;
+  padding: var(--page-gutter);
   width: 100%;
   max-width: 100%;
   margin: 0;
   display: flex;
   flex-direction: column;
   gap: 24px;
-  background-color: var(--surface-card);
+  background-color: var(--surface-page);
   box-sizing: border-box;
 
   .sebsa-card {
@@ -269,3 +269,6 @@
     opacity: 0.9;
   }
 }
+
+.admin-table-scroll { max-width: 100%; overflow-x: auto; overscroll-behavior-inline: contain; }
+.admin-table-scroll table { min-width: 620px; }

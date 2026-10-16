@@ -1,4 +1,12 @@
+:host {
+  display: block;
+  min-height: 100%;
+  background-color: var(--surface-page);
+}
+
 .workspace-page {
+  min-height: 100%;
+  background-color: var(--surface-page);
   display: block;
   width: 100%;
   padding: 20px 16px;
@@ -15,14 +23,14 @@
 .projects-container {
   width: 100%;
   display: grid;
-  gap: 28px;
+  gap: var(--content-gap);
 
   @media (min-width: 768px) {
-    gap: 32px;
+    gap: var(--content-gap);
   }
 
   @media (min-width: 1024px) {
-    gap: 40px;
+    gap: var(--content-gap);
   }
 }
 

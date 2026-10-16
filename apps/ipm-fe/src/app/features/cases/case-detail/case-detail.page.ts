@@ -1,4 +1,4 @@
-import { Component, ChangeDetectionStrategy, OnInit, inject, signal, computed, ChangeDetectorRef } from '@angular/core';
+import { HostListener, Component, ChangeDetectionStrategy, OnInit, inject, signal, computed, ChangeDetectorRef } from '@angular/core';
 import { CommonModule, Location } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -67,6 +67,7 @@ export class CaseDetailPageComponent implements OnInit {
   kase = signal<Case | null>(null);
   isLoading = signal(false);
   isSaving = signal(false);
+  isUpdatingStatus = signal(false);
   errorMessage = signal('');
   isAddTaskModalOpen = signal(false);
 
@@ -223,6 +224,14 @@ export class CaseDetailPageComponent implements OnInit {
     });
   }
 
+  @HostListener('window:beforeunload', ['$event'])
+  protectUnsavedChanges(event: BeforeUnloadEvent): void {
+    if (this.isDirty() || this.isSaving()) {
+      event.preventDefault();
+      event.returnValue = '';
+    }
+  }
+
   goBack(): void {
     this.location.back();
   }
@@ -290,7 +299,7 @@ export class CaseDetailPageComponent implements OnInit {
 
   saveChanges(): void {
     const current = this.kase();
-    if (!current || !this.isDirty()) return;
+    if (!current || !this.isDirty() || this.isSaving() || this.isUpdatingStatus()) return;
 
     if (!this.draft.title.trim()) {
       this.errorMessage.set('Case title cannot be empty.');
@@ -317,10 +326,17 @@ export class CaseDetailPageComponent implements OnInit {
 
     this.casesService.updateCase(current.id, dto).subscribe({
       next: () => {
-        this.casesService.getCaseById(current.id).subscribe((kase) => {
-          this.kase.set(kase);
-          this.populateDraft(kase);
-          this.isSaving.set(false);
+        this.isDirty.set(false);
+        this.casesService.getCaseById(current.id).subscribe({
+          next: kase => {
+            this.kase.set(kase);
+            this.populateDraft(kase);
+            this.isSaving.set(false);
+          },
+          error: () => {
+            this.isSaving.set(false);
+            this.errorMessage.set('Changes saved, but the latest case details could not be loaded. Refresh to try again.');
+          },
         });
       },
       error: (err) => {
@@ -338,7 +354,7 @@ export class CaseDetailPageComponent implements OnInit {
     this.isLoading.set(true);
     this.errorMessage.set('');
     this.casesService.deleteCase(current.id).subscribe({
-      next: () => this.router.navigate(['/projects', current.projectId]),
+      next: () => { this.isDirty.set(false); this.router.navigate(['/projects', current.projectId]); },
       error: (err) => {
         this.errorMessage.set(err?.error?.message || 'Failed to delete case.');
         this.isLoading.set(false);
@@ -352,20 +368,21 @@ export class CaseDetailPageComponent implements OnInit {
 
   onStatusClick(status: CaseStatus): void {
     const current = this.kase();
-    if (!current || status === current.status) return;
+    if (!current || status === current.status || this.isSaving() || this.isUpdatingStatus()) return;
 
-    this.isLoading.set(true);
+    this.isUpdatingStatus.set(true);
     this.errorMessage.set('');
     this.casesService.updateCaseStatus(current.id, status).subscribe({
       next: () => {
-        this.casesService.getCaseById(current.id).subscribe((kase) => {
-          this.kase.set(kase);
-          this.isLoading.set(false);
+        this.kase.update(kase => kase ? { ...kase, status } : kase);
+        this.casesService.getCaseById(current.id).subscribe({
+          next: kase => { this.kase.set(kase); this.isUpdatingStatus.set(false); },
+          error: () => { this.isUpdatingStatus.set(false); this.errorMessage.set('Status saved, but the latest case details could not be loaded.'); },
         });
       },
       error: () => {
         this.errorMessage.set('Failed to update case status.');
-        this.isLoading.set(false);
+        this.isUpdatingStatus.set(false);
       },
     });
   }

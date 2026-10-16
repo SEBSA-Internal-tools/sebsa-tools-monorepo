@@ -183,11 +183,11 @@
 
   &.primary {
     border-color: var(--brand-primary);
-    background: var(--brand-primary);
+    background: var(--brand-action);
     color: #ffffff;
 
     &:hover:not(:disabled) {
-      background: var(--brand-primary-hover);
+      background: var(--brand-action-hover);
       border-color: var(--brand-primary-hover);
       color: #ffffff;
     }

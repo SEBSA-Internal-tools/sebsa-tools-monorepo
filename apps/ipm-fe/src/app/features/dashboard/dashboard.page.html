@@ -16,6 +16,17 @@
     <!-- Hero Section -->
     <dashboard-hero [data]="(hero$ | async)"></dashboard-hero>
 
+    @if (portfolioInsights$ | async; as insights) {
+      <app-dashboard-insights title="Portfolio pulse" scope="All accessible projects / current snapshot" [items]="insights"></app-dashboard-insights>
+    }
+    @if (loadedAt()) { <p class="snapshot-note">Updated {{ loadedAt() | date: 'shortTime' }} / Priority work below shows up to five tasks.</p> }
+    <!-- Action Items & Urgent Tasks Widget -->
+    <app-dashboard-urgent-tasks
+      [tasks]="(urgentTasks$ | async)"
+      [loading]="isLoading()"
+      (taskCompleted)="onTaskCompleted($event)"
+    ></app-dashboard-urgent-tasks>
+
     <!-- Summary Cards -->
     <app-dashboard-summary-cards
       [cards]="(summaryCards$ | async)"
@@ -23,13 +34,6 @@
       [loading]="isLoading()"
       (cardClick)="onCardFilterSelected($event)"
     ></app-dashboard-summary-cards>
-
-    <!-- Action Items & Urgent Tasks Widget -->
-    <app-dashboard-urgent-tasks
-      [tasks]="(urgentTasks$ | async)"
-      [loading]="isLoading()"
-      (taskCompleted)="onTaskCompleted($event)"
-    ></app-dashboard-urgent-tasks>
 
     <!-- Project Health & Status Matrix -->
     <app-dashboard-project-health-matrix

@@ -27,29 +27,7 @@ export class LoginPageComponent {
   readonly errorMessage = signal('');
   readonly isSubmitting = signal(false);
   readonly showPassword = signal(false);
-  readonly showMicrosoftNotice = signal(false);
 
-  readonly spotlightEnabled =
-    typeof window !== 'undefined' &&
-    window.matchMedia('(hover: hover) and (pointer: fine)').matches &&
-    !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  readonly spotlightActive = signal(false);
-  readonly spotlightX = signal(50);
-  readonly spotlightY = signal(50);
-
-  onPanelMouseMove(event: MouseEvent) {
-    if (!this.spotlightEnabled) return;
-
-    const panel = event.currentTarget as HTMLElement;
-    const rect = panel.getBoundingClientRect();
-    this.spotlightX.set(((event.clientX - rect.left) / rect.width) * 100);
-    this.spotlightY.set(((event.clientY - rect.top) / rect.height) * 100);
-    this.spotlightActive.set(true);
-  }
-
-  onPanelMouseLeave() {
-    this.spotlightActive.set(false);
-  }
 
   login() {
     if (this.isSubmitting()) return;
@@ -71,12 +49,6 @@ export class LoginPageComponent {
 
   togglePasswordVisibility() {
     this.showPassword.update((value) => !value);
-  }
-
-  /** Microsoft SSO is not wired up to the backend yet; surfaces a "coming soon" notice instead of a dead click. */
-  loginWithMicrosoft() {
-    this.showMicrosoftNotice.set(true);
-    setTimeout(() => this.showMicrosoftNotice.set(false), 4000);
   }
 
   /** The API sends a ready-made message when rate limited; otherwise warn once

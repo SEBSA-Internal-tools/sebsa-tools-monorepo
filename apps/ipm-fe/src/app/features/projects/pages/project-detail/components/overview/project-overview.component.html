@@ -1,60 +1,19 @@
 <div class="overview-dashboard">
   
 
-  <!-- ROW 1: KPI Metric Cards -->
-  <div class="kpi-cards-row">
-    <!-- Card 1: Total Tasks -->
-    <div class="kpi-card" [style.--accent]="'#6366f1'">
-      <div class="kpi-icon-wrap">
-        <span class="material-symbols-outlined">task_alt</span>
-      </div>
-      <div class="kpi-body">
-        <span class="kpi-value">{{ metrics().totalCases }}</span>
-        <span class="kpi-label">Total Tasks</span>
-      </div>
-    </div>
-
-    <!-- Card 2: Functional Tasks -->
-    <div class="kpi-card" [style.--accent]="'#0ea5e9'">
-      <div class="kpi-icon-wrap">
-        <span class="material-symbols-outlined">category</span>
-      </div>
-      <div class="kpi-body">
-        <span class="kpi-value">{{ metrics().functionalCases }}</span>
-        <span class="kpi-label">Functional Tasks</span>
-      </div>
-    </div>
-
-    <!-- Card 3: Technical Tasks -->
-    <div class="kpi-card" [style.--accent]="'#f59e0b'">
-      <div class="kpi-icon-wrap">
-        <span class="material-symbols-outlined">engineering</span>
-      </div>
-      <div class="kpi-body">
-        <span class="kpi-value">{{ metrics().technicalCases }}</span>
-        <span class="kpi-label">Technical Tasks</span>
-      </div>
-    </div>
-
-    <!-- Card 4: Project Health -->
-    <div class="kpi-card" [style.--accent]="healthClass() === 'healthy' ? '#10b981' : healthClass() === 'at-risk' ? '#f59e0b' : '#ef4444'">
-      <div class="kpi-icon-wrap">
-        <span class="material-symbols-outlined">favorite</span>
-      </div>
-      <div class="kpi-body">
-        <span class="kpi-value">{{ metrics().healthPct }}%</span>
-        <span class="kpi-label">Project Health</span>
-        <span class="health-badge" [class]="healthClass()">{{ healthLabel() }}</span>
-      </div>
-    </div>
-  </div>
-
+  @if (caseLoading()) { <p class="dashboard-context" role="status">Loading project insights...</p> }
+  @else if (caseError()) { <div class="dashboard-load-error" role="alert"><p>{{ caseError() }}</p><button type="button" class="btn-primary" (click)="retryCases()">Retry</button></div> }
+  @else {
+    <app-dashboard-insights title="Delivery snapshot" scope="Cases in this project / current snapshot" [items]="insights()"></app-dashboard-insights>
+    <p class="dashboard-context">Completed {{ snapshot().completed }} of {{ snapshot().total }} cases ({{ snapshot().completionRate === null ? 'N/A' : snapshot().completionRate + '%' }}). {{ snapshot().blocked.length }} blocked. {{ snapshot().dated.length }} of {{ snapshot().open.length }} open cases have due dates.</p>
+  }
+  @if (!caseLoading() && !caseError()) {
   <!-- ROW 2: Donut Chart + Status Table -->
   <div class="dashboard-row-2">
     <!-- Left: Priority Donut Chart -->
     <div class="chart-card">
       <div class="card-header">
-        <h3>Tasks by Priority</h3>
+        <h3>Cases by priority</h3>
       </div>
 
       @if (donutSegments().length > 0) {
@@ -166,7 +125,7 @@
               <th>Assignee</th>
               <th>Total</th>
               <th>In Progress</th>
-              <th>Done</th>
+              <th>Closed / cancelled</th>
             </tr>
           </thead>
           <tbody>
@@ -198,7 +157,7 @@
               <th>Assignee</th>
               <th>Total</th>
               <th>In Progress</th>
-              <th>Done</th>
+              <th>Closed / cancelled</th>
             </tr>
           </thead>
           <tbody>
@@ -252,6 +211,7 @@
     </div>
   </div>
 
+  }
   <!-- ROW 4: Project Info + Sprint Status (KEPT sections) -->
   <div class="dashboard-row-4">
     <!-- Left: Project Information -->
@@ -298,6 +258,7 @@
         <h3>Sprints</h3>
       </div>
 
+      @if (sprintLoading()) { <p class="chart-note" role="status">Loading sprints...</p> } @else if (sprintError()) { <p class="chart-note" role="alert">{{ sprintError() }}</p> } @else {
       <div class="sprint-stats">
         <div class="sprint-stat">
           <span class="sprint-count">{{ sprintStats().active }}</span>
@@ -313,6 +274,7 @@
         </div>
       </div>
 
+      }
       @if (activeSprint()) {
         <div class="active-sprint-info">
           <div class="sprint-name">
