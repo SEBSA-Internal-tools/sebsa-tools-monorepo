@@ -6,8 +6,7 @@ import { CreateSubtaskDto } from './dto/create-subtask.dto';
 import { UpdateSubtaskDto } from './dto/update-subtask.dto';
 import { ActivityLogsService } from '../activity-logs/activity-logs.service';
 import { NotificationService } from '../notifications/notification.service';
-
-const ADMIN_SYSTEM_ROLES: AuthUser['systemRole'][] = ['ADMIN', 'SUPER_ADMIN'];
+import { ProjectAccessService } from '../common/project-access.service';
 
 const subtaskInclude = {
   assignees: { include: { user: { select: { id: true, name: true, email: true } } } },
@@ -22,12 +21,13 @@ export class SubtaskService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly activityLogs: ActivityLogsService,
+    private readonly access: ProjectAccessService,
     private readonly notificationService: NotificationService,
   ) {}
 
   async findAllByTask(taskId: string, user: AuthUser): Promise<Subtask[]> {
     const task = await this.getTaskOrThrow(taskId);
-    await this.assertVisible(task.case.projectId, user);
+    await this.access.assertVisible(task.case.projectId, user);
 
     const subtasks = await this.prisma.subtask.findMany({
       where: { taskId, deletedAt: null },
@@ -39,7 +39,7 @@ export class SubtaskService {
 
   async create(taskId: string, dto: CreateSubtaskDto, user: AuthUser): Promise<Subtask> {
     const task = await this.getTaskOrThrow(taskId);
-    await this.assertCanEdit(task.case.projectId, user);
+    await this.access.assertCan(task.case.projectId, user, 'canCreateTask');
     await this.assertAssigneesValid(dto.assigneeIds, task.case.projectId);
     await this.assertSubtaskTypeValid(dto.subtaskTypeId);
 
@@ -93,13 +93,13 @@ export class SubtaskService {
 
   async findOne(id: string, user: AuthUser): Promise<Subtask> {
     const subtask = await this.getSubtaskDetailOrThrow(id);
-    await this.assertVisible(subtask.task.case.projectId, user);
+    await this.access.assertVisible(subtask.task.case.projectId, user);
     return this.toSubtask(subtask);
   }
 
   async update(id: string, dto: UpdateSubtaskDto, user: AuthUser): Promise<Subtask> {
     const existing = await this.getSubtaskDetailOrThrow(id);
-    await this.assertCanEdit(existing.task.case.projectId, user);
+    await this.access.assertCan(existing.task.case.projectId, user, 'canEditTask');
 
     if (dto.assigneeIds) {
       await this.assertAssigneesValid(dto.assigneeIds, existing.task.case.projectId);
@@ -208,7 +208,7 @@ export class SubtaskService {
 
   async delete(id: string, user: AuthUser): Promise<{ message: string }> {
     const existing = await this.getSubtaskDetailOrThrow(id);
-    await this.assertCanEdit(existing.task.case.projectId, user);
+    await this.access.assertCan(existing.task.case.projectId, user, 'canDeleteTask');
 
     await this.prisma.$transaction(async (tx) => {
       await tx.subtask.update({ where: { id }, data: { deletedAt: new Date() } });
@@ -232,7 +232,7 @@ export class SubtaskService {
 
   async assignUsers(id: string, assigneeIds: string[], user: AuthUser): Promise<Subtask> {
     const existing = await this.getSubtaskDetailOrThrow(id);
-    await this.assertCanEdit(existing.task.case.projectId, user);
+    await this.access.assertCan(existing.task.case.projectId, user, 'canEditTask');
     await this.assertAssigneesValid(assigneeIds, existing.task.case.projectId);
 
     const existingAssigneeIds = existing.assignees.map((a) => a.user.id);
@@ -282,7 +282,7 @@ export class SubtaskService {
 
   async unassignUser(id: string, userId: string, user: AuthUser): Promise<Subtask> {
     const existing = await this.getSubtaskDetailOrThrow(id);
-    await this.assertCanEdit(existing.task.case.projectId, user);
+    await this.access.assertCan(existing.task.case.projectId, user, 'canEditTask');
 
     const removedName = existing.assignees.find((a) => a.user.id === userId)?.user.name;
     const previousAssignees = existing.assignees.map((a) => a.user.name);
@@ -315,29 +315,7 @@ export class SubtaskService {
   // Authorization / lookups
   // ---------------------------------------------------------------------------
 
-  private async assertVisible(projectId: string, user: AuthUser): Promise<void> {
-    if (ADMIN_SYSTEM_ROLES.includes(user.systemRole) || user.systemRole === 'EXECUTIVE') return;
 
-    const membership = await this.prisma.projectMember.findFirst({
-      where: { projectId, userId: user.id, deletedAt: null },
-      select: { id: true },
-    });
-    if (!membership) {
-      throw new ForbiddenException('You do not have access to this project.');
-    }
-  }
-
-  private async assertCanEdit(projectId: string, user: AuthUser): Promise<void> {
-    if (ADMIN_SYSTEM_ROLES.includes(user.systemRole)) return;
-
-    const membership = await this.prisma.projectMember.findFirst({
-      where: { projectId, userId: user.id, deletedAt: null },
-      include: { role: { include: { privilegeGroup: true } } },
-    });
-    if (!membership || membership.role.privilegeGroup.isReadOnly) {
-      throw new ForbiddenException('You do not have permission to edit subtasks in this project.');
-    }
-  }
 
   /** Names for a set of user ids, for rendering an assignee change. */
   private async getUserNames(userIds: string[]): Promise<string[]> {

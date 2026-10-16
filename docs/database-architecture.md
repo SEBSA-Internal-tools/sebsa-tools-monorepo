@@ -178,7 +178,7 @@ Grouped by functional area:
 
 - `Department` 1—N `User`
 - `User.systemRole` (`SUPER_ADMIN` / `ADMIN` / `EXECUTIVE` / `REGULAR_USER`) — system-wide tier; `SUPER_ADMIN` is additive on top of `ADMIN` (see `docs/authentication.md`)
-- `PrivilegeGroup` 1—N `Role` — system-wide, reusable permission-flag bundles (`canCreateTask`, `canDeleteTask`, `canManageMembers`, `canConfigureIntegrations`, `canManageWorkflow`, `isReadOnly`); `Role` no longer owns these flags directly, it references a group
+- `PrivilegeGroup` 1—N `Role` — system-wide, reusable permission-flag bundles (see `docs/permissions.md` for the current flag list); `Role` no longer owns these flags directly, it references a group
 - `Project` 1—N `Role` (project-scoped name + `isSystemDefault`, permissions come from its `PrivilegeGroup`)
 - `Project` 1—N `ProjectMember` N—1 `User`, each with one `Role`
 
@@ -317,8 +317,12 @@ constraint doesn't fully match what the database enforces:
 
    ```sql
    CREATE UNIQUE INDEX "sprints_one_active_per_project"
-     ON "sprints"("projectId") WHERE "status" = 'ACTIVE';
+     ON "sprints"("projectId") WHERE "status" = 'ACTIVE' AND "deletedAt" IS NULL;
    ```
+
+   The `deletedAt` clause matters: without it a deleted active sprint keeps
+   the slot and the project can never start another. Same reasoning as the
+   membership index below — see `docs/soft-deletes.md`.
 2. **One active membership per user per project** (removed
    members are soft-deleted so their historical contributions survive, but a
    removed member must be able to be re-added later without hitting a
