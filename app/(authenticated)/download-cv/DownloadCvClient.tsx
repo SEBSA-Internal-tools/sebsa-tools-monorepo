@@ -29,6 +29,8 @@ function buildInitialDraft(cv: ReturnType<typeof buildTailoredCvFromEmployee>): 
   return {
     includeObjective: true,
     objective: cv.summary,
+    includeEducation: true,
+    academic: cv.academic.map((entry, index) => ({ ...entry, index, relevant: true })),
     experience: cv.experience.map((e, index) => ({
       index,
       position: e.position,
@@ -70,8 +72,8 @@ export default function DownloadCvClient({ employee, isOwnProfile }: DownloadCvC
   const [pageOverflowMm, setPageOverflowMm] = useState(0);
 
   const previewCv = useMemo(
-    () => buildTailoredCvFromSelection(employee, '', buildSelectionFromDraft(draft, baseCv.academic)),
-    [employee, draft, baseCv.academic]
+    () => buildTailoredCvFromSelection(employee, '', buildSelectionFromDraft(draft)),
+    [employee, draft]
   );
   const anonymousPreviewCv = useMemo(() => anonymizeTailoredCv(previewCv), [previewCv]);
 

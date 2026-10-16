@@ -80,7 +80,6 @@ export default function CvSectionEditor({ cv, onChange }: CvSectionEditorProps) 
         expanded={expanded.experience}
         onToggle={() => toggle('experience')}
         onChange={(experience) => patch({ experience })}
-        positionLocked
       />
 
       <ProjectsSection
@@ -97,6 +96,7 @@ export default function CvSectionEditor({ cv, onChange }: CvSectionEditorProps) 
         expanded={expanded.education}
         onToggle={() => toggle('education')}
         onChange={(academic) => patch({ academic })}
+        readOnly={false}
       />
 
       <CertificationsSection

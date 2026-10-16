@@ -3,6 +3,7 @@
 import React, { useMemo } from 'react';
 import Handlebars from 'handlebars';
 import { cvTemplateSource } from '@/lib/templates/cvTemplate';
+import { cvTemplate2Source } from '@/lib/templates/cvTemplate2';
 import { splitProjectDescription } from '@/lib/projectDescription';
 import type { TailoredCv } from './types';
 
@@ -24,9 +25,12 @@ export default function CvPreviewTemplate({ cv, onChange, id = 'cv-preview-root'
   // Compile the Handlebars template with the current CV data
   const compiledHtml = useMemo(() => {
     try {
-      const template = Handlebars.compile(cvTemplateSource);
+      const templateSource = cv.templateId === 'template2' ? cvTemplate2Source : cvTemplateSource;
+      const template = Handlebars.compile(templateSource);
       const html = template({
         ...cv,
+        // Backward compatibility: CVs saved before education selection existed include it.
+        includeEducation: cv.includeEducation !== false,
         specialProjects: cv.specialProjects.map((project) => ({
           ...project,
           descriptionPoints: splitProjectDescription(project.brief),

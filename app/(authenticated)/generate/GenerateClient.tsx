@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, Suspense } from 'react';
+import React, { useState, useMemo, Suspense } from 'react';
 import Image from 'next/image';
 import CvPreviewTemplate from './CvPreviewTemplate';
 import CvSectionEditor from './CvSectionEditor';
@@ -14,8 +14,9 @@ import { PageWrapper } from '../../components/PageWrapper';
 import OnePagePreview from '@/app/components/OnePagePreview';
 import TalentSearchSelect from './TalentSearchSelect';
 import type { Employee } from '@/types/domain';
-import type { TailoredCv, CvSuggestion } from './types';
+import type { CvTemplateId, TailoredCv, CvSuggestion } from './types';
 import {
+  getSavedGeneratedCvAction,
   suggestCvContentAction,
   saveGeneratedCvAction,
 } from './actions';
@@ -37,6 +38,34 @@ import { recordCvDownloadAction } from '../audit-actions';
 
 interface GenerateClientProps {
   employees: Employee[];
+}
+
+function TemplateSelector({
+  value,
+  onChange,
+}: {
+  value: CvTemplateId;
+  onChange: (template: CvTemplateId) => void;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label htmlFor="cv-template-selector" className="text-xs font-bold text-slate-500 uppercase tracking-wide">
+        CV Template
+      </label>
+      <select
+        id="cv-template-selector"
+        value={value}
+        onChange={(event) => onChange(event.target.value as CvTemplateId)}
+        className="w-full bg-slate-50 border border-slate-200/80 rounded-xl px-4 py-3 text-xs font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-400 transition-all text-slate-700 cursor-pointer"
+      >
+        <option value="template1">Template 1 — Two-column layout</option>
+        <option value="template2">Template 2 — Full-width content</option>
+      </select>
+      <p className="text-[10px] text-slate-400">
+        Template 2 displays Objective, Experience, and Special Projects at full page width.
+      </p>
+    </div>
+  );
 }
 
 export default function GenerateClient({ employees }: GenerateClientProps) {
@@ -62,13 +91,24 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
   const [wizardStep, setWizardStep] = useState<1 | 2 | 3>(1);
 
   // ── Step 1 form state ───────────────────────────────────────────────────────
-  const [selectedCandidateId, setSelectedCandidateId] = useState('');
+  const [selectedCandidateId, setSelectedCandidateId] = useState(() => {
+    const requestedName = preselectedName?.trim().toLowerCase();
+    if (!requestedName) return '';
+    return employees.find(
+      (employee) =>
+        employee.name.toLowerCase() === requestedName ||
+        getCvDisplayName(employee).toLowerCase() === requestedName
+    )?.rowId ?? '';
+  });
   const [requiredSkills, setRequiredSkills] = useState('');
   const [preferredExp, setPreferredExp] = useState('');
+  const [selectedTemplate, setSelectedTemplate] = useState<CvTemplateId>('template1');
 
   // ── Generation state ────────────────────────────────────────────────────────
   const [customizingLoading, setCustomizingLoading] = useState(false);
   const [customizingError, setCustomizingError] = useState<string | null>(null);
+  const [loadingLastCv, setLoadingLastCv] = useState(false);
+  const [lastCvError, setLastCvError] = useState<string | null>(null);
 
   // ── AI suggestion + CV content state ────────────────────────────────────────
   // suggestion: the AI's relevance flags paired with the employee's real profile data (never
@@ -91,7 +131,7 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
 
   // ── Derived ─────────────────────────────────────────────────────────────────
   const selectedEmployee = useMemo(
-    () => employees.find((emp) => emp.rowId === selectedCandidateId) || employees[0],
+    () => employees.find((emp) => emp.rowId === selectedCandidateId),
     [employees, selectedCandidateId]
   );
 
@@ -105,10 +145,11 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
         ? buildTailoredCvFromSelection(
             selectedEmployee,
             '',
-            buildSelectionFromDraft(suggestionDraft, suggestion.academic)
+            buildSelectionFromDraft(suggestionDraft),
+            selectedTemplate
           )
         : null,
-    [selectedEmployee, suggestion, suggestionDraft]
+    [selectedEmployee, suggestion, suggestionDraft, selectedTemplate]
   );
   const livePreviewCv = tailoredCv ?? draftPreviewCv;
 
@@ -153,20 +194,6 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
   const customizedPreviewCv = tailoredCv;
 
   // ── Pre-select employee from query param ────────────────────────────────────
-  useEffect(() => {
-    if (employees.length === 0) return;
-    const match = employees.find(
-      (emp) => emp.name.toLowerCase() === preselectedName?.toLowerCase()
-        || getCvDisplayName(emp).toLowerCase() === preselectedName?.toLowerCase()
-    );
-    if (match) {
-      setSelectedCandidateId(match.rowId);
-    } else {
-      const alex = employees.find((emp) => emp.name.includes('Alexander'));
-      setSelectedCandidateId(alex ? alex.rowId : employees[0].rowId);
-    }
-  }, [employees, preselectedName]);
-
   // ── Handlers ────────────────────────────────────────────────────────────────
 
   /**
@@ -177,6 +204,7 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
    */
   const handleCustomize = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!selectedEmployee) return;
 
     setCustomizingLoading(true);
     setCustomizingError(null);
@@ -195,6 +223,8 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
       setSuggestionDraft({
         includeObjective: true,
         objective: result.objective,
+        includeEducation: true,
+        academic: result.academic.map((entry, index) => ({ ...entry, index, relevant: true })),
         experience: result.experience,
         projects: result.projects,
         certifications: result.certifications,
@@ -208,6 +238,53 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
     }
   };
 
+  /** Restores the selected employee's last saved customized CV without making an AI request. */
+  const handleLoadLastCustomizedCv = async () => {
+    if (!selectedEmployee || loadingLastCv) return;
+
+    setLoadingLastCv(true);
+    setLastCvError(null);
+    try {
+      const saved = await getSavedGeneratedCvAction(selectedEmployee.rowId);
+      if (!saved) {
+        setLastCvError('No previously customized CV was found for this employee.');
+        return;
+      }
+
+      const requiredArrays = ['academic', 'experience', 'specialProjects', 'certifications'];
+      const isValid =
+        typeof saved.name === 'string' &&
+        typeof saved.currentPosition === 'string' &&
+        typeof saved.summary === 'string' &&
+        requiredArrays.every((field) => Array.isArray(saved[field]));
+      if (!isValid) {
+        setLastCvError('The last customized CV is incomplete and cannot be loaded.');
+        return;
+      }
+
+      const restoredCv: TailoredCv = {
+        ...(saved as TailoredCv),
+        customerName: typeof saved.customerName === 'string' ? saved.customerName : '',
+        skillsAligned: Array.isArray(saved.skillsAligned) ? saved.skillsAligned : [],
+        avatar: selectedEmployee.avatar,
+        templateId: saved.templateId === 'template2' ? 'template2' : 'template1',
+      };
+
+      setSuggestion(null);
+      setSuggestionDraft(null);
+      setTailoredCv(restoredCv);
+      setSelectedTemplate(restoredCv.templateId ?? 'template1');
+      setIsHumanVerified(false);
+      setPreviewOverflowMm(0);
+      setCustomizingError(null);
+      setWizardStep(2);
+    } catch (error) {
+      setLastCvError(error instanceof Error ? error.message : 'Could not load the last customized CV.');
+    } finally {
+      setLoadingLastCv(false);
+    }
+  };
+
   /**
    * Called once the user has verified and applied their selection in CvSuggestionSelector.
    * Builds the actual TailoredCv from only the selected content, saves it, and advances straight
@@ -215,7 +292,7 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
    */
   const handleSelectionApply = async (selection: CvSuggestionSelection) => {
     if (!selectedEmployee) return;
-    const cv = buildTailoredCvFromSelection(selectedEmployee, '', selection);
+    const cv = buildTailoredCvFromSelection(selectedEmployee, '', selection, selectedTemplate);
 
     setSaving(true);
     try {
@@ -243,7 +320,7 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
 
   const handleBackToSelection = () => {
     setTailoredCv(null);
-    setWizardStep(2);
+    setWizardStep(suggestion ? 2 : 1);
   };
 
   const handleGoToPreview = () => setWizardStep(3);
@@ -262,8 +339,11 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
   };
 
   const handleDownloadPdf = async (anonymous = false) => {
-    if (!tailoredCv) return;
+    if (!tailoredCv || !selectedEmployee) return;
     try {
+      // Keep generated_cvs as the latest downloadable customization for this employee. The
+      // original, named content is saved even when the user chooses the anonymous export.
+      await saveGeneratedCvAction(selectedEmployee.rowId, tailoredCv);
       await exportToPdf(
         anonymous ? 'anonymous-generated-cv-preview-root' : 'cv-preview-root',
         anonymous
@@ -360,7 +440,10 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
                 <TalentSearchSelect
                   employees={employees}
                   selectedId={selectedCandidateId}
-                  onSelect={setSelectedCandidateId}
+                  onSelect={(id) => {
+                    setSelectedCandidateId(id);
+                    setLastCvError(null);
+                  }}
                 />
 
                 {selectedEmployee && (
@@ -383,6 +466,7 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
                 )}
               </div>
 
+              <TemplateSelector value={selectedTemplate} onChange={setSelectedTemplate} />
 
               {/* Mandatory Skills */}
               <div className="space-y-1.5">
@@ -416,11 +500,28 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
               {/* Submit */}
               <button
                 type="submit"
-                className="mt-4 py-4 bg-gradient-to-r from-sky-600 to-indigo-700 hover:from-sky-500 hover:to-indigo-600 text-white rounded-xl font-sans text-sm font-black shadow-lg shadow-sky-600/10 active:scale-[0.98] transition-transform flex items-center justify-center gap-2.5 cursor-pointer"
+                disabled={!selectedEmployee || customizingLoading}
+                className="mt-4 py-4 bg-gradient-to-r from-sky-600 to-indigo-700 hover:from-sky-500 hover:to-indigo-600 disabled:from-slate-300 disabled:to-slate-400 disabled:cursor-not-allowed disabled:shadow-none text-white rounded-xl font-sans text-sm font-black shadow-lg shadow-sky-600/10 active:scale-[0.98] transition-transform flex items-center justify-center gap-2.5 cursor-pointer"
               >
                 <BrainCircuit className="w-5 h-5" />
                 <span>Customize CV</span>
               </button>
+
+              <button
+                type="button"
+                onClick={handleLoadLastCustomizedCv}
+                disabled={!selectedEmployee || customizingLoading || loadingLastCv}
+                className="py-3.5 bg-white border border-indigo-200 hover:bg-indigo-50 disabled:opacity-50 disabled:cursor-not-allowed text-indigo-700 rounded-xl font-sans text-sm font-black active:scale-[0.98] transition-all flex items-center justify-center gap-2.5 cursor-pointer"
+              >
+                {loadingLastCv ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                <span>{loadingLastCv ? 'Loading Last CV...' : 'Update Last Customized CV'}</span>
+              </button>
+
+              {lastCvError && (
+                <p className="text-[11px] font-semibold text-rose-600 bg-rose-50 border border-rose-100 rounded-lg px-3 py-2">
+                  {lastCvError}
+                </p>
+              )}
 
               {suggestion && (suggestionDraft || tailoredCv) && !customizingLoading && (
                 <button
@@ -488,6 +589,10 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
                     </div>
                   </div>
                 )}
+
+                <div className="pt-4 border-t border-slate-100">
+                  <TemplateSelector value={selectedTemplate} onChange={setSelectedTemplate} />
+                </div>
 
                 {/* Live one-page CV preview — reflects the current selection (or, once past that
                     step, the edited content) in real time, so the one-page limit is visible while
@@ -661,7 +766,7 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
       {/* ════════════════════════════════════════════════════════════════════
           STEP 3 — PREVIEW & EXPORT
       ════════════════════════════════════════════════════════════════════ */}
-      {wizardStep === 3 && tailoredCv && customizedPreviewCv && originalProfileCv && (
+      {wizardStep === 3 && tailoredCv && customizedPreviewCv && (
         <div className="flex flex-col gap-6">
           {/* Action toolbar */}
           <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -694,8 +799,8 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
-            <section className="min-w-0 space-y-3">
+          <div className={`grid grid-cols-1 gap-6 items-start ${originalProfileCv ? 'xl:grid-cols-2' : 'max-w-[900px] mx-auto w-full'}`}>
+            {originalProfileCv && <section className="min-w-0 space-y-3">
               <div className="px-1">
                 <h5 className="text-xs font-black uppercase tracking-widest text-slate-600">
                   Complete Profile CV
@@ -707,7 +812,7 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 shadow-inner flex justify-center">
                 <CvPreviewTemplate cv={originalProfileCv} id="original-cv-preview-root" />
               </div>
-            </section>
+            </section>}
 
             <section className="min-w-0 space-y-3">
               <div className="px-1">
@@ -720,10 +825,7 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
               </div>
               <div className="bg-slate-50 p-4 rounded-2xl border border-indigo-100 shadow-inner flex justify-center">
                 <CvPreviewTemplate
-                  cv={{
-                    ...customizedPreviewCv,
-                    avatar: selectedEmployee?.avatar || null,
-                  }}
+                  cv={customizedPreviewCv}
                   id="customized-cv-preview-display"
                 />
               </div>
@@ -738,10 +840,7 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
               EmployeeProfileClient.tsx's hidden capture copy. */}
           <div style={{ position: 'fixed', top: 0, left: '-10000px', zIndex: -1 }} aria-hidden="true">
             <CvPreviewTemplate
-              cv={{
-                ...tailoredCv,
-                avatar: selectedEmployee?.avatar || null,
-              }}
+              cv={tailoredCv}
             />
             <CvPreviewTemplate
               cv={anonymizeTailoredCv(tailoredCv)}
