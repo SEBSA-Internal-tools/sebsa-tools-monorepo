@@ -4,6 +4,7 @@ import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@ang
 import { FormsModule } from '@angular/forms';
 import { PrivilegeGrants, PrivilegeGroup } from '@sebsa-pm-tool/shared-models';
 import { PrivilegeGroupsService } from '../../../core/services/privilege-groups.service';
+import { ConfirmationService } from '../../../core/services/confirmation.service';
 
 type GrantKey = keyof PrivilegeGrants;
 
@@ -85,6 +86,7 @@ function emptyForm(): PrivilegeGroupFormState {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PrivilegeGroupsPageComponent implements OnInit {
+  private readonly confirmation = inject(ConfirmationService);
   private readonly privilegeGroupsService = inject(PrivilegeGroupsService);
 
   protected readonly sections = PERMISSION_SECTIONS;
@@ -184,9 +186,9 @@ export class PrivilegeGroupsPageComponent implements OnInit {
     });
   }
 
-  remove(group: PrivilegeGroup): void {
-    if (!window.confirm(`Delete the "${group.name}" privilege group?`)) return;
-
+  async remove(group: PrivilegeGroup): Promise<void> {
+    if (!(await this.confirmation.confirm({ title: 'Delete privilege group', message: `Delete "${group.name}"?`, consequence: 'This privilege group will be permanently removed. Users assigned to it may lose its permissions.', confirmLabel: 'Delete group' }))) return;
+    this.errorMessage.set('');
     this.privilegeGroupsService.remove(group.id).subscribe({
       next: () => this.load(),
       error: (error: HttpErrorResponse) =>

@@ -109,7 +109,7 @@ export class CommentsService {
       return comment;
     });
 
-    this.notifyMentions(mentionedUserIds, user, target);
+    await this.notifyMentions(mentionedUserIds, user, target);
 
     return this.toSummary(created, [], user);
   }
@@ -119,6 +119,12 @@ export class CommentsService {
     this.assertCanModify(comment, user);
 
     const mentionedUserIds = await this.resolveMentions(dto.mentionedUserIds, target.projectId);
+    const existingMentionIds = new Set(
+      comment.mentions.map((mention) => mention.mentionedUserId),
+    );
+    const newlyMentionedUserIds = mentionedUserIds.filter(
+      (userId) => !existingMentionIds.has(userId),
+    );
 
     const updated = await this.prisma.$transaction(async (tx) => {
       // Mentions are replaced wholesale so an edit that removes an @ removes
@@ -137,6 +143,8 @@ export class CommentsService {
         include: commentInclude,
       });
     });
+
+    await this.notifyMentions(newlyMentionedUserIds, user, target);
 
     return this.toSummary(updated, [], user);
   }
@@ -271,23 +279,26 @@ export class CommentsService {
   // Notifications
   // ---------------------------------------------------------------------------
 
-  /** Fire-and-forget: a notification failure must not fail the comment. */
-  private notifyMentions(mentionedUserIds: string[], actor: AuthUser, target: CommentTarget): void {
+  /** NotificationService contains delivery failures, so awaiting it guarantees
+   * persistence/live emission finishes without making comments fail. */
+  private async notifyMentions(
+    mentionedUserIds: string[],
+    actor: AuthUser,
+    target: CommentTarget,
+  ): Promise<void> {
     const recipients = mentionedUserIds.filter((id) => id !== actor.id);
     if (recipients.length === 0) return;
 
-    this.notifications
-      .createBulkNotifications(
-        recipients.map((userId) => ({
-          userId,
-          type: 'MENTION' as const,
-          title: `${actor.name} mentioned you`,
-          message: `You were mentioned in a comment on "${target.entityLabel}".`,
-          relatedEntityType: target.entityType,
-          relatedEntityId: target.entityId,
-        })),
-      )
-      .catch(() => undefined);
+    await this.notifications.createBulkNotifications(
+      recipients.map((userId) => ({
+        userId,
+        type: 'MENTION' as const,
+        title: `${actor.name} mentioned you`,
+        message: `You were mentioned in a comment on "${target.entityLabel}".`,
+        relatedEntityType: target.entityType,
+        relatedEntityId: target.entityId,
+      })),
+    );
   }
 
   // ---------------------------------------------------------------------------

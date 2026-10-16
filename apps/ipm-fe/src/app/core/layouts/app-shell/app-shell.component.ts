@@ -10,6 +10,7 @@ import { CasesService } from '../../services/cases.service';
 import { ToastService } from '../../services/toast.service';
 import { NotificationService } from '../../services/notification.service';
 import { UserAvatarComponent } from '../../components/user-avatar/user-avatar.component';
+import { ConfirmationDialogComponent } from '../../components/confirmation-dialog/confirmation-dialog.component';
 import type { CreateCaseRequest, NotificationDto, NotificationType, SystemRole } from '@sebsa-pm-tool/shared-models';
 
 const SIDEBAR_COLLAPSED_KEY = 'ipm-fe.sidebar.collapsed';
@@ -29,7 +30,7 @@ interface NavGroup {
 }
 
 @Component({
-  imports: [CommonModule, RouterLink, RouterLinkActive, RouterOutlet, ToastComponent, CreateCaseModalComponent, UserAvatarComponent],
+  imports: [CommonModule, RouterLink, RouterLinkActive, RouterOutlet, ToastComponent, CreateCaseModalComponent, UserAvatarComponent, ConfirmationDialogComponent],
   selector: 'app-shell',
   templateUrl: './app-shell.component.html',
   styleUrl: './app-shell.component.scss',
@@ -62,6 +63,12 @@ export class AppShellComponent implements OnInit {
           label: 'Admin',
           icon: 'admin_panel_settings',
           path: '/admin/users',
+          onlyForRoles: ['ADMIN', 'SUPER_ADMIN'],
+        },
+        {
+          label: 'Departments',
+          icon: 'corporate_fare',
+          path: '/admin/departments',
           onlyForRoles: ['ADMIN', 'SUPER_ADMIN'],
         },
         {

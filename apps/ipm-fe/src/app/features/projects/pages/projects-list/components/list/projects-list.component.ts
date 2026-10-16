@@ -30,6 +30,7 @@ const STATUS_OPTIONS: ProjectStatus[] = [
 ];
 
 import { CustomSelectComponent } from '../../../../../../core/components/custom-select/custom-select.component';
+import { ConfirmationService } from '../../../../../../core/services/confirmation.service';
 
 const STATUS_LABELS: Record<ProjectStatus, string> = {
   PLANNING: 'Planning',
@@ -48,6 +49,7 @@ const STATUS_LABELS: Record<ProjectStatus, string> = {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ProjectsListComponent {
+  private readonly confirmation = inject(ConfirmationService);
   @Input() projects: ProjectSummary[] | null = null;
   @Output() newProjectClick = new EventEmitter<void>();
   @Output() searchChange = new EventEmitter<string>();
@@ -61,7 +63,7 @@ export class ProjectsListComponent {
   get statusSelectOptions(): { value: string; label: string }[] {
     return this.statusOptions.map((status) => ({
       value: status,
-      label: `${this.statusLabels[status]} (${this.getStatusCount(status)})`,
+      label: this.statusLabels[status],
     }));
   }
 
@@ -109,10 +111,10 @@ export class ProjectsListComponent {
     this.searchChange.emit(this.searchQuery);
   }
 
-  onDeleteProject(projectId: string): void {
-    if (confirm('Are you sure you want to delete this project?')) {
-      this.deleteProject.emit(projectId);
-    }
+  async onDeleteProject(projectId: string): Promise<void> {
+    const project = this.projects?.find((item) => item.id === projectId);
+    if (!(await this.confirmation.confirm({ title: 'Delete project', message: project ? `Delete "${project.name}"?` : 'Delete this project?', consequence: 'The project will be permanently removed. This cannot be undone.', confirmLabel: 'Delete project' }))) return;
+    this.deleteProject.emit(projectId);
   }
 
   onProjectClick(projectId: string, event: Event): void {

@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -22,6 +23,7 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { UpdateUserDepartmentDto } from './dto/update-user-department.dto';
 import { UsersService } from './users.service';
 import { AvatarService } from './avatar.service';
 
@@ -119,5 +121,14 @@ export class UsersController {
   @Roles('ADMIN', 'SUPER_ADMIN')
   deactivate(@Param('id') id: string): Promise<UserAdminSummary> {
     return this.usersService.setActive(id, false);
+  }
+
+  @Patch(':id/department')
+  @Roles('ADMIN', 'SUPER_ADMIN')
+  updateDepartment(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateUserDepartmentDto,
+  ): Promise<UserAdminSummary> {
+    return this.usersService.updateDepartment(id, dto.departmentId);
   }
 }

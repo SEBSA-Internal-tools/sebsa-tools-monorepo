@@ -648,6 +648,42 @@
     transition: transform 0.15s ease;
   }
 
+  .subtask-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+
+  .subtask-action-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+
+    .material-symbols-outlined {
+      font-size: 17px;
+    }
+
+    &:hover {
+      background: var(--surface-card);
+      color: var(--brand-primary);
+    }
+
+    &.delete:hover {
+      background: var(--status-error-bg);
+      color: var(--status-error-fg);
+    }
+  }
+
   &:hover {
     border-color: var(--brand-primary);
     background: var(--brand-primary-50);
@@ -676,6 +712,10 @@
 
     .status-chip {
       font-size: 0.7rem;
+    }
+
+    .subtask-actions {
+      margin-left: auto;
     }
   }
 }

@@ -22,6 +22,10 @@ export interface CreateUserRequest {
   systemRole: SystemRole;
 }
 
+export interface UpdateUserDepartmentRequest {
+  departmentId: string;
+}
+
 export interface CreateUserResponse {
   user: UserAdminSummary;
   /** Shown exactly once — never persisted in plaintext, never emailed. */

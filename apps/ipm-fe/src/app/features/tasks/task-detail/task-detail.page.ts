@@ -1,4 +1,4 @@
-import { Component, ChangeDetectionStrategy, OnInit, inject, signal } from '@angular/core';
+import { Component, ChangeDetectionStrategy, OnInit, inject, signal, ChangeDetectorRef } from '@angular/core';
 import { CommonModule, Location } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -17,6 +17,7 @@ import type {
   TaskType,
   TaskComplexityLevel,
   Subtask,
+  UpdateSubtaskRequest,
   UpdateTaskRequest,
 } from '@sebsa-pm-tool/shared-models';
 import {
@@ -28,6 +29,7 @@ import { CommentSectionComponent } from '../../../core/components/comment-sectio
 import { TaskAttachmentsComponent } from '../../../core/components/task-attachments/task-attachments.component';
 import { CustomSelectComponent } from '../../../core/components/custom-select/custom-select.component';
 import { CustomDatepickerComponent } from '../../../core/components/custom-datepicker/custom-datepicker.component';
+import { ConfirmationService } from '../../../core/services/confirmation.service';
 
 interface TaskEditDraft {
   title: string;
@@ -61,6 +63,7 @@ interface TaskEditDraft {
   styleUrls: ['./task-detail.page.scss'],
 })
 export class TaskDetailPageComponent implements OnInit {
+  private readonly confirmation = inject(ConfirmationService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private location = inject(Location);
@@ -68,12 +71,15 @@ export class TaskDetailPageComponent implements OnInit {
   private subtasksService = inject(SubtasksService);
   private projectsService = inject(ProjectsService);
   private taskTypesService = inject(TaskTypesService);
+  private cdr = inject(ChangeDetectorRef);
 
   task = signal<Task | null>(null);
   isLoading = signal(false);
   isSaving = signal(false);
   errorMessage = signal('');
   isAddSubtaskModalOpen = signal(false);
+  /** Non-null while the subtask modal is open in edit mode. */
+  editingSubtask = signal<Subtask | null>(null);
 
   isDirty = signal(false);
   draft: TaskEditDraft = {
@@ -90,6 +96,7 @@ export class TaskDetailPageComponent implements OnInit {
   };
   availablePriorities = signal<Array<{ id: string; name: string; color: string | null; order: number }>>([]);
   availableAssignees = signal<Array<{ id: string; name: string }>>([]);
+  projectMembers = signal<Array<{ id: string; name: string }>>([]);
   availableTaskTypes = signal<TaskType[]>([]);
   private readonly complexityLevels = signal<TaskComplexityLevel[]>([]);
 
@@ -140,26 +147,50 @@ export class TaskDetailPageComponent implements OnInit {
         this.loadPriorities(task.case.projectId);
         this.loadAssignees(task.case.projectId);
         this.loadTaskTypes();
+        this.cdr.markForCheck();
       },
       error: (err) => {
         console.error('Failed to load task:', err);
         this.errorMessage.set('Unable to load task details. The task may not exist or you may not have access.');
         this.isLoading.set(false);
+        this.cdr.markForCheck();
       },
     });
   }
 
   private loadPriorities(projectId: string): void {
     this.projectsService.getProjectPriorities(projectId).subscribe({
-      next: (priorities) => this.availablePriorities.set([...priorities].sort((a, b) => a.order - b.order)),
-      error: () => this.availablePriorities.set([]),
+      next: (priorities) => {
+        this.availablePriorities.set([...priorities].sort((a, b) => a.order - b.order));
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.availablePriorities.set([]);
+        this.cdr.markForCheck();
+      },
     });
   }
 
   private loadAssignees(projectId: string): void {
     this.projectsService.getMembers(projectId).subscribe({
-      next: (members) => this.availableAssignees.set(members.map((m) => m.user)),
-      error: () => this.availableAssignees.set([]),
+      next: (members) => {
+        const userList: Array<{ id: string; name: string }> = members.map((m) => ({ id: m.user.id, name: m.user.name }));
+        this.projectMembers.set([...userList]);
+        const currentAssignees = this.task()?.assignees ?? [];
+        for (const a of currentAssignees) {
+          if (!userList.some((u) => u.id === a.id)) {
+            userList.push({ id: a.id, name: a.name });
+          }
+        }
+        this.availableAssignees.set(userList);
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.projectMembers.set([]);
+        const currentAssignees = (this.task()?.assignees ?? []).map((a) => ({ id: a.id, name: a.name }));
+        this.availableAssignees.set(currentAssignees);
+        this.cdr.markForCheck();
+      },
     });
   }
 
@@ -247,7 +278,28 @@ export class TaskDetailPageComponent implements OnInit {
       taskTypeId: task.taskTypeId ?? '',
       complexityLevelId: task.complexityLevelId ?? '',
     };
+    if (task.assignees && task.assignees.length > 0) {
+      const current = this.availableAssignees();
+      const merged = [...current];
+      for (const a of task.assignees) {
+        if (!merged.some((u) => u.id === a.id)) {
+          merged.push({ id: a.id, name: a.name });
+        }
+      }
+      this.availableAssignees.set(merged);
+    }
     this.isDirty.set(false);
+    this.cdr.markForCheck();
+  }
+
+  currentAssigneeName(): string {
+    const assigneeId = this.draft.assigneeId;
+    if (!assigneeId) return '';
+    const match = this.availableAssignees().find((u) => u.id === assigneeId);
+    if (match) return match.name;
+    const currentAssignee = this.task()?.assignees?.find((u) => u.id === assigneeId);
+    if (currentAssignee) return currentAssignee.name;
+    return '';
   }
 
   markDirty(): void {
@@ -317,11 +369,11 @@ export class TaskDetailPageComponent implements OnInit {
     });
   }
 
-  deleteTask(): void {
+  async deleteTask(): Promise<void> {
     const current = this.task();
     if (!current) return;
 
-    if (!confirm(`Delete "${current.title}"? This cannot be undone.`)) return;
+    if (!(await this.confirmation.confirm({ title: 'Delete task', message: `Delete "${current.title}"?`, consequence: 'This task will be permanently deleted and cannot be restored.', confirmLabel: 'Delete task' }))) return;
 
     this.isLoading.set(true);
     this.errorMessage.set('');
@@ -387,11 +439,27 @@ export class TaskDetailPageComponent implements OnInit {
     this.isAddSubtaskModalOpen.set(true);
   }
 
-  closeAddSubtaskModal(): void {
-    this.isAddSubtaskModalOpen.set(false);
+  openEditSubtaskModal(subtask: Subtask): void {
+    this.editingSubtask.set(subtask);
   }
 
-  onCreateSubtask(formData: SubtaskFormData): void {
+  closeSubtaskModal(): void {
+    this.isAddSubtaskModalOpen.set(false);
+    this.editingSubtask.set(null);
+  }
+
+  /** The modal emits `submitted` before `closed`, so `editingSubtask` is
+   * still set here when the modal was opened for editing. */
+  onSubmitSubtask(formData: SubtaskFormData): void {
+    const editing = this.editingSubtask();
+    if (editing) {
+      this.onUpdateSubtask(editing, formData);
+    } else {
+      this.onCreateSubtask(formData);
+    }
+  }
+
+  private onCreateSubtask(formData: SubtaskFormData): void {
     const current = this.task();
     if (!current) return;
 
@@ -406,13 +474,65 @@ export class TaskDetailPageComponent implements OnInit {
     this.isLoading.set(true);
     this.subtasksService.create(current.id, dto).subscribe({
       next: () => {
-        this.closeAddSubtaskModal();
+        this.closeSubtaskModal();
         this.isLoading.set(false);
         this.loadSubtasks(current.id);
       },
       error: () => {
         this.errorMessage.set('Failed to create subtask. Please try again.');
         this.isLoading.set(false);
+      },
+    });
+  }
+
+  private onUpdateSubtask(existing: Subtask, formData: SubtaskFormData): void {
+    const dto = this.buildSubtaskUpdate(existing, formData);
+    if (Object.keys(dto).length === 0) return;
+
+    this.errorMessage.set('');
+    this.subtasksService.update(existing.id, dto).subscribe({
+      next: (updated) =>
+        this.subtasks.update((list) => list.map((s) => (s.id === updated.id ? updated : s))),
+      error: (err) => {
+        this.errorMessage.set(err?.error?.message || 'Failed to update subtask. Please try again.');
+      },
+    });
+  }
+
+  /** Only changed fields are sent, so an untouched save doesn't log a
+   * no-op activity entry or re-notify existing assignees. Cleared fields
+   * are sent as `null`. */
+  private buildSubtaskUpdate(existing: Subtask, formData: SubtaskFormData): UpdateSubtaskRequest {
+    const dto: UpdateSubtaskRequest = {};
+
+    if (formData.title !== existing.title) dto.title = formData.title;
+
+    const description = formData.description || null;
+    if (description !== (existing.description || null)) dto.description = description;
+
+    const dueDate = formData.dueDate || null;
+    if (dueDate !== (existing.dueDate ? existing.dueDate.split('T')[0] : null)) dto.dueDate = dueDate;
+
+    const subtaskTypeId = formData.subtaskTypeId || null;
+    if (subtaskTypeId !== existing.subtaskTypeId) dto.subtaskTypeId = subtaskTypeId;
+
+    if (formData.status && formData.status !== existing.status) dto.status = formData.status;
+
+    const before = existing.assignees.map((a) => a.id).sort().join(',');
+    const after = [...formData.assigneeIds].sort().join(',');
+    if (before !== after) dto.assigneeIds = formData.assigneeIds;
+
+    return dto;
+  }
+
+  async deleteSubtask(subtask: Subtask): Promise<void> {
+    if (!(await this.confirmation.confirm({ title: 'Delete subtask', message: `Delete "${subtask.title}"?`, consequence: 'This subtask will be permanently deleted and cannot be restored.', confirmLabel: 'Delete subtask' }))) return;
+
+    this.errorMessage.set('');
+    this.subtasksService.delete(subtask.id).subscribe({
+      next: () => this.subtasks.update((list) => list.filter((s) => s.id !== subtask.id)),
+      error: (err) => {
+        this.errorMessage.set(err?.error?.message || 'Failed to delete subtask. Please try again.');
       },
     });
   }
@@ -460,10 +580,10 @@ export class TaskDetailPageComponent implements OnInit {
       });
   }
 
-  removeDependency(dependencyId: string): void {
+  async removeDependency(dependencyId: string): Promise<void> {
     const current = this.task();
     if (!current) return;
-    if (!confirm('Remove this dependency?')) return;
+    if (!(await this.confirmation.confirm({ title: 'Remove dependency', message: 'Remove this dependency from the task?', consequence: 'The link between these tasks will be removed. The tasks themselves will remain.', confirmLabel: 'Remove dependency' }))) return;
 
     this.tasksService.removeDependency(current.id, dependencyId).subscribe({
       next: () => this.loadDependencies(current.id),

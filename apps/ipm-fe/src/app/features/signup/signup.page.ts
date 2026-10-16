@@ -34,6 +34,28 @@ export class SignupPageComponent implements OnInit {
   readonly isRegistered = signal(false);
   readonly successMessage = signal('');
 
+  readonly spotlightEnabled =
+    typeof window !== 'undefined' &&
+    window.matchMedia('(hover: hover) and (pointer: fine)').matches &&
+    !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  readonly spotlightActive = signal(false);
+  readonly spotlightX = signal(50);
+  readonly spotlightY = signal(50);
+
+  onPanelMouseMove(event: MouseEvent) {
+    if (!this.spotlightEnabled) return;
+
+    const panel = event.currentTarget as HTMLElement;
+    const rect = panel.getBoundingClientRect();
+    this.spotlightX.set(((event.clientX - rect.left) / rect.width) * 100);
+    this.spotlightY.set(((event.clientY - rect.top) / rect.height) * 100);
+    this.spotlightActive.set(true);
+  }
+
+  onPanelMouseLeave() {
+    this.spotlightActive.set(false);
+  }
+
   ngOnInit(): void {
     this.departmentsService.list().subscribe({
       next: (departments) => this.departments.set(departments),

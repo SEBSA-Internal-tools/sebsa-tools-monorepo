@@ -141,7 +141,8 @@
           } @else {
             <app-custom-select
               [(ngModel)]="selectedAssigneeId"
-              [options]="assigneeOptions"
+              [options]="availableAssignees()"
+              [selectedLabel]="currentAssigneeName()"
               defaultOptionLabel="Unassigned"
               defaultOptionValue=""
               ariaLabel="Select assignee"

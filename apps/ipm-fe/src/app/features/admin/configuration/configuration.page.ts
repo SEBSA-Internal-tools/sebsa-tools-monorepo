@@ -28,7 +28,7 @@ import { ConfigurationPanelComponent } from '../../../core/components/configurat
     :host {
       display: block;
       width: 100%;
-      background-color: var(--surface-page);
+      background-color: var(--surface-card);
     }
     .page-container {
       padding: 32px 40px;

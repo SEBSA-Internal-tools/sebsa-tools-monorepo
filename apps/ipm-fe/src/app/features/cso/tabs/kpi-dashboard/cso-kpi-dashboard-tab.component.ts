@@ -10,6 +10,7 @@ import {
 import { FormsModule } from '@angular/forms';
 import type { ProjectSummary } from '@sebsa-pm-tool/shared-models';
 import { AuthService } from '../../../../core/services/auth.service';
+import { CustomDatepickerComponent } from '../../../../core/components/custom-datepicker/custom-datepicker.component';
 import {
   CsoOverviewService,
   type CsoTaskView,
@@ -103,7 +104,7 @@ interface DateBucket { label: string; start: Date; end: Date; }
 @Component({
   standalone: true,
   selector: 'cso-kpi-dashboard-tab',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, CustomDatepickerComponent],
   templateUrl: './cso-kpi-dashboard-tab.component.html',
   styleUrl: './cso-kpi-dashboard-tab.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

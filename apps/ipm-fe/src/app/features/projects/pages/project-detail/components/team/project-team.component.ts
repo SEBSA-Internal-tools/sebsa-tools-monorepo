@@ -11,6 +11,7 @@ import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ProjectsService } from '../../../../services/projects.service';
 import { PrivilegeGroupsService } from '../../../../../../core/services/privilege-groups.service';
+import { ConfirmationService } from '../../../../../../core/services/confirmation.service';
 import {
   AssignUserModalComponent,
   AssignUserFormData,
@@ -28,6 +29,7 @@ import type { PrivilegeGroup, ProjectMemberSummary, ProjectRole } from '@sebsa-p
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ProjectTeamComponent implements OnInit {
+  private readonly confirmation = inject(ConfirmationService);
   @Input() projectId!: string;
 
   private readonly projectsService = inject(ProjectsService);
@@ -40,6 +42,7 @@ export class ProjectTeamComponent implements OnInit {
   roles = signal<ProjectRole[]>([]);
   privilegeGroups = signal<PrivilegeGroup[]>([]);
   rolesErrorMessage = signal('');
+  isCreatingRole = signal(false);
 
   newRoleName = '';
   newRoleGroupId = '';
@@ -55,6 +58,10 @@ export class ProjectTeamComponent implements OnInit {
     this.loadRoles();
     this.privilegeGroupsService.list().subscribe({
       next: (groups) => this.privilegeGroups.set(groups),
+      error: () =>
+        this.rolesErrorMessage.set(
+          'Failed to load privilege groups. Custom roles cannot be created right now.',
+        ),
     });
   }
 
@@ -93,8 +100,9 @@ export class ProjectTeamComponent implements OnInit {
     this.isModalOpen.set(false);
   }
 
-  onRemoveMember(memberId: string): void {
-    if (!confirm('Remove this member from the project?')) return;
+  async onRemoveMember(memberId: string): Promise<void> {
+    const member = this.teamMembers().find((item) => item.id === memberId);
+    if (!(await this.confirmation.confirm({ title: 'Remove project member', message: `Remove ${member?.user.name ?? 'this member'} from the project?`, consequence: 'This person will lose access through this project membership. Their account will remain.', confirmLabel: 'Remove member' }))) return;
 
     this.errorMessage.set('');
     this.projectsService.removeMember(this.projectId, memberId).subscribe({
@@ -117,19 +125,37 @@ export class ProjectTeamComponent implements OnInit {
   }
 
   createRole(): void {
-    if (!this.newRoleName.trim() || !this.newRoleGroupId) return;
+    const name = this.newRoleName.trim();
+    if (!name) {
+      this.rolesErrorMessage.set('Enter a name for the custom role.');
+      return;
+    }
+    if (!this.newRoleGroupId) {
+      this.rolesErrorMessage.set('Select a privilege group for the custom role.');
+      return;
+    }
+    if (this.isCreatingRole()) return;
 
     this.rolesErrorMessage.set('');
+    this.isCreatingRole.set(true);
     this.projectsService
-      .createRole(this.projectId, { name: this.newRoleName, privilegeGroupId: this.newRoleGroupId })
+      .createRole(this.projectId, { name, privilegeGroupId: this.newRoleGroupId })
       .subscribe({
-        next: () => {
+        next: (role) => {
+          this.roles.update((roles) => [...roles, role]);
           this.newRoleName = '';
           this.newRoleGroupId = '';
-          this.loadRoles();
+          this.isCreatingRole.set(false);
         },
-        error: (error: HttpErrorResponse) =>
-          this.rolesErrorMessage.set(error.error?.message ?? 'Failed to create role.'),
+        error: (error: HttpErrorResponse) => {
+          const message = error.error?.message;
+          this.rolesErrorMessage.set(
+            Array.isArray(message)
+              ? message.join(' ')
+              : message ?? 'Failed to create role.',
+          );
+          this.isCreatingRole.set(false);
+        },
       });
   }
 }

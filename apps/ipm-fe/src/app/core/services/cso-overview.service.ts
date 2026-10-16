@@ -62,7 +62,6 @@ export class CsoOverviewService {
     let params = new HttpParams().set('isCsoLabeled', 'true');
     if (filters.projectId) params = params.set('projectId', filters.projectId);
     if (filters.customerId) params = params.set('customerId', filters.customerId);
-    if (filters.priority) params = params.set('priority', filters.priority);
     if (filters.assigneeId) params = params.set('assigneeId', filters.assigneeId);
     if (filters.category) params = params.set('category', filters.category);
 

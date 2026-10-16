@@ -28,15 +28,15 @@
         rows="3"
         placeholder="Write a comment… type @ to mention someone"
         aria-label="Write a comment"
-        [attr.aria-expanded]="mentionMatches().length > 0"
+        [attr.aria-expanded]="mentionContext() === 'new' && mentionMatches().length > 0"
         aria-autocomplete="list"
-        (input)="onBodyInput(bodyInput)"
-        (click)="onBodyInput(bodyInput)"
-        (keydown)="onBodyKeydown($event, bodyInput)"
+        (input)="onMentionInput('new', bodyInput)"
+        (click)="onMentionInput('new', bodyInput)"
+        (keydown)="onMentionKeydown($event, 'new', bodyInput)"
         (blur)="closeMentions()"
       ></textarea>
 
-      @if (mentionMatches().length > 0) {
+      @if (mentionContext() === 'new' && mentionMatches().length > 0) {
         <ul class="mention-menu" role="listbox" aria-label="Mention a team member">
           @for (user of mentionMatches(); track user.id; let i = $index) {
             <li
@@ -46,7 +46,7 @@
               [attr.aria-selected]="mentionHighlight() === i"
             >
               <!-- mousedown, not click: blur would close the menu first -->
-              <button type="button" (mousedown)="$event.preventDefault(); selectMention(user, bodyInput)">
+              <button type="button" (mousedown)="$event.preventDefault(); selectMention(user, 'new', bodyInput)">
                 <span class="avatar small">{{ initials(user.name) }}</span>
                 <span>{{ user.name }}</span>
               </button>
@@ -140,7 +140,40 @@
 
           @if (editingId() === comment.id) {
             <div class="inline-editor">
-              <textarea class="composer-input" [(ngModel)]="editBody" [maxlength]="maxLength" rows="3"></textarea>
+              <div class="composer-field">
+                <textarea
+                  #editInput
+                  class="composer-input"
+                  [(ngModel)]="editBody"
+                  [maxlength]="maxLength"
+                  rows="3"
+                  placeholder="Edit comment… type @ to mention someone"
+                  aria-label="Edit comment"
+                  [attr.aria-expanded]="mentionContext() === 'edit' && mentionMatches().length > 0"
+                  aria-autocomplete="list"
+                  (input)="onMentionInput('edit', editInput)"
+                  (click)="onMentionInput('edit', editInput)"
+                  (keydown)="onMentionKeydown($event, 'edit', editInput)"
+                  (blur)="closeMentions()"
+                ></textarea>
+                @if (mentionContext() === 'edit' && mentionMatches().length > 0) {
+                  <ul class="mention-menu" role="listbox" aria-label="Mention a team member">
+                    @for (user of mentionMatches(); track user.id; let i = $index) {
+                      <li
+                        class="mention-option"
+                        role="option"
+                        [class.highlighted]="mentionHighlight() === i"
+                        [attr.aria-selected]="mentionHighlight() === i"
+                      >
+                        <button type="button" (mousedown)="$event.preventDefault(); selectMention(user, 'edit', editInput)">
+                          <span class="avatar small">{{ initials(user.name) }}</span>
+                          <span>{{ user.name }}</span>
+                        </button>
+                      </li>
+                    }
+                  </ul>
+                }
+              </div>
               <div class="inline-actions">
                 <button type="button" class="btn-link" (click)="saveEdit(comment.id)" [disabled]="isSaving()">Save</button>
                 <button type="button" class="btn-link muted" (click)="cancelEdit()">Cancel</button>
@@ -149,7 +182,11 @@
           } @else {
             <p class="comment-text">{{ comment.body }}</p>
 
-            @if (comment.mentions.length > 0) {
+            @if (usesAllMention(comment)) {
+              <p class="comment-mentions">
+                <span class="mention-chip static">&#64;All</span>
+              </p>
+            } @else if (comment.mentions.length > 0) {
               <p class="comment-mentions">
                 @for (mention of comment.mentions; track mention.id) {
                   <span class="mention-chip static">&#64;{{ mention.name }}</span>
@@ -201,7 +238,40 @@
 
                     @if (editingId() === reply.id) {
                       <div class="inline-editor">
-                        <textarea class="composer-input" [(ngModel)]="editBody" [maxlength]="maxLength" rows="2"></textarea>
+                        <div class="composer-field">
+                          <textarea
+                            #replyEditInput
+                            class="composer-input"
+                            [(ngModel)]="editBody"
+                            [maxlength]="maxLength"
+                            rows="2"
+                            placeholder="Edit reply… type @ to mention someone"
+                            aria-label="Edit reply"
+                            [attr.aria-expanded]="mentionContext() === 'edit' && mentionMatches().length > 0"
+                            aria-autocomplete="list"
+                            (input)="onMentionInput('edit', replyEditInput)"
+                            (click)="onMentionInput('edit', replyEditInput)"
+                            (keydown)="onMentionKeydown($event, 'edit', replyEditInput)"
+                            (blur)="closeMentions()"
+                          ></textarea>
+                          @if (mentionContext() === 'edit' && mentionMatches().length > 0) {
+                            <ul class="mention-menu" role="listbox" aria-label="Mention a team member">
+                              @for (user of mentionMatches(); track user.id; let i = $index) {
+                                <li
+                                  class="mention-option"
+                                  role="option"
+                                  [class.highlighted]="mentionHighlight() === i"
+                                  [attr.aria-selected]="mentionHighlight() === i"
+                                >
+                                  <button type="button" (mousedown)="$event.preventDefault(); selectMention(user, 'edit', replyEditInput)">
+                                    <span class="avatar small">{{ initials(user.name) }}</span>
+                                    <span>{{ user.name }}</span>
+                                  </button>
+                                </li>
+                              }
+                            </ul>
+                          }
+                        </div>
                         <div class="inline-actions">
                           <button type="button" class="btn-link" (click)="saveEdit(reply.id)" [disabled]="isSaving()">Save</button>
                           <button type="button" class="btn-link muted" (click)="cancelEdit()">Cancel</button>
@@ -209,6 +279,18 @@
                       </div>
                     } @else {
                       <p class="comment-text">{{ reply.body }}</p>
+
+                      @if (usesAllMention(reply)) {
+                        <p class="comment-mentions">
+                          <span class="mention-chip static">&#64;All</span>
+                        </p>
+                      } @else if (reply.mentions.length > 0) {
+                        <p class="comment-mentions">
+                          @for (mention of reply.mentions; track mention.id) {
+                            <span class="mention-chip static">&#64;{{ mention.name }}</span>
+                          }
+                        </p>
+                      }
 
                       @if (reply.attachments && reply.attachments.length > 0) {
                         <div class="comment-attachment-chips">
@@ -242,14 +324,48 @@
           <!-- Reply composer -->
           @if (replyingTo() === comment.id) {
             <div class="reply-composer">
+              <div class="composer-field">
               <textarea
+                #replyInput
                 class="composer-input"
                 [(ngModel)]="replyBody"
                 [maxlength]="maxLength"
                 rows="2"
                 placeholder="Write a reply…"
                 aria-label="Write a reply"
+                [attr.aria-expanded]="mentionContext() === 'reply' && mentionMatches().length > 0"
+                aria-autocomplete="list"
+                (input)="onMentionInput('reply', replyInput)"
+                (click)="onMentionInput('reply', replyInput)"
+                (keydown)="onMentionKeydown($event, 'reply', replyInput)"
+                (blur)="closeMentions()"
               ></textarea>
+                @if (mentionContext() === 'reply' && mentionMatches().length > 0) {
+                  <ul class="mention-menu" role="listbox" aria-label="Mention a team member">
+                    @for (user of mentionMatches(); track user.id; let i = $index) {
+                      <li
+                        class="mention-option"
+                        role="option"
+                        [class.highlighted]="mentionHighlight() === i"
+                        [attr.aria-selected]="mentionHighlight() === i"
+                      >
+                        <button type="button" (mousedown)="$event.preventDefault(); selectMention(user, 'reply', replyInput)">
+                          <span class="avatar small">{{ initials(user.name) }}</span>
+                          <span>{{ user.name }}</span>
+                        </button>
+                      </li>
+                    }
+                  </ul>
+                }
+              </div>
+              @if (activeMentionNames('reply').length > 0) {
+                <p class="mention-summary">
+                  Notifies
+                  @for (name of activeMentionNames('reply'); track name) {
+                    <span class="mention-chip static">&#64;{{ name }}</span>
+                  }
+                </p>
+              }
               <div class="inline-actions">
                 <button
                   type="button"

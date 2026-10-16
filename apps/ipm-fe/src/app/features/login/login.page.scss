@@ -48,7 +48,7 @@
   text-align: center;
   color: white;
   z-index: 1;
-  max-width: 480px;
+  max-width: 560px;
   padding: 0 24px;
 
   .brand-logo {
@@ -68,11 +68,12 @@
 
   h1 {
     font-family: var(--font-heading);
-    font-size: 1.9rem;
+    font-size: clamp(1.45rem, 2.1vw, 1.9rem);
     font-weight: 700;
     margin: 0 0 14px;
     letter-spacing: -0.02em;
     color: white;
+    white-space: nowrap;
   }
 
   p {
@@ -454,9 +455,8 @@
 @media (max-width: 900px) {
   .login-container {
     flex-direction: column;
-    height: auto;
-    min-height: 100vh;
-    min-height: 100dvh;
+    height: 100vh;
+    height: 100dvh;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
   }
@@ -483,6 +483,7 @@
       h1 {
         font-size: 1.35rem;
         margin: 0 0 6px;
+        white-space: normal;
       }
 
       p {
