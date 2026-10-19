@@ -40,6 +40,55 @@ interface GenerateClientProps {
   employees: Employee[];
 }
 
+function buildReviewStateFromSavedCv(cv: TailoredCv): {
+  suggestion: CvSuggestion;
+  draft: CvSuggestionDraft;
+} {
+  const experience = cv.experience.map((entry, index) => ({
+    ...entry,
+    index,
+    relevant: true,
+    tasks: entry.tasks.map((text, taskIndex) => ({ index: taskIndex, text, relevant: true })),
+  }));
+  const projects = cv.specialProjects.map((project, index) => ({
+    ...project,
+    index,
+    relevant: true,
+    skills: [],
+    descriptionPoints: project.brief.split(/\r?\n/).map((text, pointIndex) => ({
+      index: pointIndex,
+      text,
+      relevant: true,
+    })),
+  }));
+  const certifications = cv.certifications.map((certification, index) => ({
+    ...certification,
+    index,
+    relevant: true,
+  }));
+  const academic = cv.academic.map((entry, index) => ({ ...entry, index, relevant: true }));
+
+  return {
+    suggestion: {
+      originalObjective: cv.summary,
+      objective: cv.summary,
+      academic: cv.academic,
+      experience,
+      projects,
+      certifications,
+    },
+    draft: {
+      includeObjective: Boolean(cv.summary),
+      objective: cv.summary,
+      includeEducation: cv.includeEducation !== false,
+      academic,
+      experience,
+      projects,
+      certifications,
+    },
+  };
+}
+
 function TemplateSelector({
   value,
   onChange,
@@ -118,6 +167,7 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
   const [suggestion, setSuggestion] = useState<CvSuggestion | null>(null);
   const [suggestionDraft, setSuggestionDraft] = useState<CvSuggestionDraft | null>(null);
   const [tailoredCv, setTailoredCv] = useState<TailoredCv | null>(null);
+  const [restoredCvBase, setRestoredCvBase] = useState<TailoredCv | null>(null);
 
   // ── Save state ──────────────────────────────────────────────────────────────
   const [saving, setSaving] = useState(false);
@@ -142,14 +192,21 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
   const draftPreviewCv = useMemo(
     () =>
       selectedEmployee && suggestion && suggestionDraft
-        ? buildTailoredCvFromSelection(
-            selectedEmployee,
-            '',
-            buildSelectionFromDraft(suggestionDraft),
-            selectedTemplate
-          )
+        ? restoredCvBase
+          ? {
+              ...restoredCvBase,
+              ...buildSelectionFromDraft(suggestionDraft),
+              avatar: selectedEmployee.avatar,
+              templateId: selectedTemplate,
+            }
+          : buildTailoredCvFromSelection(
+              selectedEmployee,
+              '',
+              buildSelectionFromDraft(suggestionDraft),
+              selectedTemplate
+            )
         : null,
-    [selectedEmployee, suggestion, suggestionDraft, selectedTemplate]
+    [selectedEmployee, suggestion, suggestionDraft, selectedTemplate, restoredCvBase]
   );
   const livePreviewCv = tailoredCv ?? draftPreviewCv;
 
@@ -211,6 +268,7 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
     setSuggestion(null);
     setSuggestionDraft(null);
     setTailoredCv(null);
+    setRestoredCvBase(null);
     setWizardStep(2);
 
     try {
@@ -226,7 +284,14 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
         includeEducation: true,
         academic: result.academic.map((entry, index) => ({ ...entry, index, relevant: true })),
         experience: result.experience,
-        projects: result.projects,
+        projects: result.projects.map((project) => ({
+          ...project,
+          descriptionPoints: project.brief.split(/\r?\n/).map((text, index) => ({
+            index,
+            text,
+            relevant: true,
+          })),
+        })),
         certifications: result.certifications,
       });
     } catch (err) {
@@ -270,9 +335,11 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
         templateId: saved.templateId === 'template2' ? 'template2' : 'template1',
       };
 
-      setSuggestion(null);
-      setSuggestionDraft(null);
-      setTailoredCv(restoredCv);
+      const reviewState = buildReviewStateFromSavedCv(restoredCv);
+      setSuggestion(reviewState.suggestion);
+      setSuggestionDraft(reviewState.draft);
+      setTailoredCv(null);
+      setRestoredCvBase(restoredCv);
       setSelectedTemplate(restoredCv.templateId ?? 'template1');
       setIsHumanVerified(false);
       setPreviewOverflowMm(0);
@@ -292,7 +359,14 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
    */
   const handleSelectionApply = async (selection: CvSuggestionSelection) => {
     if (!selectedEmployee) return;
-    const cv = buildTailoredCvFromSelection(selectedEmployee, '', selection, selectedTemplate);
+    const cv: TailoredCv = restoredCvBase
+      ? {
+          ...restoredCvBase,
+          ...selection,
+          avatar: selectedEmployee.avatar,
+          templateId: selectedTemplate,
+        }
+      : buildTailoredCvFromSelection(selectedEmployee, '', selection, selectedTemplate);
 
     setSaving(true);
     try {
@@ -730,6 +804,7 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
                 onDraftChange={setSuggestionDraft}
                 onApply={handleSelectionApply}
                 applying={saving}
+                source={restoredCvBase ? 'saved' : 'ai'}
                 pageLimitExceeded={previewOverflowMm > 0}
               />
             )}

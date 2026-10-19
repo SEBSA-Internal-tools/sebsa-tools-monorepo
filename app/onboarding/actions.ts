@@ -10,7 +10,7 @@ import { createEmployee } from '@/services/employee-service';
 import { getCurrentUser } from '@/lib/auth';
 import { notifyReviewers } from '@/lib/notifications';
 import { emailReviewers } from '@/lib/email/notify';
-import { renderEmailHtml } from '@/lib/email/templates';
+import { buildNewProfileSubmittedEmail } from '@/lib/email/templates';
 import type { CreateEmployeeInput } from '@/types/domain';
 import { recordAuditLog } from '@/services/audit-service';
 
@@ -188,15 +188,7 @@ export async function createOwnProfileAction(input: OnboardingSubmission): Promi
     message: `${input.name} submitted a new profile for review.`,
     link: '/review',
   });
-  await emailReviewers(adminClient, {
-    subject: `New profile submitted — ${input.name}`,
-    html: renderEmailHtml({
-      heading: 'New profile submitted',
-      body: `${input.name} submitted a new profile for review.`,
-      ctaLabel: 'Review submission',
-      ctaPath: '/review',
-    }),
-  });
+  await emailReviewers(adminClient, buildNewProfileSubmittedEmail(input.name));
 
   revalidatePath('/dashboard');
 
