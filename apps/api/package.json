@@ -27,7 +27,6 @@
   },
   "scripts": {
     "build": "npm run prisma:generate && node esbuild.config.mjs",
-    "build:netlify": "node scripts/build-netlify.mjs",
     "dev": "npm run prisma:generate && node esbuild.config.mjs --watch",
     "typecheck": "tsc -b",
     "test": "vitest run --config vitest.config.ts",

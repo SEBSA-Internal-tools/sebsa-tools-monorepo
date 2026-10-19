@@ -166,7 +166,7 @@ describe('task email copy', () => {
   });
 });
 
-it('leaves queued delivery to the Netlify scheduler without starting timers', async () => {
+it('leaves queued delivery to the external scheduler without starting timers', async () => {
   const scheduled = new EmailDispatcher(
     { $queryRaw: vi.fn().mockResolvedValue([]) } as never,
     {} as never,

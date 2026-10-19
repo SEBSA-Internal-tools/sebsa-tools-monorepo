@@ -42,4 +42,3 @@ playwright-report
 # Deployment credentials and local hosting metadata
 .env.*
 .vercel/
-.netlify/
