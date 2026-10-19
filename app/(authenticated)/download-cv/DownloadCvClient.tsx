@@ -45,6 +45,11 @@ function buildInitialDraft(cv: ReturnType<typeof buildTailoredCvFromEmployee>): 
       brief: p.brief,
       relevant: true,
       skills: p.skills.map((text, si) => ({ index: si, text, relevant: true })),
+      descriptionPoints: p.brief.split(/\r?\n/).map((text, pointIndex) => ({
+        index: pointIndex,
+        text,
+        relevant: true,
+      })),
     })),
     certifications: cv.certifications.map((c, index) => ({
       index,

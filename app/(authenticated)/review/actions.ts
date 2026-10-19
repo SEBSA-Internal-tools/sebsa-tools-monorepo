@@ -8,7 +8,7 @@ import { getCurrentUser, isReviewerOrAbove, type CurrentUser } from '@/lib/auth'
 import { updateEmployee, getEmployeeById } from '@/services/employee-service';
 import { notifyUser } from '@/lib/notifications';
 import { emailUser } from '@/lib/email/notify';
-import { renderEmailHtml } from '@/lib/email/templates';
+import { buildProfileApprovedEmail, buildProfileChangesApprovedEmail } from '@/lib/email/templates';
 import type { UpdateEmployeeInput, Employee } from '@/types/domain';
 import { profileChanges, recordAuditLog } from '@/services/audit-service';
 
@@ -198,7 +198,7 @@ export async function approveNewProfileAction(profileId: string): Promise<void> 
 
   const { data: row, error: fetchError } = await adminClient
     .from('profiles')
-    .select('user_id')
+    .select('user_id, full_name')
     .eq('id', profileId)
     .single();
   if (fetchError) throw fetchError;
@@ -218,15 +218,7 @@ export async function approveNewProfileAction(profileId: string): Promise<void> 
       message: 'Your profile is now live in the company repository.',
       link: `/repository/${profileId}`,
     });
-    await emailUser(adminClient, row.user_id, {
-      subject: 'Your SEBSA CV profile has been approved',
-      html: renderEmailHtml({
-        heading: 'Profile approved',
-        body: 'Your profile is now live in the company repository.',
-        ctaLabel: 'View your profile',
-        ctaPath: `/repository/${profileId}`,
-      }),
-    });
+    await emailUser(adminClient, row.user_id, buildProfileApprovedEmail(profileId, row.full_name));
   }
   revalidateAll();
 }
@@ -368,15 +360,11 @@ export async function approveChangeAction(profileId: string): Promise<void> {
       message: 'Your proposed changes are now live on your profile.',
       link: `/repository/${profileId}`,
     });
-    await emailUser(adminClient, row.user_id, {
-      subject: 'Your SEBSA CV profile changes have been approved',
-      html: renderEmailHtml({
-        heading: 'Profile changes approved',
-        body: 'Your proposed changes are now live on your profile.',
-        ctaLabel: 'View your profile',
-        ctaPath: `/repository/${profileId}`,
-      }),
-    });
+    await emailUser(
+      adminClient,
+      row.user_id,
+      buildProfileChangesApprovedEmail(profileId, row.full_name)
+    );
   }
   // Log the action back to the reviewer's own feed too — previously only the submitting employee
   // got a resulting notification, so the admin who approved it had no record it had gone through.

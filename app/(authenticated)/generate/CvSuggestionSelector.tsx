@@ -27,7 +27,9 @@ export interface CvSuggestionDraft {
   includeEducation: boolean;
   academic: Array<CvAcademicEntry & { index: number; relevant: boolean }>;
   experience: CvSuggestionExperience[];
-  projects: CvSuggestionProject[];
+  projects: Array<CvSuggestionProject & {
+    descriptionPoints: Array<{ index: number; text: string; relevant: boolean }>;
+  }>;
   certifications: CvSuggestionCertification[];
 }
 
@@ -37,6 +39,7 @@ interface CvSuggestionSelectorProps {
   onDraftChange: (draft: CvSuggestionDraft) => void;
   onApply: (selection: CvSuggestionSelection) => Promise<void>;
   applying: boolean;
+  source?: 'ai' | 'saved';
   /** True once the live one-page preview (driven by this same draft, measured by the parent)
    *  exceeds one page — blocks Apply until the selection is trimmed back down. */
   pageLimitExceeded?: boolean;
@@ -78,7 +81,10 @@ export function buildSelectionFromDraft(
       .filter((p) => p.relevant)
       .map((p) => ({
         title: p.title,
-        brief: p.brief,
+        brief: p.descriptionPoints
+          .filter((point) => point.relevant)
+          .map((point) => point.text)
+          .join('\n'),
         skills: [],
       })),
     certifications: draft.certifications
@@ -102,6 +108,7 @@ export default function CvSuggestionSelector({
   onDraftChange,
   onApply,
   applying,
+  source = 'ai',
   pageLimitExceeded = false,
 }: CvSuggestionSelectorProps) {
   const [isVerified, setIsVerified] = useState(false);
@@ -135,6 +142,20 @@ export default function CvSuggestionSelector({
       ...draft,
       projects: projects.map((p) => (p.index === index ? { ...p, relevant: !p.relevant } : p)),
     });
+  const toggleProjectPoint = (projectIndex: number, pointIndex: number) =>
+    onDraftChange({
+      ...draft,
+      projects: projects.map((project) =>
+        project.index !== projectIndex
+          ? project
+          : {
+              ...project,
+              descriptionPoints: project.descriptionPoints.map((point) =>
+                point.index === pointIndex ? { ...point, relevant: !point.relevant } : point
+              ),
+            }
+      ),
+    });
   const toggleCertification = (index: number) =>
     onDraftChange({
       ...draft,
@@ -162,29 +183,56 @@ export default function CvSuggestionSelector({
 
   const updateProject = (index: number, patch: Partial<CvSuggestionProject>) =>
     onDraftChange({ ...draft, projects: projects.map((item) => item.index === index ? { ...item, ...patch } : item) });
-  const updateProjectPoint = (projectIndex: number, pointIndex: number, text: string) => {
-    const project = projects.find((item) => item.index === projectIndex);
-    if (!project) return;
-    const points = project.brief.split(/\r?\n/);
-    points[pointIndex] = text;
-    updateProject(projectIndex, { brief: points.join('\n') });
-  };
+  const updateProjectPoint = (projectIndex: number, pointIndex: number, text: string) =>
+    onDraftChange({
+      ...draft,
+      projects: projects.map((project) =>
+        project.index === projectIndex
+          ? {
+              ...project,
+              descriptionPoints: project.descriptionPoints.map((point) =>
+                point.index === pointIndex ? { ...point, text } : point
+              ),
+            }
+          : project
+      ),
+    });
   const addProjectPoint = (projectIndex: number) => {
     const project = projects.find((item) => item.index === projectIndex);
     if (!project) return;
-    updateProject(projectIndex, { brief: `${project.brief}\n` });
+    onDraftChange({
+      ...draft,
+      projects: projects.map((item) =>
+        item.index === projectIndex
+          ? {
+              ...item,
+              descriptionPoints: [
+                ...item.descriptionPoints,
+                { index: nextIndex(item.descriptionPoints), text: '', relevant: true },
+              ],
+            }
+          : item
+      ),
+    });
   };
   const removeProjectPoint = (projectIndex: number, pointIndex: number) => {
-    const project = projects.find((item) => item.index === projectIndex);
-    if (!project) return;
-    const points = project.brief.split(/\r?\n/).filter((_, index) => index !== pointIndex);
-    updateProject(projectIndex, { brief: points.join('\n') });
+    onDraftChange({
+      ...draft,
+      projects: projects.map((project) =>
+        project.index === projectIndex
+          ? {
+              ...project,
+              descriptionPoints: project.descriptionPoints.filter((point) => point.index !== pointIndex),
+            }
+          : project
+      ),
+    });
   };
   const addProject = () => onDraftChange({
     ...draft,
     projects: [...projects, {
       index: nextIndex(projects), title: '', brief: '', relevant: true,
-      skills: [],
+      skills: [], descriptionPoints: [{ index: 0, text: '', relevant: true }],
     }],
   });
 
@@ -210,10 +258,15 @@ export default function CvSuggestionSelector({
       <div className="mb-1 px-5 py-3.5 bg-indigo-50 border border-indigo-100 rounded-xl flex items-center gap-2.5">
         <Sparkles className="w-4 h-4 text-indigo-600 shrink-0" />
         <div>
-          <p className="text-xs font-black text-indigo-800">AI Suggested Selection — Review Before Continuing</p>
+          <p className="text-xs font-black text-indigo-800">
+            {source === 'saved'
+              ? 'Last Customized CV — Select & Edit Content'
+              : 'AI Suggested Selection — Review Before Continuing'}
+          </p>
           <p className="text-[10px] text-indigo-600 font-medium mt-0.5">
-            AI suggestions start from the employee profile. Edit or add CV-only content here, choose what to include,
-            then apply it to this customized CV. The employee profile will not be changed.
+            {source === 'saved'
+              ? 'Your previously saved content is loaded below. Select or deselect sections, entries, and description points, then apply the updated CV. No AI request was made.'
+              : 'AI suggestions start from the employee profile. Edit or add CV-only content here, choose what to include, then apply it to this customized CV. The employee profile will not be changed.'}
           </p>
         </div>
       </div>
@@ -340,17 +393,25 @@ export default function CvSuggestionSelector({
                 <input value={proj.title} onChange={(e) => updateProject(proj.index, { title: e.target.value })} placeholder="Project title" className={inputCls} />
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-slate-500 uppercase block">Project Description Points</label>
-                  {proj.brief.split(/\r?\n/).map((point, pointIndex) => (
-                    <div key={pointIndex} className="flex items-start gap-2">
-                      <span className="text-slate-400 mt-2 text-sm leading-none select-none">•</span>
+                  {proj.descriptionPoints.map((point) => (
+                    <div key={point.index} className="flex items-start gap-2">
+                      <input
+                        type="checkbox"
+                        checked={point.relevant}
+                        onChange={() => toggleProjectPoint(proj.index, point.index)}
+                        disabled={!proj.relevant}
+                        className={`${checkboxCls} mt-2 disabled:cursor-not-allowed`}
+                        aria-label="Include project description point"
+                      />
                       <textarea
                         rows={2}
-                        value={point}
-                        onChange={(event) => updateProjectPoint(proj.index, pointIndex, event.target.value)}
+                        value={point.text}
+                        onChange={(event) => updateProjectPoint(proj.index, point.index, event.target.value)}
+                        disabled={!proj.relevant}
                         placeholder="Describe one project contribution or outcome..."
-                        className={smallInputCls}
+                        className={`${smallInputCls} disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400`}
                       />
-                      <button type="button" onClick={() => removeProjectPoint(proj.index, pointIndex)} disabled={proj.brief.split(/\r?\n/).length <= 1} className="p-1 text-slate-400 hover:text-rose-600 disabled:opacity-25" aria-label="Remove project description point"><Trash2 className="w-3.5 h-3.5" /></button>
+                      <button type="button" onClick={() => removeProjectPoint(proj.index, point.index)} disabled={proj.descriptionPoints.length <= 1} className="p-1 text-slate-400 hover:text-rose-600 disabled:opacity-25" aria-label="Remove project description point"><Trash2 className="w-3.5 h-3.5" /></button>
                     </div>
                   ))}
                   <button type="button" onClick={() => addProjectPoint(proj.index)} className="flex items-center gap-1 text-[10px] font-bold text-indigo-600"><Plus className="w-3 h-3" /> Add description point</button>

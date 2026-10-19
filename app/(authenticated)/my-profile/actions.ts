@@ -8,7 +8,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { getCurrentUser } from '@/lib/auth';
 import { notifyReviewers } from '@/lib/notifications';
 import { emailReviewers } from '@/lib/email/notify';
-import { renderEmailHtml } from '@/lib/email/templates';
+import { buildProfileUpdateRequestedEmail } from '@/lib/email/templates';
 import type { UpdateEmployeeInput } from '@/types/domain';
 import type { CvExperienceEntry, CvAcademicEntry, CvProjectEntry, CvCertificationEntry } from '@/lib/cvTypes';
 import { profileChanges, recordAuditLog } from '@/services/audit-service';
@@ -99,15 +99,7 @@ export async function proposeProfileChangeAction(change: ProfileChangeSubmission
     message: `${current.full_name} proposed changes to their profile.`,
     link: '/review',
   });
-  await emailReviewers(adminClient, {
-    subject: `Profile update requested — ${current.full_name}`,
-    html: renderEmailHtml({
-      heading: 'Profile update requested',
-      body: `${current.full_name} proposed changes to their profile. Review and approve or reject the request.`,
-      ctaLabel: 'Review request',
-      ctaPath: '/review',
-    }),
-  });
+  await emailReviewers(adminClient, buildProfileUpdateRequestedEmail(current.full_name));
 
   revalidatePath(`/repository/${user.profileId}`);
   revalidatePath('/my-profile');
