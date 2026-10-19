@@ -14,6 +14,20 @@ interface BrandedEmailInput {
   ctaLabel: string;
   ctaUrl: string;
   note?: string;
+  highlights?: Array<{
+    label: string;
+    value: string;
+    description?: string;
+  }>;
+  support?: {
+    message: string;
+    email: string;
+    afterEmail?: string;
+  };
+  nextSteps?: {
+    heading: string;
+    items: string[];
+  };
   tone: EmailTone;
 }
 
@@ -57,35 +71,75 @@ function renderBrandedEmail(input: BrandedEmailInput): string {
         </td></tr>
       </table>`
     : '';
+  const highlights = input.highlights?.length
+    ? `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:6px 0 22px;border-collapse:separate;background:#FFF8F2;border:1px solid #F1D3BB;border-radius:10px;">
+        ${input.highlights
+          .map(
+            (highlight, index) => `<tr><td style="padding:15px 16px;${index > 0 ? 'border-top:1px solid #F1D3BB;' : ''}">
+          <div style="color:#9A450E;font-size:11px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;margin-bottom:4px;">${escapeHtml(highlight.label)}</div>
+          <div style="color:#20212B;font-size:16px;font-weight:800;line-height:1.4;">${escapeHtml(highlight.value)}</div>
+          ${highlight.description ? `<div style="margin-top:3px;color:#686A78;font-size:13px;line-height:1.55;">${escapeHtml(highlight.description)}</div>` : ''}
+        </td></tr>`
+          )
+          .join('')}
+      </table>`
+    : '';
+  const support = input.support
+    ? `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:22px 0 0;border-collapse:separate;background:#F7F5FC;border:1px solid #E8E2F5;border-radius:10px;">
+        <tr><td style="padding:15px 16px;color:#505264;font-size:13px;line-height:1.65;">
+          ${escapeHtml(input.support.message)}
+          <a href="mailto:${escapeHtml(input.support.email)}" style="color:#4E1C90;text-decoration:underline;font-weight:800;word-break:break-word;">${escapeHtml(input.support.email)}</a>${input.support.afterEmail ? ` ${escapeHtml(input.support.afterEmail)}` : ''}.
+        </td></tr>
+      </table>`
+    : '';
+  const nextSteps = input.nextSteps
+    ? `<div style="margin-top:24px;">
+        <h2 style="margin:0 0 10px;color:#20212B;font-size:17px;line-height:1.35;font-weight:800;">${escapeHtml(input.nextSteps.heading)}</h2>
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+          ${input.nextSteps.items
+            .map(
+              (item, index) => `<tr>
+            <td valign="top" width="28" style="padding:5px 8px 5px 0;color:#7650E1;font-size:14px;font-weight:800;line-height:1.6;">${index + 1}.</td>
+            <td valign="top" style="padding:5px 0;color:#505264;font-size:14px;line-height:1.6;">${escapeHtml(item)}</td>
+          </tr>`
+            )
+            .join('')}
+        </table>
+      </div>`
+    : '';
   const note = input.note
     ? `<p style="margin:22px 0 0;padding:13px 15px;background:#F6F7FA;border-left:3px solid ${accent};color:#686A78;font-size:12px;line-height:1.6;">${escapeHtml(input.note)}</p>`
     : '';
 
   return `<!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(input.heading)}</title></head>
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(input.heading)}</title>
+  <style>@media only screen and (max-width:620px){.email-shell{width:100%!important;max-width:100%!important;min-width:0!important;border-radius:0!important}.email-pad{padding:26px 20px!important;overflow-wrap:anywhere}.email-header{padding:21px 20px!important}.email-footer{padding:20px!important;overflow-wrap:anywhere}}</style>
+</head>
 <body style="margin:0;padding:0;background:#F1F2F7;font-family:'Segoe UI',Arial,sans-serif;-webkit-text-size-adjust:100%;">
   <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${escapeHtml(input.preheader)}</div>
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;background:#F1F2F7;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;table-layout:fixed;background:#F1F2F7;">
     <tr><td align="center" style="padding:32px 12px;">
-      <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:600px;border-collapse:separate;background:#FFFFFF;border-radius:16px;overflow:hidden;box-shadow:0 8px 28px rgba(38,28,68,.08);">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" class="email-shell" style="width:100%;max-width:600px;table-layout:fixed;border-collapse:separate;background:#FFFFFF;border-radius:16px;overflow:hidden;box-shadow:0 8px 28px rgba(38,28,68,.08);">
         <tr><td style="height:6px;background:#7650E1;font-size:0;line-height:0;">&nbsp;</td></tr>
-        <tr><td style="padding:25px 34px;border-bottom:1px solid #ECECF2;">
+        <tr><td class="email-header" style="padding:25px 34px;border-bottom:1px solid #ECECF2;">
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"><tr>
             <td valign="middle"><img src="${logoUrl}" width="42" alt="SEBSA" style="display:block;width:42px;height:auto;border:0;"></td>
             <td valign="middle" style="padding-left:12px;color:#31284D;font-size:14px;font-weight:800;letter-spacing:.2px;">SEBSA <span style="color:#7650E1;">CV Generator</span></td>
           </tr></table>
         </td></tr>
-        <tr><td style="padding:34px;">
+        <tr><td class="email-pad" style="padding:34px;">
           <p style="margin:0 0 10px;color:${accent};font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;">${escapeHtml(input.eyebrow)}</p>
           <h1 style="margin:0 0 22px;color:#20212B;font-size:25px;line-height:1.25;font-weight:800;">${escapeHtml(input.heading)}</h1>
-          ${greeting}${paragraphs}${detail}
+          ${greeting}${paragraphs}${detail}${highlights}
           <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin-top:22px;"><tr><td bgcolor="#4E1C90" style="border-radius:9px;">
             <a href="${safeUrl}" style="display:inline-block;padding:13px 23px;color:#FFFFFF;text-decoration:none;font-size:14px;font-weight:700;line-height:1.2;">${escapeHtml(input.ctaLabel)}</a>
           </td></tr></table>
+          ${support}${nextSteps}
           ${note}
         </td></tr>
-        <tr><td style="padding:22px 34px;background:#29243A;">
+        <tr><td class="email-footer" style="padding:22px 34px;background:#29243A;">
           <p style="margin:0 0 6px;color:#FFFFFF;font-size:12px;font-weight:700;">${brandName}</p>
           <p style="margin:0;color:#BDB8CC;font-size:11px;line-height:1.55;">This automated notification was sent by the SEBSA CV workflow. Please do not reply to this email.</p>
         </td></tr>
@@ -101,7 +155,14 @@ function content(subject: string, input: BrandedEmailInput): EmailContent {
     input.greeting,
     ...input.paragraphs,
     input.detailLabel && input.detailValue ? `${input.detailLabel}: ${input.detailValue}` : undefined,
+    ...(input.highlights?.map(
+      (highlight) => `${highlight.label}: ${highlight.value}${highlight.description ? ` — ${highlight.description}` : ''}`
+    ) ?? []),
     `${input.ctaLabel}: ${input.ctaUrl}`,
+    input.support
+      ? `${input.support.message} ${input.support.email}${input.support.afterEmail ? ` ${input.support.afterEmail}` : ''}.`
+      : undefined,
+    input.nextSteps ? `${input.nextSteps.heading}\n${input.nextSteps.items.map((item, index) => `${index + 1}. ${item}`).join('\n')}` : undefined,
     input.note,
     `This automated notification was sent by ${brandName}.`,
   ].filter((part): part is string => Boolean(part));
@@ -123,11 +184,36 @@ export function buildEmployeeInviteEmail(actionLink: string, isResend: boolean):
       greeting: 'Hello,',
       paragraphs: [
         isResend
-          ? 'An administrator has sent you a new invitation to SEBSA CV Generator. This link replaces any invitation sent earlier.'
-          : 'An administrator has created a SEBSA CV Generator account for you. Verify your email address to activate it and choose your password.',
+          ? 'An administrator has sent you a new invitation to SEBSA CV Generator. This link replaces any invitation sent earlier. Use it to activate your account and set up your password.'
+          : 'An administrator has created a SEBSA CV Generator account for you. Use the link below to verify your email address, activate your account, and set up your password.',
+        'Please complete your account activation and log in to the system before the deadline below.',
       ],
-      ctaLabel: 'Verify email and sign in',
+      highlights: [
+        {
+          label: 'Activation deadline',
+          value: 'Before October 26, 2026',
+          description: 'Activate your account, set up your password, and log in before this date.',
+        },
+        {
+          label: 'Link validity',
+          value: '24 hours only',
+          description: 'This secure activation link expires 24 hours after this email is sent.',
+        },
+      ],
+      ctaLabel: 'Activate account and set password',
       ctaUrl: actionLink,
+      support: {
+        message: 'If you are unable to activate your account within 24 hours, please send an email to',
+        email: 'cv.generator@sebsaworld.com',
+        afterEmail: 'to request a new activation email from the system administrator',
+      },
+      nextSteps: {
+        heading: 'After you log in',
+        items: [
+          'Review your profile information and verify that all details are correct.',
+          'If anything is incorrect or outdated, update your profile details through the system.',
+        ],
+      },
       note: 'For your security, this is a one-time link. If you were not expecting this invitation, you can safely ignore this email.',
       tone: 'welcome',
     }

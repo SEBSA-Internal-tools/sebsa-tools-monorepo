@@ -79,6 +79,9 @@ export default function SetPasswordPage() {
               <input
                 type={showPassword ? 'text' : 'password'}
                 required
+                minLength={8}
+                maxLength={64}
+                autoComplete="new-password"
                 placeholder="New Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -99,6 +102,9 @@ export default function SetPasswordPage() {
               <input
                 type={showPassword ? 'text' : 'password'}
                 required
+                minLength={8}
+                maxLength={64}
+                autoComplete="new-password"
                 placeholder="Confirm Password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
