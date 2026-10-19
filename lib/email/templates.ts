@@ -22,6 +22,7 @@ interface BrandedEmailInput {
   support?: {
     message: string;
     email: string;
+    afterEmail?: string;
   };
   nextSteps?: {
     heading: string;
@@ -87,7 +88,7 @@ function renderBrandedEmail(input: BrandedEmailInput): string {
     ? `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:22px 0 0;border-collapse:separate;background:#F7F5FC;border:1px solid #E8E2F5;border-radius:10px;">
         <tr><td style="padding:15px 16px;color:#505264;font-size:13px;line-height:1.65;">
           ${escapeHtml(input.support.message)}
-          <a href="mailto:${escapeHtml(input.support.email)}" style="color:#4E1C90;text-decoration:underline;font-weight:800;word-break:break-word;">${escapeHtml(input.support.email)}</a>.
+          <a href="mailto:${escapeHtml(input.support.email)}" style="color:#4E1C90;text-decoration:underline;font-weight:800;word-break:break-word;">${escapeHtml(input.support.email)}</a>${input.support.afterEmail ? ` ${escapeHtml(input.support.afterEmail)}` : ''}.
         </td></tr>
       </table>`
     : '';
@@ -158,7 +159,9 @@ function content(subject: string, input: BrandedEmailInput): EmailContent {
       (highlight) => `${highlight.label}: ${highlight.value}${highlight.description ? ` — ${highlight.description}` : ''}`
     ) ?? []),
     `${input.ctaLabel}: ${input.ctaUrl}`,
-    input.support ? `${input.support.message} ${input.support.email}.` : undefined,
+    input.support
+      ? `${input.support.message} ${input.support.email}${input.support.afterEmail ? ` ${input.support.afterEmail}` : ''}.`
+      : undefined,
     input.nextSteps ? `${input.nextSteps.heading}\n${input.nextSteps.items.map((item, index) => `${index + 1}. ${item}`).join('\n')}` : undefined,
     input.note,
     `This automated notification was sent by ${brandName}.`,
@@ -200,8 +203,9 @@ export function buildEmployeeInviteEmail(actionLink: string, isResend: boolean):
       ctaLabel: 'Activate account and set password',
       ctaUrl: actionLink,
       support: {
-        message: 'If you cannot activate your account within 24 hours, request a new activation email at',
+        message: 'If you are unable to activate your account within 24 hours, please send an email to',
         email: 'cv.generator@sebsaworld.com',
+        afterEmail: 'to request a new activation email from the system administrator',
       },
       nextSteps: {
         heading: 'After you log in',
