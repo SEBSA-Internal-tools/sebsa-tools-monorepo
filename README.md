@@ -302,8 +302,3 @@ how a "shared" component ends up carrying one caller's domain.
 See [DEPLOYMENT.md](./docs/DEPLOYMENT.md) for deploying the API as a Render Web Service
 and the frontend as a Vercel Vite project from this monorepo, including environment
 variables, Neon migrations, cookie authentication and hosted acceptance checks.
-
-## Netlify full-stack hosting
-
-See [NETLIFY.md](./docs/NETLIFY.md) for the current frontend and NestJS Functions deployment,
-including runtime variables, scheduled email delivery and upload-size limits.
