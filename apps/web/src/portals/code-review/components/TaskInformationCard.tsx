@@ -44,6 +44,14 @@ export function TaskInformationCard({
   const developerName =
     'developerName' in task && task.developerName ? task.developerName : undefined;
   const reviewerName = 'reviewerName' in task ? task.reviewerName : null;
+  const followUpReviewerName =
+    'followUpReviewerName' in task && typeof task.followUpReviewerName === 'string'
+      ? task.followUpReviewerName
+      : null;
+  const isFollowUp =
+    task.status === 'ChangesRequested' && Boolean(followUpReviewerName) && !reviewerName;
+  const displayReviewerName =
+    reviewerName ?? (task.status === 'ChangesRequested' ? followUpReviewerName : null);
 
   const round =
     'reviewRound' in task && typeof task.reviewRound === 'number'
@@ -53,30 +61,49 @@ export function TaskInformationCard({
     'countedCycle' in task && typeof task.countedCycle === 'number'
       ? task.countedCycle
       : 0;
+
+  const renderReviewerLabel = (defaultLabel: string) =>
+    isFollowUp ? (
+      <span className="inline-flex items-center gap-1.5 flex-wrap">
+        <span>{defaultLabel}</span>
+        <span className="inline-flex items-center rounded-sm bg-amber-50 px-1 py-0.5 text-[10px] font-medium text-amber-700 border border-amber-200/60 leading-none">
+          {tasksContent.detail.fields.followUpBadge}
+        </span>
+        <InfoTooltip content={tasksContent.detail.tooltips.followUpReviewer} />
+      </span>
+    ) : (
+      defaultLabel
+    );
+
   const peopleFields =
     previousReviewerName === undefined
       ? [
           {
+            key: 'developer',
             label: tasksContent.detail.fields.developer,
             value: developerName ?? '—',
           },
           {
-            label: tasksContent.detail.fields.reviewer,
-            value: <OptionalCell value={reviewerName} fallback={common.badges.unassigned} />,
+            key: 'reviewer',
+            label: renderReviewerLabel(tasksContent.detail.fields.reviewer),
+            value: <OptionalCell value={displayReviewerName} fallback={common.badges.unassigned} />,
           },
         ]
       : [
           {
+            key: 'developer',
             label: tasksContent.detail.fields.developer,
             value: developerName ?? '—',
           },
           {
+            key: 'previousReviewer',
             label: 'Previous Reviewer',
             value: previousReviewerName ?? '—',
           },
           {
-            label: 'Current Reviewer',
-            value: <OptionalCell value={reviewerName} fallback={common.badges.unassigned} />,
+            key: 'reviewer',
+            label: renderReviewerLabel('Current Reviewer'),
+            value: <OptionalCell value={displayReviewerName} fallback={common.badges.unassigned} />,
           },
         ];
   const peopleGridColumns =
@@ -180,7 +207,7 @@ export function TaskInformationCard({
             className={`grid ${peopleGridColumns} gap-x-4 gap-y-3 text-xs`}
           >
             {peopleFields.map((field) => (
-              <div key={field.label} className="min-w-0">
+              <div key={field.key} className="min-w-0">
                 <dt className="font-medium text-ink-400">{field.label}</dt>
                 <dd className="mt-1 font-semibold break-words text-ink-900">{field.value}</dd>
               </div>

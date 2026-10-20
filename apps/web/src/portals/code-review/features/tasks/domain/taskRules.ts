@@ -34,7 +34,7 @@ export const deriveTitle = deriveTaskTitle;
  * and the same code renders differently in the three places it appears (a field
  * error, a wizard requirement row, a disabled-button tooltip).
  */
-export const TASK_REQUIREMENTS = ['customer', 'crimId', 'taskTypes', 'checklist'] as const;
+export const TASK_REQUIREMENTS = ['customer', 'crimId', 'version', 'taskTypes', 'checklist'] as const;
 export type TaskRequirement = (typeof TASK_REQUIREMENTS)[number];
 
 export interface TaskReadinessInput {
@@ -43,6 +43,8 @@ export interface TaskReadinessInput {
   taskTypes: readonly string[];
   /** From `checklistRules.checklistProgress().isComplete`. */
   isChecklistComplete: boolean;
+  /** When true, this CRIM ID is new to the portal and requires active version input. */
+  isNewCrim?: boolean;
 }
 
 /**
@@ -54,7 +56,7 @@ export interface TaskReadinessInput {
  */
 export function missingRequirements(input: TaskReadinessInput): TaskRequirement[] {
   const missing: TaskRequirement[] = [];
-  const { draft, taskTypes, isChecklistComplete } = input;
+  const { draft, taskTypes, isChecklistComplete, isNewCrim } = input;
 
   // Reuse the shared schema for per-field validity rather than re-deriving the
   // rules; `taskDraftSchema` is the contract the API validates against too.
@@ -62,6 +64,7 @@ export function missingRequirements(input: TaskReadinessInput): TaskRequirement[
 
   if (!shape.customerId.safeParse(draft.customerId ?? '').success) missing.push('customer');
   if (!shape.crimId.safeParse(draft.crimId ?? '').success) missing.push('crimId');
+  if (isNewCrim && (!draft.version || draft.version.trim() === '')) missing.push('version');
   if (taskTypes.length === 0) missing.push('taskTypes');
   if (!isChecklistComplete) missing.push('checklist');
 
@@ -82,7 +85,7 @@ export type TaskWizardStep = (typeof TASK_WIZARD_STEPS)[number];
 
 /** Which requirements each step owns. Used to colour the stepper and gate Next. */
 const STEP_REQUIREMENTS: Record<TaskWizardStep, readonly TaskRequirement[]> = {
-  details: ['customer', 'crimId'],
+  details: ['customer', 'crimId', 'version'],
   checklist: ['taskTypes', 'checklist'],
   review: [],
 };

@@ -45,6 +45,8 @@ const taskShape = {
   developerId: idSchema,
   /** Null until a reviewer picks the task from the Available queue. */
   reviewerId: idSchema.nullable(),
+  /** The designated reviewer who will receive the task on resubmission when status is ChangesRequested. */
+  followUpReviewerId: idSchema.nullable().optional(),
   /** The currently active review ownership session ID (null when handed over / open). */
   currentReviewSessionId: idSchema.optional().nullable(),
 
@@ -105,6 +107,8 @@ export const taskListItemSchema = z.preprocess(
     customerColor: z.string(),
     developerName: z.string(),
     reviewerName: z.string().nullable(),
+    /** Designated follow-up reviewer name when status is ChangesRequested */
+    followUpReviewerName: z.string().nullable().optional(),
   }),
 );
 export type TaskListItem = z.infer<typeof taskListItemSchema>;
@@ -112,6 +116,7 @@ export type TaskListItem = z.infer<typeof taskListItemSchema>;
 export const nextTaskVersionSchema = z.object({
   version: z.number().int().min(0),
   title: z.string().min(1),
+  isNewCrim: z.boolean().optional(),
 });
 export type NextTaskVersion = z.infer<typeof nextTaskVersionSchema>;
 
