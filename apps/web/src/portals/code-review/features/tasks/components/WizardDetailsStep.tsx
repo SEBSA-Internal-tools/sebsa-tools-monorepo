@@ -1,6 +1,5 @@
 import {
   CalendarDays,
-  CheckCircle2,
   Copy,
   FilePlus2,
   FileText,
@@ -56,6 +55,8 @@ export function WizardDetailsStep({
   versionPending,
   versionError,
   identityLocked,
+  isNewCrim = false,
+  onVersionChange,
   title,
 }: {
   className?: string;
@@ -64,6 +65,8 @@ export function WizardDetailsStep({
   versionPending: boolean;
   versionError: boolean;
   identityLocked: boolean;
+  isNewCrim?: boolean;
+  onVersionChange?: (version: string) => void;
   title?: string | undefined;
 }) {
   const draft = useTaskDraft();
@@ -90,9 +93,19 @@ export function WizardDetailsStep({
     title ??
     (!hasIdentityInputs
       ? ''
-      : version === ''
+      : version.trim() === ''
         ? ''
-        : deriveTitle(customerCode, draft.crimId, version));
+        : deriveTitle(customerCode, draft.crimId, version.trim()));
+
+  const dynamicTitlePlaceholder = !hasIdentityInputs
+    ? tasks.wizard.details.titlePlaceholder
+    : isNewCrim && version.trim() === ''
+      ? customerCode && draft.crimId.trim()
+        ? `${customerCode}-${draft.crimId.trim()}-[Version]`
+        : 'Enter version above to generate title'
+      : versionPending
+        ? 'Resolving next version…'
+        : tasks.wizard.details.titlePlaceholder;
 
   const handleCopyTitle = () => {
     if (!previewTitle) return;
@@ -133,7 +146,7 @@ export function WizardDetailsStep({
               <Select
                 value={draft.customerId}
                 onValueChange={(customerId) => {
-                  draft.setDetails({ customerId });
+                  draft.setDetails({ customerId, version: '' });
                 }}
                 options={customerOptions}
                 placeholder={tasks.wizard.details.customerPlaceholder}
@@ -153,7 +166,7 @@ export function WizardDetailsStep({
               <Input
                 value={draft.crimId}
                 onChange={(event) => {
-                  draft.setDetails({ crimId: event.target.value });
+                  draft.setDetails({ crimId: event.target.value, version: '' });
                 }}
                 placeholder={tasks.wizard.details.crimIdPlaceholder}
                 readOnly={identityLocked}
@@ -165,38 +178,50 @@ export function WizardDetailsStep({
         {/* Subtle divider */}
         <hr className="border-line/60" />
 
-        {/* SECTION B — System-Generated Task Identity (Flatter, integrated presentation) */}
-        <section aria-labelledby="section-generated-identity" className="space-y-3">
-          <div className="flex items-center justify-between">
+        {/* SECTION B — Task Version & Title (Adaptive, clean, and unambiguous) */}
+        <section
+          aria-labelledby="section-generated-identity"
+          className="rounded-xl border border-line/70 bg-canvas/30 p-4 transition-all"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-3">
             <div>
               <h3
                 id="section-generated-identity"
-                className="text-xs font-semibold tracking-wider text-ink-500 uppercase"
+                className="text-xs font-semibold tracking-wider text-ink-600 uppercase"
               >
-                Generated Task Identity
+                {isNewCrim ? 'Review Version & Task Title' : 'Generated Task Identity'}
               </h3>
-              <p className="mt-0.5 text-xs leading-5 font-normal text-ink-500">
-                System-derived from Customer, CRIM ID, and previous tasks
+              <p className="mt-0.5 text-xs text-ink-500">
+                {isNewCrim
+                  ? 'First review for this CRIM in portal — enter active version to build title'
+                  : 'System-derived from Customer, CRIM ID, and previous tasks'}
               </p>
             </div>
 
             <div>
               {versionPending ? (
-                <span className="inline-flex animate-pulse items-center gap-1.5 rounded-full border border-violet-200/50 bg-violet-50 px-2.5 py-0.5 text-[11px] font-medium text-violet-700">
+                <span className="inline-flex animate-pulse items-center gap-1.5 rounded-md border border-violet-500/20 bg-violet-50/50 px-2 py-0.5 text-xs font-medium text-violet-700">
                   <Loader2 className="size-3 animate-spin text-violet-600" />
                   Checking version…
                 </span>
+              ) : hasIdentityInputs && isNewCrim ? (
+                <span className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/20 bg-amber-50/50 px-2 py-0.5 text-xs font-medium text-amber-700">
+                  <span className="size-1.5 rounded-full bg-amber-500" aria-hidden="true" />
+                  New CRIM ID
+                </span>
               ) : hasIdentityInputs && version !== '' ? (
-                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200/50 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700">
-                  <CheckCircle2 className="size-3" />
+                <span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/20 bg-emerald-50/50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                  <span className="size-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
                   System Generated
                 </span>
               ) : versionError ? (
-                <span className="inline-flex items-center gap-1 rounded-full border border-rose-200/50 bg-rose-50 px-2.5 py-0.5 text-[11px] font-medium text-rose-700">
+                <span className="inline-flex items-center gap-1.5 rounded-md border border-rose-500/20 bg-rose-50/50 px-2 py-0.5 text-xs font-medium text-rose-700">
+                  <span className="size-1.5 rounded-full bg-rose-500" aria-hidden="true" />
                   Unavailable
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1 rounded-full border border-line/60 bg-canvas px-2.5 py-0.5 text-[11px] font-medium text-ink-500">
+                <span className="inline-flex items-center gap-1.5 rounded-md border border-line bg-surface px-2 py-0.5 text-xs font-medium text-ink-400">
+                  <span className="size-1.5 rounded-full bg-ink-300" aria-hidden="true" />
                   Awaiting inputs
                 </span>
               )}
@@ -206,57 +231,82 @@ export function WizardDetailsStep({
           {/* Simple flat two-column layout */}
           <div className="grid gap-4 sm:grid-cols-3">
             {/* Version (1 col) */}
-            <div className="space-y-1.5 sm:col-span-1">
-              <span className="text-ink-800 text-sm font-medium">
-                {tasks.wizard.details.version}
-              </span>
-
-              <div
-                aria-label="Version"
-                className="flex h-9 items-center rounded-lg border border-line/50 bg-canvas/40 px-3"
-              >
-                {versionError ? (
-                  <span className="text-xs font-semibold text-danger">Unavailable</span>
-                ) : versionPending ? (
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-violet-700">
-                    <Loader2 className="size-3.5 animate-spin text-violet-600" />
-                    <span>Checking…</span>
-                  </div>
-                ) : version !== '' ? (
-                  <span
-                    data-testid="version-badge"
-                    className="font-mono text-sm font-semibold text-violet-900"
-                  >
-                    {version}
-                  </span>
-                ) : (
-                  <span className="text-xs font-medium text-ink-400">Pending</span>
-                )}
+            {hasIdentityInputs && isNewCrim ? (
+              <div className="space-y-1 sm:col-span-1">
+                <Field
+                  label={tasks.wizard.details.version}
+                  required
+                  error={
+                    showErrors && version.trim() === ''
+                      ? tasks.wizard.details.versionRequiredNewCrim
+                      : undefined
+                  }
+                >
+                  <Input
+                    aria-label="Version"
+                    placeholder={tasks.wizard.details.versionPlaceholder}
+                    value={version}
+                    onChange={(event) => onVersionChange?.(event.target.value)}
+                    readOnly={identityLocked}
+                  />
+                </Field>
+                <p id="version-help-text" className="text-xs leading-5 font-normal text-ink-500">
+                  {tasks.wizard.details.versionHelpNewCrim}
+                </p>
               </div>
+            ) : (
+              <div className="space-y-1.5 sm:col-span-1">
+                <span className="text-ink-800 text-sm font-medium">
+                  {tasks.wizard.details.version}
+                </span>
 
-              <p className="text-xs leading-5 font-normal text-ink-500">
-                {versionError
-                  ? 'Unable to determine version.'
-                  : versionPending
-                    ? 'Checking next available version...'
-                    : hasIdentityInputs && version !== ''
-                      ? 'Automatically assigned from previous tasks.'
-                      : 'Assigned automatically.'}
-              </p>
-            </div>
+                <div
+                  aria-label="Version"
+                  className="flex h-9 items-center rounded-lg border border-line/60 bg-surface px-3"
+                >
+                  {versionError ? (
+                    <span className="text-xs font-semibold text-danger">Unavailable</span>
+                  ) : versionPending ? (
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-violet-700">
+                      <Loader2 className="size-3.5 animate-spin text-violet-600" />
+                      <span>Checking…</span>
+                    </div>
+                  ) : version !== '' ? (
+                    <span
+                      data-testid="version-badge"
+                      className="font-mono text-sm font-bold text-violet-900"
+                    >
+                      {version}
+                    </span>
+                  ) : (
+                    <span className="text-xs font-medium text-ink-400">Pending</span>
+                  )}
+                </div>
+
+                <p className="text-xs leading-5 font-normal text-ink-500">
+                  {versionError
+                    ? 'Unable to determine version.'
+                    : versionPending
+                      ? 'Checking next available version...'
+                      : hasIdentityInputs && version !== ''
+                        ? tasks.wizard.details.versionHelpExisting
+                        : 'Assigned automatically.'}
+                </p>
+              </div>
+            )}
 
             {/* Generated Title (2 cols) */}
             <div className="space-y-1.5 sm:col-span-2">
               <span className="text-ink-800 text-sm font-medium">Generated Title</span>
 
-              <div className="flex h-9 items-center justify-between rounded-lg border border-line/50 bg-canvas/40 px-3">
+              <div className="flex h-9 items-center justify-between rounded-lg border border-line/60 bg-surface px-3">
                 <input
                   id="generated-title-input"
                   value={previewTitle}
-                  placeholder={tasks.wizard.details.titlePlaceholder}
+                  placeholder={dynamicTitlePlaceholder}
                   readOnly
                   aria-label="Generated Title"
-                  className="w-full cursor-default border-0 bg-transparent p-0 font-mono text-sm font-semibold text-ink-900 select-all placeholder:font-sans placeholder:text-xs placeholder:font-normal placeholder:text-ink-400 focus-visible:outline-none"
+                  className="w-full cursor-default border-0 bg-transparent p-0 font-mono text-sm font-semibold text-ink-900 select-all placeholder:font-mono placeholder:text-xs placeholder:font-normal placeholder:text-ink-400 focus-visible:outline-none"
                 />
                 {previewTitle ? (
                   <button
@@ -274,9 +324,11 @@ export function WizardDetailsStep({
               <p className="text-xs leading-5 font-normal text-ink-500">
                 {previewTitle
                   ? 'This title is generated automatically from Customer, CRIM ID, and Version.'
-                  : versionPending
-                    ? 'Generating title once next version is resolved...'
-                    : 'Generated automatically from the task identity details.'}
+                  : isNewCrim && version.trim() === ''
+                    ? 'Enter version on the left to complete task title.'
+                    : versionPending
+                      ? 'Generating title once next version is resolved...'
+                      : 'Generated automatically from the task identity details.'}
               </p>
             </div>
           </div>

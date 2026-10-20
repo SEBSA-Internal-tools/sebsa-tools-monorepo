@@ -43,6 +43,7 @@ const taskInclude = {
   customer: true,
   developer: true,
   currentReviewer: true,
+  resubmissionReviewer: { select: { id: true, fullName: true } },
   reviewerAssignments: {
     select: {
       id: true,
@@ -66,7 +67,11 @@ const taskInclude = {
     },
   },
   codeReviewForms: {
-    select: { reviewerId: true, decision: true },
+    select: {
+      reviewerId: true,
+      decision: true,
+      reviewer: { select: { id: true, fullName: true } },
+    },
     orderBy: [{ reviewCycleNumber: 'asc' }, { completedAt: 'asc' }],
   },
   reviewCycles: {
@@ -175,14 +180,15 @@ export class ReviewTasksService {
 
   async nextVersion(customerId: string, crimId: string) {
     const normalizedCrimId = crimId.trim();
-    const [customer, version] = await Promise.all([
+    const [customer, versionInfo] = await Promise.all([
       this.prisma.customer.findUnique({ where: { id: customerId }, select: { code: true } }),
-      this.nextTaskVersion(this.prisma, customerId, normalizedCrimId),
+      this.getTaskVersionInfo(this.prisma, customerId, normalizedCrimId),
     ]);
     if (!customer) throw new NotFoundException(`Customer ${customerId} was not found`);
     return {
-      version,
-      title: this.taskTitle(customer.code, normalizedCrimId, String(version)),
+      version: versionInfo.nextVersion,
+      isNewCrim: versionInfo.isNewCrim,
+      title: this.taskTitle(customer.code, normalizedCrimId, String(versionInfo.nextVersion)),
     };
   }
 
@@ -464,14 +470,25 @@ export class ReviewTasksService {
             });
             const sequence = (aggregate._max.customerSequenceNo ?? 0) + 1;
             const crimId = dto.crimId.trim();
-            const version = await this.nextTaskVersion(tx, dto.customerId, crimId);
+            const versionInfo = await this.getTaskVersionInfo(tx, dto.customerId, crimId);
+            let finalVersion: string;
+            if (
+              versionInfo.isNewCrim &&
+              dto.version !== undefined &&
+              dto.version !== null &&
+              dto.version.trim() !== ''
+            ) {
+              finalVersion = dto.version.trim();
+            } else {
+              finalVersion = String(versionInfo.nextVersion);
+            }
             const created = await tx.task.create({
               data: {
                 taskCode: formatTaskCode(customer.name, sequence),
                 customerSequenceNo: sequence,
-                title: this.taskTitle(customer.code, crimId, String(version)),
+                title: this.taskTitle(customer.code, crimId, finalVersion),
                 crimId,
-                version: String(version),
+                version: finalVersion,
                 priority: dto.priority,
                 status: TaskStatus.DRAFT,
                 checklistCompleted,
@@ -2011,21 +2028,24 @@ export class ReviewTasksService {
     };
   }
 
-  private async nextTaskVersion(
+  private async getTaskVersionInfo(
     client: TaskVersionReader,
     customerId: string,
     crimId: string,
-  ): Promise<number> {
+  ): Promise<{ nextVersion: number; isNewCrim: boolean }> {
     const tasks = await client.task.findMany({
       where: { customerId, crimId: { equals: crimId, mode: 'insensitive' } },
       select: { version: true },
     });
+    if (tasks.length === 0) {
+      return { nextVersion: 0, isNewCrim: true };
+    }
     const highestVersion = tasks.reduce((highest, task) => {
       const value = task.version?.trim().replace(/^V/i, '') ?? '';
       if (!/^\d+$/.test(value)) return highest;
       return Math.max(highest, Number(value));
     }, -1);
-    return highestVersion + 1;
+    return { nextVersion: highestVersion + 1, isNewCrim: false };
   }
 
   private toResponse(task: TaskWithRelations) {
@@ -2059,6 +2079,13 @@ export class ReviewTasksService {
       MEDIUM: 'Medium',
       HIGH: 'High',
     }[task.priority];
+    const latestChangesReview = [...(task.codeReviewForms ?? [])]
+      .reverse()
+      .find((form) => form.decision === 'CHANGES_REQUESTED');
+    const followUpReviewer =
+      task.status === TaskStatus.CHANGES_REQUESTED
+        ? (task.resubmissionReviewer ?? latestChangesReview?.reviewer ?? null)
+        : null;
     return {
       id: task.id,
       taskCode: task.taskCode,
@@ -2073,6 +2100,7 @@ export class ReviewTasksService {
       adjustedCycles: cycleSummary.adjustedCycles,
       developerId: task.developerId,
       reviewerId: task.currentReviewerId,
+      followUpReviewerId: followUpReviewer?.id ?? null,
       currentReviewSessionId: currentAssignment?.id ?? null,
       taskTypeIds: task.taskTypes.map(({ taskTypeId }) => String(taskTypeId)),
       isChecklistComplete: task.checklistCompleted,
@@ -2088,6 +2116,7 @@ export class ReviewTasksService {
       customerColor: task.customer.color ?? '#64748b',
       developerName: task.developer.fullName,
       reviewerName: task.currentReviewer?.fullName ?? null,
+      followUpReviewerName: followUpReviewer?.fullName ?? null,
     };
   }
 

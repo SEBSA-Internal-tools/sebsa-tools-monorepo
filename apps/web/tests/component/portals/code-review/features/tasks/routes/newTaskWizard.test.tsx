@@ -368,21 +368,64 @@ describe('New Review Task wizard', () => {
     expect(useTaskDraft.getState().taskTypeIds).toEqual([]);
   });
 
-  it('shows a generated read-only Version instead of accepting manual input', async () => {
+  it('shows a generated read-only Version for existing CRIM IDs', async () => {
+    apiStub.get('/task-identities/next-version', () => ({
+      version: 4,
+      isNewCrim: false,
+      title: 'AASL-CRIM-EXISTING-4',
+    }));
+
     const { user } = renderWizard();
 
     await chooseCustomer(user, 'AASL');
-    await user.type(await screen.findByLabelText(/crim id/i), 'CRIM-SYSTEM-VERSION');
+    await user.type(await screen.findByLabelText(/crim id/i), 'CRIM-EXISTING');
 
     await waitFor(() => {
-      expect(screen.getByLabelText(/^version$/i)).toHaveTextContent('0');
+      expect(screen.getByLabelText(/^version$/i)).toHaveTextContent('4');
     });
     expect(screen.queryByRole('textbox', { name: /^version$/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/automatically assigned from previous tasks/i)).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /next: quality checklist/i })).toHaveAttribute(
         'aria-disabled',
         'false',
       );
+    });
+  });
+
+  it('requires mandatory version entry when CRIM ID is new to the portal (isNewCrim: true)', async () => {
+    apiStub.get('/task-identities/next-version', () => ({
+      version: 0,
+      isNewCrim: true,
+      title: 'AASL-CRIM-580-0',
+    }));
+
+    const { user } = renderWizard();
+
+    await chooseCustomer(user, 'AASL');
+    await user.type(await screen.findByLabelText(/crim id/i), 'CRIM-580');
+
+    // New CRIM ID badge is visible
+    expect(await screen.findByText(/new crim id/i)).toBeInTheDocument();
+
+    // Version input is present and initially empty
+    const versionInput = await screen.findByRole('textbox', { name: /^version/i });
+    expect(versionInput).toHaveValue('');
+    expect(screen.getByText(/this crim id is new to the portal/i)).toBeInTheDocument();
+
+    // Next button is disabled while version is empty
+    const nextBtn = screen.getByRole('button', { name: /next: quality checklist/i });
+    expect(nextBtn).toHaveAttribute('aria-disabled', 'true');
+
+    // Clicking Next triggers validation error
+    await user.click(nextBtn);
+    expect(await screen.findByText(/enter the active version/i)).toBeInTheDocument();
+
+    // Typing version '3' clears error, updates title to AASL-CRIM-580-3, and enables Next
+    await user.type(versionInput, '3');
+    expect(await screen.findByDisplayValue('AASL-CRIM-580-3')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(nextBtn).toHaveAttribute('aria-disabled', 'false');
     });
   });
 });

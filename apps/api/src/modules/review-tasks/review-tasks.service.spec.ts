@@ -39,14 +39,17 @@ describe('ReviewTasksService task versions', () => {
 
     await expect(service.nextVersion(customerId, ' CRIM-1001 ')).resolves.toEqual({
       version: 0,
+      isNewCrim: true,
       title: 'CUST-CRIM-1001-0',
     });
     await expect(service.nextVersion(customerId, 'CRIM-1001')).resolves.toEqual({
       version: 6,
+      isNewCrim: false,
       title: 'CUST-CRIM-1001-6',
     });
     await expect(service.nextVersion(customerId, ' Test 0 ')).resolves.toEqual({
       version: 0,
+      isNewCrim: true,
       title: 'CUST-Test-0-0',
     });
     expect(customer.findUnique).toHaveBeenCalledWith({
@@ -57,6 +60,96 @@ describe('ReviewTasksService task versions', () => {
       where: { customerId, crimId: { equals: 'CRIM-1001', mode: 'insensitive' } },
       select: { version: true },
     });
+  });
+
+  it('respects manual version for new CRIM ID and auto-increments for existing CRIM ID in create', async () => {
+    const customerId = '00000000-0000-0000-0000-000000000020';
+    const developerId = '122f5c16-7522-4b2e-b9b4-a6ac68fbf713';
+    const user = actor(['DEVELOPER']);
+
+    let capturedCreateData: any;
+    const tx = {
+      customer: { findUnique: vi.fn().mockResolvedValue({ id: customerId, name: 'Customer A', code: 'CUST' }) },
+      user: { findFirst: vi.fn().mockResolvedValue({ id: developerId }) },
+      task: {
+        aggregate: vi.fn().mockResolvedValue({ _max: { customerSequenceNo: 5 } }),
+        findMany: vi.fn().mockResolvedValueOnce([]), // new CRIM
+        create: vi.fn().mockImplementation(({ data }) => {
+          capturedCreateData = data;
+          return {
+            id: 'task-1',
+            ...data,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            customer: { id: customerId, code: 'CUST', name: 'Customer A', color: '#123456' },
+            developer: { id: developerId, fullName: 'Developer User' },
+            currentReviewer: null,
+            resubmissionReviewer: null,
+            taskTypes: [],
+            reviewerAssignments: [],
+            reviewCycles: [],
+            handovers: [],
+          };
+        }),
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'task-1',
+          taskCode: 'CUST-006',
+          title: 'CUST-CRIM-580-3',
+          crimId: 'CRIM-580',
+          version: '3',
+          status: 'DRAFT',
+          priority: 'MEDIUM',
+          currentReviewCycle: 0,
+          checklistCompleted: false,
+          developerId,
+          customerId,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          customer: { id: customerId, code: 'CUST', name: 'Customer A', color: '#123456' },
+          developer: { id: developerId, fullName: 'Developer User' },
+          currentReviewer: null,
+          resubmissionReviewer: null,
+          taskTypes: [],
+          reviewerAssignments: [],
+          reviewCycles: [],
+        }),
+      },
+      auditLog: { create: vi.fn().mockResolvedValue({}) },
+    };
+
+    const prisma = {
+      $transaction: vi.fn().mockImplementation((callback) => callback(tx)),
+    };
+    const service = serviceWith(prisma);
+
+    // Case A: New CRIM with manual version '3'
+    await service.create(
+      {
+        customerId,
+        crimId: 'CRIM-580',
+        version: '3',
+        priority: 'MEDIUM' as any,
+      },
+      user,
+    );
+
+    expect(capturedCreateData.version).toBe('3');
+    expect(capturedCreateData.title).toBe('CUST-CRIM-580-3');
+
+    // Case B: Existing CRIM with prior tasks (highest version 3) -> auto-increment to '4'
+    tx.task.findMany.mockResolvedValueOnce([{ version: '3' }]);
+    await service.create(
+      {
+        customerId,
+        crimId: 'CRIM-580',
+        version: '99', // should be ignored for existing CRIM
+        priority: 'MEDIUM' as any,
+      },
+      user,
+    );
+
+    expect(capturedCreateData.version).toBe('4');
+    expect(capturedCreateData.title).toBe('CUST-CRIM-580-4');
   });
 });
 
