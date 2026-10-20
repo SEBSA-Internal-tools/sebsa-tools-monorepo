@@ -34,7 +34,8 @@ export async function listEmployeeRows(supabase: SupabaseClient) {
     .from('profiles')
     .select(LIST_SELECT)
     .eq('status', 'published')
-    .order('updated_at', { ascending: false });
+    .is('deleted_at', null)
+    .order('full_name', { ascending: true });
 
   if (error) throw error;
   return data ?? [];
@@ -45,6 +46,7 @@ export async function getEmployeeRowById(supabase: SupabaseClient, profileId: st
     .from('profiles')
     .select(DETAIL_SELECT)
     .eq('id', profileId)
+    .is('deleted_at', null)
     .maybeSingle();
 
   if (error) throw error;
@@ -210,8 +212,29 @@ async function insertCertifications(
 
 
 
-export async function deleteEmployeeRow(supabase: SupabaseClient, rowId: string) {
-  const { error } = await supabase.from('profiles').delete().eq('id', rowId);
+export async function deleteEmployeeRow(
+  supabase: SupabaseClient,
+  rowId: string,
+  deletedBy: string
+) {
+  const { data: existing, error: lookupError } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('id', rowId)
+    .is('deleted_at', null)
+    .maybeSingle();
+  if (lookupError) throw lookupError;
+  if (!existing) throw new Error('Employee profile was not found or has already been deleted.');
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({
+      deleted_at: new Date().toISOString(),
+      deleted_by: deletedBy,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', rowId)
+    .is('deleted_at', null);
   if (error) throw error;
 }
 
@@ -255,7 +278,8 @@ export async function updateEmployeeRow(
   const { error: profileError } = await supabase
     .from('profiles')
     .update(updateFields)
-    .eq('id', profileId);
+    .eq('id', profileId)
+    .is('deleted_at', null);
 
   if (profileError) throw profileError;
 

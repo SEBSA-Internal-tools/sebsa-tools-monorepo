@@ -14,8 +14,9 @@ import { recordAuditLog } from '@/services/audit-service';
 export async function deleteEmployeeAction(rowId: string): Promise<void> {
   const user = await getCurrentUser();
   if (!user) throw new Error('Not authenticated.');
+  if (!isAdminOrAbove(user.role)) throw new Error('Only an Admin or Super Admin can delete profiles.');
   const supabase = await createClient();
-  await deleteEmployee(supabase, rowId);
+  await deleteEmployee(supabase, rowId, user.id);
   await recordAuditLog({ actorId: user.id, action: 'DELETE', entityType: 'employee_profile', entityId: rowId });
   revalidatePath('/repository');
   revalidatePath('/dashboard');
@@ -75,6 +76,7 @@ async function loadAccountProfile(
     .from('profiles')
     .select('id, email, full_name, user_id')
     .eq('id', rowId)
+    .is('deleted_at', null)
     .single();
 
   if (error || !data) throw new Error('Employee profile not found.');

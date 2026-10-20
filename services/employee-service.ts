@@ -179,8 +179,12 @@ export async function createEmployee(
   return createEmployeeRow(supabase, input, createdBy);
 }
 
-export async function deleteEmployee(supabase: SupabaseClient, rowId: string): Promise<void> {
-  await deleteEmployeeRow(supabase, rowId);
+export async function deleteEmployee(
+  supabase: SupabaseClient,
+  rowId: string,
+  deletedBy: string
+): Promise<void> {
+  await deleteEmployeeRow(supabase, rowId, deletedBy);
 }
 
 export async function updateEmployee(

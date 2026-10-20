@@ -51,6 +51,7 @@ export async function findClaimableProfileAction(): Promise<ClaimableProfile | n
     .select('id, full_name, role_title, departments ( name )')
     .is('user_id', null)
     .eq('email', user.email)
+    .is('deleted_at', null)
     .maybeSingle();
 
   if (error) throw error;
@@ -87,12 +88,14 @@ export async function claimProfileAction(profileId: string): Promise<void> {
     .from('profiles')
     .select('full_name')
     .eq('id', profileId)
+    .is('deleted_at', null)
     .maybeSingle();
 
   const { error } = await supabase
     .from('profiles')
     .update({ pending_claim_user_id: user.id, updated_at: new Date().toISOString() })
     .eq('id', profileId)
+    .is('deleted_at', null)
     .is('user_id', null);
 
   if (error) throw error;
@@ -133,6 +136,7 @@ export async function findPendingClaimAction(): Promise<boolean> {
     .from('profiles')
     .select('id')
     .eq('pending_claim_user_id', user.id)
+    .is('deleted_at', null)
     .maybeSingle();
 
   if (error) throw error;
@@ -200,6 +204,7 @@ export async function createOwnProfileAction(input: OnboardingSubmission): Promi
     .from('profiles')
     .select('id')
     .eq('user_id', user.id)
+    .is('deleted_at', null)
     .single();
 
   redirect(`/repository/${ownProfile.id}`);

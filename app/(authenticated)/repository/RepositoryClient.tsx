@@ -4,6 +4,7 @@ import React, { useState, useMemo, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { PageWrapper } from '../../components/PageWrapper';
 import type { Employee } from '@/types/domain';
+import type { AccountStatus } from '@/lib/accountStatus';
 import { isAdminOrAbove, isReviewerOrAbove, type UserRole } from '@/lib/roles';
 import { deleteEmployeeAction } from './actions';
 import AccountStatusControl from './AccountStatusControl';
@@ -18,6 +19,8 @@ import {
   ChevronLeft,
   ChevronRight,
   UserCircle,
+  AlertTriangle,
+  X,
 } from 'lucide-react';
 
 interface RepositoryClientProps {
@@ -29,6 +32,8 @@ interface RepositoryClientProps {
 export default function RepositoryClient({ employees, viewerRole, departments }: RepositoryClientProps) {
   const router = useRouter();
   const [isDeleting, startDeleteTransition] = useTransition();
+  const [employeePendingDelete, setEmployeePendingDelete] = useState<Employee | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   // CV Reviewer can now create profiles too (docs/04-rbac-security.md §13), but editing/deleting
   // someone else's existing profile stays Admin/Super-Admin-only.
   const canCreateEmployees = isReviewerOrAbove(viewerRole);
@@ -36,16 +41,34 @@ export default function RepositoryClient({ employees, viewerRole, departments }:
   // Inviting and deactivating are account-lifecycle actions, same tier as deleting a profile.
   const canManageAccounts = isAdminOrAbove(viewerRole);
 
-  const deleteEmployee = (rowId: string) => {
+  const confirmDeleteEmployee = () => {
+    if (!employeePendingDelete) return;
+
+    const rowId = employeePendingDelete.rowId;
+    setDeleteError(null);
     startDeleteTransition(async () => {
-      await deleteEmployeeAction(rowId);
-      router.refresh();
+      try {
+        await deleteEmployeeAction(rowId);
+        setEmployeePendingDelete(null);
+        router.refresh();
+      } catch (error) {
+        setDeleteError(error instanceof Error ? error.message : 'Could not delete this profile.');
+      }
     });
   };
 
   // Search and Filtering State
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDept, setSelectedDept] = useState('All Departments');
+  const [selectedPosition, setSelectedPosition] = useState('All Positions');
+  const [selectedAccountStatus, setSelectedAccountStatus] = useState<'all' | AccountStatus>('all');
+
+  const positions = useMemo(
+    () => [...new Set(employees.map((employee) => employee.role).filter(Boolean))].sort((a, b) =>
+      a.localeCompare(b, undefined, { sensitivity: 'base' })
+    ),
+    [employees]
+  );
 
   // Stats Calculations
   const stats = useMemo(() => {
@@ -69,13 +92,20 @@ export default function RepositoryClient({ employees, viewerRole, departments }:
         selectedDept === 'All Departments' ||
         emp.department.toLowerCase() === selectedDept.toLowerCase();
 
-      return matchesSearch && matchesDept;
-    });
-  }, [employees, searchTerm, selectedDept]);
+      const matchesPosition = selectedPosition === 'All Positions' || emp.role === selectedPosition;
+      const matchesAccountStatus =
+        selectedAccountStatus === 'all' ||
+        (emp.accountStatus ?? 'inactive') === selectedAccountStatus;
+
+      return matchesSearch && matchesDept && matchesPosition && matchesAccountStatus;
+    }).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+  }, [employees, searchTerm, selectedDept, selectedPosition, selectedAccountStatus]);
 
   const handleClearFilters = () => {
     setSearchTerm('');
     setSelectedDept('All Departments');
+    setSelectedPosition('All Positions');
+    setSelectedAccountStatus('all');
   };
 
   const handleAddEmployee = () => {
@@ -145,6 +175,33 @@ export default function RepositoryClient({ employees, viewerRole, departments }:
               {departments.map((dept) => (
                 <option key={dept.id} value={dept.name}>{dept.name}</option>
               ))}
+            </select>
+          </div>
+          <div className="w-[180px]">
+            <select
+              value={selectedPosition}
+              onChange={(e) => setSelectedPosition(e.target.value)}
+              aria-label="Filter employees by position"
+              className="w-full bg-white border border-slate-200 rounded-lg text-xs py-2.5 px-3 focus:ring-2 focus:ring-slate-500/10 focus:border-slate-400 focus:outline-none"
+            >
+              <option value="All Positions">All Positions</option>
+              {positions.map((position) => (
+                <option key={position} value={position}>{position}</option>
+              ))}
+            </select>
+          </div>
+          <div className="w-[170px]">
+            <select
+              value={selectedAccountStatus}
+              onChange={(e) => setSelectedAccountStatus(e.target.value as 'all' | AccountStatus)}
+              aria-label="Filter employees by account status"
+              className="w-full bg-white border border-slate-200 rounded-lg text-xs py-2.5 px-3 focus:ring-2 focus:ring-slate-500/10 focus:border-slate-400 focus:outline-none"
+            >
+              <option value="all">All Account Statuses</option>
+              <option value="active">Active</option>
+              <option value="pending">Pending</option>
+              <option value="inactive">Inactive</option>
+              <option value="deactivated">Deactivated</option>
             </select>
           </div>
         </div>
@@ -243,10 +300,13 @@ export default function RepositoryClient({ employees, viewerRole, departments }:
                         </button>
                         {canDeleteEmployees && (
                           <button
-                            onClick={() => deleteEmployee(emp.rowId)}
+                            onClick={() => {
+                              setDeleteError(null);
+                              setEmployeePendingDelete(emp);
+                            }}
                             disabled={isDeleting}
                             className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all disabled:opacity-40"
-                            title="Remove Record"
+                            title="Delete Profile"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -299,6 +359,71 @@ export default function RepositoryClient({ employees, viewerRole, departments }:
           </div>
         </div>
       </div>
+
+      {employeePendingDelete && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 backdrop-blur-sm p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-profile-title"
+        >
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-6">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-50 text-rose-600">
+                  <AlertTriangle className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 id="delete-profile-title" className="text-base font-black text-slate-900">
+                    Delete employee profile?
+                  </h3>
+                  <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                    Are you sure you want to delete the profile for{' '}
+                    <span className="font-bold text-slate-700">{employeePendingDelete.name}</span>?
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEmployeePendingDelete(null)}
+                disabled={isDeleting}
+                aria-label="Close delete confirmation"
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-40"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="p-6">
+              <p className="text-xs leading-relaxed text-slate-500">
+                The profile will be removed from active employee views, but its data will be retained for audit and recovery purposes.
+              </p>
+              {deleteError && (
+                <p className="mt-4 rounded-lg border border-rose-200/60 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-600">
+                  {deleteError}
+                </p>
+              )}
+              <div className="mt-6 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setEmployeePendingDelete(null)}
+                  disabled={isDeleting}
+                  className="rounded-lg border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-40"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmDeleteEmployee}
+                  disabled={isDeleting}
+                  className="rounded-lg bg-rose-600 px-4 py-2.5 text-xs font-black text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isDeleting ? 'Deleting...' : 'Delete Profile'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </PageWrapper>
   );
 }

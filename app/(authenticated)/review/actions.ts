@@ -139,7 +139,8 @@ export async function listPendingItemsAction(): Promise<PendingItem[]> {
     .select(
       'id, full_name, email, status, pending_claim_user_id, pending_change, pending_change_submitted_at, created_at'
     )
-    .or('status.eq.draft,pending_claim_user_id.not.is.null,pending_change.not.is.null');
+    .or('status.eq.draft,pending_claim_user_id.not.is.null,pending_change.not.is.null')
+    .is('deleted_at', null);
 
   if (error) throw error;
 
@@ -200,6 +201,7 @@ export async function approveNewProfileAction(profileId: string): Promise<void> 
     .from('profiles')
     .select('user_id, full_name')
     .eq('id', profileId)
+    .is('deleted_at', null)
     .single();
   if (fetchError) throw fetchError;
 
@@ -207,7 +209,8 @@ export async function approveNewProfileAction(profileId: string): Promise<void> 
     .from('profiles')
     .update({ status: 'published', updated_at: new Date().toISOString() })
     .eq('id', profileId)
-    .eq('status', 'draft');
+    .eq('status', 'draft')
+    .is('deleted_at', null);
   if (error) throw error;
   await recordAuditLog({ actorId: user.id, action: 'APPROVE', entityType: 'employee_profile', entityId: profileId, metadata: { operation: 'publish_new_profile' } });
 
@@ -223,20 +226,30 @@ export async function approveNewProfileAction(profileId: string): Promise<void> 
   revalidateAll();
 }
 
-/** Rejects a never-published self-service submission — nothing to revert to, so it's deleted. */
+/** Rejects and soft-deletes a never-published self-service submission. */
 export async function rejectNewProfileAction(profileId: string): Promise<void> {
   const user = await requireReviewer();
   const adminClient = createAdminClient();
 
-  // Fetched before the delete — there's no row left to read from afterwards.
+  // Preserve the rejected draft for audit/recovery while removing it from active profile views.
   const { data: row, error: fetchError } = await adminClient
     .from('profiles')
     .select('user_id')
     .eq('id', profileId)
+    .is('deleted_at', null)
     .single();
   if (fetchError) throw fetchError;
 
-  const { error } = await adminClient.from('profiles').delete().eq('id', profileId).eq('status', 'draft');
+  const { error } = await adminClient
+    .from('profiles')
+    .update({
+      deleted_at: new Date().toISOString(),
+      deleted_by: user.id,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', profileId)
+    .eq('status', 'draft')
+    .is('deleted_at', null);
   if (error) throw error;
   await recordAuditLog({ actorId: user.id, action: 'REJECT', entityType: 'employee_profile', entityId: profileId, metadata: { operation: 'reject_and_delete_draft' } });
 
@@ -260,6 +273,7 @@ export async function approveClaimAction(profileId: string): Promise<void> {
     .from('profiles')
     .select('pending_claim_user_id')
     .eq('id', profileId)
+    .is('deleted_at', null)
     .single();
   if (fetchError) throw fetchError;
   if (!row.pending_claim_user_id) throw new Error('No pending claim on this profile.');
@@ -272,6 +286,7 @@ export async function approveClaimAction(profileId: string): Promise<void> {
       updated_at: new Date().toISOString(),
     })
     .eq('id', profileId)
+    .is('deleted_at', null)
     .is('user_id', null);
   if (error) throw error;
   await recordAuditLog({ actorId: user.id, action: 'APPROVE', entityType: 'employee_profile', entityId: profileId, metadata: { operation: 'account_claim', claimed_by: row.pending_claim_user_id } });
@@ -293,13 +308,15 @@ export async function rejectClaimAction(profileId: string): Promise<void> {
     .from('profiles')
     .select('pending_claim_user_id')
     .eq('id', profileId)
+    .is('deleted_at', null)
     .single();
   if (fetchError) throw fetchError;
 
   const { error } = await adminClient
     .from('profiles')
     .update({ pending_claim_user_id: null })
-    .eq('id', profileId);
+    .eq('id', profileId)
+    .is('deleted_at', null);
   if (error) throw error;
   await recordAuditLog({ actorId: user.id, action: 'REJECT', entityType: 'employee_profile', entityId: profileId, metadata: { operation: 'account_claim', requested_by: row.pending_claim_user_id } });
 
@@ -329,6 +346,7 @@ export async function approveChangeAction(profileId: string): Promise<void> {
     .from('profiles')
     .select('pending_change, user_id, full_name')
     .eq('id', profileId)
+    .is('deleted_at', null)
     .single();
   if (fetchError) throw fetchError;
   const change = row.pending_change as UpdateEmployeeInput | null;
@@ -343,7 +361,8 @@ export async function approveChangeAction(profileId: string): Promise<void> {
   const { error } = await adminClient
     .from('profiles')
     .update({ pending_change: null, pending_change_submitted_at: null })
-    .eq('id', profileId);
+    .eq('id', profileId)
+    .is('deleted_at', null);
   if (error) throw error;
   await recordAuditLog({
     actorId: user.id,
@@ -385,13 +404,15 @@ export async function rejectChangeAction(profileId: string): Promise<void> {
     .from('profiles')
     .select('user_id, full_name')
     .eq('id', profileId)
+    .is('deleted_at', null)
     .single();
   if (fetchError) throw fetchError;
 
   const { error } = await adminClient
     .from('profiles')
     .update({ pending_change: null, pending_change_submitted_at: null })
-    .eq('id', profileId);
+    .eq('id', profileId)
+    .is('deleted_at', null);
   if (error) throw error;
   await recordAuditLog({ actorId: user.id, action: 'REJECT', entityType: 'employee_profile', entityId: profileId, metadata: { operation: 'profile_change' } });
 
