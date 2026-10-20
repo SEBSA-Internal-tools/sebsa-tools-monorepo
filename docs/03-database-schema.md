@@ -80,10 +80,12 @@ Index: `user_id` (unique, already covers lookups).
 | status              | text not null default 'draft' check (status in ('draft','published','archived'))     | manual-review gate before it appears in searchable repository |
 | created_by          | uuid references auth.users(id)                                                       |                                                               |
 | updated_by          | uuid references auth.users(id)                                                       |                                                               |
+| deleted_at          | timestamptz                                                                          | null for active profiles; set when a profile is soft-deleted  |
+| deleted_by          | uuid references auth.users(id) on delete set null                                    | administrator who soft-deleted the profile                    |
 | created_at          | timestamptz not null default now()                                                   |                                                               |
 | updated_at          | timestamptz not null default now()                                                   |                                                               |
 
-Indexes: `department_id`, `status`, full-text search index:
+Indexes: `department_id`, `status`, active-profile `full_name`, full-text search index:
 `create index profiles_search_idx on profiles using gin (to_tsvector('english', full_name || ' ' || coalesce(role_title,'') || ' ' || coalesce(summary,'')))`.
 
 ### `experiences`
