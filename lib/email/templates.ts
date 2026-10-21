@@ -196,15 +196,15 @@ export function buildEmployeeInviteEmail(actionLink: string, isResend: boolean):
         },
         {
           label: 'Link validity',
-          value: '24 hours only',
-          description: 'This secure activation link expires 24 hours after this email is sent.',
+          value: '4 hours only',
+          description: 'This secure activation link expires 4 hours after this email is sent.',
         },
       ],
       ctaLabel: 'Activate account and set password',
       ctaUrl: actionLink,
       support: {
-        message: 'If you are unable to activate your account within 24 hours, please send an email to',
-        email: 'cv.generator@sebsaworld.com',
+        message: 'If you are unable to activate your account within 4 hours, please send an email to',
+        email: 'cv.generator.sebsa@gmail.com',
         afterEmail: 'to request a new activation email from the system administrator',
       },
       nextSteps: {
