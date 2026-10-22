@@ -18,7 +18,16 @@ export type AuditAction =
   | 'ACCOUNT_INVITED'
   | 'ACCOUNT_INVITE_RESENT'
   | 'ACCOUNT_DEACTIVATED'
-  | 'ACCOUNT_REACTIVATED';
+  | 'ACCOUNT_REACTIVATED'
+  // Assessment module (services/assessment-admin-service.ts). The first three also appear on rows
+  // imported from the old assessment tool, so history and new events read the same.
+  | 'ASSESSMENT_CYCLE_SENT'
+  | 'ASSESSMENT_CYCLE_DEACTIVATED'
+  | 'ASSESSMENT_CYCLE_REACTIVATED'
+  | 'ASSESSMENT_INVITATION_RESENT'
+  | 'ASSESSMENT_QUESTION_ADDED'
+  | 'ASSESSMENT_QUESTION_UPDATED'
+  | 'ASSESSMENT_QUESTION_DELETED';
 export type AuditMetadata = Record<string, unknown>;
 
 export interface AuditChange {

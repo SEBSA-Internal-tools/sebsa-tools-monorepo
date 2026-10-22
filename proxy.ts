@@ -3,7 +3,7 @@ import { updateSession } from '@/lib/supabase/middleware';
 
 // /auth/callback is deliberately excluded — it must stay publicly reachable since it's the one
 // establishing the session (invite/magic links land here before the user has ever logged in).
-const PROTECTED_PREFIXES = ['/dashboard', '/repository', '/upload', '/generate', '/settings', '/onboarding', '/update-profile', '/my-profile', '/review', '/activity', '/auth/set-password'];
+const PROTECTED_PREFIXES = ['/dashboard', '/repository', '/upload', '/generate', '/settings', '/onboarding', '/update-profile', '/my-profile', '/review', '/activity', '/auth/set-password', '/assessments'];
 
 export async function proxy(request: NextRequest) {
   const { supabaseResponse, user } = await updateSession(request);

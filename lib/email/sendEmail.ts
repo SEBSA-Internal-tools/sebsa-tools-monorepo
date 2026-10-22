@@ -1,9 +1,17 @@
 import nodemailer, { type Transporter } from 'nodemailer';
 import { env, requireEnv } from '@/lib/env';
 
+export interface EmailAttachment {
+  filename: string;
+  content: Buffer;
+  contentType: string;
+}
+
 export interface EmailContent {
   subject: string;
   html: string;
+  /** Optional files (e.g. the assessment certificate PDF). Existing callers never set this. */
+  attachments?: EmailAttachment[];
 }
 
 let transporter: Transporter | null = null;
@@ -45,6 +53,7 @@ export async function sendEmail(to: string, content: EmailContent): Promise<bool
       to,
       subject: content.subject,
       html: content.html,
+      attachments: content.attachments,
     });
     return true;
   } catch (err) {

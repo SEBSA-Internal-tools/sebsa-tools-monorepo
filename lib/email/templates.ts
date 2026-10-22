@@ -22,7 +22,7 @@ export function renderEmailHtml({ heading, body, ctaLabel, ctaPath }: EmailTempl
 
   return `
 <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px; background-color: #ffffff;">
-  <p style="color:#7650E1;font-size:12px;font-weight:800;letter-spacing:0.6px;text-transform:uppercase;margin:0 0 20px 0;">SEBSA CV Generator</p>
+  <p style="color:#7650E1;font-size:12px;font-weight:800;letter-spacing:0.6px;text-transform:uppercase;margin:0 0 20px 0;">SEBSA Employee Management Portal</p>
   <h1 style="color:#262626;font-size:19px;font-weight:800;margin:0 0 12px 0;">${heading}</h1>
   <p style="color:#404040;font-size:13px;line-height:1.6;margin:0;">${body}</p>
   ${button}

@@ -25,7 +25,7 @@ const envSchema = z.object({
   BREVO_SMTP_KEY: z.preprocess(emptyToUndefined, z.string().optional()),
   BREVO_SMTP_LOGIN: z.preprocess(emptyToUndefined, z.string().optional()),
   EMAIL_FROM_ADDRESS: z.preprocess(emptyToUndefined, z.string().optional()),
-  EMAIL_FROM_NAME: z.preprocess(emptyToUndefined, z.string().default('SEBSA CV Generator')),
+  EMAIL_FROM_NAME: z.preprocess(emptyToUndefined, z.string().default('SEBSA Employee Management Portal')),
 });
 
 /**

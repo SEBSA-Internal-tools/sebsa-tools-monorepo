@@ -445,3 +445,32 @@ since there's nothing left to read from afterwards.
 
 Clicking a notification marks it read (optimistic local update, fire-and-forget server call) and
 navigates to its `link` if it has one.
+
+## 18. Assessment module privileges (migration 0031)
+
+The knowledge assessment (ported from the standalone SEBSA Internal Assessment tool) shares this
+app's accounts and roles. No new role was added: the old tool's "HR / assessment admin" maps onto
+the CV Reviewer role, with Super Admin as the other holder.
+
+| Action | Super Admin | Admin | CV Reviewer | Employee |
+|---|:---:|:---:|:---:|:---:|
+| Take the assessment, view own results and certificates | ✅ | ✅ | ✅ | ✅ |
+| Manage the question bank (add/edit/retire/delete) | ✅ | ❌ | ✅ | ❌ |
+| Create, deactivate and reactivate cycles | ✅ | ❌ | ✅ | ❌ |
+| Send and resend invitations | ✅ | ❌ | ✅ | ❌ |
+| View everyone's results and the tracker | ✅ | ❌ | ✅ | ❌ |
+| See the answer key (question bank) | ✅ | ❌ | ✅ | ❌ |
+
+- **Gate:** `canManageAssessments(role)` in `lib/roles.ts` (CV Reviewer or Super Admin). Admin is
+  deliberately excluded; an Admin still takes the assessment like any employee.
+- **Enforcement:** the `assessment_*` RLS policies use `is_assessment_manager()` (a new helper: `cv_reviewer` or `super_admin`); the UI gate and
+  server actions are the first line, the database is the last. Employees have **no** policy on
+  `assessment_questions`, so the answer key can only reach the browser through server code that
+  strips it. Attempts, certificates and invitation status are written by server code only.
+- **Account scope:** assessments reference `auth.users`, not `profiles`, so people who have never
+  created a CV profile can still take the assessment. Invitations go to every account that is not
+  deactivated.
+- **Audit:** cycle and question changes are written to `audit_logs` (`ASSESSMENT_*` actions).
+  Events imported from the old tool keep the original admin's email in `metadata.legacy_admin_email`.
+- **Retention:** attempt answers and scores are personal data. The Access Control, Retention and
+  Privacy Protocol should be extended to cover them before go-live.

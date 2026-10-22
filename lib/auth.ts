@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getSignedAvatarUrl, DEFAULT_AVATAR } from '@/lib/avatar';
 
 export type { UserRole } from '@/lib/roles';
-export { isAdminOrAbove, isReviewerOrAbove, canAssignRole } from '@/lib/roles';
+export { isAdminOrAbove, isReviewerOrAbove, canAssignRole, canManageAssessments } from '@/lib/roles';
 import type { UserRole } from '@/lib/roles';
 
 export interface CurrentUser {

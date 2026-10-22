@@ -3,8 +3,8 @@ import './globals.css';
 import { DataProvider } from './context/DataContext';
 
 export const metadata = {
-  title: 'CV-AI | HR Intelligence Platform',
-  description: 'AI-driven HR analytics and intelligence platform for CV optimization, processing, and generation.',
+  title: 'SEBSA Employee Management Portal',
+  description: 'SEBSA employee management portal: CV generation and knowledge assessments.',
 };
 
 export default function RootLayout({
