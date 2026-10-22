@@ -1,5 +1,5 @@
 project_id = "sebsa-cv-generator"
 
 [auth.email]
-# Invitation and magic-link tokens remain valid for 24 hours.
+# Invitation, magic-link, and password-recovery tokens remain valid for 24 hours.
 otp_expiry = 86400

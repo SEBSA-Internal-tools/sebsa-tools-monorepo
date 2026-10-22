@@ -4,7 +4,7 @@ export interface PasswordRequirement {
   test: (password: string) => boolean;
 }
 
-/** Shared across /signup and /auth/set-password — the only two places a password is ever set. */
+/** Shared across signup, invitation activation, and password recovery. */
 export const PASSWORD_REQUIREMENTS: PasswordRequirement[] = [
   { id: 'length', label: '8–64 characters', test: (pw) => pw.length >= 8 && pw.length <= 64 },
   { id: 'uppercase', label: 'One uppercase letter', test: (pw) => /[A-Z]/.test(pw) },

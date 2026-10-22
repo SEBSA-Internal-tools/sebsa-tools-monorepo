@@ -10,6 +10,7 @@ import { uploadProfilePictureAction } from '../upload/actions';
 import { getEmployeeDetailsAction, updateEmployeeAction } from './actions';
 import { ProjectSkillsInput } from '@/app/components/CvEntrySections';
 import { toTitleCase } from '@/lib/text';
+import { getProfilePictureValidationError } from '@/lib/profilePicture';
 import {
   emptyCvProfile,
   type CvProfile,
@@ -311,13 +312,10 @@ export default function UpdateProfileClient({
   // ─── Image Photo Handling ──────────────────────────────────────────────────
 
   const processImageFile = useCallback((file: File) => {
-    const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-    if (!validTypes.includes(file.type)) {
-      setImageUploadError('Please upload a JPG, PNG, WEBP, or GIF image.');
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      setImageUploadError('Image must be smaller than 5 MB.');
+    const validationError = getProfilePictureValidationError(file);
+    if (validationError) {
+      setImageUploadError(validationError);
+      if (imageInputRef.current) imageInputRef.current.value = '';
       return;
     }
     setImageUploadError(null);

@@ -454,3 +454,25 @@ since there's nothing left to read from afterwards.
 
 Clicking a notification marks it read (optimistic local update, fire-and-forget server call) and
 navigates to its `link` if it has one.
+
+## 18. Password recovery
+
+Password recovery is separate from employee invitation activation. `/auth/forgot-password` calls
+`supabase.auth.resetPasswordForEmail()` and always displays the same confirmation response, so it
+does not disclose whether an account exists. Recovery emails return through `/auth/callback` with
+an explicit recovery-flow marker. The callback exchanges the one-time token for a session,
+verifies that session with the Auth server, and records the verified user ID in same-tab session
+storage before forwarding to `/auth/reset-password`. That page requires both the verified Auth
+user and matching recovery marker before it calls `supabase.auth.updateUser()`.
+
+Expired, invalid, and already-used links return to the request form with a generic recovery error
+and a retry path. After a successful password update, the recovery session is signed out locally
+and the user returns to login. The invitation flow continues to use `/auth/set-password` and does
+not share recovery state.
+
+Password recovery mail is sent by **Supabase Auth**, rather than `lib/email/sendEmail.ts`. In the
+hosted Supabase project, configure Authentication -> Emails -> SMTP Settings with Brevo's SMTP
+host (`smtp-relay.brevo.com`), port `587`, the Brevo SMTP login/key, and the verified sender used
+by the application. Also allow `${NEXT_PUBLIC_APP_URL}/auth/callback` under Authentication -> URL
+Configuration -> Redirect URLs. The `BREVO_*` values in `.env.local` configure application-owned
+transactional mail only; Supabase's hosted Auth service cannot read local application variables.
