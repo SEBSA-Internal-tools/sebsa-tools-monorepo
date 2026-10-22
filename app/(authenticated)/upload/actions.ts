@@ -11,6 +11,7 @@ import { provisionEmployeeAccount } from '@/lib/auth/provisionAccount';
 import { notifyUser } from '@/lib/notifications';
 import type { CreateEmployeeInput } from '@/types/domain';
 import { recordAuditLog } from '@/services/audit-service';
+import { getProfilePictureValidationError } from '@/lib/profilePicture';
 
 export interface CreateEmployeeResult {
   rowId: string;
@@ -31,6 +32,8 @@ export async function uploadProfilePictureAction(formData: FormData): Promise<st
 
   const file = formData.get('file') as File | null;
   if (!file) throw new Error('No image file provided.');
+  const validationError = getProfilePictureValidationError(file);
+  if (validationError) throw new Error(validationError);
 
   const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg';
   const uniqueName = `avatars/${Date.now()}_${user.id}.${ext}`;

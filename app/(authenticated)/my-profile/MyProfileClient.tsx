@@ -2,6 +2,7 @@
 
 import EmployeeDetailTabs from '@/app/components/EmployeeDetailTabs';
 import { pickEmployeeDetails, type EmployeeDetails } from '@/lib/employeeDetails';
+import { getProfilePictureValidationError } from '@/lib/profilePicture';
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -44,6 +45,13 @@ export default function MyProfileClient({ employee, departments }: MyProfileClie
   const avatarInputRef = React.useRef<HTMLInputElement>(null);
 
   const handleAvatarChange = async (file: File) => {
+    const validationError = getProfilePictureValidationError(file);
+    if (validationError) {
+      setAvatarError(validationError);
+      if (avatarInputRef.current) avatarInputRef.current.value = '';
+      return;
+    }
+
     setAvatarPreview(URL.createObjectURL(file));
     setAvatarError(null);
     setAvatarUploading(true);

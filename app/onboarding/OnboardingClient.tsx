@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation';
 import { PageWrapper } from '../components/PageWrapper';
 import { createClient } from '@/lib/supabase/client';
 import { extractText } from '@/lib/parsing/extractClientText';
+import { getProfilePictureValidationError } from '@/lib/profilePicture';
 import type { CvProfile } from '@/lib/cvTypes';
 import ProfileFieldsEditor, { emptyProfileFieldsValue, type ProfileFieldsValue } from '../components/ProfileFieldsEditor';
 import { createOwnProfileAction, claimProfileAction, type ClaimableProfile } from './actions';
@@ -110,6 +111,13 @@ export default function OnboardingClient({ userEmail, departments, claimableProf
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const handleAvatarChange = async (file: File) => {
+    const validationError = getProfilePictureValidationError(file);
+    if (validationError) {
+      setAvatarError(validationError);
+      if (avatarInputRef.current) avatarInputRef.current.value = '';
+      return;
+    }
+
     setAvatarFile(file);
     setAvatarPreview(URL.createObjectURL(file));
     setAvatarError(null);
