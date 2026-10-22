@@ -4,7 +4,7 @@ import React from 'react';
 import { Check, X } from 'lucide-react';
 import { PASSWORD_REQUIREMENTS } from '@/lib/passwordValidation';
 
-/** Live checklist shown under a password field on /signup and /auth/set-password. */
+/** Live checklist shared by signup, invitation activation, and password recovery. */
 export default function PasswordRequirementsList({ password }: { password: string }) {
   return (
     <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1.5 px-1">

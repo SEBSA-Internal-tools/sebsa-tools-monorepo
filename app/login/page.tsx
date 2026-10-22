@@ -32,12 +32,14 @@ function LoginPageContent() {
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
 
   // Surfaces failures from /auth/callback (e.g. an expired or already-used invite link) instead
   // of silently dropping the person on a blank login form with no explanation.
   useEffect(() => {
     const callbackError = searchParams?.get('error');
     if (callbackError) setError(callbackError);
+    setMessage(searchParams?.get('message') ?? null);
   }, [searchParams]);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -192,15 +194,21 @@ function LoginPageContent() {
                   Remember Me
                 </span>
               </label>
-              <a href="#" className="text-xs font-black text-slate-900 hover:underline">
+              <Link href="/auth/forgot-password" className="text-xs font-black text-slate-900 hover:underline">
                 Forgot password?
-              </a>
+              </Link>
             </div>
 
             {/* Auth error */}
             {error && (
               <p className="text-xs font-semibold text-rose-600 bg-rose-50 border border-rose-200/60 rounded-lg px-3 py-2">
                 {error}
+              </p>
+            )}
+
+            {message && !error && (
+              <p className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/60 rounded-lg px-3 py-2">
+                {message}
               </p>
             )}
 
