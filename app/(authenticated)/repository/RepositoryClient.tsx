@@ -29,6 +29,29 @@ interface RepositoryClientProps {
   departments: { id: string; name: string }[];
 }
 
+const EMPLOYEES_PER_PAGE = 30;
+
+function getPaginationItems(currentPage: number, totalPages: number): Array<number | string> {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  const visiblePages = [...new Set([1, currentPage - 1, currentPage, currentPage + 1, totalPages])]
+    .filter((page) => page >= 1 && page <= totalPages)
+    .sort((a, b) => a - b);
+  const items: Array<number | string> = [];
+
+  visiblePages.forEach((page, index) => {
+    const previousPage = visiblePages[index - 1];
+    if (previousPage && page - previousPage > 1) {
+      items.push(`ellipsis-${previousPage}`);
+    }
+    items.push(page);
+  });
+
+  return items;
+}
+
 export default function RepositoryClient({ employees, viewerRole, departments }: RepositoryClientProps) {
   const router = useRouter();
   const [isDeleting, startDeleteTransition] = useTransition();
@@ -62,6 +85,7 @@ export default function RepositoryClient({ employees, viewerRole, departments }:
   const [selectedDept, setSelectedDept] = useState('All Departments');
   const [selectedPosition, setSelectedPosition] = useState('All Positions');
   const [selectedAccountStatus, setSelectedAccountStatus] = useState<'all' | AccountStatus>('all');
+  const [requestedPage, setRequestedPage] = useState(1);
 
   const positions = useMemo(
     () => [...new Set(employees.map((employee) => employee.role).filter(Boolean))].sort((a, b) =>
@@ -101,11 +125,21 @@ export default function RepositoryClient({ employees, viewerRole, departments }:
     }).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
   }, [employees, searchTerm, selectedDept, selectedPosition, selectedAccountStatus]);
 
+  const totalPages = Math.max(1, Math.ceil(filteredEmployees.length / EMPLOYEES_PER_PAGE));
+  const currentPage = Math.min(requestedPage, totalPages);
+  const firstEmployeeIndex = (currentPage - 1) * EMPLOYEES_PER_PAGE;
+  const paginatedEmployees = filteredEmployees.slice(
+    firstEmployeeIndex,
+    firstEmployeeIndex + EMPLOYEES_PER_PAGE
+  );
+  const paginationItems = getPaginationItems(currentPage, totalPages);
+
   const handleClearFilters = () => {
     setSearchTerm('');
     setSelectedDept('All Departments');
     setSelectedPosition('All Positions');
     setSelectedAccountStatus('all');
+    setRequestedPage(1);
   };
 
   const handleAddEmployee = () => {
@@ -161,14 +195,20 @@ export default function RepositoryClient({ employees, viewerRole, departments }:
               type="text"
               placeholder="Search by name, email, or role..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setRequestedPage(1);
+              }}
               className="w-full bg-white border border-slate-200 rounded-lg text-xs py-2.5 pl-9 pr-4 focus:ring-2 focus:ring-slate-500/10 focus:border-slate-400 focus:outline-none"
             />
           </div>
           <div className="w-[180px]">
             <select
               value={selectedDept}
-              onChange={(e) => setSelectedDept(e.target.value)}
+              onChange={(e) => {
+                setSelectedDept(e.target.value);
+                setRequestedPage(1);
+              }}
               className="w-full bg-white border border-slate-200 rounded-lg text-xs py-2.5 px-3 focus:ring-2 focus:ring-slate-500/10 focus:border-slate-400 focus:outline-none"
             >
               <option value="All Departments">All Departments</option>
@@ -180,7 +220,10 @@ export default function RepositoryClient({ employees, viewerRole, departments }:
           <div className="w-[180px]">
             <select
               value={selectedPosition}
-              onChange={(e) => setSelectedPosition(e.target.value)}
+              onChange={(e) => {
+                setSelectedPosition(e.target.value);
+                setRequestedPage(1);
+              }}
               aria-label="Filter employees by position"
               className="w-full bg-white border border-slate-200 rounded-lg text-xs py-2.5 px-3 focus:ring-2 focus:ring-slate-500/10 focus:border-slate-400 focus:outline-none"
             >
@@ -193,7 +236,10 @@ export default function RepositoryClient({ employees, viewerRole, departments }:
           <div className="w-[170px]">
             <select
               value={selectedAccountStatus}
-              onChange={(e) => setSelectedAccountStatus(e.target.value as 'all' | AccountStatus)}
+              onChange={(e) => {
+                setSelectedAccountStatus(e.target.value as 'all' | AccountStatus);
+                setRequestedPage(1);
+              }}
               aria-label="Filter employees by account status"
               className="w-full bg-white border border-slate-200 rounded-lg text-xs py-2.5 px-3 focus:ring-2 focus:ring-slate-500/10 focus:border-slate-400 focus:outline-none"
             >
@@ -220,8 +266,8 @@ export default function RepositoryClient({ employees, viewerRole, departments }:
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredEmployees.length > 0 ? (
-                filteredEmployees.map((emp) => (
+              {paginatedEmployees.length > 0 ? (
+                paginatedEmployees.map((emp) => (
                   <tr
                     key={emp.rowId}
                     className="hover:bg-slate-50/50 transition-colors group cursor-pointer"
@@ -337,23 +383,45 @@ export default function RepositoryClient({ employees, viewerRole, departments }:
         {/* Table Pagination */}
         <div className="p-5 border-t border-slate-100 flex items-center justify-between bg-slate-50/50">
           <p className="text-xs font-semibold text-slate-400">
-            Showing {filteredEmployees.length} of {employees.length} employees
+            Showing {filteredEmployees.length === 0 ? 0 : firstEmployeeIndex + 1}–{firstEmployeeIndex + paginatedEmployees.length} of {filteredEmployees.length} employees
           </p>
           <div className="flex items-center gap-1.5">
-            <button className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-500 hover:bg-slate-100 transition-all cursor-pointer">
+            <button
+              type="button"
+              onClick={() => setRequestedPage(currentPage - 1)}
+              disabled={currentPage === 1}
+              aria-label="Previous employee page"
+              className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-500 hover:bg-slate-100 transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+            >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <button className="w-8 h-8 rounded-lg flex items-center justify-center bg-indigo-600 text-white font-bold text-xs shadow-sm">
-              1
-            </button>
-            <button className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-500 hover:bg-slate-100 transition-all cursor-pointer">
-              2
-            </button>
-            <span className="text-slate-400 text-xs px-1">...</span>
-            <button className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-500 hover:bg-slate-100 transition-all cursor-pointer">
-              312
-            </button>
-            <button className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-500 hover:bg-slate-100 transition-all cursor-pointer">
+            {paginationItems.map((item) =>
+              typeof item === 'number' ? (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => setRequestedPage(item)}
+                  aria-label={`Go to employee page ${item}`}
+                  aria-current={item === currentPage ? 'page' : undefined}
+                  className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs transition-all cursor-pointer ${
+                    item === currentPage
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'border border-slate-200 text-slate-500 hover:bg-slate-100'
+                  }`}
+                >
+                  {item}
+                </button>
+              ) : (
+                <span key={item} className="text-slate-400 text-xs px-1">...</span>
+              )
+            )}
+            <button
+              type="button"
+              onClick={() => setRequestedPage(currentPage + 1)}
+              disabled={currentPage === totalPages}
+              aria-label="Next employee page"
+              className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-500 hover:bg-slate-100 transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+            >
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
