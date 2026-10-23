@@ -97,6 +97,15 @@ export default function AuthCallbackPage() {
         sessionEstablished = true;
       }
 
+      // OAuth providers (Microsoft) report failures as ?error=...&error_description=... on the callback.
+      const oauthError = search.get('error_description') || search.get('error');
+      if (oauthError) {
+        const message = `Microsoft sign-in failed: ${oauthError.slice(0, 200)}`;
+        setError(message);
+        goTo(`/login?error=${encodeURIComponent(message)}`);
+        return;
+      }
+
       const code = search.get('code');
       if (!sessionEstablished && code) {
         const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);

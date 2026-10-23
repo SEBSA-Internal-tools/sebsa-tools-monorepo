@@ -7,6 +7,7 @@ import { PageWrapper } from '../components/PageWrapper';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import LightRays from '../components/LightRays';
+import MicrosoftSignInButton, { isMicrosoftSsoEnabled } from '../components/MicrosoftSignInButton';
 import { Mail, Eye, EyeOff, LogIn, CheckCircle, ShieldCheck, TrendingUp, Sparkles, BrainCircuit, Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
@@ -144,6 +145,18 @@ function LoginPageContent() {
               Internal User Login
             </p>
           </div>
+
+          {/* Microsoft SSO (shown only when enabled for this environment) */}
+          {isMicrosoftSsoEnabled() && (
+            <div className="mb-6">
+              <MicrosoftSignInButton next="/dashboard" onError={setError} />
+              <div className="flex items-center gap-3 mt-6">
+                <div className="h-px flex-1 bg-slate-200" />
+                <span className="text-[11px] font-black uppercase tracking-widest text-slate-400">or use email</span>
+                <div className="h-px flex-1 bg-slate-200" />
+              </div>
+            </div>
+          )}
 
           {/* Form */}
           <form className="space-y-5" onSubmit={handleLogin}>
