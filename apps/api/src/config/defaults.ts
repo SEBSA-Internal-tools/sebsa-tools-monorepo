@@ -32,4 +32,9 @@ export const CONFIG_DEFAULTS = {
   accessTtlSeconds: 15 * 60,
   refreshTtlSeconds: 7 * 24 * 60 * 60,
   rememberTtlSeconds: 30 * 24 * 60 * 60,
+  /** SESSION_IDLE_TTL_SECONDS / SESSION_IDLE_WARNING_SECONDS / SESSION_ABSOLUTE_TTL_SECONDS */
+  sessionIdleTtlSeconds: 4 * 60 * 60,
+  sessionIdleWarningSeconds: 3 * 60 * 60 + 45 * 60,
+  sessionAbsoluteTtlSeconds: 24 * 60 * 60,
+  sessionActivityThrottleSeconds: 5 * 60,
 } as const;

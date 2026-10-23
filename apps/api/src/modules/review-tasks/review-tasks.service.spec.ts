@@ -99,7 +99,7 @@ describe('ReviewTasksService task versions', () => {
           version: '3',
           status: 'DRAFT',
           priority: 'MEDIUM',
-          currentReviewCycle: 0,
+          currentReviewCycle: 1,
           checklistCompleted: false,
           developerId,
           customerId,
@@ -160,19 +160,19 @@ describe('ReviewTasksService review round and counted-cycle projection', () => {
       { roundNumber: 2, counted: true },
     ]);
 
-    expect(result).toEqual({ reviewCycle: 2, historicalCycle: 3, adjustedCycles: [] });
+    expect(result).toEqual({ reviewCycle: 3, historicalCycle: 3, adjustedCycles: [] });
   });
 
-  it('reports zero counted cycles without reducing or renumbering the round', () => {
+  it('reports adjusted counted cycles without reducing or renumbering the round', () => {
     const result = deriveTaskReviewCycles(2, [{ roundNumber: 1, counted: false }]);
 
-    expect(result).toEqual({ reviewCycle: 0, historicalCycle: 2, adjustedCycles: [1] });
+    expect(result).toEqual({ reviewCycle: 1, historicalCycle: 2, adjustedCycles: [1] });
   });
 
-  it('starts at round zero with no counted cycles', () => {
-    expect(deriveTaskReviewCycles(0, [])).toEqual({
-      reviewCycle: 0,
-      historicalCycle: 0,
+  it('starts at cycle one for initial round', () => {
+    expect(deriveTaskReviewCycles(1, [])).toEqual({
+      reviewCycle: 1,
+      historicalCycle: 1,
       adjustedCycles: [],
     });
   });

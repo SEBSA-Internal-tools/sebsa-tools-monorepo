@@ -11,7 +11,11 @@ export const notificationKeys = {
 export function useNotifications() {
   return useQuery({
     queryKey: notificationKeys.list(),
-    queryFn: ({ signal }) => api.get('/notifications', notificationSchema.array(), { signal }),
+    queryFn: ({ signal }) =>
+      api.get('/notifications', notificationSchema.array(), {
+        signal,
+        headers: { 'X-Background-Request': 'true' },
+      }),
     refetchInterval: 60_000,
   });
 }

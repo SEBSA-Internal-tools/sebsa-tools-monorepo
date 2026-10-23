@@ -78,11 +78,10 @@ export function taskMetrics(items: readonly TaskListItem[]): TaskMetrics {
   const submitted = items.filter((task) => SUBMITTED_STATUSES.includes(task.status)).length;
 
   // Approved tasks only — see `byCycle` on the interface above.
-  const cycles = { zero: 0, one: 0, two: 0, threePlus: 0 };
+  const cycles = { one: 0, two: 0, threePlus: 0 };
   for (const task of approvedTasks) {
     const cycleCount = task.reviewCycle ?? task.countedCycle;
-    if (cycleCount === 0) cycles.zero += 1;
-    else if (cycleCount === 1) cycles.one += 1;
+    if (cycleCount <= 1) cycles.one += 1;
     else if (cycleCount === 2) cycles.two += 1;
     else cycles.threePlus += 1;
   }
@@ -90,14 +89,15 @@ export function taskMetrics(items: readonly TaskListItem[]): TaskMetrics {
   const averageCycles =
     approvedTasks.length === 0
       ? null
-      : approvedTasks.reduce((sum, task) => sum + (task.reviewCycle ?? task.countedCycle), 0) /
-        approvedTasks.length;
+      : approvedTasks.reduce(
+          (sum, task) => sum + Math.max(task.reviewCycle ?? task.countedCycle, 1),
+          0,
+        ) / approvedTasks.length;
 
   return {
     total: items.length,
     byStatus,
     byCycle: [
-      { label: '0', count: cycles.zero },
       { label: '1', count: cycles.one },
       { label: '2', count: cycles.two },
       { label: '3+', count: cycles.threePlus },
@@ -180,6 +180,9 @@ function awardedRanks(reviews: readonly Review[]): AwardedRank[] {
   const awarded: AwardedRank[] = [];
   for (const review of reviews) {
     if (review.decision === null || review.rank === null) continue;
+    const round = review.reviewRound ?? (review as { reviewCycle?: number }).reviewCycle ?? 1;
+    // Rework approval Rank 1 (round > 1) does NOT count towards developer KPI
+    if (review.rank === 1 && round > 1) continue;
     awarded.push({ taskId: review.taskId, rank: review.rank });
   }
   return awarded;
@@ -228,7 +231,7 @@ export function developerQualityMetrics(
          */
         approvalRate: submitted.length === 0 ? null : (approved.length / submitted.length) * 100,
         avgRank: mean(ownRanks),
-        avgCycles: mean(approved.map((task) => task.countedCycle)),
+        avgCycles: mean(approved.map((task) => Math.max(task.countedCycle, 1))),
       };
     })
     // Busiest first: the customer a developer works with most is the one they

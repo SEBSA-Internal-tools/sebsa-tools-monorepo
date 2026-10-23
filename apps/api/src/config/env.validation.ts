@@ -22,6 +22,10 @@ const envSchema = z
     JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().positive().default(D.accessTtlSeconds),
     JWT_REFRESH_TTL_SECONDS: z.coerce.number().int().positive().default(D.refreshTtlSeconds),
     JWT_REMEMBER_TTL_SECONDS: z.coerce.number().int().positive().default(D.rememberTtlSeconds),
+    SESSION_IDLE_TTL_SECONDS: z.coerce.number().int().positive().default(D.sessionIdleTtlSeconds),
+    SESSION_IDLE_WARNING_SECONDS: z.coerce.number().int().positive().default(D.sessionIdleWarningSeconds),
+    SESSION_ABSOLUTE_TTL_SECONDS: z.coerce.number().int().positive().default(D.sessionAbsoluteTtlSeconds),
+    SESSION_ACTIVITY_THROTTLE_SECONDS: z.coerce.number().int().positive().default(D.sessionActivityThrottleSeconds),
     // Unset means "Secure in production, not in development" (auth.config.ts).
     COOKIE_SECURE: z.enum(['true', 'false']).optional(),
     // Express `trust proxy`: a hop count ("1") or a list of trusted proxy

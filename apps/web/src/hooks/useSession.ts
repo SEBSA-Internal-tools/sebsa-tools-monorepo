@@ -32,8 +32,8 @@ export const useSession = create<SessionState>()((set, get) => ({
   },
 
   signOut: (options) => {
-    const expired = options?.expired ?? false;
     const state = get();
+    const expired = options?.expired ?? state.isExpired;
     if (
       !state.isAuthenticated &&
       !state.isChecking &&
@@ -47,7 +47,7 @@ export const useSession = create<SessionState>()((set, get) => ({
       isAuthenticated: false,
       isChecking: false,
       didExpire: expired,
-      isExpired: false,
+      isExpired: options?.expired !== undefined ? options.expired : state.isExpired,
     });
     if (options?.broadcast !== false && typeof window !== 'undefined') {
       window.localStorage.setItem(AUTH_EVENT_KEY, `${Date.now()}:logout`);
