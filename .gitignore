@@ -13,6 +13,7 @@ coverage/
 
 # environment variables
 .env*
+.env.dev
 # shared dev credentials file (share via password manager only)
 /dev.env
 !.env.example

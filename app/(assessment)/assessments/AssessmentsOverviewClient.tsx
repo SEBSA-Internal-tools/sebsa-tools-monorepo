@@ -4,7 +4,6 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { PageWrapper } from '@/app/components/PageWrapper';
 import type { AssessmentOverview } from '@/types/assessment';
-import CertificateList from './CertificateList';
 import { ArrowRight, CalendarClock, CheckCircle2, ClipboardList, Inbox, Award } from 'lucide-react';
 
 interface Props {
@@ -77,7 +76,7 @@ export default function AssessmentsOverviewClient({ overview, firstName }: Props
         })}
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+      <div>
         <section className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
           <div className="mb-6 pb-4 border-b border-slate-100">
             <h4 className="text-sm font-black uppercase tracking-wider text-slate-800 flex items-center gap-2">
@@ -124,18 +123,6 @@ export default function AssessmentsOverviewClient({ overview, firstName }: Props
               )}
             </div>
           )}
-        </section>
-
-        <section className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
-          <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-100">
-            <h4 className="text-sm font-black uppercase tracking-wider text-slate-800 flex items-center gap-2">
-              <Award className="w-4 h-4 text-indigo-600" />Certificates
-            </h4>
-            <Link href="/assessments/certificates" className="flex items-center gap-1.5 text-[11px] font-black text-indigo-600 hover:text-indigo-700 uppercase tracking-wide">
-              <span>View all</span><ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-          <CertificateList certificates={certificates.slice(0, 3)} emptyText="Pass an assessment to earn a certificate. Issued certificates appear here." />
         </section>
       </div>
     </PageWrapper>

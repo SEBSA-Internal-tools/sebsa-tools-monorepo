@@ -1,18 +1,14 @@
 'use client';
 
-import React, { useEffect, useState, useTransition } from 'react';
+import React, { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { PageWrapper } from '@/app/components/PageWrapper';
 import { submitAssessmentAction } from '../actions';
-import { TIME_LIMIT_MINUTES } from '@/lib/assessment/rules';
 import type { AnswerOption, AssessmentResult, AssessmentSession } from '@/types/assessment';
 import AssessmentStatusCard from './AssessmentStatusCard';
 import AssessmentResultView from './AssessmentResultView';
-import { AlertTriangle, ArrowLeft, ArrowRight, Clock, Loader2, RotateCcw, Send } from 'lucide-react';
-
-const formatElapsed = (seconds: number) =>
-  `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+import { AlertTriangle, ArrowLeft, ArrowRight, Loader2, RotateCcw, Send } from 'lucide-react';
 
 export default function TakeAssessmentClient({ session }: { session: AssessmentSession }) {
   if (session.kind === 'completed') {
@@ -32,14 +28,6 @@ function QuestionFlow({ session }: { session: Extract<AssessmentSession, { kind:
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AssessmentResult | null>(null);
   const [isPending, startTransition] = useTransition();
-  const [elapsed, setElapsed] = useState(0);
-
-  // Elapsed time is informational only: the server does not enforce a limit.
-  useEffect(() => {
-    if (result) return;
-    const timer = window.setInterval(() => setElapsed((s) => s + 1), 1000);
-    return () => window.clearInterval(timer);
-  }, [result]);
 
   if (result) {
     return result.isFinal ? (
@@ -73,10 +61,6 @@ function QuestionFlow({ session }: { session: Extract<AssessmentSession, { kind:
               {cycle.label} · Attempt {attemptNumber} of 2
             </p>
             <h2 className="text-3xl font-black tracking-tight text-slate-900 leading-none mt-2">Knowledge Assessment</h2>
-          </div>
-          <div className="flex items-center gap-2 px-3.5 py-2 bg-white rounded-xl border border-slate-200/80 shadow-sm text-xs font-black text-slate-700 tabular-nums">
-            <Clock className="w-3.5 h-3.5 text-slate-400" />{formatElapsed(elapsed)}
-            <span className="text-slate-400 font-semibold">/ {TIME_LIMIT_MINUTES}:00</span>
           </div>
         </div>
 

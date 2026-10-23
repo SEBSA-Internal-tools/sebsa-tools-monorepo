@@ -51,7 +51,7 @@ export function requireEnv<K extends keyof typeof env>(key: K): NonNullable<(typ
   const value = env[key];
   if (value === undefined || value === '') {
     throw new Error(
-      `Missing required environment variable: ${key}. Set it in .env.local (see .env.local.example).`
+      `Missing required environment variable: ${key}. Set it in .env.dev (see .env.local.example).`
     );
   }
   return value as NonNullable<(typeof env)[K]>;

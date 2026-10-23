@@ -313,17 +313,14 @@ function trackerStatus(inv: ManagedInvitationRow, attempts: ManagedAttemptRow[])
   return inv.status === 'opened' ? 'In Progress' : 'Not Started';
 }
 
-export async function getTracker(
+/** Recipient rows for one cycle (invitation + latest attempt per person), ordered by status. */
+export async function getCycleRecipients(
   supabase: SupabaseClient,
   admin: SupabaseClient,
   actor: Actor,
   cycleId: string
-): Promise<TrackerData | null> {
+): Promise<TrackerRow[]> {
   assertCanManage(actor);
-  const summaries = await listCycleSummaries(supabase, actor);
-  const cycle = summaries.find((c) => c.id === cycleId);
-  if (!cycle) return null;
-
   const [invitations, attempts, people] = await Promise.all([
     listInvitationRowsForCycles(supabase, [cycleId]),
     listAttemptRowsForCycles(supabase, [cycleId]),
@@ -351,7 +348,21 @@ export async function getTracker(
     };
   });
   rows.sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || a.name.localeCompare(b.name));
+  return rows;
+}
 
+export async function getTracker(
+  supabase: SupabaseClient,
+  admin: SupabaseClient,
+  actor: Actor,
+  cycleId: string
+): Promise<TrackerData | null> {
+  assertCanManage(actor);
+  const summaries = await listCycleSummaries(supabase, actor);
+  const cycle = summaries.find((c) => c.id === cycleId);
+  if (!cycle) return null;
+
+  const rows = await getCycleRecipients(supabase, admin, actor, cycleId);
   return { cycle, rows };
 }
 

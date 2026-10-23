@@ -131,7 +131,6 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
                       );
                     })}
                   </ul>
-                  {q.category && <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-2.5">{q.category}</p>}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <button

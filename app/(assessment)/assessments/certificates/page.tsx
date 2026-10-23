@@ -17,9 +17,6 @@ export default async function CertificatesPage() {
     <PageWrapper className="p-8">
       <div className="mb-8">
         <h2 className="text-3xl font-black tracking-tight text-slate-900 font-sans leading-none">My Certificates</h2>
-        <p className="text-sm font-medium text-slate-500 mt-2">
-          Every certificate you have earned, including previous assessment cycles.
-        </p>
       </div>
 
       <section className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm max-w-3xl">

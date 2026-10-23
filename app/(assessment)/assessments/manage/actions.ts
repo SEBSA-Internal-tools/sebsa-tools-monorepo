@@ -10,9 +10,11 @@ import {
   type CreateCycleResult,
   type ManagedQuestion,
   type QuestionInput,
+  type TrackerRow,
   createCycleAndInvite,
   createQuestion,
   deleteQuestion,
+  getCycleRecipients,
   resendFailedInvitations,
   resendInvitation,
   setCycleActive,
@@ -58,6 +60,10 @@ export async function resendInvitationAction(cycleId: string, userId: string): P
 
 export async function resendFailedAction(cycleId: string): Promise<ManageResult<{ attempted: number; delivered: number; failed: number }>> {
   return run(({ actor, supabase, admin }) => resendFailedInvitations(supabase, admin, actor, cycleId));
+}
+
+export async function listCycleRecipientsAction(cycleId: string): Promise<ManageResult<TrackerRow[]>> {
+  return run(({ actor, supabase, admin }) => getCycleRecipients(supabase, admin, actor, cycleId));
 }
 
 export async function createQuestionAction(input: QuestionInput): Promise<ManageResult<ManagedQuestion>> {

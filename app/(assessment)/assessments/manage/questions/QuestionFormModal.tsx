@@ -83,19 +83,13 @@ export default function QuestionFormModal({ question, busy, error, onSubmit, onC
             </div>
           </fieldset>
 
-          <div className="grid grid-cols-2 gap-4">
-            <label className="block">
-              <span className={labelCls}>Category (optional)</span>
-              <input value={draft.category ?? ''} onChange={(e) => setDraft({ ...draft, category: e.target.value })} maxLength={80} className={`${inputCls} mt-1.5`} />
-            </label>
-            <label className="block">
-              <span className={labelCls}>Status</span>
-              <select value={draft.status} onChange={(e) => setDraft({ ...draft, status: e.target.value as Draft['status'] })} className={`${inputCls} mt-1.5`}>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </select>
-            </label>
-          </div>
+          <label className="block">
+            <span className={labelCls}>Status</span>
+            <select value={draft.status} onChange={(e) => setDraft({ ...draft, status: e.target.value as Draft['status'] })} className={`${inputCls} mt-1.5`}>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </label>
         </div>
 
         {error && <p role="alert" className="mt-4 text-xs font-semibold text-rose-600">{error}</p>}
