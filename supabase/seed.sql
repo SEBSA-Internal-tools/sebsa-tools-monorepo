@@ -85,7 +85,7 @@ on conflict (id) do nothing;
 insert into public.assessment_questions (id, question_text, option_a, option_b, option_c, option_d, correct_option, category)
 values
   ('f0000000-0000-4000-8000-000000000001', 'An email asks you to urgently confirm your password via a link. What should you do?', 'Click the link and confirm', 'Reply with your password', 'Report it as phishing and do not click', 'Forward it to all colleagues', 'c', 'Security awareness'),
-  ('f0000000-0000-4000-8000-000000000002', 'Which of these is the strongest password?', 'Password123', 'The-quick-brown-fox-7-jumps!', 'qwerty', 'Your birthday', 'b', 'Security awareness'),
+  ('f0000000-0000-4000-8000-000000000002', 'Which of these is the strongest password?', 'A common word with numbers', 'A unique random passphrase stored in a password manager', 'qwerty', 'Your birthday', 'b', 'Security awareness'),
   ('f0000000-0000-4000-8000-000000000003', 'You find a USB stick in the car park. What should you do?', 'Plug it in to see whose it is', 'Take it home', 'Hand it to IT without plugging it in', 'Throw it in the bin', 'c', 'Security awareness'),
   ('f0000000-0000-4000-8000-000000000004', 'Customer data should be shared with a third party only when…', 'They ask politely', 'There is an approved agreement and a business need', 'It saves time', 'A colleague says it is fine', 'b', 'Data handling'),
   ('f0000000-0000-4000-8000-000000000005', 'Where should confidential documents be stored?', 'On a personal cloud drive', 'In approved company storage', 'On a shared USB stick', 'In a public chat channel', 'b', 'Data handling'),
