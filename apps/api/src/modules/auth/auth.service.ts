@@ -22,7 +22,8 @@ export interface AuthTokens {
   accessToken: string;
   refreshToken: string;
   accessMaxAgeMs: number;
-  refreshMaxAgeMs: number;
+  refreshMaxAgeMs?: number | undefined;
+  remember: boolean;
 }
 
 export interface RequestMetadata {
@@ -179,21 +180,53 @@ export class AuthService {
     ) {
       throw new UnauthorizedException();
     }
-    if (!(await verify(session.tokenHash, refreshToken))) {
+
+    const now = Date.now();
+    const lastActive = (session.lastActiveAt ?? session.createdAt).getTime();
+    if (now - lastActive >= settings.idleTtl * 1000) {
       await this.prisma.refreshSession.update({
         where: { id: session.id },
-        data: { revokedAt: new Date() },
+        data: { revokedAt: new Date(now) },
       });
       throw new UnauthorizedException();
     }
 
-    const refreshTtl = Math.max(1, Math.floor((session.expiresAt.getTime() - Date.now()) / 1000));
-    const tokens = await this.signTokens(session.userId, session.id, refreshTtl);
+    if (!(await verify(session.tokenHash, refreshToken))) {
+      await this.prisma.refreshSession.update({
+        where: { id: session.id },
+        data: { revokedAt: new Date(now) },
+      });
+      throw new UnauthorizedException();
+    }
+
+    const refreshTtl = Math.max(0, Math.floor((session.expiresAt.getTime() - now) / 1000));
+    if (refreshTtl <= 0) {
+      await this.prisma.refreshSession.update({
+        where: { id: session.id },
+        data: { revokedAt: new Date(now) },
+      });
+      throw new UnauthorizedException();
+    }
+
+    const isRemember = session.remember ?? false;
+    const tokens = await this.signTokens(session.userId, session.id, refreshTtl, isRemember);
     await this.prisma.refreshSession.update({
       where: { id: session.id },
-      data: { tokenHash: await this.hashToken(tokens.refreshToken), lastUsedAt: new Date() },
+      data: {
+        tokenHash: await this.hashToken(tokens.refreshToken),
+        lastActiveAt: new Date(now),
+        lastUsedAt: new Date(now),
+      },
     });
     return { user: this.toCurrentUser(session.user), tokens };
+  }
+
+  async touch(sessionId: string): Promise<void> {
+    const now = new Date();
+    await this.prisma.refreshSession.updateMany({
+      where: { id: sessionId, revokedAt: null },
+      data: { lastActiveAt: now },
+    });
   }
 
   async logout(refreshToken: string | undefined): Promise<void> {
@@ -223,14 +256,20 @@ export class AuthService {
   private async createSession(userId: string, remember: boolean, metadata: RequestMetadata) {
     const settings = authSettings(this.config);
     const sessionId = randomUUID();
-    const refreshTtl = remember ? settings.rememberTtl : settings.refreshTtl;
-    const tokens = await this.signTokens(userId, sessionId, refreshTtl);
+    const now = Date.now();
+    const maxTtl = remember
+      ? Math.min(settings.rememberTtl, settings.absoluteTtl)
+      : Math.min(settings.refreshTtl, settings.absoluteTtl);
+    const tokens = await this.signTokens(userId, sessionId, maxTtl, remember);
     await this.prisma.refreshSession.create({
       data: {
         id: sessionId,
         userId,
         tokenHash: await this.hashToken(tokens.refreshToken),
-        expiresAt: new Date(Date.now() + refreshTtl * 1000),
+        expiresAt: new Date(now + maxTtl * 1000),
+        lastActiveAt: new Date(now),
+        lastUsedAt: new Date(now),
+        remember,
         ...(metadata.userAgent ? { userAgent: metadata.userAgent.slice(0, 500) } : {}),
         ...(metadata.ipAddress ? { ipAddress: metadata.ipAddress.slice(0, 64) } : {}),
       },
@@ -242,6 +281,7 @@ export class AuthService {
     userId: string,
     sessionId: string,
     refreshTtl: number,
+    remember: boolean,
   ): Promise<AuthTokens> {
     const settings = authSettings(this.config);
     const common = { sub: userId, sid: sessionId, iss: settings.issuer, aud: settings.audience };
@@ -267,7 +307,8 @@ export class AuthService {
       accessToken,
       refreshToken,
       accessMaxAgeMs: settings.accessTtl * 1000,
-      refreshMaxAgeMs: refreshTtl * 1000,
+      refreshMaxAgeMs: remember ? refreshTtl * 1000 : undefined,
+      remember,
     };
   }
 

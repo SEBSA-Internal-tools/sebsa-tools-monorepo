@@ -99,9 +99,11 @@ export function deriveTaskReviewCycles(
   const adjustedCycles = cycles
     .filter(({ counted }) => !counted)
     .map(({ roundNumber }) => roundNumber);
+  const uncountedCount = adjustedCycles.length;
+  const effectiveRound = Math.max(currentReviewRound, 1);
   return {
-    reviewCycle: cycles.filter(({ counted }) => counted).length,
-    historicalCycle: currentReviewRound,
+    reviewCycle: Math.max(effectiveRound - uncountedCount, 1),
+    historicalCycle: effectiveRound,
     adjustedCycles,
   };
 }
@@ -491,6 +493,7 @@ export class ReviewTasksService {
                 version: finalVersion,
                 priority: dto.priority,
                 status: TaskStatus.DRAFT,
+                currentReviewCycle: 1,
                 checklistCompleted,
                 customerId: dto.customerId,
                 developerId,
