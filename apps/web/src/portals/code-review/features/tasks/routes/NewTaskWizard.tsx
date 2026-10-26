@@ -137,16 +137,21 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
   const effectiveTaskId = draft.taskId ?? editTaskId ?? '';
   const isPersistedDraft = draft.taskId !== null || isEditMode;
   const nextVersion = useNextTaskVersion(draft.customerId, draft.crimId, !isPersistedDraft);
+  const isNewCrim = Boolean(!isPersistedDraft && nextVersion.data?.isNewCrim);
   const displayedVersion = isPersistedDraft
     ? draft.version
-    : nextVersion.data === undefined
-      ? ''
-      : String(nextVersion.data.version);
+    : isNewCrim
+      ? draft.version
+      : nextVersion.data === undefined
+        ? ''
+        : String(nextVersion.data.version);
   const hasIdentityInputs = draft.customerId !== '' && draft.crimId.trim() !== '';
   const isVersionChecking =
     !isPersistedDraft && hasIdentityInputs && (nextVersion.isPending || nextVersion.isFetching);
   const isVersionError = !isPersistedDraft && hasIdentityInputs && nextVersion.isError;
-  const versionReady = isPersistedDraft || nextVersion.isSuccess;
+  const versionReady =
+    isPersistedDraft ||
+    (nextVersion.isSuccess && (!isNewCrim || displayedVersion.trim() !== ''));
   const createTask = useCreateTask();
   const updateTask = useUpdateTask(effectiveTaskId);
   const saveChecklist = useSaveChecklist(effectiveTaskId);
@@ -163,12 +168,22 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
         draft: {
           customerId: draft.customerId,
           crimId: draft.crimId,
+          version: displayedVersion,
           priority: draft.priority,
         },
         taskTypes: draft.taskTypeIds,
         isChecklistComplete: progress.isComplete,
+        isNewCrim,
       }),
-    [draft.customerId, draft.crimId, draft.priority, draft.taskTypeIds, progress.isComplete],
+    [
+      draft.customerId,
+      draft.crimId,
+      displayedVersion,
+      draft.priority,
+      draft.taskTypeIds,
+      progress.isComplete,
+      isNewCrim,
+    ],
   );
 
   const getStepUrl = (targetStep: string) =>
@@ -267,7 +282,9 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
           : 'upcoming',
   }));
 
-  const detailsRequirementCodes: TaskRequirement[] = ['customer', 'crimId'];
+  const detailsRequirementCodes: TaskRequirement[] = isNewCrim
+    ? ['customer', 'crimId', 'version']
+    : ['customer', 'crimId'];
 
   const requirements: Requirement[] = (
     currentStep === 'details' ? detailsRequirementCodes : PANEL_REQUIREMENTS[currentStep]
@@ -324,6 +341,7 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
           customerId: draft.customerId,
           crimId: draft.crimId.trim(),
           priority: draft.priority,
+          ...(displayedVersion.trim() !== '' ? { version: displayedVersion.trim() } : {}),
         });
         taskId = created.id;
         draft.hydrate({
@@ -449,7 +467,9 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
 
   const requiredFieldsMissing =
     currentStep === 'details'
-      ? (draft.customerId === '' ? 1 : 0) + (draft.crimId.trim() === '' ? 1 : 0)
+      ? (draft.customerId === '' ? 1 : 0) +
+        (draft.crimId.trim() === '' ? 1 : 0) +
+        (isNewCrim && displayedVersion.trim() === '' ? 1 : 0)
       : requirementsForStep(currentStep, missing).length;
 
   const statusLine =
@@ -540,7 +560,15 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
               versionPending={isVersionChecking}
               versionError={isVersionError}
               identityLocked={isPersistedDraft}
-              title={isEditMode ? existingTask?.title : nextVersion.data?.title}
+              isNewCrim={isNewCrim}
+              onVersionChange={(version) => draft.setDetails({ version })}
+              title={
+                isEditMode
+                  ? existingTask?.title
+                  : isNewCrim
+                    ? undefined
+                    : nextVersion.data?.title
+              }
             />
           ) : null}
           {currentStep === 'checklist' ? <WizardChecklistStep /> : null}
@@ -554,7 +582,13 @@ export function NewTaskWizard({ mode = 'create' }: { mode?: 'create' | 'edit' } 
               requirements={requirements}
               version={displayedVersion}
               versionPending={isVersionChecking}
-              title={isEditMode ? existingTask?.title : nextVersion.data?.title}
+              title={
+                isEditMode
+                  ? existingTask?.title
+                  : isNewCrim
+                    ? undefined
+                    : nextVersion.data?.title
+              }
             />
           ) : null}
           {currentStep === 'checklist' ? <ChecklistSidePanels /> : null}

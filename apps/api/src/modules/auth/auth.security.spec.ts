@@ -20,6 +20,7 @@ async function activeUser(password: string) {
     email: 'dev@example.com',
     fullName: 'Dev',
     status: 'ACTIVE',
+    deletedAt: null,
     passwordHash: await hash(password, {
       type: argon2id,
       memoryCost: 1024,
@@ -169,6 +170,248 @@ describe('JwtStrategy session binding', () => {
     await expect(jwtStrategy.validate(payload)).resolves.toMatchObject({
       id: 'u1',
       sessionId: 's1',
+    });
+  });
+
+  it('rejects an access token and revokes session when idle for 4 hours', async () => {
+    const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000 - 1000);
+    const prisma = {
+      refreshSession: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 's1',
+          lastActiveAt: fourHoursAgo,
+          createdAt: fourHoursAgo,
+          user: {
+            id: 'u1',
+            email: 'dev@example.com',
+            fullName: 'Dev',
+            status: 'ACTIVE',
+            createdAt: fourHoursAgo,
+            userRoles: [{ role: { code: 'DEVELOPER' } }],
+          },
+        }),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+    };
+    const configWithSecret = {
+      get: vi.fn((key: string) => (key === 'JWT_ACCESS_SECRET' ? 's'.repeat(32) : undefined)),
+    };
+    const jwtStrategy = new JwtStrategy(configWithSecret as never, prisma as never);
+
+    await expect(jwtStrategy.validate(payload)).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(prisma.refreshSession.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: 's1', revokedAt: null }),
+        data: expect.objectContaining({ revokedAt: expect.any(Date) }),
+      }),
+    );
+  });
+
+  it('updates lastActiveAt in a throttled manner when activity exceeds throttle threshold', async () => {
+    const sixMinutesAgo = new Date(Date.now() - 6 * 60 * 1000);
+    const prisma = {
+      refreshSession: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 's1',
+          lastActiveAt: sixMinutesAgo,
+          createdAt: sixMinutesAgo,
+          user: {
+            id: 'u1',
+            email: 'dev@example.com',
+            fullName: 'Dev',
+            status: 'ACTIVE',
+            createdAt: sixMinutesAgo,
+            userRoles: [{ role: { code: 'DEVELOPER' } }],
+          },
+        }),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+    };
+    const configWithSecret = {
+      get: vi.fn((key: string) => (key === 'JWT_ACCESS_SECRET' ? 's'.repeat(32) : undefined)),
+    };
+    const jwtStrategy = new JwtStrategy(configWithSecret as never, prisma as never);
+
+    await expect(jwtStrategy.validate(payload)).resolves.toMatchObject({ id: 'u1' });
+    expect(prisma.refreshSession.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: 's1', revokedAt: null }),
+        data: expect.objectContaining({ lastActiveAt: expect.any(Date) }),
+      }),
+    );
+  });
+
+  it('does NOT update lastActiveAt if request is within throttle interval', async () => {
+    const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);
+    const prisma = {
+      refreshSession: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 's1',
+          lastActiveAt: twoMinutesAgo,
+          createdAt: twoMinutesAgo,
+          user: {
+            id: 'u1',
+            email: 'dev@example.com',
+            fullName: 'Dev',
+            status: 'ACTIVE',
+            createdAt: twoMinutesAgo,
+            userRoles: [{ role: { code: 'DEVELOPER' } }],
+          },
+        }),
+        updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+      },
+    };
+    const configWithSecret = {
+      get: vi.fn((key: string) => (key === 'JWT_ACCESS_SECRET' ? 's'.repeat(32) : undefined)),
+    };
+    const jwtStrategy = new JwtStrategy(configWithSecret as never, prisma as never);
+
+    await expect(jwtStrategy.validate(payload)).resolves.toMatchObject({ id: 'u1' });
+    expect(prisma.refreshSession.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('does NOT update lastActiveAt for passive background requests (e.g. notifications polling)', async () => {
+    const sixMinutesAgo = new Date(Date.now() - 6 * 60 * 1000);
+    const prisma = {
+      refreshSession: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 's1',
+          lastActiveAt: sixMinutesAgo,
+          createdAt: sixMinutesAgo,
+          user: {
+            id: 'u1',
+            email: 'dev@example.com',
+            fullName: 'Dev',
+            status: 'ACTIVE',
+            createdAt: sixMinutesAgo,
+            userRoles: [{ role: { code: 'DEVELOPER' } }],
+          },
+        }),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+    };
+    const configWithSecret = {
+      get: vi.fn((key: string) => (key === 'JWT_ACCESS_SECRET' ? 's'.repeat(32) : undefined)),
+    };
+    const jwtStrategy = new JwtStrategy(configWithSecret as never, prisma as never);
+
+    const mockReq = {
+      headers: { 'x-background-request': 'true' },
+      path: '/api/notifications',
+      method: 'GET',
+    };
+
+    await expect(jwtStrategy.validate(mockReq as never, payload)).resolves.toMatchObject({ id: 'u1' });
+    expect(prisma.refreshSession.updateMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('AuthService session lifecycle and idle timeout', () => {
+  it('creates session with session cookie (no maxAge) when remember is false', async () => {
+    const user = await activeUser('secret');
+    const prisma = {
+      user: { findFirst: vi.fn().mockResolvedValue(user), update: vi.fn().mockResolvedValue({}) },
+      refreshSession: { create: vi.fn().mockResolvedValue({}) },
+    };
+    const auth = new AuthService(prisma as never, jwt as never, config as never, new RateLimiterService());
+    const result = await auth.login({ email: 'dev@example.com', password: 'secret', remember: false }, {});
+
+    expect(result.tokens.remember).toBe(false);
+    expect(result.tokens.refreshMaxAgeMs).toBeUndefined();
+    expect(prisma.refreshSession.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          remember: false,
+          lastActiveAt: expect.any(Date),
+        }),
+      }),
+    );
+  });
+
+  it('creates session with maxAge capped at 24 hours when remember is true', async () => {
+    const user = await activeUser('secret');
+    const prisma = {
+      user: { findFirst: vi.fn().mockResolvedValue(user), update: vi.fn().mockResolvedValue({}) },
+      refreshSession: { create: vi.fn().mockResolvedValue({}) },
+    };
+    const auth = new AuthService(prisma as never, jwt as never, config as never, new RateLimiterService());
+    const result = await auth.login({ email: 'dev@example.com', password: 'secret', remember: true }, {});
+
+    expect(result.tokens.remember).toBe(true);
+    expect(result.tokens.refreshMaxAgeMs).toBe(86_400_000);
+  });
+
+  it('rejects refresh and revokes session when idle for 4 hours', async () => {
+    const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000 - 1000);
+    const user = await activeUser('secret');
+    const prisma = {
+      refreshSession: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 's1',
+          userId: 'u1',
+          tokenHash: 'hash',
+          expiresAt: new Date(Date.now() + 10_000),
+          lastActiveAt: fourHoursAgo,
+          createdAt: fourHoursAgo,
+          revokedAt: null,
+          remember: false,
+          user,
+        }),
+        update: vi.fn().mockResolvedValue({}),
+      },
+    };
+    const jwtMock = {
+      verifyAsync: vi.fn().mockResolvedValue({ typ: 'refresh', sid: 's1', sub: 'u1' }),
+    };
+    const auth = new AuthService(prisma as never, jwtMock as never, config as never, new RateLimiterService());
+
+    await expect(auth.refresh('token', {})).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(prisma.refreshSession.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 's1' },
+        data: expect.objectContaining({ revokedAt: expect.any(Date) }),
+      }),
+    );
+  });
+
+  it('rejects refresh when absolute session lifetime (24 hours) is reached', async () => {
+    const expiredAt = new Date(Date.now() - 1000);
+    const user = await activeUser('secret');
+    const prisma = {
+      refreshSession: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 's1',
+          userId: 'u1',
+          tokenHash: 'hash',
+          expiresAt: expiredAt,
+          lastActiveAt: new Date(),
+          createdAt: new Date(Date.now() - 86_400_000),
+          revokedAt: null,
+          remember: true,
+          user,
+        }),
+        update: vi.fn().mockResolvedValue({}),
+      },
+    };
+    const jwtMock = {
+      verifyAsync: vi.fn().mockResolvedValue({ typ: 'refresh', sid: 's1', sub: 'u1' }),
+    };
+    const auth = new AuthService(prisma as never, jwtMock as never, config as never, new RateLimiterService());
+
+    await expect(auth.refresh('token', {})).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it('touch updates lastActiveAt for session', async () => {
+    const prisma = {
+      refreshSession: {
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+    };
+    const auth = new AuthService(prisma as never, jwt as never, config as never, new RateLimiterService());
+    await auth.touch('s1');
+    expect(prisma.refreshSession.updateMany).toHaveBeenCalledWith({
+      where: { id: 's1', revokedAt: null },
+      data: { lastActiveAt: expect.any(Date) },
     });
   });
 });

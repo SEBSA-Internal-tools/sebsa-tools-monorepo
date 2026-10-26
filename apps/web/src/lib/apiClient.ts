@@ -67,6 +67,7 @@ interface RequestOptions {
   body?: unknown;
   signal?: AbortSignal;
   searchParams?: Record<string, string | number | boolean | undefined | null>;
+  headers?: Record<string, string>;
 }
 
 function buildUrl(path: string, searchParams?: RequestOptions['searchParams']): string {
@@ -105,7 +106,7 @@ async function toApiError(response: Response, path: string): Promise<ApiError> {
 }
 
 async function send(path: string, options: RequestOptions): Promise<Response> {
-  const { method = 'GET', body, signal, searchParams } = options;
+  const { method = 'GET', body, signal, searchParams, headers: customHeaders } = options;
 
   const serializedBody = body === undefined ? undefined : JSON.stringify(body);
   const maxBytes = Number(import.meta.env['VITE_MAX_API_REQUEST_BYTES'] ?? 0);
@@ -122,7 +123,7 @@ async function send(path: string, options: RequestOptions): Promise<Response> {
     });
   }
 
-  const headers: Record<string, string> = { Accept: 'application/json' };
+  const headers: Record<string, string> = { Accept: 'application/json', ...(customHeaders ?? {}) };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (!['GET'].includes(method)) {
     const csrf = readCookie('sdp_csrf');

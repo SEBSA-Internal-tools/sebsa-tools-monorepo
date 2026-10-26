@@ -113,11 +113,37 @@ const reviewerColumn = helper.accessor('reviewerName', {
     headerClassName: 'min-w-[130px] whitespace-nowrap',
     cellClassName: 'min-w-[130px] whitespace-nowrap',
   },
-  cell: (context) => (
-    <span className="whitespace-nowrap">
-      <OptionalCell value={context.getValue()} fallback={labels.unassigned} />
-    </span>
-  ),
+  cell: (context) => {
+    const row = context.row.original;
+    const reviewer = context.getValue();
+    const followUp = row.status === 'ChangesRequested' ? row.followUpReviewerName : null;
+    const displayName = reviewer ?? followUp;
+
+    if (!displayName) {
+      return (
+        <span className="whitespace-nowrap">
+          <OptionalCell value={null} fallback={labels.unassigned} />
+        </span>
+      );
+    }
+
+    if (followUp && !reviewer) {
+      return (
+        <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+          <span className="text-sm font-medium text-ink-900">{displayName}</span>
+          <span className="inline-flex items-center rounded-sm bg-amber-50 px-1 py-0.5 text-[10px] font-medium text-amber-700 border border-amber-200/60 leading-none">
+            Follow-up
+          </span>
+        </span>
+      );
+    }
+
+    return (
+      <span className="whitespace-nowrap">
+        <OptionalCell value={displayName} fallback={labels.unassigned} />
+      </span>
+    );
+  },
 });
 
 const statusColumn = helper.accessor('status', {

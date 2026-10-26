@@ -51,7 +51,7 @@ export const checklistCategorySchema = z.object({
   name: z.string().min(1),
   order: z.number().int().min(0),
   isActive: z.boolean(),
-  applicableTaskTypeIds: z.array(taskTypeIdSchema).min(1),
+  applicableTaskTypeIds: z.array(taskTypeIdSchema),
   questions: z.array(checklistQuestionSchema),
 });
 export type ChecklistCategory = z.infer<typeof checklistCategorySchema>;

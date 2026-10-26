@@ -67,6 +67,46 @@ describe('missingRequirements', () => {
   it('blocks submission when no task type is selected', () => {
     expect(canSubmit({ ...READY, taskTypes: [] })).toBe(false);
   });
+
+  it('requires version when CRIM ID is new to the portal (isNewCrim: true)', () => {
+    expect(
+      missingRequirements({
+        ...READY,
+        isNewCrim: true,
+        draft: { ...READY.draft, version: '' },
+      }),
+    ).toEqual(['version']);
+
+    expect(
+      missingRequirements({
+        ...READY,
+        isNewCrim: true,
+        draft: { ...READY.draft, version: '3' },
+      }),
+    ).toEqual([]);
+
+    expect(
+      canLeaveStep(
+        'details',
+        missingRequirements({
+          ...READY,
+          isNewCrim: true,
+          draft: { ...READY.draft, version: '' },
+        }),
+      ),
+    ).toBe(false);
+
+    expect(
+      canLeaveStep(
+        'details',
+        missingRequirements({
+          ...READY,
+          isNewCrim: true,
+          draft: { ...READY.draft, version: '0' },
+        }),
+      ),
+    ).toBe(true);
+  });
 });
 
 describe('wizard step gating (acceptance scenario 1)', () => {

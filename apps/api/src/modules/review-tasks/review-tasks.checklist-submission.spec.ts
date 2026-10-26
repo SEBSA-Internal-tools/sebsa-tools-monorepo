@@ -30,7 +30,7 @@ function baseTask(status: TaskStatus = TaskStatus.DRAFT, overrides: Record<strin
     customerId: '00000000-0000-4000-8000-000000000030',
     priority: 'MEDIUM',
     status,
-    currentReviewCycle: status === TaskStatus.DRAFT ? 0 : 1,
+    currentReviewCycle: 1,
     developerId: DEVELOPER_ID,
     currentReviewerId: status === TaskStatus.DRAFT ? null : REVIEWER_ID,
     resubmissionReviewerId: null,

@@ -24,7 +24,7 @@
     "format:check": "prettier --check .",
     "e2e": "nx run @sdp/web-e2e:e2e",
     "graph": "nx graph",
-    "prepare": "husky"
+    "prepare": "husky || true"
   },
   "dependencies": {
     "@atlaskit/pragmatic-drag-and-drop": "3.0.0",

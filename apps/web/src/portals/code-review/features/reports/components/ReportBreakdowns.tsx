@@ -6,6 +6,7 @@ import { MetricBar } from '@/components/common/charts/MetricBar.tsx';
 import { Avatar } from '@/components/common/Avatar.tsx';
 import { EmptyState } from '@/components/common/states.tsx';
 import { SearchField } from '@/components/ui/controls.tsx';
+import { InfoTooltip, Tooltip } from '@/components/ui/Tooltip.tsx';
 import { interpolate } from '@/lib/formatters.ts';
 import admin from '@/content/admin.json';
 import common from '@/content/common.json';
@@ -97,10 +98,21 @@ function RowShell({
   );
 }
 
-function Metric({ label, value }: { label: string; value: React.ReactNode }) {
+function Metric({
+  label,
+  value,
+  tooltip,
+}: {
+  label: string;
+  value: React.ReactNode;
+  tooltip?: string;
+}) {
   return (
     <div className="min-w-0">
-      <p className="text-xs font-semibold tracking-wide text-ink-500 uppercase">{label}</p>
+      <div className="flex items-center gap-1.5">
+        <p className="text-xs font-semibold tracking-wide text-ink-500 uppercase">{label}</p>
+        {tooltip ? <InfoTooltip content={tooltip} /> : null}
+      </div>
       <div className="mt-1 text-sm font-semibold text-ink-900">{value}</div>
     </div>
   );
@@ -111,6 +123,7 @@ const STANDING_TONES = {
   fair: 'bg-status-draft-surface text-status-draft',
   poor: 'bg-status-cancelled-surface text-status-cancelled',
   none: 'bg-canvas text-ink-500',
+  limited: 'bg-status-submitted-surface text-status-submitted',
 } as const;
 
 export function DeveloperPanel({
@@ -155,9 +168,21 @@ export function DeveloperPanel({
               approved: row.approvedCount,
             })}
             badge={
-              <Tag className={STANDING_TONES[row.standing]}>
-                {labels.developers.standing[row.standing]}
-              </Tag>
+              <Tooltip
+                content={
+                  row.standing === 'limited'
+                    ? (labels.developers.limitedDataTooltip ??
+                      'More reviewed tasks are needed before a reliable quality standing can be calculated.')
+                    : labels.developers.standingTooltip
+                }
+                side="top"
+              >
+                <span tabIndex={0} className="inline-flex cursor-help focus:outline-none">
+                  <Tag className={STANDING_TONES[row.standing]}>
+                    {labels.developers.standing[row.standing]}
+                  </Tag>
+                </span>
+              </Tooltip>
             }
           >
             {row.standing === 'none' ? (
@@ -166,12 +191,13 @@ export function DeveloperPanel({
               <>
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   <Metric
-                    label={labels.developers.approvalRate}
+                    label={labels.developers.firstTimeApproval ?? labels.developers.approvalRate}
+                    tooltip={labels.developers.firstTimeApprovalTooltip}
                     value={
                       <MetricBar
-                        value={row.approvalRate}
-                        label={`${labels.developers.approvalRate} — ${row.name}`}
-                        valueLabel={`${String(row.approvalRate)}%`}
+                        value={row.firstTimeApprovalRate}
+                        label={`${labels.developers.firstTimeApproval ?? labels.developers.approvalRate} — ${row.name}`}
+                        valueLabel={`${String(row.firstTimeApprovalRate)}%`}
                       />
                     }
                   />
@@ -184,15 +210,19 @@ export function DeveloperPanel({
                     value={row.avgCycles === null ? '—' : row.avgCycles.toFixed(2)}
                   />
                   <Metric
-                    label={labels.developers.changesRequested}
-                    value={row.changesRequestedCount}
+                    label={labels.developers.reworkRounds ?? labels.developers.changesRequested}
+                    value={row.reworkRounds}
+                    tooltip={labels.developers.reworkRoundsTooltip}
                   />
                 </div>
 
                 <div className="mt-4 grid gap-4 lg:grid-cols-2">
                   <div className="rounded-card bg-canvas p-4">
-                    <p className="mb-2 text-sm font-semibold text-ink-900">
+                    <p className="text-sm font-semibold text-ink-900">
                       {labels.developers.rankTitle ?? labels.charts.rankTitle}
+                    </p>
+                    <p className="mb-2 text-xs text-ink-500">
+                      {labels.developers.rankSubtitle ?? labels.charts.rankSubtitle}
                     </p>
                     <DonutChart
                       slices={rankSlices(row.rankSlices)}
@@ -202,8 +232,11 @@ export function DeveloperPanel({
                     />
                   </div>
                   <div className="rounded-card bg-canvas p-4">
-                    <p className="mb-2 text-sm font-semibold text-ink-900">
+                    <p className="text-sm font-semibold text-ink-900">
                       {labels.developers.cycleTitle ?? labels.charts.cycleTitle}
+                    </p>
+                    <p className="mb-2 text-xs text-ink-500">
+                      {labels.developers.cycleSubtitle ?? labels.charts.cycleSubtitle}
                     </p>
                     <DonutChart
                       slices={cycleSlices(row.cycleSlices)}
