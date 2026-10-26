@@ -27,6 +27,7 @@ const checkboxCls = 'w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring
  *  selection of the employee's own already-published content; nothing is pre-filtered. */
 function buildInitialDraft(cv: ReturnType<typeof buildTailoredCvFromEmployee>): CvSuggestionDraft {
   return {
+    currentPosition: cv.currentPosition,
     includeObjective: true,
     objective: cv.summary,
     includeEducation: true,

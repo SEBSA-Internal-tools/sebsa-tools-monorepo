@@ -78,6 +78,7 @@ function buildReviewStateFromSavedCv(cv: TailoredCv): {
       certifications,
     },
     draft: {
+      currentPosition: cv.currentPosition,
       includeObjective: Boolean(cv.summary),
       objective: cv.summary,
       includeEducation: cv.includeEducation !== false,
@@ -279,6 +280,7 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
       );
       setSuggestion(result);
       setSuggestionDraft({
+        currentPosition: selectedEmployee.currentPosition || selectedEmployee.role,
         includeObjective: true,
         objective: result.objective,
         includeEducation: true,
