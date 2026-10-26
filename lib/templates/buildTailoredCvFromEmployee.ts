@@ -66,6 +66,8 @@ export function buildTailoredCvFromEmployee(employee: Employee): TailoredCv {
 /** The subset of TailoredCv a user has picked to include — same shape whether the picker was a
  *  human (Download CV, no AI) or an AI suggestion the human then adjusted (Customize CVs). */
 export interface TailoredCvSelection {
+  /** Optional CV-only designation; falls back to the employee profile when omitted. */
+  currentPosition?: string;
   summary: string;
   includeEducation?: boolean;
   academic: TailoredCv['academic'];
@@ -88,7 +90,9 @@ export function buildTailoredCvFromSelection(
 ): TailoredCv {
   return {
     name: getCvDisplayName(employee),
-    currentPosition: toUpperCaseText(employee.currentPosition || employee.role),
+    currentPosition: toUpperCaseText(
+      selection.currentPosition?.trim() || employee.currentPosition || employee.role
+    ),
     summary: selection.summary,
     customerName,
     skillsAligned: [],

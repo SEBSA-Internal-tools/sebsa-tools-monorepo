@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { FileText, Briefcase, Lightbulb, Award, ArrowRight, Sparkles, Loader2, Plus, Trash2, GraduationCap } from 'lucide-react';
 import { SectionCard, textareaCls } from '@/app/components/CvEntrySections';
 import type { CvAcademicEntry, CvExperienceEntry, CvProjectEntry, CvCertificationEntry } from '@/lib/cvTypes';
-import { toTitleCase } from '@/lib/text';
+import { toTitleCase, toUpperCaseText } from '@/lib/text';
 import type {
   CvSuggestion,
   CvSuggestionExperience,
@@ -13,6 +13,8 @@ import type {
 } from './types';
 
 export interface CvSuggestionSelection {
+  /** CV-only designation override; does not update the employee profile. */
+  currentPosition?: string;
   summary: string;
   includeEducation: boolean;
   academic: CvSuggestion['academic'];
@@ -22,6 +24,8 @@ export interface CvSuggestionSelection {
 }
 
 export interface CvSuggestionDraft {
+  /** CV-only designation override; does not update the employee profile. */
+  currentPosition?: string;
   includeObjective: boolean;
   objective: string;
   includeEducation: boolean;
@@ -62,6 +66,7 @@ export function buildSelectionFromDraft(
   draft: CvSuggestionDraft
 ): CvSuggestionSelection {
   return {
+    currentPosition: draft.currentPosition?.trim(),
     summary: draft.includeObjective ? draft.objective : '',
     includeEducation: draft.includeEducation,
     academic: draft.includeEducation
@@ -270,6 +275,26 @@ export default function CvSuggestionSelector({
           </p>
         </div>
       </div>
+
+      {/* Designation is CV-only; the employee profile remains untouched. */}
+      <SectionCard label="Employee Designation" icon={Briefcase} expanded onToggle={() => {}}>
+        <div className="space-y-1.5">
+          <label htmlFor="customized-cv-designation" className="text-xs font-bold text-slate-700">
+            Designation shown on this CV
+          </label>
+          <input
+            id="customized-cv-designation"
+            value={draft.currentPosition ?? ''}
+            onChange={(event) => onDraftChange({ ...draft, currentPosition: event.target.value })}
+            onBlur={(event) => onDraftChange({ ...draft, currentPosition: toUpperCaseText(event.target.value) })}
+            placeholder="e.g., SENIOR SOFTWARE ENGINEER"
+            className={inputCls}
+          />
+          <p className="text-[10px] text-slate-400">
+            This changes only the customized CV. The employee profile designation stays unchanged.
+          </p>
+        </div>
+      </SectionCard>
 
       {/* Objective — the one AI-generated field */}
       <SectionCard label="Objective / Summary" icon={FileText} expanded onToggle={() => {}}>

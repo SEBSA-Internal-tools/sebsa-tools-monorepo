@@ -71,7 +71,11 @@ export default function RepositoryClient({ employees, viewerRole, departments }:
     setDeleteError(null);
     startDeleteTransition(async () => {
       try {
-        await deleteEmployeeAction(rowId);
+        const result = await deleteEmployeeAction(rowId);
+        if (!result.ok) {
+          setDeleteError(result.message);
+          return;
+        }
         setEmployeePendingDelete(null);
         router.refresh();
       } catch (error) {

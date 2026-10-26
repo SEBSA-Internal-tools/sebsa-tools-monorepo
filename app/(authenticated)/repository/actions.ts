@@ -1,7 +1,6 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createClient } from '@/lib/supabase/server';
 import { deleteEmployee } from '@/services/employee-service';
 import { getCurrentUser, isAdminOrAbove } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -11,15 +10,45 @@ import { getAccountStatus } from '@/services/account-service';
 import type { AccountStatus } from '@/lib/accountStatus';
 import { recordAuditLog } from '@/services/audit-service';
 
-export async function deleteEmployeeAction(rowId: string): Promise<void> {
+export interface DeleteEmployeeResult {
+  ok: boolean;
+  message: string;
+}
+
+export async function deleteEmployeeAction(rowId: string): Promise<DeleteEmployeeResult> {
   const user = await getCurrentUser();
-  if (!user) throw new Error('Not authenticated.');
-  if (!isAdminOrAbove(user.role)) throw new Error('Only an Admin or Super Admin can delete profiles.');
-  const supabase = await createClient();
-  await deleteEmployee(supabase, rowId, user.id);
-  await recordAuditLog({ actorId: user.id, action: 'DELETE', entityType: 'employee_profile', entityId: rowId });
-  revalidatePath('/repository');
-  revalidatePath('/dashboard');
+  if (!user) return { ok: false, message: 'Your session has expired. Please log in and try again.' };
+  if (!isAdminOrAbove(user.role)) {
+    return { ok: false, message: 'Only an Admin or Super Admin can delete profiles.' };
+  }
+
+  try {
+    // This is a privileged administrative mutation. The role check above is the authorization
+    // boundary; use the service client consistently with updateEmployeeAction so an RLS response
+    // cannot be turned into an opaque Server Action digest in production.
+    const adminClient = createAdminClient();
+    await deleteEmployee(adminClient, rowId, user.id);
+    await recordAuditLog({
+      actorId: user.id,
+      action: 'DELETE',
+      entityType: 'employee_profile',
+      entityId: rowId,
+    });
+    revalidatePath('/repository');
+    revalidatePath('/dashboard');
+    return { ok: true, message: 'Employee profile deleted.' };
+  } catch (error) {
+    console.error('Failed to soft-delete employee profile', {
+      rowId,
+      actorId: user.id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    const message =
+      error instanceof Error && error.message === 'Employee profile was not found or has already been deleted.'
+        ? error.message
+        : 'The employee profile could not be deleted. Please try again or contact an administrator.';
+    return { ok: false, message };
+  }
 }
 
 /* ── Account access lifecycle ──────────────────────────────────────────────────────────────
