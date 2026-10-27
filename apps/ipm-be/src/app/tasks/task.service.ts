@@ -855,11 +855,19 @@ export class TaskService {
     if (filter.labelId) {
       where.labels = { some: { labelId: filter.labelId } };
     }
-    if (filter.category) {
-      where.category = filter.category;
-    }
-
     const andConditions: Prisma.TaskWhereInput[] = [];
+
+    if (filter.category) {
+      // Current tasks carry their own queue category. Older CSO tasks were
+      // routed by their parent Case, so retain that route only when the task
+      // has no category of its own.
+      andConditions.push({
+        OR: [
+          { category: filter.category },
+          { category: null, case: { category: filter.category } },
+        ],
+      });
+    }
 
     if (filter.isCsoLabeled !== undefined) {
       andConditions.push({ case: { isCsoLabeled: filter.isCsoLabeled } });

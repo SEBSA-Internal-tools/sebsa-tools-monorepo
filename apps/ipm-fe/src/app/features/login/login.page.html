@@ -48,7 +48,7 @@
             <button type="button" class="password-toggle" (click)="togglePasswordVisibility()" [attr.aria-label]="showPassword() ? 'Hide password' : 'Show password'" [attr.aria-pressed]="showPassword()"><span class="material-symbols-outlined" aria-hidden="true">{{ showPassword() ? 'visibility_off' : 'visibility' }}</span></button>
           </div>
         </div>
-        <button type="submit" class="sign-in-button" [disabled]="isSubmitting()">
+        <button type="submit" class="sign-in-button" [disabled]="isSubmitting() || retryAfterSeconds() > 0">
           @if (isSubmitting()) { <span class="spinner" aria-hidden="true"></span><span>Signing in...</span> } @else { <span>Sign in to workspace</span><span class="material-symbols-outlined" aria-hidden="true">arrow_forward</span> }
         </button>
         <p class="sign-in-status" role="status">{{ isSubmitting() ? 'Signing you in. Please wait.' : '' }}</p>

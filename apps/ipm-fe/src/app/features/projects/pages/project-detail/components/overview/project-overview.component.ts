@@ -288,4 +288,9 @@ export class ProjectOverviewComponent implements OnInit {
   statusLabel(): string {
     return STATUS_LABELS[this.project.status] ?? this.project.status;
   }
+
+  /** Sprint dates are date-only planning values; never render their UTC time. */
+  protected formatSprintDate(value: string): string {
+    return value ? value.slice(0, 10) : '';
+  }
 }
