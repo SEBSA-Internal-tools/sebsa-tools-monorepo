@@ -37,3 +37,7 @@ export const JWT_AUDIENCE_DEFAULT = CONFIG_DEFAULTS.jwtAudience;
 export const ACCESS_TTL_DEFAULT = CONFIG_DEFAULTS.accessTtlSeconds;
 export const REFRESH_TTL_DEFAULT = CONFIG_DEFAULTS.refreshTtlSeconds;
 export const REMEMBER_TTL_DEFAULT = CONFIG_DEFAULTS.rememberTtlSeconds;
+export const SESSION_IDLE_TTL_DEFAULT = CONFIG_DEFAULTS.sessionIdleTtlSeconds;
+export const SESSION_IDLE_WARNING_DEFAULT = CONFIG_DEFAULTS.sessionIdleWarningSeconds;
+export const SESSION_ABSOLUTE_TTL_DEFAULT = CONFIG_DEFAULTS.sessionAbsoluteTtlSeconds;
+export const SESSION_ACTIVITY_THROTTLE_DEFAULT = CONFIG_DEFAULTS.sessionActivityThrottleSeconds;

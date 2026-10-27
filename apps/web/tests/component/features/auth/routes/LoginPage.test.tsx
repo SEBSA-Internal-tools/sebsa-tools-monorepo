@@ -98,7 +98,7 @@ describe('LoginPage authentication', () => {
     expect(apiStub.requests('POST', '/auth/login')[0]?.body).toEqual({
       email: SEEDED_EMAIL,
       password: PASSWORD,
-      remember: true,
+      remember: false,
     });
   });
 
@@ -143,9 +143,10 @@ describe('LoginPage session persistence', () => {
   it('asks the server for a remembered session when Remember me is checked', async () => {
     const { user } = renderLogin();
 
-    // Checked by default; assert the default rather than assuming it.
-    expect(screen.getByLabelText(/remember me/i)).toBeChecked();
+    // Unchecked by default; assert the default rather than assuming it.
+    expect(screen.getByLabelText(/remember me/i)).not.toBeChecked();
 
+    await user.click(screen.getByLabelText(/remember me/i));
     await user.type(screen.getByLabelText(/work email/i), SEEDED_EMAIL);
     await user.type(screen.getByLabelText(/^password/i), PASSWORD);
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
@@ -157,10 +158,9 @@ describe('LoginPage session persistence', () => {
     expect(window.localStorage.length).toBe(0);
   });
 
-  it('asks for a browser-session sign-in when Remember me is cleared', async () => {
+  it('asks for a browser-session sign-in when Remember me is left unchecked', async () => {
     const { user } = renderLogin();
 
-    await user.click(screen.getByLabelText(/remember me/i));
     await user.type(screen.getByLabelText(/work email/i), SEEDED_EMAIL);
     await user.type(screen.getByLabelText(/^password/i), PASSWORD);
     await user.click(screen.getByRole('button', { name: 'Sign in' }));

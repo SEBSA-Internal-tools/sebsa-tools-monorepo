@@ -76,6 +76,7 @@ export function loadConfiguration(env: NodeJS.ProcessEnv = process.env) {
       fromAddress,
       fromName: nonEmpty(env['SDP_EMAIL_FROM_NAME']) ?? appName,
       supportEmail: nonEmpty(env['SDP_SUPPORT_EMAIL']) ?? fromAddress,
+      adminContactEmail: nonEmpty(env['SDP_ADMIN_CONTACT_EMAIL']) ?? D.adminContactEmail,
       dispatchIntervalMs: integer(env['EMAIL_DISPATCH_INTERVAL_MS'], D.emailDispatchIntervalMs),
       dispatchMode: 'interval' as 'interval' | 'scheduled',
       dispatchSecret: env['EMAIL_DISPATCH_SECRET'] ?? '',

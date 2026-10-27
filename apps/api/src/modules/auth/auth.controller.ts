@@ -97,6 +97,13 @@ export class AuthController {
     };
   }
 
+  @Post('touch')
+  @HttpCode(HttpStatus.OK)
+  async touch(@CurrentUser() user: AuthenticatedUser) {
+    await this.auth.touch(user.sessionId);
+    return { ok: true };
+  }
+
   private setCookies(response: Response, tokens: AuthTokens): void {
     const secure = authSettings(this.config).secureCookies;
     const common = { httpOnly: true, secure, sameSite: 'lax' as const };
@@ -105,18 +112,20 @@ export class AuthController {
       path: '/',
       maxAge: tokens.accessMaxAgeMs,
     });
-    response.cookie(REFRESH_COOKIE, tokens.refreshToken, {
+    const refreshCookieOptions = {
       ...common,
       path: '/api/auth',
-      maxAge: tokens.refreshMaxAgeMs,
-    });
-    response.cookie(CSRF_COOKIE, randomBytes(32).toString('base64url'), {
+      ...(tokens.refreshMaxAgeMs !== undefined ? { maxAge: tokens.refreshMaxAgeMs } : {}),
+    };
+    response.cookie(REFRESH_COOKIE, tokens.refreshToken, refreshCookieOptions);
+    const csrfCookieOptions = {
       httpOnly: false,
       secure,
-      sameSite: 'lax',
+      sameSite: 'lax' as const,
       path: '/',
-      maxAge: tokens.refreshMaxAgeMs,
-    });
+      ...(tokens.refreshMaxAgeMs !== undefined ? { maxAge: tokens.refreshMaxAgeMs } : {}),
+    };
+    response.cookie(CSRF_COOKIE, randomBytes(32).toString('base64url'), csrfCookieOptions);
   }
 
   private clearCookies(response: Response): void {

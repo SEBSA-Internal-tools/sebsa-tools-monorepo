@@ -18,4 +18,23 @@ describe('TaskInformationCard cycle', () => {
     expect(screen.getByText('Round 2')).toBeInTheDocument();
     expect(screen.queryByText(/Adjusted/)).not.toBeInTheDocument();
   });
+
+  it('shows follow-up reviewer badge and reviewer name when task status is ChangesRequested', async () => {
+    apiStub.get('/task-types', () => []);
+    const [base] = buildDataset().tasks;
+    if (!base) throw new Error('dataset has no tasks');
+    const task = {
+      ...base,
+      status: 'ChangesRequested' as const,
+      reviewerId: null,
+      reviewerName: null,
+      followUpReviewerName: 'Chamendri Senevirathne',
+    };
+
+    renderWithProviders(<TaskInformationCard task={task} />);
+
+    expect(await screen.findByText('Chamendri Senevirathne')).toBeInTheDocument();
+    expect(screen.getByText('Follow-up')).toBeInTheDocument();
+    expect(screen.queryByText('Unassigned')).not.toBeInTheDocument();
+  });
 });

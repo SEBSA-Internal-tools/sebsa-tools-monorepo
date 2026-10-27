@@ -58,9 +58,7 @@ describe('Developer Dashboard Summary Cards & Filter Interconnection', () => {
 
     const ownTasks = db.tasks.filter((t) => t.developerId === DEVELOPER);
     const draftCount = ownTasks.filter((t) => t.status === 'Draft').length;
-    const submittedCount = ownTasks.filter(
-      (t) => t.status === 'Submitted' || t.status === 'ReSubmitted' || t.status === 'InReview',
-    ).length;
+    const submittedCount = ownTasks.filter((t) => t.status === 'Submitted').length;
     const changesCount = ownTasks.filter((t) => t.status === 'ChangesRequested').length;
     const approvedCount = ownTasks.filter((t) => t.status === 'Approved').length;
 
@@ -116,6 +114,11 @@ describe('Developer Dashboard Summary Cards & Filter Interconnection', () => {
 
     const rows = getRows();
     expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      expect(within(row).getByText('Submitted')).toBeInTheDocument();
+      expect(within(row).queryByText('In Review')).not.toBeInTheDocument();
+      expect(within(row).queryByText('Re-Submitted')).not.toBeInTheDocument();
+    }
   });
 
   it('clicking Changes Requested card filters table to Changes Requested tasks, highlights card, and updates Status filter', async () => {

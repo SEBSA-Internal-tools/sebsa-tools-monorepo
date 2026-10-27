@@ -22,6 +22,10 @@ const envSchema = z
     JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().positive().default(D.accessTtlSeconds),
     JWT_REFRESH_TTL_SECONDS: z.coerce.number().int().positive().default(D.refreshTtlSeconds),
     JWT_REMEMBER_TTL_SECONDS: z.coerce.number().int().positive().default(D.rememberTtlSeconds),
+    SESSION_IDLE_TTL_SECONDS: z.coerce.number().int().positive().default(D.sessionIdleTtlSeconds),
+    SESSION_IDLE_WARNING_SECONDS: z.coerce.number().int().positive().default(D.sessionIdleWarningSeconds),
+    SESSION_ABSOLUTE_TTL_SECONDS: z.coerce.number().int().positive().default(D.sessionAbsoluteTtlSeconds),
+    SESSION_ACTIVITY_THROTTLE_SECONDS: z.coerce.number().int().positive().default(D.sessionActivityThrottleSeconds),
     // Unset means "Secure in production, not in development" (auth.config.ts).
     COOKIE_SECURE: z.enum(['true', 'false']).optional(),
     // Express `trust proxy`: a hop count ("1") or a list of trusted proxy
@@ -61,6 +65,7 @@ const envSchema = z
       .refine((value) => !/[\r\n]/.test(value), 'SDP_EMAIL_FROM_NAME must be one line')
       .optional(),
     SDP_SUPPORT_EMAIL: z.email().optional(),
+    SDP_ADMIN_CONTACT_EMAIL: z.email().optional(),
     EMAIL_DISPATCH_INTERVAL_MS: z.coerce.number().int().min(1000).max(600000).optional(),
     PASSWORD_LINK_RESEND_COOLDOWN_SECONDS: z.coerce.number().int().min(10).max(3600).optional(),
     BREVO_API_URL: z.url().optional(),

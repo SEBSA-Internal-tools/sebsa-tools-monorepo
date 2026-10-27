@@ -65,3 +65,47 @@ export const GOOD_RANK_THRESHOLD = 1.5;
  */
 export const LENIENT_APPROVAL_RATE = 70;
 export const STRICT_APPROVAL_RATE = 30;
+
+/**
+ * Developer Performance standing thresholds in Reports (Developer Quality KPI Card).
+ *
+ * Sample evaluation rules:
+ * - 0 eligible reviewed tasks -> 'none' (No reviews)
+ * - 1–2 eligible reviewed tasks -> 'limited' (Limited Data)
+ * - 3+ eligible reviewed tasks -> calculate weighted Quality Score (0–100):
+ *     FTA (35%) + Avg Rank (30%) + Avg Cycles (20%) + Normalized Rework (15%)
+ *
+ * Thresholds:
+ * - Quality Score >= 60 -> 'good' (Good), subject to safety guardrails
+ * - Quality Score >= 40 and < 60 -> 'fair' (Fair)
+ * - Quality Score < 40 -> 'poor' (Needs attention)
+ */
+export const DEV_STANDING_MIN_ELIGIBLE_TASKS = 3;
+
+export const DEV_QUALITY_WEIGHT_FTA = 0.35;
+export const DEV_QUALITY_WEIGHT_RANK = 0.30;
+export const DEV_QUALITY_WEIGHT_CYCLES = 0.20;
+export const DEV_QUALITY_WEIGHT_REWORK = 0.15;
+
+export const DEV_STANDING_SCORE_GOOD = 60;
+export const DEV_STANDING_SCORE_FAIR = 40;
+
+/** Safety guardrails preventing Good standing */
+export const DEV_GUARDRAIL_MAX_RANK_FOR_GOOD = 2.50;
+export const DEV_GUARDRAIL_MAX_CYCLES_FOR_GOOD = 3.00;
+export const DEV_GUARDRAIL_MAX_REWORK_FOR_GOOD = 2.00;
+
+/** Backward-compatibility aliases and legacy threshold constants */
+export const DEV_STANDING_GOOD_FIRST_TIME_APPROVAL_RATE = 70;
+export const DEV_STANDING_GOOD_AVG_RANK = 2.0;
+export const DEV_STANDING_GOOD_AVG_CYCLES = 2.0;
+export const DEV_STANDING_GOOD_AVG_REWORK = 1.0;
+
+export const DEV_STANDING_FAIR_FIRST_TIME_APPROVAL_RATE = 35;
+export const DEV_STANDING_FAIR_AVG_RANK = 2.5;
+export const DEV_STANDING_FAIR_AVG_CYCLES = 3.0;
+export const DEV_STANDING_FAIR_AVG_REWORK = 2.0;
+
+export const DEV_STANDING_GOOD_APPROVAL_RATE = DEV_STANDING_GOOD_FIRST_TIME_APPROVAL_RATE;
+export const DEV_STANDING_FAIR_APPROVAL_RATE = DEV_STANDING_FAIR_FIRST_TIME_APPROVAL_RATE;
+

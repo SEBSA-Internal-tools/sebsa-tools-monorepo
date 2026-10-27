@@ -5,6 +5,10 @@ import {
   JWT_ISSUER_DEFAULT,
   REFRESH_TTL_DEFAULT,
   REMEMBER_TTL_DEFAULT,
+  SESSION_ABSOLUTE_TTL_DEFAULT,
+  SESSION_ACTIVITY_THROTTLE_DEFAULT,
+  SESSION_IDLE_TTL_DEFAULT,
+  SESSION_IDLE_WARNING_DEFAULT,
 } from './auth.constants.js';
 
 export function authSecret(config: ConfigService, key: 'JWT_ACCESS_SECRET' | 'JWT_REFRESH_SECRET'): string {
@@ -26,6 +30,14 @@ export function authSettings(config: ConfigService) {
     accessTtl: positiveSeconds(config, 'JWT_ACCESS_TTL_SECONDS', ACCESS_TTL_DEFAULT),
     refreshTtl: positiveSeconds(config, 'JWT_REFRESH_TTL_SECONDS', REFRESH_TTL_DEFAULT),
     rememberTtl: positiveSeconds(config, 'JWT_REMEMBER_TTL_SECONDS', REMEMBER_TTL_DEFAULT),
+    idleTtl: positiveSeconds(config, 'SESSION_IDLE_TTL_SECONDS', SESSION_IDLE_TTL_DEFAULT),
+    idleWarning: positiveSeconds(config, 'SESSION_IDLE_WARNING_SECONDS', SESSION_IDLE_WARNING_DEFAULT),
+    absoluteTtl: positiveSeconds(config, 'SESSION_ABSOLUTE_TTL_SECONDS', SESSION_ABSOLUTE_TTL_DEFAULT),
+    activityThrottle: positiveSeconds(
+      config,
+      'SESSION_ACTIVITY_THROTTLE_SECONDS',
+      SESSION_ACTIVITY_THROTTLE_DEFAULT,
+    ),
     secureCookies: config.get<string>('COOKIE_SECURE') === 'true' || config.get<string>('nodeEnv') === 'production',
   };
 }

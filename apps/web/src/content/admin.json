@@ -514,18 +514,27 @@
       "count": "Showing {shown} of {total} developers",
       "empty": "No developer has raised a task under these filters.",
       "tasks": "{count} tasks · {approved} approved",
+      "firstTimeApproval": "First-Time Approval",
+      "firstTimeApprovalTooltip": "Percentage of reviewed tasks approved on the first review without requiring rework.",
       "approvalRate": "Approval Rate",
       "avgRanking": "Avg Ranking",
       "avgCycles": "Avg Cycles",
-      "changesRequested": "Changes Req.",
+      "changesRequested": "Rework Rounds",
+      "reworkRounds": "Rework Rounds",
+      "reworkRoundsTooltip": "Total review rounds where changes were requested.",
       "rankTitle": "Rank Distribution",
-      "cycleTitle": "Cycle Distribution",
+      "rankSubtitle": "Quality ranks across eligible review rounds",
+      "cycleTitle": "Approved Tasks by Cycle",
+      "cycleSubtitle": "Approved tasks only",
       "noReviews": "No completed reviews yet",
+      "standingTooltip": "Quality standing combines first-time approval, review ranking, review cycles, and normalized rework.",
+      "limitedDataTooltip": "More reviewed tasks are needed before a reliable quality standing can be calculated.",
       "standing": {
         "good": "Good",
         "fair": "Fair",
         "poor": "Needs attention",
-        "none": "No reviews"
+        "none": "No reviews",
+        "limited": "Limited Data"
       }
     },
     "reviewers": {
