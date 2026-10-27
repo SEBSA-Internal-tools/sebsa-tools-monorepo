@@ -42,3 +42,7 @@ playwright-report
 # Deployment credentials and local hosting metadata
 .env.*
 .vercel/
+
+
+# other directories and files
+/docs/
