@@ -485,7 +485,7 @@ describe('hardening', () => {
     const lifetime = db.links[0]!.expiresAt.getTime() - before;
     expect(lifetime).toBeGreaterThan(2 * 60 * 60 * 1000 - 5000);
     expect(lifetime).toBeLessThanOrEqual(2 * 60 * 60 * 1000 + 5000);
-    expect(sent()[0]?.text).toContain('expires in 2 hours');
+    expect(sent()[0]?.text).toContain('within 2 hours');
   });
 
   it('emails an HTML and a text part, with the token only in the #fragment', async () => {
