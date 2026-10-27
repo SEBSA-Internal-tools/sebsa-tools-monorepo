@@ -5,6 +5,7 @@ import {
   inject,
   signal,
   OnChanges,
+  OnDestroy,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AttachmentsService } from '../../services/attachments.service';
@@ -19,7 +20,7 @@ import type { CommentTargetType, UploadAttachmentResponse } from '@sebsa-pm-tool
   styleUrl: './task-attachments.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class TaskAttachmentsComponent implements OnChanges {
+export class TaskAttachmentsComponent implements OnChanges, OnDestroy {
   /** Which entity owns the attachments shown here. Defaults to TASK so
    *  existing [taskId]-only usages keep working unchanged. */
   @Input() targetType: CommentTargetType = 'TASK';
@@ -30,6 +31,11 @@ export class TaskAttachmentsComponent implements OnChanges {
 
   attachments = signal<UploadAttachmentResponse[]>([]);
   isLoading = signal(false);
+  private readonly changedSubscription = this.attachmentsService.changed$.subscribe(() => this.loadAttachments());
+
+  ngOnDestroy(): void {
+    this.changedSubscription.unsubscribe();
+  }
 
   ngOnChanges(): void {
     this.loadAttachments();
@@ -76,6 +82,7 @@ export class TaskAttachmentsComponent implements OnChanges {
     this.attachmentsService.deleteAttachment(attachmentId).subscribe({
       next: () => {
         this.toast.success('Attachment deleted');
+        this.attachmentsService.notifyChanged();
         this.loadAttachments();
       },
       error: () => {

@@ -6,7 +6,7 @@ export interface AttachmentSummary {
   fileSize: number;
   mimeType: string;
   filePath: string;
-  uploadedBy: Pick<UserSummary, 'id' | 'name'>;
+  uploadedBy: Pick<UserSummary, 'id' | 'name' | 'avatarUrl'>;
   createdAt: string;
 }
 
@@ -25,6 +25,6 @@ export interface UploadAttachmentResponse {
   fileSize: number;
   mimeType: string;
   filePath: string;
-  uploadedBy: Pick<UserSummary, 'id' | 'name'>;
+  uploadedBy: Pick<UserSummary, 'id' | 'name' | 'avatarUrl'>;
   createdAt: string;
 }

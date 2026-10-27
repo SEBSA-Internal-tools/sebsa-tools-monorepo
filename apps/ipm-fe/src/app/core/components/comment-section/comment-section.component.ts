@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, Input, OnChanges, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Input, OnChanges, OnDestroy, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CommentSummary, CommentTargetType } from '@sebsa-pm-tool/shared-models';
@@ -7,6 +7,8 @@ import { AttachmentsService } from '../../services/attachments.service';
 import { ToastService } from '../../services/toast.service';
 import { AuthService } from '../../services/auth.service';
 import { UserAvatarComponent } from '../user-avatar/user-avatar.component';
+import { forkJoin, Subscription } from 'rxjs';
+import type { UploadAttachmentResponse } from '@sebsa-pm-tool/shared-models';
 
 /** Matches the server-side cap in CreateCommentDto. */
 const BODY_MAX_LENGTH = 5000;
@@ -36,7 +38,7 @@ export interface MentionableUser {
   styleUrl: './comment-section.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class CommentSectionComponent implements OnChanges {
+export class CommentSectionComponent implements OnChanges, OnDestroy {
   @Input({ required: true }) targetType!: CommentTargetType;
   @Input({ required: true }) targetId!: string;
   /** Project members available to mention. */
@@ -48,6 +50,7 @@ export class CommentSectionComponent implements OnChanges {
   private readonly auth = inject(AuthService);
 
   protected readonly thread = signal<CommentSummary[]>([]);
+  protected readonly standaloneAttachments = signal<UploadAttachmentResponse[]>([]);
   protected readonly isLoading = signal(false);
   protected readonly isSaving = signal(false);
   protected readonly errorMessage = signal('');
@@ -78,7 +81,14 @@ export class CommentSectionComponent implements OnChanges {
 
   // File attachment state
   protected selectedFiles = signal<File[]>([]);
+  protected replyFiles = signal<File[]>([]);
+  protected editFiles = signal<File[]>([]);
   protected isUploadingFiles = signal(false);
+  private readonly attachmentChanges = this.attachments.changed$.subscribe(() => this.load());
+
+  ngOnDestroy(): void {
+    this.attachmentChanges.unsubscribe();
+  }
 
   ngOnChanges(): void {
     this.resetComposers();
@@ -99,6 +109,16 @@ export class CommentSectionComponent implements OnChanges {
       next: (thread) => {
         this.thread.set(thread);
         this.isLoading.set(false);
+        const linkedIds = new Set(thread.flatMap((comment) => [
+          ...(comment.attachments ?? []).map((attachment) => attachment.id),
+          ...comment.replies.flatMap((reply) => (reply.attachments ?? []).map((attachment) => attachment.id)),
+        ]));
+        const request = this.targetType === 'CASE'
+          ? this.attachments.getCaseAttachments(this.targetId)
+          : this.attachments.getTaskAttachments(this.targetId);
+        request.subscribe({
+          next: (allAttachments) => this.standaloneAttachments.set(allAttachments.filter((a) => !linkedIds.has(a.id))),
+        });
       },
       error: () => {
         this.errorMessage.set('Could not load comments. Please try again.');
@@ -109,14 +129,18 @@ export class CommentSectionComponent implements OnChanges {
 
   protected post(): void {
     const body = this.newBody.trim();
-    if (!body || this.isSaving()) return;
+    const files = this.selectedFiles();
+    if ((!body && files.length === 0) || this.isSaving()) return;
+    // A single space supports file-only comments while remaining compatible
+    // with API instances that still require a non-empty comment body.
+    const bodyToPersist = body || ' ';
     const mentionedUserIds = this.activeMentionIds();
 
     this.isSaving.set(true);
     this.comments
       .create({
         ...(this.targetType === 'CASE' ? { caseId: this.targetId } : { taskId: this.targetId }),
-        body,
+        body: bodyToPersist,
         ...(mentionedUserIds.length > 0 && { mentionedUserIds }),
       })
       .subscribe({
@@ -133,12 +157,11 @@ export class CommentSectionComponent implements OnChanges {
       });
   }
 
-  private uploadAttachmentsForComment(commentId: string): void {
-    const files = this.selectedFiles();
+  private uploadAttachmentsForComment(commentId?: string, files = this.selectedFiles(), clearDraft = true): void {
     if (files.length === 0) {
-      this.selectedFiles.set([]);
+      if (clearDraft) this.selectedFiles.set([]);
       this.isSaving.set(false);
-      this.load();
+      if (commentId) this.load();
       return;
     }
 
@@ -150,9 +173,10 @@ export class CommentSectionComponent implements OnChanges {
         next: () => {
           uploadedCount++;
           if (uploadedCount === files.length) {
-            this.selectedFiles.set([]);
+            if (clearDraft) this.selectedFiles.set([]);
             this.isUploadingFiles.set(false);
             this.isSaving.set(false);
+            this.attachments.notifyChanged();
             this.load();
           }
         },
@@ -160,9 +184,10 @@ export class CommentSectionComponent implements OnChanges {
           this.toast.error(`Failed to upload ${file.name}`);
           uploadedCount++;
           if (uploadedCount === files.length) {
-            this.selectedFiles.set([]);
+            if (clearDraft) this.selectedFiles.set([]);
             this.isUploadingFiles.set(false);
             this.isSaving.set(false);
+            this.attachments.notifyChanged();
             this.load();
           }
         },
@@ -173,6 +198,7 @@ export class CommentSectionComponent implements OnChanges {
   protected startReply(commentId: string): void {
     this.replyingTo.set(commentId);
     this.replyBody = '';
+    this.replyFiles.set([]);
     this.replyInsertedMentions.clear();
     this.closeMentions();
     this.editingId.set(null);
@@ -181,13 +207,16 @@ export class CommentSectionComponent implements OnChanges {
   protected cancelReply(): void {
     this.replyingTo.set(null);
     this.replyBody = '';
+    this.replyFiles.set([]);
     this.replyInsertedMentions.clear();
     this.closeMentions();
   }
 
   protected postReply(parentCommentId: string): void {
     const body = this.replyBody.trim();
-    if (!body || this.isSaving()) return;
+    const files = this.replyFiles();
+    if ((!body && files.length === 0) || this.isSaving()) return;
+    const bodyToPersist = body || ' ';
     const mentionedUserIds = this.activeMentionIds('reply');
 
     this.isSaving.set(true);
@@ -195,14 +224,13 @@ export class CommentSectionComponent implements OnChanges {
       .create({
         ...(this.targetType === 'CASE' ? { caseId: this.targetId } : { taskId: this.targetId }),
         parentCommentId,
-        body,
+        body: bodyToPersist,
         ...(mentionedUserIds.length > 0 && { mentionedUserIds }),
       })
       .subscribe({
-        next: () => {
+        next: (reply) => {
           this.cancelReply();
-          this.isSaving.set(false);
-          this.load();
+          this.uploadAttachmentsForComment(reply.id, files, false);
         },
         error: () => {
           this.toast.error('Could not post the reply.');
@@ -214,6 +242,7 @@ export class CommentSectionComponent implements OnChanges {
   protected startEdit(comment: CommentSummary): void {
     this.editingId.set(comment.id);
     this.editBody = comment.body;
+    this.editFiles.set([]);
     this.editInsertedMentions.clear();
     this.editAllMentionIds.clear();
     if (comment.mentions.length > 0 && this.hasMention(comment.body, 'All')) {
@@ -231,6 +260,7 @@ export class CommentSectionComponent implements OnChanges {
   protected cancelEdit(): void {
     this.editingId.set(null);
     this.editBody = '';
+    this.editFiles.set([]);
     this.editInsertedMentions.clear();
     this.editAllMentionIds.clear();
     this.closeMentions();
@@ -238,7 +268,15 @@ export class CommentSectionComponent implements OnChanges {
 
   protected saveEdit(commentId: string): void {
     const body = this.editBody.trim();
-    if (!body || this.isSaving()) return;
+    const files = this.editFiles();
+    if ((!body && files.length === 0) || this.isSaving()) return;
+
+    if (!body) {
+      this.isSaving.set(true);
+      this.cancelEdit();
+      this.uploadAttachmentsForComment(commentId, files, false);
+      return;
+    }
 
     this.isSaving.set(true);
     this.comments.update(commentId, {
@@ -247,8 +285,8 @@ export class CommentSectionComponent implements OnChanges {
     }).subscribe({
       next: () => {
         this.cancelEdit();
-        this.isSaving.set(false);
-        this.load();
+        this.editFiles.set([]);
+        this.uploadAttachmentsForComment(commentId, files, false);
       },
       error: () => {
         this.toast.error('Could not save the change.');
@@ -257,15 +295,51 @@ export class CommentSectionComponent implements OnChanges {
     });
   }
 
-  protected remove(commentId: string): void {
-    if (!window.confirm('Delete this comment? This cannot be undone.')) return;
+  protected remove(comment: CommentSummary): void {
+    const linkedAttachments = comment.attachments ?? [];
+    const deleteAttachments = linkedAttachments.length > 0
+      ? window.confirm(`This comment has ${linkedAttachments.length} attached file(s): ${linkedAttachments.map((a) => a.fileName).join(', ')}.\n\nDelete these files too? Select OK to delete them, or Cancel to keep them. The comment will be deleted either way.`)
+      : false;
+    if (linkedAttachments.length === 0 && !window.confirm('Delete this comment? This cannot be undone.')) return;
 
-    this.comments.delete(commentId).subscribe({
+    const deleteComment = () => this.comments.delete(comment.id).subscribe({
       next: () => {
         this.toast.success('Comment deleted.');
+        if (deleteAttachments) this.attachments.notifyChanged();
         this.load();
       },
       error: () => this.toast.error('Could not delete the comment.'),
+    });
+
+    if (!deleteAttachments) {
+      deleteComment();
+      return;
+    }
+    forkJoin(linkedAttachments.map((attachment) => this.attachments.deleteAttachment(attachment.id))).subscribe({
+      next: () => {
+        this.attachments.notifyChanged();
+        deleteComment();
+      },
+      error: () => this.toast.error('Could not delete all files attached to this comment. The comment was kept.'),
+    });
+  }
+
+  protected canDeleteAttachment(attachment: { uploadedBy: { id: string } }): boolean {
+    const user = this.auth.currentUser();
+    return attachment.uploadedBy.id === user?.id
+      || user?.systemRole === 'ADMIN'
+      || user?.systemRole === 'SUPER_ADMIN';
+  }
+
+  protected deleteAttachment(attachment: { id: string; fileName: string }): void {
+    if (!window.confirm(`Delete "${attachment.fileName}"?`)) return;
+    this.attachments.deleteAttachment(attachment.id).subscribe({
+      next: () => {
+        this.toast.success('Attachment deleted.');
+        this.attachments.notifyChanged();
+        this.load();
+      },
+      error: () => this.toast.error('Could not delete the attachment.'),
     });
   }
 
@@ -500,12 +574,16 @@ export class CommentSectionComponent implements OnChanges {
     });
   }
 
-  protected onFileSelected(event: Event): void {
+  protected onFileSelected(event: Event, context: 'new' | 'reply' | 'edit' = 'new'): void {
     const input = event.target as HTMLInputElement;
     if (!input.files) return;
 
     const files = Array.from(input.files);
-    const currentFiles = this.selectedFiles();
+    const currentFiles = [...(context === 'reply'
+      ? this.replyFiles()
+      : context === 'edit'
+        ? this.editFiles()
+        : this.selectedFiles())];
 
     // Validate files
     for (const file of files) {
@@ -524,7 +602,9 @@ export class CommentSectionComponent implements OnChanges {
       }
     }
 
-    this.selectedFiles.set(currentFiles);
+    if (context === 'reply') this.replyFiles.set(currentFiles);
+    else if (context === 'edit') this.editFiles.set(currentFiles);
+    else this.selectedFiles.set(currentFiles);
     input.value = '';
   }
 
@@ -544,14 +624,20 @@ export class CommentSectionComponent implements OnChanges {
     return allowedTypes.includes(mimeType);
   }
 
-  protected removeFile(index: number): void {
-    const files = this.selectedFiles();
+  protected removeFile(index: number, context: 'new' | 'reply' | 'edit' = 'new'): void {
+    const files = [...(context === 'reply'
+      ? this.replyFiles()
+      : context === 'edit'
+        ? this.editFiles()
+        : this.selectedFiles())];
     files.splice(index, 1);
-    this.selectedFiles.set([...files]);
+    if (context === 'reply') this.replyFiles.set(files);
+    else if (context === 'edit') this.editFiles.set(files);
+    else this.selectedFiles.set(files);
   }
 
-  protected triggerFileInput(): void {
-    const input = document.querySelector<HTMLInputElement>('#comment-file-input');
+  protected triggerFileInput(inputId = 'comment-file-input'): void {
+    const input = document.getElementById(inputId) as HTMLInputElement | null;
     input?.click();
   }
 
@@ -567,5 +653,7 @@ export class CommentSectionComponent implements OnChanges {
     this.replyingTo.set(null);
     this.editingId.set(null);
     this.selectedFiles.set([]);
+    this.replyFiles.set([]);
+    this.editFiles.set([]);
   }
 }

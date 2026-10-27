@@ -57,7 +57,7 @@ export class CommentsService {
     const comments = await this.prisma.comment.findMany({
       where: { ...this.targetWhere(target), deletedAt: null },
       include: commentInclude,
-      orderBy: { createdAt: 'asc' },
+      orderBy: { createdAt: 'desc' },
     });
 
     return this.toThreads(comments, user);

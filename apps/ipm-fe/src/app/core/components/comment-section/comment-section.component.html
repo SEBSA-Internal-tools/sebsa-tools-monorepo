@@ -106,7 +106,7 @@
       <button
         type="button"
         class="sebsa-btn-primary"
-        [disabled]="!newBody.trim() || isSaving() || isUploadingFiles()"
+        [disabled]="(!newBody.trim() && selectedFiles().length === 0) || isSaving() || isUploadingFiles()"
         (click)="post()"
       >
         @if (isUploadingFiles()) {
@@ -140,6 +140,7 @@
 
           @if (editingId() === comment.id) {
             <div class="inline-editor">
+              <input type="file" multiple class="file-input" id="edit-files-{{comment.id}}" (change)="onFileSelected($event, 'edit')" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.gif,.txt,.csv" />
               <div class="composer-field">
                 <textarea
                   #editInput
@@ -174,13 +175,27 @@
                   </ul>
                 }
               </div>
+              @if (comment.attachments && comment.attachments.length > 0) {
+                <div class="comment-attachment-chips">
+                  @for (attachment of comment.attachments; track attachment.id) {
+                    <button type="button" class="attachment-chip" (click)="downloadAttachment(attachment.filePath, attachment.fileName)"><span class="material-symbols-outlined">{{ getFileIcon(attachment.mimeType) }}</span><span class="attachment-chip-name">{{ attachment.fileName }}</span></button>
+                    @if (canDeleteAttachment(attachment)) { <button type="button" class="btn-link danger" (click)="deleteAttachment(attachment)">Delete file</button> }
+                  }
+                </div>
+              }
+              <div class="inline-actions"><button type="button" class="btn-link" (click)="triggerFileInput('edit-files-' + comment.id)">Attach files</button></div>
+              @if (editFiles().length > 0) {
+                <div class="selected-files"><div class="files-list">@for (file of editFiles(); track file.name; let i = $index) {<div class="file-item"><span class="material-symbols-outlined">attach_file</span><span class="file-name">{{ file.name }}</span><button type="button" class="btn-remove" (click)="removeFile(i, 'edit')" title="Remove"><span class="material-symbols-outlined">close</span></button></div>}</div></div>
+              }
               <div class="inline-actions">
                 <button type="button" class="btn-link" (click)="saveEdit(comment.id)" [disabled]="isSaving()">Save</button>
                 <button type="button" class="btn-link muted" (click)="cancelEdit()">Cancel</button>
               </div>
             </div>
           } @else {
-            <p class="comment-text">{{ comment.body }}</p>
+            @if (comment.body.trim()) {
+              <p class="comment-text">{{ comment.body }}</p>
+            }
 
             @if (usesAllMention(comment)) {
               <p class="comment-mentions">
@@ -210,13 +225,15 @@
               </div>
             }
 
+            @if (replyingTo() !== comment.id) {
             <div class="comment-actions">
               <button type="button" class="btn-link" (click)="startReply(comment.id)">Reply</button>
               @if (comment.canModify) {
                 <button type="button" class="btn-link" (click)="startEdit(comment)">Edit</button>
-                <button type="button" class="btn-link danger" (click)="remove(comment.id)">Delete</button>
+                <button type="button" class="btn-link danger" (click)="remove(comment)">Delete</button>
               }
             </div>
+            }
           }
 
           <!-- Replies -->
@@ -238,6 +255,7 @@
 
                     @if (editingId() === reply.id) {
                       <div class="inline-editor">
+                        <input type="file" multiple class="file-input" id="edit-files-{{reply.id}}" (change)="onFileSelected($event, 'edit')" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.gif,.txt,.csv" />
                         <div class="composer-field">
                           <textarea
                             #replyEditInput
@@ -272,13 +290,27 @@
                             </ul>
                           }
                         </div>
+                        @if (reply.attachments && reply.attachments.length > 0) {
+                          <div class="comment-attachment-chips">
+                            @for (attachment of reply.attachments; track attachment.id) {
+                              <button type="button" class="attachment-chip" (click)="downloadAttachment(attachment.filePath, attachment.fileName)"><span class="material-symbols-outlined">{{ getFileIcon(attachment.mimeType) }}</span><span class="attachment-chip-name">{{ attachment.fileName }}</span></button>
+                              @if (canDeleteAttachment(attachment)) { <button type="button" class="btn-link danger" (click)="deleteAttachment(attachment)">Delete file</button> }
+                            }
+                          </div>
+                        }
+                        <div class="inline-actions"><button type="button" class="btn-link" (click)="triggerFileInput('edit-files-' + reply.id)">Attach files</button></div>
+                        @if (editFiles().length > 0) {
+                          <div class="selected-files"><div class="files-list">@for (file of editFiles(); track file.name; let i = $index) {<div class="file-item"><span class="material-symbols-outlined">attach_file</span><span class="file-name">{{ file.name }}</span><button type="button" class="btn-remove" (click)="removeFile(i, 'edit')" title="Remove"><span class="material-symbols-outlined">close</span></button></div>}</div></div>
+                        }
                         <div class="inline-actions">
                           <button type="button" class="btn-link" (click)="saveEdit(reply.id)" [disabled]="isSaving()">Save</button>
                           <button type="button" class="btn-link muted" (click)="cancelEdit()">Cancel</button>
                         </div>
                       </div>
                     } @else {
-                      <p class="comment-text">{{ reply.body }}</p>
+                      @if (reply.body.trim()) {
+                        <p class="comment-text">{{ reply.body }}</p>
+                      }
 
                       @if (usesAllMention(reply)) {
                         <p class="comment-mentions">
@@ -311,7 +343,7 @@
                       @if (reply.canModify) {
                         <div class="comment-actions">
                           <button type="button" class="btn-link" (click)="startEdit(reply)">Edit</button>
-                          <button type="button" class="btn-link danger" (click)="remove(reply.id)">Delete</button>
+                          <button type="button" class="btn-link danger" (click)="remove(reply)">Delete</button>
                         </div>
                       }
                     }
@@ -324,6 +356,7 @@
           <!-- Reply composer -->
           @if (replyingTo() === comment.id) {
             <div class="reply-composer">
+              <input type="file" multiple class="file-input" id="reply-files-{{comment.id}}" (change)="onFileSelected($event, 'reply')" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.gif,.txt,.csv" />
               <div class="composer-field">
               <textarea
                 #replyInput
@@ -366,11 +399,23 @@
                   }
                 </p>
               }
+              @if (comment.attachments && comment.attachments.length > 0) {
+                <div class="comment-attachment-chips">
+                  @for (attachment of comment.attachments; track attachment.id) {
+                    <button type="button" class="attachment-chip" (click)="downloadAttachment(attachment.filePath, attachment.fileName)"><span class="material-symbols-outlined">{{ getFileIcon(attachment.mimeType) }}</span><span class="attachment-chip-name">{{ attachment.fileName }}</span></button>
+                    @if (canDeleteAttachment(attachment)) { <button type="button" class="btn-link danger" (click)="deleteAttachment(attachment)">Delete file</button> }
+                  }
+                </div>
+              }
+              <div class="inline-actions"><button type="button" class="btn-link" (click)="triggerFileInput('reply-files-' + comment.id)">Attach files</button></div>
+              @if (replyFiles().length > 0) {
+                <div class="selected-files"><div class="files-list">@for (file of replyFiles(); track file.name; let i = $index) {<div class="file-item"><span class="material-symbols-outlined">attach_file</span><span class="file-name">{{ file.name }}</span><button type="button" class="btn-remove" (click)="removeFile(i, 'reply')" title="Remove"><span class="material-symbols-outlined">close</span></button></div>}</div></div>
+              }
               <div class="inline-actions">
                 <button
                   type="button"
                   class="btn-link"
-                  [disabled]="!replyBody.trim() || isSaving()"
+                  [disabled]="(!replyBody.trim() && replyFiles().length === 0) || isSaving()"
                   (click)="postReply(comment.id)"
                 >
                   Reply
@@ -382,12 +427,21 @@
         </div>
       </li>
     } @empty {
-      @if (!isLoading()) {
+      @if (!isLoading() && standaloneAttachments().length === 0) {
         <li class="comment-empty">
           <span class="material-symbols-outlined">forum</span>
           <p>No comments yet. Start the discussion.</p>
         </li>
       }
+    }
+    @for (attachment of standaloneAttachments(); track attachment.id) {
+      <li class="comment-item">
+        <app-user-avatar class="avatar" [name]="attachment.uploadedBy.name" [avatarUrl]="attachment.uploadedBy.avatarUrl" size="sm" [title]="attachment.uploadedBy.name"></app-user-avatar>
+        <div class="comment-body">
+          <p class="comment-meta"><span class="comment-author">{{ attachment.uploadedBy.name }}</span><span class="comment-dot">·</span><span [title]="absoluteTime(attachment.createdAt)">{{ relativeTime(attachment.createdAt) }}</span></p>
+          <button type="button" class="attachment-chip" (click)="downloadAttachment(attachment.filePath, attachment.fileName)" [title]="attachment.fileName + ' (' + formatFileSize(attachment.fileSize) + ')'"><span class="material-symbols-outlined">{{ getFileIcon(attachment.mimeType) }}</span><span class="attachment-chip-name">{{ attachment.fileName }}</span></button>
+        </div>
+      </li>
     }
   </ol>
 </section>
