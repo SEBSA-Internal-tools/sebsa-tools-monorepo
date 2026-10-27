@@ -58,3 +58,5 @@ services:
         value: Service Delivery Portal
       - key: SDP_SUPPORT_EMAIL
         sync: false
+      - key: SDP_ADMIN_CONTACT_EMAIL
+        value: service.delivery@sebsaworld.com

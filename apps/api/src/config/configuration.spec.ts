@@ -27,6 +27,7 @@ describe('configuration', () => {
     expect(config.passwordLinks.inviteTtlMs).toBe(CONFIG_DEFAULTS.inviteTtlHours * 3_600_000);
     expect(config.mail.brevoApiUrl).toBe(CONFIG_DEFAULTS.brevoApiUrl);
     expect(config.mail.fromName).toBe(CONFIG_DEFAULTS.appName);
+    expect(config.mail.adminContactEmail).toBe(CONFIG_DEFAULTS.adminContactEmail);
     expect(config.database.transactionOptions).toEqual({
       timeout: CONFIG_DEFAULTS.transactionTimeoutMs,
       maxWait: CONFIG_DEFAULTS.transactionMaxWaitMs,
@@ -40,6 +41,7 @@ describe('configuration', () => {
       APP_NAME: 'Portal',
       INVITE_TTL_HOURS: '48',
       SDP_EMAIL_FROM_ADDRESS: 'noreply@example.com',
+      SDP_ADMIN_CONTACT_EMAIL: 'portal-admin@example.com',
       DB_TRANSACTION_TIMEOUT_MS: '20000',
       DB_TRANSACTION_MAX_WAIT_MS: '8000',
     });
@@ -49,6 +51,7 @@ describe('configuration', () => {
     expect(config.appName).toBe('Portal');
     expect(config.mail.fromName).toBe('Portal');
     expect(config.mail.supportEmail).toBe('noreply@example.com');
+    expect(config.mail.adminContactEmail).toBe('portal-admin@example.com');
     expect(config.passwordLinks.inviteTtlMs).toBe(48 * 3_600_000);
   });
 

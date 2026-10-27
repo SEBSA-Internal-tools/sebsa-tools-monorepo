@@ -45,6 +45,30 @@ const reviewInclude = {
 
 type ReviewRow = Prisma.CodeReviewFormGetPayload<{ include: typeof reviewInclude }>;
 
+const MAX_EMAIL_ISSUES = 25;
+const MAX_EMAIL_SUMMARY = 1000;
+
+function reviewEmailFacts(review: ReviewRow) {
+  const rank = review.reviewRank;
+  const issues = review.answers.flatMap(({ answer, question }) =>
+    answer === CodeReviewAnswerValue.NOT_OK || answer === CodeReviewAnswerValue.PARTIALLY_OK
+      ? [
+          {
+            ...(question.sectionName ? { section: question.sectionName } : {}),
+            question: question.questionText,
+            answer,
+          },
+        ]
+      : [],
+  );
+  const summary = review.feedbackSummary?.trim();
+  return {
+    ...(rank !== null && rank >= 1 && rank <= 3 ? { rank } : {}),
+    ...(summary ? { summary: summary.slice(0, MAX_EMAIL_SUMMARY) } : {}),
+    ...(issues.length > 0 ? { checklistIssues: issues.slice(0, MAX_EMAIL_ISSUES) } : {}),
+  };
+}
+
 // A draft may legitimately contain a newly-added, still-empty comment. The shared
 // Review schema intentionally requires text for completed reviews, so the API uses
 // this relaxed input shape only while saving a draft and applies completion rules
@@ -388,7 +412,13 @@ export class ReviewsService {
         payload: taskEmail(
           decision === ReviewDecision.APPROVED ? 'TASK_APPROVED' : 'CHANGES_REQUESTED',
           user.name,
-          { reviewerId: user.id, reviewerName: user.name, round, findings },
+          {
+            reviewerId: user.id,
+            reviewerName: user.name,
+            round,
+            findings,
+            ...reviewEmailFacts(review),
+          },
           now,
         ),
       });

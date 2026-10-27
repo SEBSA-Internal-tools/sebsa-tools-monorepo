@@ -12,6 +12,8 @@ export const CONFIG_DEFAULTS = {
   appName: 'Service Delivery Portal',
   /** APP_TIMEZONE — IANA zone for times in emails */
   appTimezone: 'Asia/Colombo',
+  /** SDP_ADMIN_CONTACT_EMAIL — named in invites for requesting a new activation email */
+  adminContactEmail: 'service.delivery@sebsaworld.com',
   /** INVITE_TTL_HOURS */
   inviteTtlHours: 24,
   /** RESET_TTL_MINUTES */
