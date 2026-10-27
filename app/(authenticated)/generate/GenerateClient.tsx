@@ -35,9 +35,20 @@ import {
   UserCircle,
 } from 'lucide-react';
 import { recordCvDownloadAction } from '../audit-actions';
+import { formatExperiencePeriodAsYears } from '@/lib/experiencePeriod';
 
 interface GenerateClientProps {
   employees: Employee[];
+}
+
+function withYearOnlyExperiencePeriods(selection: CvSuggestionSelection): CvSuggestionSelection {
+  return {
+    ...selection,
+    experience: selection.experience.map((entry) => ({
+      ...entry,
+      period: formatExperiencePeriodAsYears(entry.period),
+    })),
+  };
 }
 
 function buildReviewStateFromSavedCv(cv: TailoredCv): {
@@ -46,6 +57,7 @@ function buildReviewStateFromSavedCv(cv: TailoredCv): {
 } {
   const experience = cv.experience.map((entry, index) => ({
     ...entry,
+    period: formatExperiencePeriodAsYears(entry.period),
     index,
     relevant: true,
     tasks: entry.tasks.map((text, taskIndex) => ({ index: taskIndex, text, relevant: true })),
@@ -196,14 +208,14 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
         ? restoredCvBase
           ? {
               ...restoredCvBase,
-              ...buildSelectionFromDraft(suggestionDraft),
+              ...withYearOnlyExperiencePeriods(buildSelectionFromDraft(suggestionDraft)),
               avatar: selectedEmployee.avatar,
               templateId: selectedTemplate,
             }
           : buildTailoredCvFromSelection(
               selectedEmployee,
               '',
-              buildSelectionFromDraft(suggestionDraft),
+              withYearOnlyExperiencePeriods(buildSelectionFromDraft(suggestionDraft)),
               selectedTemplate
             )
         : null,
@@ -285,7 +297,10 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
         objective: result.objective,
         includeEducation: true,
         academic: result.academic.map((entry, index) => ({ ...entry, index, relevant: true })),
-        experience: result.experience,
+        experience: result.experience.map((entry) => ({
+          ...entry,
+          period: formatExperiencePeriodAsYears(entry.period),
+        })),
         projects: result.projects.map((project) => ({
           ...project,
           descriptionPoints: project.brief.split(/\r?\n/).map((text, index) => ({
@@ -361,14 +376,15 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
    */
   const handleSelectionApply = async (selection: CvSuggestionSelection) => {
     if (!selectedEmployee) return;
+    const yearOnlySelection = withYearOnlyExperiencePeriods(selection);
     const cv: TailoredCv = restoredCvBase
       ? {
           ...restoredCvBase,
-          ...selection,
+          ...yearOnlySelection,
           avatar: selectedEmployee.avatar,
           templateId: selectedTemplate,
         }
-      : buildTailoredCvFromSelection(selectedEmployee, '', selection, selectedTemplate);
+      : buildTailoredCvFromSelection(selectedEmployee, '', yearOnlySelection, selectedTemplate);
 
     setSaving(true);
     try {

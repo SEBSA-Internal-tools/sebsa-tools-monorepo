@@ -99,6 +99,7 @@ Indexes: `department_id`, `status`, active-profile `full_name`, full-text search
 | employment_type | text                                                    | e.g. "Full-time" |
 | start_date      | date                                                    |                  |
 | end_date        | date                                                    | null = current   |
+| period_text     | text                                                    | exact source period; preserves partial dates such as `Jun 2020` |
 | is_current      | boolean not null default false                          |                  |
 | description     | text                                                    |                  |
 | display_order   | int not null default 0                                  |                  |
