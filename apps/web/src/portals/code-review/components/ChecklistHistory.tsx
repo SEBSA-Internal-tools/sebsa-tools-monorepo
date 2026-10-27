@@ -1,6 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import type { ChecklistSubmission, TaskChecklist } from '@sdp/contracts';
-import { Select } from '@/components/ui/Select.tsx';
 import { ChecklistSummary } from './ChecklistSummary.tsx';
 import { formatDateTime } from '@/lib/formatters.ts';
 
@@ -32,36 +31,28 @@ export function ChecklistHistory({
   submissions: readonly ChecklistSubmission[];
   fallback: TaskChecklist | null;
 }) {
-  const [selectedVersion, setSelectedVersion] = useState(String(submissions[0]?.version ?? ''));
-  const selected =
-    submissions.find((entry) => String(entry.version) === selectedVersion) ?? submissions[0];
+  const canonical = useMemo(() => {
+    if (!submissions || submissions.length === 0) return undefined;
+    const v1 = submissions.find((entry) => entry.version === 1);
+    if (v1) return v1;
+    return [...submissions].sort(
+      (a, b) => new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime(),
+    )[0];
+  }, [submissions]);
+
   const checklist = useMemo(
-    () => (selected === undefined ? fallback : asChecklist(selected)),
-    [selected, fallback],
+    () => (canonical === undefined ? fallback : asChecklist(canonical)),
+    [canonical, fallback],
   );
 
+  const submittedAt = canonical?.submittedAt ?? checklist?.checkedDate;
+
   return (
-    <div className="space-y-4">
-      {submissions.length === 0 ? null : (
-        <div className="flex flex-wrap items-end justify-between gap-3 rounded-xl border border-line bg-canvas/40 p-3">
-          <div>
-            <p className="text-sm font-bold text-ink-900">Checklist History</p>
-            <p className="text-xs text-ink-500">
-              Submitted versions are read-only and preserve their original wording.
-            </p>
-          </div>
-          <div className="min-w-56">
-            <Select
-              value={String(selected?.version ?? '')}
-              onValueChange={setSelectedVersion}
-              aria-label="Checklist version"
-              options={submissions.map((entry, index) => ({
-                value: String(entry.version),
-                label: `Version ${String(entry.version)} · ${formatDateTime(entry.submittedAt)}${index === 0 ? ' · Current review submission' : ''}`,
-              }))}
-            />
-          </div>
-        </div>
+    <div className="space-y-3.5">
+      {submittedAt && (
+        <p className="text-xs font-medium text-ink-500">
+          Submitted {formatDateTime(submittedAt)}
+        </p>
       )}
       <ChecklistSummary checklist={checklist} />
     </div>

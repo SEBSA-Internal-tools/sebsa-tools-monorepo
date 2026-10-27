@@ -43,6 +43,7 @@ const taskInclude = {
   customer: true,
   developer: true,
   currentReviewer: true,
+  resubmissionReviewer: { select: { id: true, fullName: true } },
   reviewerAssignments: {
     select: {
       id: true,
@@ -66,7 +67,11 @@ const taskInclude = {
     },
   },
   codeReviewForms: {
-    select: { reviewerId: true, decision: true },
+    select: {
+      reviewerId: true,
+      decision: true,
+      reviewer: { select: { id: true, fullName: true } },
+    },
     orderBy: [{ reviewCycleNumber: 'asc' }, { completedAt: 'asc' }],
   },
   reviewCycles: {
@@ -94,9 +99,11 @@ export function deriveTaskReviewCycles(
   const adjustedCycles = cycles
     .filter(({ counted }) => !counted)
     .map(({ roundNumber }) => roundNumber);
+  const uncountedCount = adjustedCycles.length;
+  const effectiveRound = Math.max(currentReviewRound, 1);
   return {
-    reviewCycle: cycles.filter(({ counted }) => counted).length,
-    historicalCycle: currentReviewRound,
+    reviewCycle: Math.max(effectiveRound - uncountedCount, 1),
+    historicalCycle: effectiveRound,
     adjustedCycles,
   };
 }
@@ -175,14 +182,15 @@ export class ReviewTasksService {
 
   async nextVersion(customerId: string, crimId: string) {
     const normalizedCrimId = crimId.trim();
-    const [customer, version] = await Promise.all([
+    const [customer, versionInfo] = await Promise.all([
       this.prisma.customer.findUnique({ where: { id: customerId }, select: { code: true } }),
-      this.nextTaskVersion(this.prisma, customerId, normalizedCrimId),
+      this.getTaskVersionInfo(this.prisma, customerId, normalizedCrimId),
     ]);
     if (!customer) throw new NotFoundException(`Customer ${customerId} was not found`);
     return {
-      version,
-      title: this.taskTitle(customer.code, normalizedCrimId, String(version)),
+      version: versionInfo.nextVersion,
+      isNewCrim: versionInfo.isNewCrim,
+      title: this.taskTitle(customer.code, normalizedCrimId, String(versionInfo.nextVersion)),
     };
   }
 
@@ -248,20 +256,29 @@ export class ReviewTasksService {
     if (!mayReadTask(user, task)) throw new ApiException('TASK_NOT_FOUND', 'Task not found.');
     const records = await this.prisma.auditLog.findMany({
       where: { taskId: id, action: { in: ['TASK_SUBMITTED', 'TASK_RESUBMITTED'] } },
-      select: { metadata: true },
+      select: { action: true, metadata: true, createdAt: true },
       orderBy: { createdAt: 'asc' },
     });
-    const submissions = records.flatMap(({ metadata }) => {
+    const submissions = records.flatMap(({ action, metadata, createdAt }) => {
       if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return [];
       const parsed = checklistSubmissionSchema.safeParse(metadata['checklistSubmission']);
-      return parsed.success ? [parsed.data] : [];
+      return parsed.success ? [{ action, submission: parsed.data, createdAt }] : [];
     });
-    if (submissions.length === 0 && task.submittedAt && task.developerChecklist) {
-      submissions.push(this.toChecklistSubmission(task, 1, task.submittedAt, task.developerId));
+
+    // The Developer Quality Checklist is completed and submitted ONCE for a task.
+    // Prefer the earliest valid TASK_SUBMITTED snapshot as canonical.
+    const originalSubmitted = submissions.find((s) => s.action === 'TASK_SUBMITTED');
+    const canonicalRecord = originalSubmitted ?? submissions[0];
+
+    if (canonicalRecord) {
+      return [{ ...canonicalRecord.submission, version: 1 }];
     }
-    // Newest first: the web client's ChecklistHistory treats the first entry as
-    // the submission currently under review.
-    return submissions.sort((left, right) => right.version - left.version);
+
+    if (task.submittedAt && task.developerChecklist) {
+      return [this.toChecklistSubmission(task, 1, task.submittedAt, task.developerId)];
+    }
+
+    return [];
   }
 
   async findEvents(id: string, user: AuthenticatedUser) {
@@ -321,6 +338,7 @@ export class ReviewTasksService {
           taskId: id,
           kind,
           reviewCycle: eventRound,
+          reviewRound: eventRound,
           actorId: log.userId,
           actorName: log.actorName,
           // The admin's or reviewer's own words when there are any.
@@ -454,16 +472,28 @@ export class ReviewTasksService {
             });
             const sequence = (aggregate._max.customerSequenceNo ?? 0) + 1;
             const crimId = dto.crimId.trim();
-            const version = await this.nextTaskVersion(tx, dto.customerId, crimId);
+            const versionInfo = await this.getTaskVersionInfo(tx, dto.customerId, crimId);
+            let finalVersion: string;
+            if (
+              versionInfo.isNewCrim &&
+              dto.version !== undefined &&
+              dto.version !== null &&
+              dto.version.trim() !== ''
+            ) {
+              finalVersion = dto.version.trim();
+            } else {
+              finalVersion = String(versionInfo.nextVersion);
+            }
             const created = await tx.task.create({
               data: {
                 taskCode: formatTaskCode(customer.name, sequence),
                 customerSequenceNo: sequence,
-                title: this.taskTitle(customer.code, crimId, String(version)),
+                title: this.taskTitle(customer.code, crimId, finalVersion),
                 crimId,
-                version: String(version),
+                version: finalVersion,
                 priority: dto.priority,
                 status: TaskStatus.DRAFT,
+                currentReviewCycle: 1,
                 checklistCompleted,
                 customerId: dto.customerId,
                 developerId,
@@ -852,11 +882,11 @@ export class ReviewTasksService {
 
     const submitted = await this.prisma.$transaction(async (tx) => {
       const now = new Date();
-      const submissionVersion =
-        (await tx.auditLog.count({
-          where: { taskId: id, action: { in: ['TASK_SUBMITTED', 'TASK_RESUBMITTED'] } },
-        })) + 1;
-      const checklistSubmission = this.toChecklistSubmission(task, submissionVersion, now, user.id);
+      // Developer Quality Checklist snapshot is created ONCE on initial submission.
+      // Resubmissions do not create additional checklist versions.
+      const checklistSubmission = !isResubmission
+        ? this.toChecklistSubmission(task, 1, now, user.id)
+        : null;
       const nextStatus = isResubmission ? TaskStatus.RESUBMITTED : TaskStatus.SUBMITTED;
       const existingResubmissionNotifications = isResubmission
         ? await tx.notification.findMany({
@@ -1026,7 +1056,9 @@ export class ReviewTasksService {
           status: updated.status,
           ...(resubmissionReviewerId === null ? {} : { currentReviewerId: resubmissionReviewerId }),
         },
-        metadata: { checklistSubmission: checklistSubmission as Prisma.InputJsonObject },
+        ...(checklistSubmission
+          ? { metadata: { checklistSubmission: checklistSubmission as Prisma.InputJsonObject } }
+          : {}),
       });
       if (!isResubmission) {
         const recipients = await tx.user.findMany({
@@ -1999,21 +2031,24 @@ export class ReviewTasksService {
     };
   }
 
-  private async nextTaskVersion(
+  private async getTaskVersionInfo(
     client: TaskVersionReader,
     customerId: string,
     crimId: string,
-  ): Promise<number> {
+  ): Promise<{ nextVersion: number; isNewCrim: boolean }> {
     const tasks = await client.task.findMany({
       where: { customerId, crimId: { equals: crimId, mode: 'insensitive' } },
       select: { version: true },
     });
+    if (tasks.length === 0) {
+      return { nextVersion: 0, isNewCrim: true };
+    }
     const highestVersion = tasks.reduce((highest, task) => {
       const value = task.version?.trim().replace(/^V/i, '') ?? '';
       if (!/^\d+$/.test(value)) return highest;
       return Math.max(highest, Number(value));
     }, -1);
-    return highestVersion + 1;
+    return { nextVersion: highestVersion + 1, isNewCrim: false };
   }
 
   private toResponse(task: TaskWithRelations) {
@@ -2047,6 +2082,13 @@ export class ReviewTasksService {
       MEDIUM: 'Medium',
       HIGH: 'High',
     }[task.priority];
+    const latestChangesReview = [...(task.codeReviewForms ?? [])]
+      .reverse()
+      .find((form) => form.decision === 'CHANGES_REQUESTED');
+    const followUpReviewer =
+      task.status === TaskStatus.CHANGES_REQUESTED
+        ? (task.resubmissionReviewer ?? latestChangesReview?.reviewer ?? null)
+        : null;
     return {
       id: task.id,
       taskCode: task.taskCode,
@@ -2061,6 +2103,7 @@ export class ReviewTasksService {
       adjustedCycles: cycleSummary.adjustedCycles,
       developerId: task.developerId,
       reviewerId: task.currentReviewerId,
+      followUpReviewerId: followUpReviewer?.id ?? null,
       currentReviewSessionId: currentAssignment?.id ?? null,
       taskTypeIds: task.taskTypes.map(({ taskTypeId }) => String(taskTypeId)),
       isChecklistComplete: task.checklistCompleted,
@@ -2076,6 +2119,7 @@ export class ReviewTasksService {
       customerColor: task.customer.color ?? '#64748b',
       developerName: task.developer.fullName,
       reviewerName: task.currentReviewer?.fullName ?? null,
+      followUpReviewerName: followUpReviewer?.fullName ?? null,
     };
   }
 

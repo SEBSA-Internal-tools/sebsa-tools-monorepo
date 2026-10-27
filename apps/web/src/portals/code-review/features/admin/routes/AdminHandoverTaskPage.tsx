@@ -115,7 +115,7 @@ export function AdminHandoverTaskPage() {
   const isOverallLoading = isHandoverLoading || (Boolean(effectiveTaskId) && isTaskPending);
 
   // Authorization check (Clarification 3 & 6)
-  if (user && !user.roles.includes('Admin')) {
+  if (user && !user.roles.includes('Admin') && !user.roles.includes('SuperAdmin')) {
     return (
       <PageContainer className="space-y-5">
         <BackLink to={ROUTES.home} label="Back to Home" />

@@ -20,13 +20,11 @@
 const STORAGE_KEY = 'sdp.session';
 
 /**
- * How long a session survives without activity.
- *
- * Two hours, sliding: every successful API response pushes the deadline out, so
- * somebody actively working is never interrupted, and only genuine inactivity
- * signs them out.
+ * @deprecated Legacy mock session envelope. The real application uses HttpOnly
+ * cookie-backed authentication sessions with 4-hour server-enforced idle
+ * timeout and a 24-hour absolute session limit. Preserved for test fixtures.
  */
-export const SESSION_TTL_MS = 2 * 60 * 60 * 1000;
+export const SESSION_TTL_MS = 4 * 60 * 60 * 1000;
 
 /**
  * Minimum gap between renewal writes.

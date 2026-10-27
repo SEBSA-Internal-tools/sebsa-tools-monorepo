@@ -150,11 +150,11 @@ describe('taskMetrics', () => {
     ]);
   });
 
-  it('reports direct approval as zero counted cycles', () => {
-    const metrics = taskMetrics([task('Approved', 0)]);
+  it('reports direct approval as cycle one', () => {
+    const metrics = taskMetrics([task('Approved', 1)]);
 
-    expect(metrics.byCycle).toEqual([{ label: '0', count: 1 }]);
-    expect(metrics.averageCycles).toBe(0);
+    expect(metrics.byCycle).toEqual([{ label: '1', count: 1 }]);
+    expect(metrics.averageCycles).toBe(1);
   });
 
   it('buckets APPROVED tasks only, matching "iterations needed for approval"', () => {
@@ -223,6 +223,28 @@ describe('developerQualityMetrics', () => {
     expect(metrics.avgRank).toBe(2);
     expect(metrics.byRank).toEqual([
       { rank: 1, count: 1 },
+      { rank: 3, count: 1 },
+    ]);
+  });
+
+  it('excludes subsequent approval Rank 1 (round > 1) and retains intermediate defect ranks in developer quality KPI', () => {
+    // Scenario: AASL-001
+    // Review cycle 1 - Rank 3
+    // Review cycle 2 - Rank 2
+    // Review cycle 3 - Rank 1 (Approved)
+    const metrics = developerQualityMetrics(
+      [task('Approved', 3)],
+      [
+        review({ reviewRound: 1, rank: 3, decision: 'ChangesRequested' }),
+        review({ reviewRound: 2, rank: 2, decision: 'ChangesRequested' }),
+        review({ reviewRound: 3, rank: 1, decision: 'Approved' }),
+      ],
+    );
+
+    // Rank 1 in round 3 is ignored, so ranks are 3 and 2. Mean is 2.5.
+    expect(metrics.avgRank).toBe(2.5);
+    expect(metrics.byRank).toEqual([
+      { rank: 2, count: 1 },
       { rank: 3, count: 1 },
     ]);
   });

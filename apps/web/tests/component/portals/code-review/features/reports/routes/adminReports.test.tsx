@@ -291,20 +291,26 @@ describe('Admin Reports', () => {
     expect(screen.queryByText(/Customer Overview/i)).not.toBeInTheDocument();
   });
 
-  it('renders Rank Distribution and Cycle Distribution charts in Developer Performance without review cycle terminology', async () => {
+  it('renders Rank Distribution and Approved Tasks by Cycle charts in Developer Performance without review cycle terminology', async () => {
     renderReports();
 
     await card(/^All review tasks$/);
 
     // Developers tab is active by default
     const rankTitles = await screen.findAllByText('Rank Distribution');
-    const cycleTitles = await screen.findAllByText('Cycle Distribution');
+    const cycleTitles = await screen.findAllByText('Approved Tasks by Cycle');
 
     expect(rankTitles.length).toBeGreaterThan(0);
     expect(cycleTitles.length).toBeGreaterThan(0);
 
     const devAvgCycles = screen.getAllByText('Avg Cycles');
     expect(devAvgCycles.length).toBeGreaterThan(0);
+
+    const reworkRounds = screen.getAllByText('Rework Rounds');
+    expect(reworkRounds.length).toBeGreaterThan(0);
+
+    const ftaTitles = screen.getAllByText('First-Time Approval');
+    expect(ftaTitles.length).toBeGreaterThan(0);
 
     expect(screen.queryByText(/Avg Review Cycles/i)).not.toBeInTheDocument();
   });

@@ -47,12 +47,24 @@ export class MailTemplates {
     return this.appUrl(`/set-password#token=${encodeURIComponent(token)}`);
   }
 
+  get adminContactEmail(): string {
+    return this.config.getOrThrow<string>('mail.adminContactEmail');
+  }
+
   render(subject: string, body: EmailBody, sentAt: Date = new Date()): EmailContent {
     return renderEmail(subject, body, {
       appName: this.appName,
-      supportEmail: this.config.getOrThrow<string>('mail.supportEmail'),
+      helpEmail: this.adminContactEmail,
       sentAt: this.formatDateTime(sentAt),
+      logoUrl: this.appUrl('/logo/sebsa-logo-email.png'),
     });
+  }
+
+  private expiry(input: { expiresAt: Date; issuedAt: Date }) {
+    return {
+      lifetime: durationText(input.expiresAt.getTime() - input.issuedAt.getTime()),
+      expiresAt: this.formatDateTime(input.expiresAt),
+    };
   }
 
   userInvite(input: {
@@ -61,20 +73,22 @@ export class MailTemplates {
     expiresAt: Date;
     issuedAt: Date;
   }): EmailContent {
-    const lifetime = durationText(input.expiresAt.getTime() - input.issuedAt.getTime());
+    const expiry = this.expiry(input);
     return this.render(
       `You have been invited to the ${this.appName}`,
       {
-        heading: 'Set up your account',
+        tone: 'brand',
+        label: 'Account invitation',
+        heading: 'Set Up Your Account',
         greeting: `Hello ${input.name},`,
         paragraphs: [
-          `An administrator has created your ${this.appName} account. Choose a password to activate it.`,
+          `An administrator has created your ${this.appName} account. Choose a password to activate it and sign in.`,
         ],
         action: { label: 'Create your password', url: this.setPasswordUrl(input.token) },
-        details: [['Link expires', this.formatDateTime(input.expiresAt)]],
+        expiry,
         notes: [
-          `The link works once and expires in ${lifetime}. If it has expired, open it anyway and ask for a new one.`,
-          'If you were not expecting this invitation, you can ignore this email.',
+          `If you are unable to activate your account within ${expiry.lifetime}, please send an email to ${this.adminContactEmail} to request a new activation email from the system administrator.`,
+          'This is a one time link. If you were not expecting this invitation, you can safely ignore this email.',
         ],
       },
       input.issuedAt,
@@ -87,18 +101,21 @@ export class MailTemplates {
     expiresAt: Date;
     issuedAt: Date;
   }): EmailContent {
-    const lifetime = durationText(input.expiresAt.getTime() - input.issuedAt.getTime());
     return this.render(
       `Reset your ${this.appName} password`,
       {
-        heading: 'Reset your password',
+        tone: 'brand',
+        label: 'Password reset',
+        heading: 'Reset Your Password',
         greeting: `Hello ${input.name},`,
-        paragraphs: ['We received a request to reset the password for your account.'],
+        paragraphs: [
+          `A password reset was requested for your ${this.appName} account. Use the button below to choose a new password.`,
+        ],
         action: { label: 'Choose a new password', url: this.setPasswordUrl(input.token) },
-        details: [['Link expires', this.formatDateTime(input.expiresAt)]],
+        expiry: this.expiry(input),
         notes: [
-          `The link works once and expires in ${lifetime}.`,
-          'If you did not ask for this, ignore this email — your password stays the same.',
+          'This is a one time link. If the link expires, request a new password reset from the sign-in page.',
+          'If you did not ask for this, you can safely ignore this email — your password stays the same.',
         ],
       },
       input.issuedAt,
@@ -109,7 +126,9 @@ export class MailTemplates {
     return this.render(
       input.firstPassword ? 'Your account is ready' : 'Your password was changed',
       {
-        heading: input.firstPassword ? 'Your account is ready' : 'Your password was changed',
+        tone: input.firstPassword ? 'success' : 'warning',
+        label: input.firstPassword ? 'Account activated' : 'Security notice',
+        heading: input.firstPassword ? 'Your Account Is Ready' : 'Your Password Was Changed',
         greeting: `Hello ${input.name},`,
         paragraphs: [
           input.firstPassword
@@ -118,7 +137,9 @@ export class MailTemplates {
         ],
         details: [['When', this.formatDateTime(input.at)]],
         action: { label: 'Sign in', url: this.appUrl('/login') },
-        notes: ['If this was not you, contact your administrator or support straight away.'],
+        notes: [
+          'If you did not make this change, contact the administrator straight away using the details below.',
+        ],
       },
       input.at,
     );
@@ -133,16 +154,21 @@ export class MailTemplates {
     return this.render(
       'The email address on your account was changed',
       {
-        heading: 'Your sign-in email was changed',
+        tone: 'warning',
+        label: 'Security notice',
+        heading: 'Your Sign-In Email Was Changed',
         greeting: `Hello ${input.name},`,
         paragraphs: [
           `${input.actorName} changed the email address for your ${this.appName} account. This address will no longer receive account emails.`,
         ],
         details: [
           ['New address', input.newEmailMasked],
+          ['Changed by', input.actorName],
           ['When', this.formatDateTime(input.at)],
         ],
-        notes: ['If you did not expect this change, contact your administrator straight away.'],
+        notes: [
+          'If you did not expect this change, contact the administrator straight away using the details below.',
+        ],
       },
       input.at,
     );
@@ -162,13 +188,15 @@ export class MailTemplates {
     ];
     if (input.reason) details.push(['Reason', input.reason]);
     return this.render(
-      'Your access to the Service Delivery Portal changed',
+      `Your access to the ${this.appName} changed`,
       {
-        heading: 'Your access changed',
+        tone: 'warning',
+        label: 'Account update',
+        heading: 'Your Access Changed',
         greeting: `Hello ${input.name},`,
-        paragraphs: ['An administrator changed your account access.'],
+        paragraphs: [`An administrator changed your access to the ${this.appName}.`],
         details,
-        notes: ['If you think this is a mistake, contact your administrator.'],
+        notes: ['If you think this is a mistake, contact the administrator using the details below.'],
       },
       input.at,
     );

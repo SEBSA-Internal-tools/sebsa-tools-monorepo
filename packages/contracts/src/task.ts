@@ -45,6 +45,8 @@ const taskShape = {
   developerId: idSchema,
   /** Null until a reviewer picks the task from the Available queue. */
   reviewerId: idSchema.nullable(),
+  /** The designated reviewer who will receive the task on resubmission when status is ChangesRequested. */
+  followUpReviewerId: idSchema.nullable().optional(),
   /** The currently active review ownership session ID (null when handed over / open). */
   currentReviewSessionId: idSchema.optional().nullable(),
 
@@ -105,6 +107,8 @@ export const taskListItemSchema = z.preprocess(
     customerColor: z.string(),
     developerName: z.string(),
     reviewerName: z.string().nullable(),
+    /** Designated follow-up reviewer name when status is ChangesRequested */
+    followUpReviewerName: z.string().nullable().optional(),
   }),
 );
 export type TaskListItem = z.infer<typeof taskListItemSchema>;
@@ -112,6 +116,7 @@ export type TaskListItem = z.infer<typeof taskListItemSchema>;
 export const nextTaskVersionSchema = z.object({
   version: z.number().int().min(0),
   title: z.string().min(1),
+  isNewCrim: z.boolean().optional(),
 });
 export type NextTaskVersion = z.infer<typeof nextTaskVersionSchema>;
 
@@ -206,7 +211,14 @@ export type TaskEventKind = z.infer<typeof taskEventKindSchema>;
 function normalizeReviewRound(input: unknown): unknown {
   if (typeof input !== 'object' || input === null || Array.isArray(input)) return input;
   const value = input as Record<string, unknown>;
-  return { ...value, reviewRound: value['reviewRound'] ?? value['reviewCycle'] ?? 1 };
+  const rawRound = value['reviewRound'] ?? value['reviewCycle'];
+  const round = typeof rawRound === 'number' ? rawRound : Number(rawRound ?? 0);
+  const normalized = Number.isFinite(round) ? Math.max(0, round) : 0;
+  return {
+    ...value,
+    reviewRound: normalized,
+    reviewCycle: normalized,
+  };
 }
 
 export const taskEventSchema = z.preprocess(
@@ -216,7 +228,8 @@ export const taskEventSchema = z.preprocess(
     taskId: idSchema,
     kind: taskEventKindSchema,
     /** Review round the event belongs to, so history can be grouped by round. */
-    reviewRound: z.number().int().min(1),
+    reviewRound: z.number().int().min(0),
+    reviewCycle: z.number().int().min(0).optional(),
     actorId: idSchema,
     actorName: z.string(),
     note: z.string().nullable(),

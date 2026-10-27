@@ -42,11 +42,9 @@ export function bucketStatuses(value: string | null | undefined): readonly TaskS
   return isKpiBucket(value) ? KPI_BUCKETS[value] : null;
 }
 
-export const BUCKET_TO_STATUS: Record<KpiBucket, TaskStatus> = {
+export const BUCKET_TO_STATUS: Partial<Record<KpiBucket, TaskStatus>> = {
   draft: 'Draft',
   submitted: 'Submitted',
-  awaitingReview: 'Submitted',
-  awaitingReviewAdmin: 'Submitted',
   inReview: 'InReview',
   changesRequested: 'ChangesRequested',
   approved: 'Approved',
@@ -56,6 +54,7 @@ export const BUCKET_TO_STATUS: Record<KpiBucket, TaskStatus> = {
 export const STATUS_TO_BUCKET: Partial<Record<TaskStatus, KpiBucket>> = {
   Draft: 'draft',
   Submitted: 'submitted',
+  InReview: 'inReview',
   ChangesRequested: 'changesRequested',
   Approved: 'approved',
   Cancelled: 'cancelled',

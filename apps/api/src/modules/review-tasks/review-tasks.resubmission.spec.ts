@@ -314,4 +314,26 @@ describe('changeResubmissionReviewer', () => {
       ),
     ).rejects.toMatchObject({ code: 'INVALID_STATE' });
   });
+
+  it('exposes followUpReviewerId and followUpReviewerName for ChangesRequested task in findOne', async () => {
+    const task = storedTask({
+      codeReviewForms: [
+        {
+          reviewerId: REQUESTER_ID,
+          decision: 'CHANGES_REQUESTED',
+          reviewer: { id: REQUESTER_ID, fullName: 'Chamendri Senevirathne' },
+        },
+      ],
+    });
+    const prisma = {
+      task: {
+        findUnique: vi.fn().mockResolvedValue(task),
+      },
+    };
+    const { service } = services(prisma);
+    const res = await service.findOne(TASK_ID, actor(['DEVELOPER']));
+    expect(res.followUpReviewerId).toBe(REQUESTER_ID);
+    expect(res.followUpReviewerName).toBe('Chamendri Senevirathne');
+    expect(res.reviewerName).toBeNull();
+  });
 });

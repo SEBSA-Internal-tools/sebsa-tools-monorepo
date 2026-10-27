@@ -42,10 +42,7 @@ export function DeveloperLayout() {
   const grid = ROUTES.developer.root;
 
   const draftCount = countByStatus(items, 'Draft');
-  const submittedCount =
-    countByStatus(items, 'Submitted') +
-    countByStatus(items, 'ReSubmitted') +
-    countByStatus(items, 'InReview');
+  const submittedCount = countByStatus(items, 'Submitted');
   const changesCount = countByStatus(items, 'ChangesRequested');
   const approvedCount = countByStatus(items, 'Approved');
 
@@ -105,9 +102,9 @@ export function DeveloperLayout() {
                 tone="blue"
                 icon={<Send className="size-4" />}
                 subtitle={tasks.kpis.submittedSubtitle}
-                isActive={bucket.isActive('awaitingReview', grid)}
+                isActive={bucket.isActive('submitted', grid)}
                 onSelect={() => {
-                  bucket.select('awaitingReview', grid);
+                  bucket.select('submitted', grid);
                 }}
               />
               <StatCard

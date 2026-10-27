@@ -56,19 +56,8 @@ export function filterTasks(items: readonly TaskListItem[], filters: TaskFilters
   const needle = filters.search.trim().toLowerCase();
 
   return items.filter((task) => {
-    if (filters.status !== ALL) {
-      if (filters.status === 'Submitted' && filters.bucket === 'awaitingReview') {
-        if (
-          task.status !== 'Submitted' &&
-          task.status !== 'ReSubmitted' &&
-          task.status !== 'InReview'
-        )
-          return false;
-      } else if (filters.status === 'Submitted' && filters.bucket === 'awaitingReviewAdmin') {
-        if (task.status !== 'Submitted' && task.status !== 'ReSubmitted') return false;
-      } else if (task.status !== filters.status) {
-        return false;
-      }
+    if (filters.status !== ALL && task.status !== filters.status) {
+      return false;
     }
 
     // An unrecognised bucket — a hand-edited URL, or a param left behind by an

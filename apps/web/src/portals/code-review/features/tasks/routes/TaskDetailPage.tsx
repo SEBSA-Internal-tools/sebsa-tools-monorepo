@@ -99,7 +99,7 @@ export function TaskDetailPage({
   }
 
   // Prevent Developer-view leakage: if Admin views a handed-over task, forward to dedicated handover route
-  if (task.isHandedOver && user?.roles.includes('Admin')) {
+  if (task.isHandedOver && user && (user.roles.includes('Admin') || user.roles.includes('SuperAdmin'))) {
     return <Navigate to={buildDetailUrl(ROUTES.admin.handoverTask(task.id), returnTo)} replace />;
   }
 

@@ -23,5 +23,5 @@ export type LoginInput = z.infer<typeof loginSchema>;
 export const loginDefaults: LoginInput = {
   email: '',
   password: '',
-  remember: true,
+  remember: false,
 };

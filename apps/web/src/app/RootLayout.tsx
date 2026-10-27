@@ -8,8 +8,10 @@ import { ApiError } from '@/lib/apiClient.ts';
 import auth from '@/content/auth.json';
 import common from '@/content/common.json';
 import { SessionExpiredScreen } from '@/features/auth/components/SessionExpiredScreen.tsx';
+import { SessionIdleWarningModal } from '@/features/auth/components/SessionIdleWarningModal.tsx';
 import { useCurrentUser } from '@/hooks/useCurrentUser.ts';
 import { useSession } from '@/hooks/useSession.ts';
+import { useIdleSession } from '@/hooks/useIdleSession.ts';
 import { AppBar } from './AppBar.tsx';
 import { AppFooter } from './AppFooter.tsx';
 
@@ -48,6 +50,7 @@ export function RootLayout() {
   const { data: user, isPending, isError, error, refetch } = useCurrentUser();
   const title = usePageTitle();
   const isExpired = useSession((state) => state.isExpired);
+  const { isWarningOpen, remainingSeconds, continueSession, signOut } = useIdleSession();
 
   // The API client attempts one refresh before a 401 reaches this query.
   // Authentication state changes are handled by AuthBootstrap after commit.
@@ -145,6 +148,13 @@ export function RootLayout() {
           <Outlet context={{ user }} />
         </Suspense>
       </main>
+
+      <SessionIdleWarningModal
+        open={isWarningOpen}
+        remainingSeconds={remainingSeconds}
+        onContinue={continueSession}
+        onSignOut={signOut}
+      />
 
       <AppFooter />
     </div>

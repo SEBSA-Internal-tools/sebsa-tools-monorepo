@@ -24,19 +24,42 @@ describe('MailTemplates', () => {
     expect(email.subject).toBe('You have been invited to the Service Delivery Portal');
     expect(email.text).toContain(url);
     expect(email.html).toContain(url);
-    expect(email.text).toContain('expires in 24 hours');
-    expect(email.text).toContain('11 Oct 2026, 13:30 (GMT+5:30)');
+    expect(email.text).toContain('activate your account within 24 hours');
+    expect(email.text).toContain('service.delivery@sebsaworld.com');
+    expect(email.text).toContain('This is a one time link.');
+    expect(email.text).toContain(
+      'This link is valid for 24 hours — expires 11 Oct 2026, 13:30 (GMT+5:30).',
+    );
+    expect(email.html).toContain(
+      'valid for <strong>24 hours</strong> — expires <strong>11 Oct 2026, 13:30 (GMT+5:30)</strong>',
+    );
     expect(email.text).not.toMatch(/[?&]token=/);
+    const links = [...email.html.matchAll(/<a href="(?!mailto:)([^"]+)"/g)].map(([, h]) => h);
+    expect(links).toEqual([url]);
   });
 
-  it('derives the reset wording from the real lifetime', () => {
+  it('derives the reset validity from the real lifetime', () => {
     const email = templates.passwordReset({
       name: 'Ana',
       token: 't',
       issuedAt,
       expiresAt: new Date(issuedAt.getTime() + 60 * 60 * 1000),
     });
-    expect(email.text).toContain('expires in 1 hour');
+    expect(email.text).toContain('This link is valid for 1 hour');
+    expect(email.html).toContain('valid for <strong>1 hour</strong>');
+  });
+
+  it('shows the help panel with the admin contact instead of a footer "Questions?"', () => {
+    const email = templates.passwordChanged({ name: 'A', at: issuedAt, firstPassword: false });
+    expect(email.html).toContain('Need help?');
+    expect(email.html).toContain('href="mailto:service.delivery@sebsaworld.com"');
+    expect(email.html).not.toContain('Questions?');
+    expect(email.html).not.toContain('support@example.com');
+    expect(email.html).toContain('Security notice');
+    expect(email.html).not.toContain('This link is valid');
+    expect(email.text).toContain(
+      'This is an automated notification from the SEBSA Service Delivery Portal workflow. Please do not reply to this email.',
+    );
   });
 
   it('escapes user-supplied text in HTML and keeps subjects on one line', () => {
@@ -48,7 +71,7 @@ describe('MailTemplates', () => {
       reason: "O'Brien & co",
     });
     expect(email.html).not.toContain('<script>');
-    expect(email.html).not.toContain('<img');
+    expect(email.html).not.toContain('<img src=x');
     expect(email.html).toContain('&lt;script&gt;');
     expect(email.html).toContain('O&#39;Brien &amp; co');
     expect(email.text).toContain('<script>alert(1)</script>');
@@ -73,6 +96,7 @@ describe('MailTemplates', () => {
         at: issuedAt,
         actorName: 'Admin',
       }),
+      templates.accessChanged({ name: 'A', at: issuedAt, actorName: 'Admin', summary: 'x' }),
     ];
     for (const email of emails) {
       expect(`${email.subject}${email.text}${email.html}`).not.toMatch(/\{\{|undefined|null|NaN/);

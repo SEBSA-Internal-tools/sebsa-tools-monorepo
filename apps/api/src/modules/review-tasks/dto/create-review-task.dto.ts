@@ -51,6 +51,12 @@ export class CreateReviewTaskDto {
   @MaxLength(100)
   crimId!: string;
 
+  @ApiPropertyOptional({ example: '3' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  version?: string;
+
   @ApiProperty({ enum: TaskPriority })
   @Transform(normalizePriority)
   @IsEnum(TaskPriority)
