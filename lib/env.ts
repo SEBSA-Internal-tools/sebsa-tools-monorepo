@@ -26,6 +26,19 @@ const envSchema = z.object({
   BREVO_SMTP_LOGIN: z.preprocess(emptyToUndefined, z.string().optional()),
   EMAIL_FROM_ADDRESS: z.preprocess(emptyToUndefined, z.string().optional()),
   EMAIL_FROM_NAME: z.preprocess(emptyToUndefined, z.string().default('SEBSA CV Generator')),
+  // Which transport sendEmail() uses. 'brevo' (default) keeps today's behaviour; 'graph' sends through
+  // Microsoft Graph as GRAPH_SENDER (docs/graph-mail.md). Switching back is just changing this value.
+  // Tolerant on purpose: a typo here must not crash every page at startup. Case/spaces are ignored and
+  // anything unrecognised means 'brevo' (today's behaviour).
+  EMAIL_PROVIDER: z.preprocess(
+    (val) => (typeof val === 'string' ? val.trim().toLowerCase() || undefined : val),
+    z.enum(['brevo', 'graph']).default('brevo').catch('brevo')
+  ),
+  GRAPH_TENANT_ID: z.preprocess(emptyToUndefined, z.string().optional()),
+  GRAPH_CLIENT_ID: z.preprocess(emptyToUndefined, z.string().optional()),
+  GRAPH_CLIENT_SECRET: z.preprocess(emptyToUndefined, z.string().optional()),
+  // The shared mailbox the portal sends as, e.g. cv.generator@sebsaworld.com.
+  GRAPH_SENDER: z.preprocess(emptyToUndefined, z.string().optional()),
 });
 
 /**
@@ -45,6 +58,11 @@ export const env = envSchema.parse({
   BREVO_SMTP_LOGIN: process.env.BREVO_SMTP_LOGIN,
   EMAIL_FROM_ADDRESS: process.env.EMAIL_FROM_ADDRESS,
   EMAIL_FROM_NAME: process.env.EMAIL_FROM_NAME,
+  EMAIL_PROVIDER: process.env.EMAIL_PROVIDER,
+  GRAPH_TENANT_ID: process.env.GRAPH_TENANT_ID,
+  GRAPH_CLIENT_ID: process.env.GRAPH_CLIENT_ID,
+  GRAPH_CLIENT_SECRET: process.env.GRAPH_CLIENT_SECRET,
+  GRAPH_SENDER: process.env.GRAPH_SENDER,
 });
 
 export function requireEnv<K extends keyof typeof env>(key: K): NonNullable<(typeof env)[K]> {
