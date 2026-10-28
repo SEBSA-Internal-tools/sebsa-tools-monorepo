@@ -24,7 +24,7 @@ const DETAIL_SELECT = `
   ${LIST_SELECT},
   ${employeeDetailFields.filter(f => f.key !== 'displayName').map(f => f.column).join(', ')},
   education, summary, status, pending_change, pending_change_submitted_at,
-  experiences ( company, role_title, employment_type, start_date, end_date, is_current, description, display_order ),
+  experiences ( company, role_title, employment_type, start_date, end_date, period_text, is_current, description, display_order ),
   projects ( name, description, skills, display_order ),
   certifications ( name, issuer, issued_date )
 `;
@@ -34,7 +34,8 @@ export async function listEmployeeRows(supabase: SupabaseClient) {
     .from('profiles')
     .select(LIST_SELECT)
     .eq('status', 'published')
-    .order('updated_at', { ascending: false });
+    .is('deleted_at', null)
+    .order('full_name', { ascending: true });
 
   if (error) throw error;
   return data ?? [];
@@ -45,17 +46,83 @@ export async function getEmployeeRowById(supabase: SupabaseClient, profileId: st
     .from('profiles')
     .select(DETAIL_SELECT)
     .eq('id', profileId)
+    .is('deleted_at', null)
     .maybeSingle();
 
   if (error) throw error;
   return data;
 }
 
+const MONTHS: Record<string, number> = {
+  jan: 1, january: 1,
+  feb: 2, february: 2,
+  mar: 3, march: 3,
+  apr: 4, april: 4,
+  may: 5,
+  jun: 6, june: 6,
+  jul: 7, july: 7,
+  aug: 8, august: 8,
+  sep: 9, sept: 9, september: 9,
+  oct: 10, october: 10,
+  nov: 11, november: 11,
+  dec: 12, december: 12,
+};
+
+function isoDate(year: number, month: number, day: number): string | null {
+  if (year < 1900 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) return null;
+  const value = new Date(Date.UTC(year, month - 1, day));
+  if (value.getUTCFullYear() !== year || value.getUTCMonth() !== month - 1 || value.getUTCDate() !== day) {
+    return null;
+  }
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+/** Extracts only dates whose day, month, and year are explicitly present in the CV text. */
+function extractExactDates(period: string): string[] {
+  const candidates: Array<{ index: number; value: string }> = [];
+  const patterns: Array<{
+    regex: RegExp;
+    parts: (match: RegExpExecArray) => [number, number, number];
+  }> = [
+    {
+      regex: /\b(19\d{2}|20\d{2}|2100)[-/.](\d{1,2})[-/.](\d{1,2})\b/g,
+      parts: (match) => [Number(match[1]), Number(match[2]), Number(match[3])],
+    },
+    {
+      // CVs in this application use day-first numeric dates (for example 31/12/2024).
+      regex: /\b(\d{1,2})[/.](\d{1,2})[/.](19\d{2}|20\d{2}|2100)\b/g,
+      parts: (match) => [Number(match[3]), Number(match[2]), Number(match[1])],
+    },
+    {
+      regex: /\b(\d{1,2})(?:st|nd|rd|th)?\s+(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s*,?\s*(19\d{2}|20\d{2}|2100)\b/gi,
+      parts: (match) => [Number(match[3]), MONTHS[match[2].toLowerCase()], Number(match[1])],
+    },
+    {
+      regex: /\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+(\d{1,2})(?:st|nd|rd|th)?\s*,?\s*(19\d{2}|20\d{2}|2100)\b/gi,
+      parts: (match) => [Number(match[3]), MONTHS[match[1].toLowerCase()], Number(match[2])],
+    },
+  ];
+
+  for (const { regex, parts } of patterns) {
+    let match: RegExpExecArray | null;
+    while ((match = regex.exec(period)) !== null) {
+      const value = isoDate(...parts(match));
+      if (value) candidates.push({ index: match.index, value });
+    }
+  }
+
+  return candidates
+    .sort((left, right) => left.index - right.index)
+    .filter((candidate, index, all) => index === 0 || candidate.index !== all[index - 1].index)
+    .map((candidate) => candidate.value);
+}
+
 /**
- * Attempts to parse a period string like "Jan 2020 – Present" or "2018 – 2021" into
- * approximate start / end dates and an is_current flag. Returns null values when parsing fails.
+ * Parses exact dates without inventing month/day values. The original period is stored separately
+ * so values such as "Jun 2020 – Sep 2023" remain lossless even though PostgreSQL `date` cannot
+ * represent month-only precision.
  */
-function parsePeriod(period: string): {
+export function parseExperiencePeriod(period: string): {
   startDate: string | null;
   endDate: string | null;
   isCurrent: boolean;
@@ -65,14 +132,11 @@ function parsePeriod(period: string): {
   const isCurrent =
     /present|current|now/i.test(period) || period.trim().endsWith('–') || period.trim().endsWith('-');
 
-  // Extract year numbers
-  const years = period.match(/\d{4}/g) ?? [];
-  const startYear = years[0] ?? null;
-  const endYear = !isCurrent && years[1] ? years[1] : null;
+  const exactDates = extractExactDates(period);
 
   return {
-    startDate: startYear ? `${startYear}-01-01` : null,
-    endDate: endYear ? `${endYear}-12-31` : null,
+    startDate: exactDates[0] ?? null,
+    endDate: !isCurrent ? exactDates[1] ?? null : null,
     isCurrent,
   };
 }
@@ -156,7 +220,7 @@ async function insertExperiences(
   entries: CvExperienceEntry[]
 ) {
   const rows = entries.map((exp, i) => {
-    const { startDate, endDate, isCurrent } = parsePeriod(exp.period);
+    const { startDate, endDate, isCurrent } = parseExperiencePeriod(exp.period);
     return {
       profile_id: profileId,
       role_title: toTitleCase(exp.position),
@@ -164,6 +228,7 @@ async function insertExperiences(
       employment_type: 'Full-time',
       start_date: startDate,
       end_date: endDate,
+      period_text: exp.period.trim() || null,
       is_current: isCurrent,
       // Serialise point-wise tasks as JSON inside the description column
       description: JSON.stringify(exp.tasks),
@@ -210,8 +275,29 @@ async function insertCertifications(
 
 
 
-export async function deleteEmployeeRow(supabase: SupabaseClient, rowId: string) {
-  const { error } = await supabase.from('profiles').delete().eq('id', rowId);
+export async function deleteEmployeeRow(
+  supabase: SupabaseClient,
+  rowId: string,
+  deletedBy: string
+) {
+  const { data: existing, error: lookupError } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('id', rowId)
+    .is('deleted_at', null)
+    .maybeSingle();
+  if (lookupError) throw lookupError;
+  if (!existing) throw new Error('Employee profile was not found or has already been deleted.');
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({
+      deleted_at: new Date().toISOString(),
+      deleted_by: deletedBy,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', rowId)
+    .is('deleted_at', null);
   if (error) throw error;
 }
 
@@ -255,7 +341,8 @@ export async function updateEmployeeRow(
   const { error: profileError } = await supabase
     .from('profiles')
     .update(updateFields)
-    .eq('id', profileId);
+    .eq('id', profileId)
+    .is('deleted_at', null);
 
   if (profileError) throw profileError;
 

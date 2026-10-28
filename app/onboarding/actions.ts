@@ -10,7 +10,7 @@ import { createEmployee } from '@/services/employee-service';
 import { getCurrentUser } from '@/lib/auth';
 import { notifyReviewers } from '@/lib/notifications';
 import { emailReviewers } from '@/lib/email/notify';
-import { renderEmailHtml } from '@/lib/email/templates';
+import { buildNewProfileSubmittedEmail } from '@/lib/email/templates';
 import type { CreateEmployeeInput } from '@/types/domain';
 import { recordAuditLog } from '@/services/audit-service';
 
@@ -51,6 +51,7 @@ export async function findClaimableProfileAction(): Promise<ClaimableProfile | n
     .select('id, full_name, role_title, departments ( name )')
     .is('user_id', null)
     .eq('email', user.email)
+    .is('deleted_at', null)
     .maybeSingle();
 
   if (error) throw error;
@@ -87,12 +88,14 @@ export async function claimProfileAction(profileId: string): Promise<void> {
     .from('profiles')
     .select('full_name')
     .eq('id', profileId)
+    .is('deleted_at', null)
     .maybeSingle();
 
   const { error } = await supabase
     .from('profiles')
     .update({ pending_claim_user_id: user.id, updated_at: new Date().toISOString() })
     .eq('id', profileId)
+    .is('deleted_at', null)
     .is('user_id', null);
 
   if (error) throw error;
@@ -133,6 +136,7 @@ export async function findPendingClaimAction(): Promise<boolean> {
     .from('profiles')
     .select('id')
     .eq('pending_claim_user_id', user.id)
+    .is('deleted_at', null)
     .maybeSingle();
 
   if (error) throw error;
@@ -188,15 +192,7 @@ export async function createOwnProfileAction(input: OnboardingSubmission): Promi
     message: `${input.name} submitted a new profile for review.`,
     link: '/review',
   });
-  await emailReviewers(adminClient, {
-    subject: `New profile submitted — ${input.name}`,
-    html: renderEmailHtml({
-      heading: 'New profile submitted',
-      body: `${input.name} submitted a new profile for review.`,
-      ctaLabel: 'Review submission',
-      ctaPath: '/review',
-    }),
-  });
+  await emailReviewers(adminClient, buildNewProfileSubmittedEmail(input.name));
 
   revalidatePath('/dashboard');
 
@@ -208,6 +204,7 @@ export async function createOwnProfileAction(input: OnboardingSubmission): Promi
     .from('profiles')
     .select('id')
     .eq('user_id', user.id)
+    .is('deleted_at', null)
     .single();
 
   redirect(`/repository/${ownProfile.id}`);

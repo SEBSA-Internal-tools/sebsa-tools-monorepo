@@ -317,11 +317,15 @@ export function ProjectsSection({
   expanded,
   onToggle,
   onChange,
+  descriptionAsPoints = false,
+  showSkills = true,
 }: {
   projects: CvProjectEntry[];
   expanded: boolean;
   onToggle: () => void;
   onChange: (v: CvProjectEntry[]) => void;
+  descriptionAsPoints?: boolean;
+  showSkills?: boolean;
 }) {
   return (
     <SectionCard label="Special Projects" icon={Lightbulb} count={projects.length} expanded={expanded} onToggle={onToggle}>
@@ -338,13 +342,28 @@ export function ProjectsSection({
             <input type="text" value={proj.title} onChange={(e) => onChange(projects.map((p, i) => (i === idx ? { ...p, title: e.target.value } : p)))} placeholder="e.g. Kubernetes Migration Platform" className={inputCls} />
           </div>
           <div className="space-y-1">
-            <label className="text-[10px] font-bold text-slate-500 uppercase block">Brief Description</label>
-            <textarea rows={3} value={proj.brief} onChange={(e) => onChange(projects.map((p, i) => (i === idx ? { ...p, brief: e.target.value } : p)))} placeholder="Describe the project scope, your role, and the outcome..." className={textareaCls} />
+            <label className="text-[10px] font-bold text-slate-500 uppercase block">{descriptionAsPoints ? 'Project Description Points' : 'Brief Description'}</label>
+            {descriptionAsPoints ? (
+              <div className="space-y-2">
+                {proj.brief.split(/\r?\n/).map((point, pointIdx) => (
+                  <div key={pointIdx} className="flex items-start gap-2">
+                    <span className="text-slate-300 mt-2.5 text-sm leading-none select-none">•</span>
+                    <textarea rows={2} value={point} onChange={(event) => onChange(projects.map((project, projectIdx) => projectIdx !== idx ? project : { ...project, brief: project.brief.split(/\r?\n/).map((value, valueIdx) => valueIdx === pointIdx ? event.target.value : value).join('\n') }))} placeholder="Describe one project contribution or outcome..." className={`flex-1 ${textareaCls}`} />
+                    <button type="button" onClick={() => onChange(projects.map((project, projectIdx) => projectIdx !== idx ? project : { ...project, brief: project.brief.split(/\r?\n/).filter((_, valueIdx) => valueIdx !== pointIdx).join('\n') }))} disabled={proj.brief.split(/\r?\n/).length <= 1} className="text-rose-400 hover:text-rose-600 disabled:opacity-25 transition-colors mt-2 cursor-pointer shrink-0" aria-label="Remove project description point"><Trash2 className="w-3 h-3" /></button>
+                  </div>
+                ))}
+                <button type="button" onClick={() => onChange(projects.map((project, projectIdx) => projectIdx === idx ? { ...project, brief: `${project.brief}\n` } : project))} className="flex items-center gap-1 text-[10px] text-indigo-600 hover:text-indigo-800 font-bold cursor-pointer transition-colors"><Plus className="w-3 h-3" /> Add description point</button>
+              </div>
+            ) : (
+              <textarea rows={3} value={proj.brief} onChange={(e) => onChange(projects.map((p, i) => (i === idx ? { ...p, brief: e.target.value } : p)))} placeholder="Describe the project scope, your role, and the outcome..." className={textareaCls} />
+            )}
           </div>
-          <ProjectSkillsInput
-            skills={proj.skills ?? []}
-            onChange={(skills) => onChange(projects.map((p, i) => (i === idx ? { ...p, skills } : p)))}
-          />
+          {showSkills && (
+            <ProjectSkillsInput
+              skills={proj.skills ?? []}
+              onChange={(skills) => onChange(projects.map((p, i) => (i === idx ? { ...p, skills } : p)))}
+            />
+          )}
         </div>
       ))}
       <button type="button" onClick={() => onChange([...projects, { title: '', brief: '', skills: [] }])} className={dottedAddBtnCls}>

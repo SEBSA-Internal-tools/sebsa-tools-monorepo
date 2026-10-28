@@ -307,12 +307,13 @@ check, using `adminClient.auth.admin.inviteUserByEmail(email, { redirectTo })`. 
   claim flow (§10, migrations 0019/0020) still works as a fallback.
 
 **Invite landing flow**: the emailed link points at Supabase's own verify endpoint, which
-redirects to `app/auth/callback/route.ts` with a PKCE `code` param. That route handler exchanges
-it for a session (`exchangeCodeForSession`) and forwards to `/auth/set-password`
-(`app/auth/set-password/page.tsx`), where the employee sets their own password
-(`supabase.auth.updateUser({ password })`) and lands on `/dashboard`. `/auth/callback` is
-deliberately excluded from `PROTECTED_PREFIXES` in `proxy.ts` (it's what *establishes* the
-session); `/auth/set-password` is included.
+redirects to the client callback at `app/auth/callback/page.tsx`. The callback accepts the Auth
+session returned in the URL fragment (and PKCE codes as a fallback), persists it, and forwards to
+`/auth/set-password` (`app/auth/set-password/page.tsx`). That page verifies the session with the
+Auth server, updates the employee's password, and performs a full navigation to `/dashboard` so
+the next request observes the persisted session. `/auth/callback` is deliberately excluded from
+`PROTECTED_PREFIXES` in `proxy.ts` (it's what *establishes* the session); `/auth/set-password` is
+included.
 
 **Setup requirement**: `${NEXT_PUBLIC_APP_URL}/auth/callback` must be added to Supabase Dashboard
 → Authentication → URL Configuration → Redirect URLs, or Supabase rejects the invite redirect.
@@ -321,6 +322,14 @@ real deployed origin in production. Supabase's default email sending works out o
 testing (low rate limits); a custom SMTP provider (e.g. Resend) can optionally be configured under
 Authentication → Emails → SMTP Settings for reliable delivery — that's a dashboard setting, not
 application code, and is independent of this change.
+
+**Invite lifetime**: invitation and magic-link expiry is enforced by Supabase Auth, not by
+`generateLink()` or the application email template. Local Auth uses
+`auth.email.otp_expiry = 86400` in `supabase/config.toml`. The hosted project must use the matching
+**24 hours / 86,400 seconds** value under Supabase Dashboard → Authentication → Sign In / Email
+provider settings. Alternatively, link the project with the Supabase CLI and run
+`supabase config push` to apply the checked-in setting. Restart local Supabase services after
+changing `config.toml`.
 
 **Explicitly out of scope for this pass**: role-specific in-app/email notifications beyond the
 invite itself (e.g. notifying reviewers when something needs approval) — the employee's original
@@ -474,3 +483,25 @@ the CV Reviewer role, with Super Admin as the other holder.
   Events imported from the old tool keep the original admin's email in `metadata.legacy_admin_email`.
 - **Retention:** attempt answers and scores are personal data. The Access Control, Retention and
   Privacy Protocol should be extended to cover them before go-live.
+
+## 19. Password recovery
+
+Password recovery is separate from employee invitation activation. `/auth/forgot-password` calls
+`supabase.auth.resetPasswordForEmail()` and always displays the same confirmation response, so it
+does not disclose whether an account exists. Recovery emails return through `/auth/callback` with
+an explicit recovery-flow marker. The callback exchanges the one-time token for a session,
+verifies that session with the Auth server, and records the verified user ID in same-tab session
+storage before forwarding to `/auth/reset-password`. That page requires both the verified Auth
+user and matching recovery marker before it calls `supabase.auth.updateUser()`.
+
+Expired, invalid, and already-used links return to the request form with a generic recovery error
+and a retry path. After a successful password update, the recovery session is signed out locally
+and the user returns to login. The invitation flow continues to use `/auth/set-password` and does
+not share recovery state.
+
+Password recovery mail is sent by **Supabase Auth**, rather than `lib/email/sendEmail.ts`. In the
+hosted Supabase project, configure Authentication -> Emails -> SMTP Settings with Brevo's SMTP
+host (`smtp-relay.brevo.com`), port `587`, the Brevo SMTP login/key, and the verified sender used
+by the application. Also allow `${NEXT_PUBLIC_APP_URL}/auth/callback` under Authentication -> URL
+Configuration -> Redirect URLs. The `BREVO_*` values in `.env.local` configure application-owned
+transactional mail only; Supabase's hosted Auth service cannot read local application variables.

@@ -2,7 +2,7 @@
 # https://supabase.com/docs/guides/local-development/cli/config
 # A string used to distinguish different Supabase projects on the same host. Defaults to the
 # working directory name when running `supabase init`.
-project_id = "sebsa-portal-local"
+project_id = "sebsa-cv-generator"
 
 [api]
 enabled = true
@@ -218,6 +218,7 @@ web3 = 30
 # secret = ""
 
 [auth.email]
+# Invitation, magic-link, and password-recovery tokens remain valid for 24 hours.
 # Allow/disallow new user signups via email to your project.
 enable_signup = true
 # If enabled, a user will be required to confirm any email change on both the old, and new email
@@ -232,7 +233,7 @@ max_frequency = "1s"
 # Number of characters used in the email OTP.
 otp_length = 6
 # Number of seconds before the email OTP expires (defaults to 1 hour).
-otp_expiry = 3600
+otp_expiry = 86400
 
 # Use a production-ready SMTP server
 # [auth.email.smtp]

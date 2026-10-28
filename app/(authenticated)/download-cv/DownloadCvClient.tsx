@@ -27,7 +27,11 @@ const checkboxCls = 'w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring
  *  selection of the employee's own already-published content; nothing is pre-filtered. */
 function buildInitialDraft(cv: ReturnType<typeof buildTailoredCvFromEmployee>): CvSuggestionDraft {
   return {
+    currentPosition: cv.currentPosition,
+    includeObjective: true,
     objective: cv.summary,
+    includeEducation: true,
+    academic: cv.academic.map((entry, index) => ({ ...entry, index, relevant: true })),
     experience: cv.experience.map((e, index) => ({
       index,
       position: e.position,
@@ -42,6 +46,11 @@ function buildInitialDraft(cv: ReturnType<typeof buildTailoredCvFromEmployee>): 
       brief: p.brief,
       relevant: true,
       skills: p.skills.map((text, si) => ({ index: si, text, relevant: true })),
+      descriptionPoints: p.brief.split(/\r?\n/).map((text, pointIndex) => ({
+        index: pointIndex,
+        text,
+        relevant: true,
+      })),
     })),
     certifications: cv.certifications.map((c, index) => ({
       index,
@@ -69,8 +78,8 @@ export default function DownloadCvClient({ employee, isOwnProfile }: DownloadCvC
   const [pageOverflowMm, setPageOverflowMm] = useState(0);
 
   const previewCv = useMemo(
-    () => buildTailoredCvFromSelection(employee, '', buildSelectionFromDraft(draft, baseCv.academic)),
-    [employee, draft, baseCv.academic]
+    () => buildTailoredCvFromSelection(employee, '', buildSelectionFromDraft(draft)),
+    [employee, draft]
   );
   const anonymousPreviewCv = useMemo(() => anonymizeTailoredCv(previewCv), [previewCv]);
 

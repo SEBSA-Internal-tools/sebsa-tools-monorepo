@@ -4,6 +4,7 @@ import React, { useState, useMemo, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { PageWrapper } from '../../components/PageWrapper';
 import type { Employee } from '@/types/domain';
+import type { AccountStatus } from '@/lib/accountStatus';
 import { isAdminOrAbove, isReviewerOrAbove, type UserRole } from '@/lib/roles';
 import { deleteEmployeeAction } from './actions';
 import AccountStatusControl from './AccountStatusControl';
@@ -18,6 +19,8 @@ import {
   ChevronLeft,
   ChevronRight,
   UserCircle,
+  AlertTriangle,
+  X,
 } from 'lucide-react';
 
 interface RepositoryClientProps {
@@ -26,9 +29,34 @@ interface RepositoryClientProps {
   departments: { id: string; name: string }[];
 }
 
+const EMPLOYEES_PER_PAGE = 30;
+
+function getPaginationItems(currentPage: number, totalPages: number): Array<number | string> {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  const visiblePages = [...new Set([1, currentPage - 1, currentPage, currentPage + 1, totalPages])]
+    .filter((page) => page >= 1 && page <= totalPages)
+    .sort((a, b) => a - b);
+  const items: Array<number | string> = [];
+
+  visiblePages.forEach((page, index) => {
+    const previousPage = visiblePages[index - 1];
+    if (previousPage && page - previousPage > 1) {
+      items.push(`ellipsis-${previousPage}`);
+    }
+    items.push(page);
+  });
+
+  return items;
+}
+
 export default function RepositoryClient({ employees, viewerRole, departments }: RepositoryClientProps) {
   const router = useRouter();
   const [isDeleting, startDeleteTransition] = useTransition();
+  const [employeePendingDelete, setEmployeePendingDelete] = useState<Employee | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   // CV Reviewer can now create profiles too (docs/04-rbac-security.md §13), but editing/deleting
   // someone else's existing profile stays Admin/Super-Admin-only.
   const canCreateEmployees = isReviewerOrAbove(viewerRole);
@@ -36,16 +64,39 @@ export default function RepositoryClient({ employees, viewerRole, departments }:
   // Inviting and deactivating are account-lifecycle actions, same tier as deleting a profile.
   const canManageAccounts = isAdminOrAbove(viewerRole);
 
-  const deleteEmployee = (rowId: string) => {
+  const confirmDeleteEmployee = () => {
+    if (!employeePendingDelete) return;
+
+    const rowId = employeePendingDelete.rowId;
+    setDeleteError(null);
     startDeleteTransition(async () => {
-      await deleteEmployeeAction(rowId);
-      router.refresh();
+      try {
+        const result = await deleteEmployeeAction(rowId);
+        if (!result.ok) {
+          setDeleteError(result.message);
+          return;
+        }
+        setEmployeePendingDelete(null);
+        router.refresh();
+      } catch (error) {
+        setDeleteError(error instanceof Error ? error.message : 'Could not delete this profile.');
+      }
     });
   };
 
   // Search and Filtering State
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDept, setSelectedDept] = useState('All Departments');
+  const [selectedPosition, setSelectedPosition] = useState('All Positions');
+  const [selectedAccountStatus, setSelectedAccountStatus] = useState<'all' | AccountStatus>('all');
+  const [requestedPage, setRequestedPage] = useState(1);
+
+  const positions = useMemo(
+    () => [...new Set(employees.map((employee) => employee.role).filter(Boolean))].sort((a, b) =>
+      a.localeCompare(b, undefined, { sensitivity: 'base' })
+    ),
+    [employees]
+  );
 
   // Stats Calculations
   const stats = useMemo(() => {
@@ -69,13 +120,30 @@ export default function RepositoryClient({ employees, viewerRole, departments }:
         selectedDept === 'All Departments' ||
         emp.department.toLowerCase() === selectedDept.toLowerCase();
 
-      return matchesSearch && matchesDept;
-    });
-  }, [employees, searchTerm, selectedDept]);
+      const matchesPosition = selectedPosition === 'All Positions' || emp.role === selectedPosition;
+      const matchesAccountStatus =
+        selectedAccountStatus === 'all' ||
+        (emp.accountStatus ?? 'inactive') === selectedAccountStatus;
+
+      return matchesSearch && matchesDept && matchesPosition && matchesAccountStatus;
+    }).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+  }, [employees, searchTerm, selectedDept, selectedPosition, selectedAccountStatus]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredEmployees.length / EMPLOYEES_PER_PAGE));
+  const currentPage = Math.min(requestedPage, totalPages);
+  const firstEmployeeIndex = (currentPage - 1) * EMPLOYEES_PER_PAGE;
+  const paginatedEmployees = filteredEmployees.slice(
+    firstEmployeeIndex,
+    firstEmployeeIndex + EMPLOYEES_PER_PAGE
+  );
+  const paginationItems = getPaginationItems(currentPage, totalPages);
 
   const handleClearFilters = () => {
     setSearchTerm('');
     setSelectedDept('All Departments');
+    setSelectedPosition('All Positions');
+    setSelectedAccountStatus('all');
+    setRequestedPage(1);
   };
 
   const handleAddEmployee = () => {
@@ -131,20 +199,59 @@ export default function RepositoryClient({ employees, viewerRole, departments }:
               type="text"
               placeholder="Search by name, email, or role..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setRequestedPage(1);
+              }}
               className="w-full bg-white border border-slate-200 rounded-lg text-xs py-2.5 pl-9 pr-4 focus:ring-2 focus:ring-slate-500/10 focus:border-slate-400 focus:outline-none"
             />
           </div>
           <div className="w-[180px]">
             <select
               value={selectedDept}
-              onChange={(e) => setSelectedDept(e.target.value)}
+              onChange={(e) => {
+                setSelectedDept(e.target.value);
+                setRequestedPage(1);
+              }}
               className="w-full bg-white border border-slate-200 rounded-lg text-xs py-2.5 px-3 focus:ring-2 focus:ring-slate-500/10 focus:border-slate-400 focus:outline-none"
             >
               <option value="All Departments">All Departments</option>
               {departments.map((dept) => (
                 <option key={dept.id} value={dept.name}>{dept.name}</option>
               ))}
+            </select>
+          </div>
+          <div className="w-[180px]">
+            <select
+              value={selectedPosition}
+              onChange={(e) => {
+                setSelectedPosition(e.target.value);
+                setRequestedPage(1);
+              }}
+              aria-label="Filter employees by position"
+              className="w-full bg-white border border-slate-200 rounded-lg text-xs py-2.5 px-3 focus:ring-2 focus:ring-slate-500/10 focus:border-slate-400 focus:outline-none"
+            >
+              <option value="All Positions">All Positions</option>
+              {positions.map((position) => (
+                <option key={position} value={position}>{position}</option>
+              ))}
+            </select>
+          </div>
+          <div className="w-[170px]">
+            <select
+              value={selectedAccountStatus}
+              onChange={(e) => {
+                setSelectedAccountStatus(e.target.value as 'all' | AccountStatus);
+                setRequestedPage(1);
+              }}
+              aria-label="Filter employees by account status"
+              className="w-full bg-white border border-slate-200 rounded-lg text-xs py-2.5 px-3 focus:ring-2 focus:ring-slate-500/10 focus:border-slate-400 focus:outline-none"
+            >
+              <option value="all">All Account Statuses</option>
+              <option value="active">Active</option>
+              <option value="pending">Pending</option>
+              <option value="inactive">Inactive</option>
+              <option value="deactivated">Deactivated</option>
             </select>
           </div>
         </div>
@@ -163,8 +270,8 @@ export default function RepositoryClient({ employees, viewerRole, departments }:
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredEmployees.length > 0 ? (
-                filteredEmployees.map((emp) => (
+              {paginatedEmployees.length > 0 ? (
+                paginatedEmployees.map((emp) => (
                   <tr
                     key={emp.rowId}
                     className="hover:bg-slate-50/50 transition-colors group cursor-pointer"
@@ -243,10 +350,13 @@ export default function RepositoryClient({ employees, viewerRole, departments }:
                         </button>
                         {canDeleteEmployees && (
                           <button
-                            onClick={() => deleteEmployee(emp.rowId)}
+                            onClick={() => {
+                              setDeleteError(null);
+                              setEmployeePendingDelete(emp);
+                            }}
                             disabled={isDeleting}
                             className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all disabled:opacity-40"
-                            title="Remove Record"
+                            title="Delete Profile"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -277,28 +387,115 @@ export default function RepositoryClient({ employees, viewerRole, departments }:
         {/* Table Pagination */}
         <div className="p-5 border-t border-slate-100 flex items-center justify-between bg-slate-50/50">
           <p className="text-xs font-semibold text-slate-400">
-            Showing {filteredEmployees.length} of {employees.length} employees
+            Showing {filteredEmployees.length === 0 ? 0 : firstEmployeeIndex + 1}–{firstEmployeeIndex + paginatedEmployees.length} of {filteredEmployees.length} employees
           </p>
           <div className="flex items-center gap-1.5">
-            <button className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-500 hover:bg-slate-100 transition-all cursor-pointer">
+            <button
+              type="button"
+              onClick={() => setRequestedPage(currentPage - 1)}
+              disabled={currentPage === 1}
+              aria-label="Previous employee page"
+              className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-500 hover:bg-slate-100 transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+            >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <button className="w-8 h-8 rounded-lg flex items-center justify-center bg-indigo-600 text-white font-bold text-xs shadow-sm">
-              1
-            </button>
-            <button className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-500 hover:bg-slate-100 transition-all cursor-pointer">
-              2
-            </button>
-            <span className="text-slate-400 text-xs px-1">...</span>
-            <button className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-500 hover:bg-slate-100 transition-all cursor-pointer">
-              312
-            </button>
-            <button className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-500 hover:bg-slate-100 transition-all cursor-pointer">
+            {paginationItems.map((item) =>
+              typeof item === 'number' ? (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => setRequestedPage(item)}
+                  aria-label={`Go to employee page ${item}`}
+                  aria-current={item === currentPage ? 'page' : undefined}
+                  className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs transition-all cursor-pointer ${
+                    item === currentPage
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'border border-slate-200 text-slate-500 hover:bg-slate-100'
+                  }`}
+                >
+                  {item}
+                </button>
+              ) : (
+                <span key={item} className="text-slate-400 text-xs px-1">...</span>
+              )
+            )}
+            <button
+              type="button"
+              onClick={() => setRequestedPage(currentPage + 1)}
+              disabled={currentPage === totalPages}
+              aria-label="Next employee page"
+              className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-500 hover:bg-slate-100 transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+            >
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
         </div>
       </div>
+
+      {employeePendingDelete && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 backdrop-blur-sm p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-profile-title"
+        >
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-6">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-50 text-rose-600">
+                  <AlertTriangle className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 id="delete-profile-title" className="text-base font-black text-slate-900">
+                    Delete employee profile?
+                  </h3>
+                  <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                    Are you sure you want to delete the profile for{' '}
+                    <span className="font-bold text-slate-700">{employeePendingDelete.name}</span>?
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEmployeePendingDelete(null)}
+                disabled={isDeleting}
+                aria-label="Close delete confirmation"
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-40"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="p-6">
+              <p className="text-xs leading-relaxed text-slate-500">
+                The profile will be removed from active employee views, but its data will be retained for audit and recovery purposes.
+              </p>
+              {deleteError && (
+                <p className="mt-4 rounded-lg border border-rose-200/60 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-600">
+                  {deleteError}
+                </p>
+              )}
+              <div className="mt-6 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setEmployeePendingDelete(null)}
+                  disabled={isDeleting}
+                  className="rounded-lg border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-40"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmDeleteEmployee}
+                  disabled={isDeleting}
+                  className="rounded-lg bg-rose-600 px-4 py-2.5 text-xs font-black text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isDeleting ? 'Deleting...' : 'Delete Profile'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </PageWrapper>
   );
 }

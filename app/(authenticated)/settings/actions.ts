@@ -37,12 +37,25 @@ export async function listUsersAction(): Promise<ManagedUser[]> {
   if (roleError) throw roleError;
 
   const adminClient = createAdminClient();
-  const { data: authData, error: authError } = await adminClient.auth.admin.listUsers();
-  if (authError) throw authError;
+  const emailById = new Map<string, string>();
+  const usersPerPage = 1000;
+  let page = 1;
 
-  const emailById = new Map<string, string>(
-    authData.users.map((u): [string, string] => [u.id, u.email ?? '(no email)'])
-  );
+  // Supabase returns only 50 Auth users when listUsers is called without pagination. Fetch every
+  // page so user_roles rows are matched to Auth accounts regardless of their position in the list.
+  while (true) {
+    const { data: authData, error: authError } = await adminClient.auth.admin.listUsers({
+      page,
+      perPage: usersPerPage,
+    });
+    if (authError) throw authError;
+
+    for (const authUser of authData.users) {
+      emailById.set(authUser.id, authUser.email ?? '(no email)');
+    }
+    if (authData.users.length < usersPerPage) break;
+    page += 1;
+  }
 
   // Not every account has a profiles row — Admin/Super Admin/CV Reviewer accounts often don't,
   // since profiles represent employees specifically. Left-join in whatever's there.
@@ -64,7 +77,8 @@ export async function listUsersAction(): Promise<ManagedUser[]> {
       const profile = profileByUserId.get(row.user_id);
       return {
         id: row.user_id,
-        email: emailById.get(row.user_id) ?? '(unknown)',
+        // A role can outlive its Auth account if that account was deleted outside this workflow.
+        email: emailById.get(row.user_id) ?? '(deleted user)',
         role: row.role as UserRole,
         createdAt: row.created_at,
         name: profile?.full_name ?? null,

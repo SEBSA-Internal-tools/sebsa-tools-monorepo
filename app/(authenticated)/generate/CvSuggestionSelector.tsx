@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
-import { FileText, Briefcase, Lightbulb, Award, ArrowRight, Sparkles, Loader2, Plus, Trash2 } from 'lucide-react';
-import { SectionCard, EducationSection, textareaCls } from '@/app/components/CvEntrySections';
-import type { CvExperienceEntry, CvProjectEntry, CvCertificationEntry } from '@/lib/cvTypes';
-import { toTitleCase } from '@/lib/text';
+import { FileText, Briefcase, Lightbulb, Award, ArrowRight, Sparkles, Loader2, Plus, Trash2, GraduationCap } from 'lucide-react';
+import { SectionCard, textareaCls } from '@/app/components/CvEntrySections';
+import type { CvAcademicEntry, CvExperienceEntry, CvProjectEntry, CvCertificationEntry } from '@/lib/cvTypes';
+import { toTitleCase, toUpperCaseText } from '@/lib/text';
 import type {
   CvSuggestion,
   CvSuggestionExperience,
@@ -13,7 +13,10 @@ import type {
 } from './types';
 
 export interface CvSuggestionSelection {
+  /** CV-only designation override; does not update the employee profile. */
+  currentPosition?: string;
   summary: string;
+  includeEducation: boolean;
   academic: CvSuggestion['academic'];
   experience: CvExperienceEntry[];
   specialProjects: CvProjectEntry[];
@@ -21,9 +24,16 @@ export interface CvSuggestionSelection {
 }
 
 export interface CvSuggestionDraft {
+  /** CV-only designation override; does not update the employee profile. */
+  currentPosition?: string;
+  includeObjective: boolean;
   objective: string;
+  includeEducation: boolean;
+  academic: Array<CvAcademicEntry & { index: number; relevant: boolean }>;
   experience: CvSuggestionExperience[];
-  projects: CvSuggestionProject[];
+  projects: Array<CvSuggestionProject & {
+    descriptionPoints: Array<{ index: number; text: string; relevant: boolean }>;
+  }>;
   certifications: CvSuggestionCertification[];
 }
 
@@ -33,6 +43,7 @@ interface CvSuggestionSelectorProps {
   onDraftChange: (draft: CvSuggestionDraft) => void;
   onApply: (selection: CvSuggestionSelection) => Promise<void>;
   applying: boolean;
+  source?: 'ai' | 'saved';
   /** True once the live one-page preview (driven by this same draft, measured by the parent)
    *  exceeds one page — blocks Apply until the selection is trimmed back down. */
   pageLimitExceeded?: boolean;
@@ -52,12 +63,17 @@ const nextIndex = (items: { index: number }[]) =>
  * logic or drifting from what "Continue" actually applies.
  */
 export function buildSelectionFromDraft(
-  draft: CvSuggestionDraft,
-  academic: CvSuggestion['academic']
+  draft: CvSuggestionDraft
 ): CvSuggestionSelection {
   return {
-    summary: draft.objective,
-    academic,
+    currentPosition: draft.currentPosition?.trim(),
+    summary: draft.includeObjective ? draft.objective : '',
+    includeEducation: draft.includeEducation,
+    academic: draft.includeEducation
+      ? draft.academic
+          .filter((entry) => entry.relevant)
+          .map(({ qualification, institution, period }) => ({ qualification, institution, period }))
+      : [],
     experience: draft.experience
       .filter((e) => e.relevant)
       .map((e) => ({
@@ -70,8 +86,11 @@ export function buildSelectionFromDraft(
       .filter((p) => p.relevant)
       .map((p) => ({
         title: p.title,
-        brief: p.brief,
-        skills: p.skills.filter((s) => s.relevant).map((s) => s.text),
+        brief: p.descriptionPoints
+          .filter((point) => point.relevant)
+          .map((point) => point.text)
+          .join('\n'),
+        skills: [],
       })),
     certifications: draft.certifications
       .filter((c) => c.relevant)
@@ -94,10 +113,19 @@ export default function CvSuggestionSelector({
   onDraftChange,
   onApply,
   applying,
+  source = 'ai',
   pageLimitExceeded = false,
 }: CvSuggestionSelectorProps) {
   const [isVerified, setIsVerified] = useState(false);
-  const { objective, experience, projects, certifications } = draft;
+  const { includeObjective, objective, includeEducation, academic, experience, projects, certifications } = draft;
+
+  const toggleAcademic = (index: number) =>
+    onDraftChange({
+      ...draft,
+      academic: academic.map((entry) =>
+        entry.index === index ? { ...entry, relevant: !entry.relevant } : entry
+      ),
+    });
 
   const toggleExperience = (index: number) =>
     onDraftChange({
@@ -119,16 +147,20 @@ export default function CvSuggestionSelector({
       ...draft,
       projects: projects.map((p) => (p.index === index ? { ...p, relevant: !p.relevant } : p)),
     });
-  const toggleProjectSkill = (projIndex: number, skillIndex: number) =>
+  const toggleProjectPoint = (projectIndex: number, pointIndex: number) =>
     onDraftChange({
       ...draft,
-      projects: projects.map((p) =>
-        p.index !== projIndex
-          ? p
-          : { ...p, skills: p.skills.map((s) => (s.index === skillIndex ? { ...s, relevant: !s.relevant } : s)) }
+      projects: projects.map((project) =>
+        project.index !== projectIndex
+          ? project
+          : {
+              ...project,
+              descriptionPoints: project.descriptionPoints.map((point) =>
+                point.index === pointIndex ? { ...point, relevant: !point.relevant } : point
+              ),
+            }
       ),
     });
-
   const toggleCertification = (index: number) =>
     onDraftChange({
       ...draft,
@@ -156,18 +188,56 @@ export default function CvSuggestionSelector({
 
   const updateProject = (index: number, patch: Partial<CvSuggestionProject>) =>
     onDraftChange({ ...draft, projects: projects.map((item) => item.index === index ? { ...item, ...patch } : item) });
-  const updateProjectSkill = (projectIndex: number, skillIndex: number, text: string) =>
+  const updateProjectPoint = (projectIndex: number, pointIndex: number, text: string) =>
     onDraftChange({
       ...draft,
-      projects: projects.map((item) => item.index === projectIndex
-        ? { ...item, skills: item.skills.map((skill) => skill.index === skillIndex ? { ...skill, text } : skill) }
-        : item),
+      projects: projects.map((project) =>
+        project.index === projectIndex
+          ? {
+              ...project,
+              descriptionPoints: project.descriptionPoints.map((point) =>
+                point.index === pointIndex ? { ...point, text } : point
+              ),
+            }
+          : project
+      ),
     });
+  const addProjectPoint = (projectIndex: number) => {
+    const project = projects.find((item) => item.index === projectIndex);
+    if (!project) return;
+    onDraftChange({
+      ...draft,
+      projects: projects.map((item) =>
+        item.index === projectIndex
+          ? {
+              ...item,
+              descriptionPoints: [
+                ...item.descriptionPoints,
+                { index: nextIndex(item.descriptionPoints), text: '', relevant: true },
+              ],
+            }
+          : item
+      ),
+    });
+  };
+  const removeProjectPoint = (projectIndex: number, pointIndex: number) => {
+    onDraftChange({
+      ...draft,
+      projects: projects.map((project) =>
+        project.index === projectIndex
+          ? {
+              ...project,
+              descriptionPoints: project.descriptionPoints.filter((point) => point.index !== pointIndex),
+            }
+          : project
+      ),
+    });
+  };
   const addProject = () => onDraftChange({
     ...draft,
     projects: [...projects, {
       index: nextIndex(projects), title: '', brief: '', relevant: true,
-      skills: [{ index: 0, text: '', relevant: true }],
+      skills: [], descriptionPoints: [{ index: 0, text: '', relevant: true }],
     }],
   });
 
@@ -179,12 +249,13 @@ export default function CvSuggestionSelector({
   });
 
   const selectedExperienceCount = experience.filter((e) => e.relevant).length;
+  const selectedAcademicCount = includeEducation ? academic.filter((entry) => entry.relevant).length : 0;
   const selectedProjectCount = projects.filter((p) => p.relevant).length;
   const selectedCertCount = certifications.filter((c) => c.relevant).length;
 
   const handleApply = async () => {
     if (!isVerified || applying || pageLimitExceeded) return;
-    await onApply(buildSelectionFromDraft(draft, suggestion.academic));
+    await onApply(buildSelectionFromDraft(draft));
   };
 
   return (
@@ -192,27 +263,96 @@ export default function CvSuggestionSelector({
       <div className="mb-1 px-5 py-3.5 bg-indigo-50 border border-indigo-100 rounded-xl flex items-center gap-2.5">
         <Sparkles className="w-4 h-4 text-indigo-600 shrink-0" />
         <div>
-          <p className="text-xs font-black text-indigo-800">AI Suggested Selection — Review Before Continuing</p>
+          <p className="text-xs font-black text-indigo-800">
+            {source === 'saved'
+              ? 'Last Customized CV — Select & Edit Content'
+              : 'AI Suggested Selection — Review Before Continuing'}
+          </p>
           <p className="text-[10px] text-indigo-600 font-medium mt-0.5">
-            AI suggestions start from the employee profile. Edit or add CV-only content here, choose what to include,
-            then apply it to this customized CV. The employee profile will not be changed.
+            {source === 'saved'
+              ? 'Your previously saved content is loaded below. Select or deselect sections, entries, and description points, then apply the updated CV. No AI request was made.'
+              : 'AI suggestions start from the employee profile. Edit or add CV-only content here, choose what to include, then apply it to this customized CV. The employee profile will not be changed.'}
           </p>
         </div>
       </div>
 
+      {/* Designation is CV-only; the employee profile remains untouched. */}
+      <SectionCard label="Employee Designation" icon={Briefcase} expanded onToggle={() => {}}>
+        <div className="space-y-1.5">
+          <label htmlFor="customized-cv-designation" className="text-xs font-bold text-slate-700">
+            Designation shown on this CV
+          </label>
+          <input
+            id="customized-cv-designation"
+            value={draft.currentPosition ?? ''}
+            onChange={(event) => onDraftChange({ ...draft, currentPosition: event.target.value })}
+            onBlur={(event) => onDraftChange({ ...draft, currentPosition: toUpperCaseText(event.target.value) })}
+            placeholder="e.g., SENIOR SOFTWARE ENGINEER"
+            className={inputCls}
+          />
+          <p className="text-[10px] text-slate-400">
+            This changes only the customized CV. The employee profile designation stays unchanged.
+          </p>
+        </div>
+      </SectionCard>
+
       {/* Objective — the one AI-generated field */}
       <SectionCard label="Objective / Summary" icon={FileText} expanded onToggle={() => {}}>
+        <label className="flex items-center gap-2.5 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={includeObjective}
+            onChange={(event) => onDraftChange({ ...draft, includeObjective: event.target.checked })}
+            className={checkboxCls}
+          />
+          <span className="text-xs font-bold text-slate-700">Include Objective section in CV</span>
+        </label>
         <textarea
           rows={5}
           value={objective}
           onChange={(e) => onDraftChange({ ...draft, objective: e.target.value })}
+          disabled={!includeObjective}
           placeholder="Customized objective for this opportunity..."
-          className={textareaCls}
+          className={`${textareaCls} disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400`}
         />
       </SectionCard>
 
-      {/* Academic — read-only, never selectable, never modified */}
-      <EducationSection academic={suggestion.academic} expanded onToggle={() => {}} onChange={() => {}} readOnly />
+      {/* Academic — profile content remains read-only but can be included per entry. */}
+      <SectionCard label="Academic" icon={GraduationCap} count={selectedAcademicCount} expanded onToggle={() => {}}>
+        <label className="flex items-center gap-2.5 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={includeEducation}
+            onChange={(event) => onDraftChange({ ...draft, includeEducation: event.target.checked })}
+            className={checkboxCls}
+          />
+          <span className="text-xs font-bold text-slate-700">Include Academic section in CV</span>
+        </label>
+
+        {academic.length === 0 && <p className="text-xs text-slate-400 italic">No education on record.</p>}
+        <div className={`space-y-2 ${!includeEducation ? 'opacity-50' : ''}`}>
+          {academic.map((entry) => (
+            <label
+              key={entry.index}
+              className={`flex items-start gap-2.5 border border-slate-200 rounded-xl p-4 bg-slate-50/30 ${includeEducation ? 'cursor-pointer' : 'cursor-not-allowed'}`}
+            >
+              <input
+                type="checkbox"
+                checked={entry.relevant}
+                onChange={() => toggleAcademic(entry.index)}
+                disabled={!includeEducation}
+                className={`${checkboxCls} mt-0.5 disabled:cursor-not-allowed`}
+              />
+              <div className="min-w-0">
+                <p className="text-xs font-black text-slate-800">{entry.qualification}</p>
+                <p className="text-[10px] text-slate-400 font-semibold mt-0.5">
+                  {entry.institution}{entry.period && ` (${entry.period})`}
+                </p>
+              </div>
+            </label>
+          ))}
+        </div>
+      </SectionCard>
 
       {/* Work Experience */}
       <SectionCard
@@ -276,23 +416,34 @@ export default function CvSuggestionSelector({
               />
               <div className="min-w-0 flex-1 space-y-2">
                 <input value={proj.title} onChange={(e) => updateProject(proj.index, { title: e.target.value })} placeholder="Project title" className={inputCls} />
-                <textarea rows={3} value={proj.brief} onChange={(e) => updateProject(proj.index, { brief: e.target.value })} placeholder="Project description" className={smallInputCls} />
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase block">Project Description Points</label>
+                  {proj.descriptionPoints.map((point) => (
+                    <div key={point.index} className="flex items-start gap-2">
+                      <input
+                        type="checkbox"
+                        checked={point.relevant}
+                        onChange={() => toggleProjectPoint(proj.index, point.index)}
+                        disabled={!proj.relevant}
+                        className={`${checkboxCls} mt-2 disabled:cursor-not-allowed`}
+                        aria-label="Include project description point"
+                      />
+                      <textarea
+                        rows={2}
+                        value={point.text}
+                        onChange={(event) => updateProjectPoint(proj.index, point.index, event.target.value)}
+                        disabled={!proj.relevant}
+                        placeholder="Describe one project contribution or outcome..."
+                        className={`${smallInputCls} disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400`}
+                      />
+                      <button type="button" onClick={() => removeProjectPoint(proj.index, point.index)} disabled={proj.descriptionPoints.length <= 1} className="p-1 text-slate-400 hover:text-rose-600 disabled:opacity-25" aria-label="Remove project description point"><Trash2 className="w-3.5 h-3.5" /></button>
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => addProjectPoint(proj.index)} className="flex items-center gap-1 text-[10px] font-bold text-indigo-600"><Plus className="w-3 h-3" /> Add description point</button>
+                </div>
               </div>
               <button type="button" onClick={() => onDraftChange({ ...draft, projects: projects.filter((item) => item.index !== proj.index) })} className="p-1.5 text-slate-400 hover:text-rose-600" aria-label="Remove project"><Trash2 className="w-4 h-4" /></button>
             </div>
-
-            {proj.relevant && (
-              <div className="pl-6.5 space-y-1.5">
-                {proj.skills.map((skill) => (
-                  <div key={skill.index} className="flex items-center gap-2">
-                    <input type="checkbox" checked={skill.relevant} onChange={() => toggleProjectSkill(proj.index, skill.index)} className={checkboxCls} aria-label="Include project skill" />
-                    <input value={skill.text} onChange={(e) => updateProjectSkill(proj.index, skill.index, e.target.value)} placeholder="Skill" className={smallInputCls} />
-                    <button type="button" onClick={() => updateProject(proj.index, { skills: proj.skills.filter((item) => item.index !== skill.index) })} className="p-1 text-slate-400 hover:text-rose-600" aria-label="Remove skill"><Trash2 className="w-3.5 h-3.5" /></button>
-                  </div>
-                ))}
-                <button type="button" onClick={() => updateProject(proj.index, { skills: [...proj.skills, { index: nextIndex(proj.skills), text: '', relevant: true }] })} className="flex items-center gap-1 text-[10px] font-bold text-indigo-600"><Plus className="w-3 h-3" /> Add skill</button>
-              </div>
-            )}
           </div>
         ))}
         <button type="button" onClick={addProject} className="flex items-center gap-2 px-3 py-2 border border-dashed border-indigo-300 rounded-lg text-xs font-bold text-indigo-700 hover:bg-indigo-50"><Plus className="w-4 h-4" /> Add project</button>

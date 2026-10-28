@@ -10,6 +10,7 @@ import { PageWrapper } from '../../components/PageWrapper';
 import { useData } from '../../context/DataContext';
 import { getDepartmentsAction, uploadProfilePictureAction } from './actions';
 import { extractText } from '@/lib/parsing/extractClientText';
+import { getProfilePictureValidationError } from '@/lib/profilePicture';
 import { useRoleGate } from '@/lib/useRoleGate';
 import { isReviewerOrAbove } from '@/lib/roles';
 import { ProjectSkillsInput } from '@/app/components/CvEntrySections';
@@ -252,13 +253,10 @@ export default function UploadPage() {
   // ─── Profile Image handlers ────────────────────────────────────────────────
 
   const processImageFile = useCallback((file: File) => {
-    const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-    if (!validTypes.includes(file.type)) {
-      setImageUploadError('Please upload a JPG, PNG, WEBP, or GIF image.');
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      setImageUploadError('Image must be smaller than 5 MB.');
+    const validationError = getProfilePictureValidationError(file);
+    if (validationError) {
+      setImageUploadError(validationError);
+      if (imageInputRef.current) imageInputRef.current.value = '';
       return;
     }
     setImageUploadError(null);

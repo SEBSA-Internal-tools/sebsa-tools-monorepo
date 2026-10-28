@@ -1,5 +1,5 @@
 import type { Employee, CreateEmployeeInput } from '@/types/domain';
-import type { TailoredCv } from '@/app/(authenticated)/generate/types';
+import type { CvTemplateId, TailoredCv } from '@/app/(authenticated)/generate/types';
 import { toTitleCase, toUpperCaseText } from '@/lib/text';
 
 /** CVs use the employee's preferred display name, while older profiles fall back to full name. */
@@ -66,7 +66,10 @@ export function buildTailoredCvFromEmployee(employee: Employee): TailoredCv {
 /** The subset of TailoredCv a user has picked to include — same shape whether the picker was a
  *  human (Download CV, no AI) or an AI suggestion the human then adjusted (Customize CVs). */
 export interface TailoredCvSelection {
+  /** Optional CV-only designation; falls back to the employee profile when omitted. */
+  currentPosition?: string;
   summary: string;
+  includeEducation?: boolean;
   academic: TailoredCv['academic'];
   experience: TailoredCv['experience'];
   specialProjects: TailoredCv['specialProjects'];
@@ -82,11 +85,14 @@ export interface TailoredCvSelection {
 export function buildTailoredCvFromSelection(
   employee: Employee,
   customerName: string,
-  selection: TailoredCvSelection
+  selection: TailoredCvSelection,
+  templateId: CvTemplateId = 'template1'
 ): TailoredCv {
   return {
     name: getCvDisplayName(employee),
-    currentPosition: toUpperCaseText(employee.currentPosition || employee.role),
+    currentPosition: toUpperCaseText(
+      selection.currentPosition?.trim() || employee.currentPosition || employee.role
+    ),
     summary: selection.summary,
     customerName,
     skillsAligned: [],
@@ -95,6 +101,8 @@ export function buildTailoredCvFromSelection(
     specialProjects: selection.specialProjects,
     certifications: selection.certifications,
     avatar: employee.avatar,
+    templateId,
+    includeEducation: selection.includeEducation ?? true,
   };
 }
 

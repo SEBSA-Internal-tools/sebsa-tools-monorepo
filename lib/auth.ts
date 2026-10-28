@@ -41,6 +41,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     .from('profiles')
     .select('id, full_name, avatar_url')
     .eq('user_id', user.id)
+    .is('deleted_at', null)
     .maybeSingle();
 
   const avatarUrl = await getSignedAvatarUrl(supabase, profileRow?.avatar_url);

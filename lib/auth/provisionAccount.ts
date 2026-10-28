@@ -1,7 +1,7 @@
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 import { env } from '@/lib/env';
 import { sendEmail } from '@/lib/email/sendEmail';
-import { renderEmailHtml } from '@/lib/email/templates';
+import { buildEmployeeInviteEmail } from '@/lib/email/templates';
 
 export interface ProvisionResult {
   userId: string;
@@ -9,33 +9,6 @@ export interface ProvisionResult {
    *  this email already existed and was linked instead (e.g. the employee self-registered via
    *  /signup before an Admin got to uploading their CV). */
   invited: boolean;
-}
-
-/**
- * The invite/sign-in email. The CTA is an absolute Supabase link rather than an app path, so it
- * can't go through renderEmailHtml's ctaPath (which resolves against NEXT_PUBLIC_APP_URL).
- */
-function buildInviteEmail(link: string, isResend: boolean) {
-  const button =
-    `<a href="${link}" style="display:inline-block;margin-top:20px;padding:12px 24px;` +
-    'background-color:#4E1C90;color:#ffffff;text-decoration:none;font-weight:700;' +
-    'font-size:13px;border-radius:8px;">Verify and sign in</a>';
-
-  return {
-    subject: isResend
-      ? 'Your SEBSA CV Generator sign-in link'
-      : 'You have been invited to SEBSA CV Generator',
-    html: renderEmailHtml({
-      heading: isResend ? 'Sign in to SEBSA CV Generator' : 'Welcome to SEBSA CV Generator',
-      body:
-        (isResend
-          ? 'An administrator has re-sent your invitation. Use the link below to verify your ' +
-            'email address and set a password. This link replaces any earlier invitation you ' +
-            'were sent.'
-          : 'An administrator has created an account for you. Use the link below to verify ' +
-            'your email address and choose a password.') + button,
-    }),
-  };
 }
 
 /**
@@ -73,7 +46,7 @@ export async function provisionEmployeeAccount(
   });
 
   if (!error && data.user && data.properties?.action_link) {
-    const sent = await sendEmail(email, buildInviteEmail(data.properties.action_link, false));
+    const sent = await sendEmail(email, buildEmployeeInviteEmail(data.properties.action_link, false));
 
     // generateLink has already created the account at this point. If the mail didn't leave, roll
     // it back rather than leaving a half-provisioned user: an account with no delivered link is
@@ -140,7 +113,7 @@ export async function resendEmployeeInvite(
     throw new Error(error?.message ?? `Could not generate a sign-in link for ${email}.`);
   }
 
-  const sent = await sendEmail(email, buildInviteEmail(data.properties.action_link, true));
+  const sent = await sendEmail(email, buildEmployeeInviteEmail(data.properties.action_link, true));
   if (!sent) {
     throw new Error(
       `Could not send the sign-in link to ${email}. Check the Brevo credentials and try again.`

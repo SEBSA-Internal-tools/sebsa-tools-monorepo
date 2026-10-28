@@ -2,12 +2,17 @@
 
 import React, { useState } from 'react';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
 import { PageWrapper } from '@/app/components/PageWrapper';
 import PasswordRequirementsList from '@/app/components/PasswordRequirementsList';
 import { createClient } from '@/lib/supabase/client';
+import { readableAuthError } from '@/lib/auth/errorMessage';
 import { isPasswordValid } from '@/lib/passwordValidation';
 import { Eye, EyeOff, KeyRound } from 'lucide-react';
+
+const INVALID_ACTIVATION_SESSION =
+  'Your activation session is invalid or has expired. Please request a new activation email and try again.';
+const PASSWORD_UPDATE_FAILED =
+  'We could not save your password. Please request a new activation email or contact the system administrator.';
 
 /**
  * Landing page after an invited employee clicks their invite email link (see
@@ -16,7 +21,6 @@ import { Eye, EyeOff, KeyRound } from 'lucide-react';
  * own password — Supabase never puts a password in the invite email itself.
  */
 export default function SetPasswordPage() {
-  const router = useRouter();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -37,17 +41,31 @@ export default function SetPasswordPage() {
     }
 
     setIsLoading(true);
-    const supabase = createClient();
-    const { error: updateError } = await supabase.auth.updateUser({ password });
 
-    if (updateError) {
+    try {
+      const supabase = createClient();
+      // Verify the invite-created session with the Auth server immediately before changing the
+      // password. The page may have remained open after that session expired or been invalidated.
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError || !userData.user) {
+        setError(readableAuthError(userError, INVALID_ACTIVATION_SESSION));
+        return;
+      }
+
+      const { data: updateData, error: updateError } = await supabase.auth.updateUser({ password });
+      if (updateError || !updateData.user) {
+        setError(readableAuthError(updateError, PASSWORD_UPDATE_FAILED));
+        return;
+      }
+
+      // Use a full navigation so the dashboard request observes the cookie-backed session after
+      // Supabase finishes persisting it, matching the callback page's session hand-off behavior.
+      window.location.replace('/dashboard');
+    } catch (updateError) {
+      setError(readableAuthError(updateError, PASSWORD_UPDATE_FAILED));
+    } finally {
       setIsLoading(false);
-      setError(updateError.message);
-      return;
     }
-
-    router.push('/dashboard');
-    router.refresh();
   };
 
   return (
@@ -79,6 +97,9 @@ export default function SetPasswordPage() {
               <input
                 type={showPassword ? 'text' : 'password'}
                 required
+                minLength={8}
+                maxLength={64}
+                autoComplete="new-password"
                 placeholder="New Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -99,6 +120,9 @@ export default function SetPasswordPage() {
               <input
                 type={showPassword ? 'text' : 'password'}
                 required
+                minLength={8}
+                maxLength={64}
+                autoComplete="new-password"
                 placeholder="Confirm Password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}

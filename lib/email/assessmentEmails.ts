@@ -21,6 +21,10 @@ export function buildCertificateEmail(params: {
 }): EmailContent {
   return {
     subject: `Your assessment certificate | ${params.cycleLabel}`,
+    text:
+      `Hi ${params.employeeName}, you scored ${params.score}/${params.total} in the ` +
+      `${params.cycleLabel} knowledge assessment. Your certificate is attached, and you can ` +
+      'download it again from the portal.',
     html: renderEmailHtml({
       heading: 'Congratulations, you passed',
       body:
@@ -54,6 +58,10 @@ export function buildInvitationEmail(params: {
   });
   return {
     subject: `Internal assessment ready | ${params.cycleLabel}`,
+    text:
+      `Hi ${params.employeeName}, the ${params.cycleLabel} knowledge assessment is now open for you.\n\n` +
+      `Invitation expires: ${expiry}\nAttempts: up to 2\n` +
+      'Retry policy: if you score below 6 on your first attempt, you can retry once using the same questions.',
     html: renderEmailHtml({
       heading: 'Your internal assessment is ready',
       body:

@@ -23,6 +23,18 @@ function formatDate(value: string | null | undefined): string {
   return new Date(value).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
 }
 
+function formatExperiencePeriod(experience: {
+  period_text?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  is_current?: boolean;
+}): string {
+  if (experience.period_text?.trim()) return experience.period_text.trim();
+  return `${formatDate(experience.start_date) || 'N/A'} — ${
+    experience.is_current ? 'Present' : formatDate(experience.end_date) || 'N/A'
+  }`;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapListRow(row: any): Employee {
   return {
@@ -84,9 +96,7 @@ export async function getEmployeeById(
       role: toTitleCase(e.role_title),
       company: e.company,
       type: e.employment_type ?? 'Full-time',
-      period: `${formatDate(e.start_date) || 'N/A'} — ${
-        e.is_current ? 'Present' : formatDate(e.end_date) || 'N/A'
-      }`,
+      period: formatExperiencePeriod(e),
       // desc is the serialised tasks array or free text
       desc: (() => {
         const tasks = tryParseJson<string[]>(e.description);
@@ -105,9 +115,7 @@ export async function getEmployeeById(
       return {
         position: toTitleCase(e.role_title),
         company: e.company,
-        period: `${formatDate(e.start_date) || 'N/A'} — ${
-          e.is_current ? 'Present' : formatDate(e.end_date) || 'N/A'
-        }`,
+        period: formatExperiencePeriod(e),
         tasks: Array.isArray(tasks) ? tasks : (e.description ? [e.description] : []),
       };
     });
@@ -179,8 +187,12 @@ export async function createEmployee(
   return createEmployeeRow(supabase, input, createdBy);
 }
 
-export async function deleteEmployee(supabase: SupabaseClient, rowId: string): Promise<void> {
-  await deleteEmployeeRow(supabase, rowId);
+export async function deleteEmployee(
+  supabase: SupabaseClient,
+  rowId: string,
+  deletedBy: string
+): Promise<void> {
+  await deleteEmployeeRow(supabase, rowId, deletedBy);
 }
 
 export async function updateEmployee(

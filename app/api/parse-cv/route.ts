@@ -50,7 +50,10 @@ const CV_RESPONSE_SCHEMA = {
         properties: {
           position: { type: Type.STRING, description: "Job title / position" },
           company: { type: Type.STRING, description: "Employer name" },
-          period: { type: Type.STRING, description: "Employment period, e.g. 'Jan 2020 – Present'" },
+          period: {
+            type: Type.STRING,
+            description: "Employment period exactly as stated in the CV. Preserve every available day, month, and year; never reduce a full date to only its year and never invent a missing day or month. Prefer unambiguous ISO YYYY-MM-DD for complete dates, e.g. '2020-01-15 – 2023-12-31'. Preserve month/year-only values as written, e.g. 'Jan 2020 – Present'.",
+          },
           tasks: {
             type: Type.ARRAY,
             description: "Point-wise responsibilities and achievements for this role",

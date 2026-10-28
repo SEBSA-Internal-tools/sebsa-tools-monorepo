@@ -1,10 +1,16 @@
 import type { CvAcademicEntry, CvProfile } from '@/lib/cvTypes';
 
+export type CvTemplateId = 'template1' | 'template2';
+
 export interface TailoredCv extends CvProfile {
   summary: string;           // AI-generated executive summary or description
   customerName: string;      // Target opportunity
   skillsAligned: string[];   // Merged required + profile skills
   avatar?: string | null;    // Employee avatar image URL
+  /** Saved with generated CV content; older CVs without it render with Template 1. */
+  templateId?: CvTemplateId;
+  /** False when the user explicitly excludes Education; omitted values remain included. */
+  includeEducation?: boolean;
 }
 
 // ─── AI content-selection suggestion (Customize CVs flow) ─────────────────────
@@ -58,8 +64,7 @@ export interface CvSuggestion {
   originalObjective: string;
   /** AI-generated, customized Objective — the only free-text content the AI produces. */
   objective: string;
-  /** Verbatim from the profile — never filtered or shown as selectable ("use existing academic
-   *  information without any changes"). */
+  /** Verbatim from the profile; the client lets users include or exclude individual entries. */
   academic: CvAcademicEntry[];
   experience: CvSuggestionExperience[];
   projects: CvSuggestionProject[];

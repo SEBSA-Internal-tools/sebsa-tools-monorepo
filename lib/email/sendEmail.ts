@@ -10,6 +10,7 @@ export interface EmailAttachment {
 export interface EmailContent {
   subject: string;
   html: string;
+  text: string;
   /** Optional files (e.g. the assessment certificate PDF). Existing callers never set this. */
   attachments?: EmailAttachment[];
 }
@@ -53,6 +54,7 @@ export async function sendEmail(to: string, content: EmailContent): Promise<bool
       to,
       subject: content.subject,
       html: content.html,
+      text: content.text,
       attachments: content.attachments,
     });
     return true;

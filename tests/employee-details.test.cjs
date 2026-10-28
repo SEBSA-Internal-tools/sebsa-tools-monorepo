@@ -11,11 +11,12 @@ function load(path, imports = {}) {
 }
 const details = load('lib/employeeDetails.ts');
 const text = load('lib/text.ts');
+const experiencePeriod = load('lib/experiencePeriod.ts');
 const repo = load('repositories/employee-repository.ts', { '@/lib/employeeDetails': details, '@/lib/text': text });
 function database() {
   const calls = [];
   const client = { from(table) {
-    const query = { select(value) { calls.push({ table, select: value }); return query; }, eq() { return query; }, maybeSingle: async () => ({ data: null }), single: async () => ({ data: { id: 'profile' } }), update(value) { calls.push({ table, update: value }); return query; }, insert(value) { calls.push({ table, insert: value }); return query; }, delete() { return query; }, then(resolve) { resolve({ error: null }); } };
+    const query = { select(value) { calls.push({ table, select: value }); return query; }, eq() { return query; }, is() { return query; }, maybeSingle: async () => ({ data: null }), single: async () => ({ data: { id: 'profile' } }), update(value) { calls.push({ table, update: value }); return query; }, insert(value) { calls.push({ table, insert: value }); return query; }, delete() { return query; }, then(resolve) { resolve({ error: null }); } };
     return query;
   } };
   return { client, calls };
@@ -26,6 +27,58 @@ test('positions use title case and designations use uppercase without changing a
   assert.equal(text.toTitleCase('SQL developer'), 'SQL Developer');
   assert.equal(text.toTitleCase('iOS engineer'), 'iOS Engineer');
   assert.equal(text.toUpperCaseText('Senior Software Engineer'), 'SENIOR SOFTWARE ENGINEER');
+});
+test('customized CV experience periods display years only', () => {
+  assert.equal(experiencePeriod.formatExperiencePeriodAsYears('2020-02-29 – 2024-11-07'), '2020 – 2024');
+  assert.equal(experiencePeriod.formatExperiencePeriodAsYears('Jun 2020 – Sep 2023'), '2020 – 2023');
+  assert.equal(experiencePeriod.formatExperiencePeriodAsYears('01/06/2022 – Present'), '2022 – Present');
+  assert.equal(experiencePeriod.formatExperiencePeriodAsYears('2021'), '2021');
+  assert.equal(experiencePeriod.formatExperiencePeriodAsYears('No dates supplied'), 'No dates supplied');
+});
+test('experience periods preserve exact start and end dates', () => {
+  assert.deepEqual(repo.parseExperiencePeriod('2020-02-29 – 2024-11-07'), {
+    startDate: '2020-02-29',
+    endDate: '2024-11-07',
+    isCurrent: false,
+  });
+  assert.deepEqual(repo.parseExperiencePeriod('15 January 2021 – September 30, 2023'), {
+    startDate: '2021-01-15',
+    endDate: '2023-09-30',
+    isCurrent: false,
+  });
+  assert.deepEqual(repo.parseExperiencePeriod('01/06/2022 – Present'), {
+    startDate: '2022-06-01',
+    endDate: null,
+    isCurrent: true,
+  });
+});
+test('experience periods do not invent exact dates for month-only or year-only values', () => {
+  assert.deepEqual(repo.parseExperiencePeriod('Jun 2020 – Sep 2023'), {
+    startDate: null,
+    endDate: null,
+    isCurrent: false,
+  });
+  assert.deepEqual(repo.parseExperiencePeriod('2018 – 2021'), {
+    startDate: null,
+    endDate: null,
+    isCurrent: false,
+  });
+});
+test('experience inserts store exact dates and the lossless source period', async () => {
+  const { client, calls } = database();
+  await repo.createEmployeeRow(client, {
+    ...base,
+    cvExperience: [{
+      position: 'Engineer',
+      company: 'SEBSA',
+      period: '2021-03-14 – 2024-10-26',
+      tasks: ['Built software'],
+    }],
+  }, 'actor');
+  const inserted = calls.find(c => c.table === 'experiences' && c.insert).insert[0];
+  assert.equal(inserted.start_date, '2021-03-14');
+  assert.equal(inserted.end_date, '2024-10-26');
+  assert.equal(inserted.period_text, '2021-03-14 – 2024-10-26');
 });
 test('old records return null details and omitted updates preserve them', async () => {
   assert.ok(Object.values(details.employeeDetailsFromRow({})).every(v => v === null));

@@ -23,7 +23,6 @@ export default async function AuthenticatedLayout({
     <div className="min-h-screen bg-[#fbf9fb] text-[#1b1b1d] font-sans">
       <Sidebar user={user} />
       <div className="pl-[260px] min-h-screen flex flex-col">
-        {/* We use a static header, but children can inject custom search/filtering if needed */}
         <Header user={user} />
         <main className="flex-1 pt-16">
           {children}

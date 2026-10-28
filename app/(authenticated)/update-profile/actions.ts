@@ -7,7 +7,7 @@ import { getEmployeeById, updateEmployee } from '@/services/employee-service';
 import { getCurrentUser, isAdminOrAbove } from '@/lib/auth';
 import { notifyUser } from '@/lib/notifications';
 import { emailUser } from '@/lib/email/notify';
-import { renderEmailHtml } from '@/lib/email/templates';
+import { buildProfileUpdatedByAdminEmail } from '@/lib/email/templates';
 import type { UpdateEmployeeInput, Employee } from '@/types/domain';
 import { profileChanges, recordAuditLog } from '@/services/audit-service';
 
@@ -65,15 +65,11 @@ export async function updateEmployeeAction(
       message: `${user.fullName} made changes to your profile.`,
       link: `/repository/${profileId}`,
     });
-    await emailUser(adminClient, profileRow.user_id, {
-      subject: 'Your SEBSA CV profile has been updated',
-      html: renderEmailHtml({
-        heading: 'Your profile was updated',
-        body: `${user.fullName} made changes to your CV profile. Review the updated details to make sure everything looks right.`,
-        ctaLabel: 'View your profile',
-        ctaPath: `/repository/${profileId}`,
-      }),
-    });
+    await emailUser(
+      adminClient,
+      profileRow.user_id,
+      buildProfileUpdatedByAdminEmail(profileId, current.name, user.fullName)
+    );
   }
 
   revalidatePath(`/repository/${profileId}`);

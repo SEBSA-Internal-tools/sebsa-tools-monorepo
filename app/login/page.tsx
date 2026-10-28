@@ -7,6 +7,7 @@ import { PageWrapper } from '../components/PageWrapper';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import LightRays from '../components/LightRays';
+import MicrosoftSignInButton, { isMicrosoftSsoEnabled } from '../components/MicrosoftSignInButton';
 import { Mail, Eye, EyeOff, LogIn, CheckCircle, ShieldCheck, TrendingUp, Sparkles, BrainCircuit, Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
@@ -32,12 +33,14 @@ function LoginPageContent() {
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
 
   // Surfaces failures from /auth/callback (e.g. an expired or already-used invite link) instead
   // of silently dropping the person on a blank login form with no explanation.
   useEffect(() => {
     const callbackError = searchParams?.get('error');
     if (callbackError) setError(callbackError);
+    setMessage(searchParams?.get('message') ?? null);
   }, [searchParams]);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -143,6 +146,18 @@ function LoginPageContent() {
             </p>
           </div>
 
+          {/* Microsoft SSO (shown only when enabled for this environment) */}
+          {isMicrosoftSsoEnabled() && (
+            <div className="mb-6">
+              <MicrosoftSignInButton next="/dashboard" onError={setError} />
+              <div className="flex items-center gap-3 mt-6">
+                <div className="h-px flex-1 bg-slate-200" />
+                <span className="text-[11px] font-black uppercase tracking-widest text-slate-400">or use email</span>
+                <div className="h-px flex-1 bg-slate-200" />
+              </div>
+            </div>
+          )}
+
           {/* Form */}
           <form className="space-y-5" onSubmit={handleLogin}>
             {/* Work Email field */}
@@ -192,15 +207,21 @@ function LoginPageContent() {
                   Remember Me
                 </span>
               </label>
-              <a href="#" className="text-xs font-black text-slate-900 hover:underline">
+              <Link href="/auth/forgot-password" className="text-xs font-black text-slate-900 hover:underline">
                 Forgot password?
-              </a>
+              </Link>
             </div>
 
             {/* Auth error */}
             {error && (
               <p className="text-xs font-semibold text-rose-600 bg-rose-50 border border-rose-200/60 rounded-lg px-3 py-2">
                 {error}
+              </p>
+            )}
+
+            {message && !error && (
+              <p className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/60 rounded-lg px-3 py-2">
+                {message}
               </p>
             )}
 
