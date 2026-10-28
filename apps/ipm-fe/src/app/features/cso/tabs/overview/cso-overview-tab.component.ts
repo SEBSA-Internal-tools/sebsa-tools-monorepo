@@ -9,12 +9,16 @@ import {
   ChangeDetectorRef,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Router } from '@angular/router';
 import type {
   CreateCaseRequest,
   ProjectSummary,
   UserAdminSummary,
+  TaskSummary,
+  Subtask,
 } from '@sebsa-pm-tool/shared-models';
+import { forkJoin, map, of, switchMap } from 'rxjs';
 import {
   CsoOverviewService,
   CsoTaskView,
@@ -29,6 +33,13 @@ import {
 import { CustomSelectComponent } from '../../../../core/components/custom-select/custom-select.component';
 
 type StatusFilter = '' | 'new' | 'todo' | 'inprogress' | 'done';
+type OverviewTab = 'cases' | 'tasks' | 'subtasks';
+
+interface CsoSubtaskView extends Subtask {
+  taskTitle: string;
+  caseTitle: string;
+  projectName: string;
+}
 
 @Component({
   standalone: true,
@@ -50,9 +61,14 @@ export class CsoOverviewTabComponent implements OnInit {
   private readonly casesService = inject(CasesService);
   private readonly router = inject(Router);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly http = inject(HttpClient);
 
   protected readonly tasks = this.csoOverviewService.tasks;
   protected readonly isLoading = this.csoOverviewService.isLoading;
+  protected readonly taskItems = signal<TaskSummary[]>([]);
+  protected readonly subtaskItems = signal<CsoSubtaskView[]>([]);
+  protected readonly workspaceLoading = signal(false);
+  protected readonly activeOverviewTab = signal<OverviewTab>('cases');
 
   protected readonly availableProjects = signal<ProjectSummary[]>([]);
   protected readonly availableAssignees = signal<UserAdminSummary[]>([]);
@@ -159,6 +175,49 @@ export class CsoOverviewTabComponent implements OnInit {
       customerId: this.selectedCustomerId() || undefined,
       assigneeId: this.selectedAssigneeId() || undefined,
     });
+    this.loadTasksAndSubtasks();
+  }
+
+  protected setOverviewTab(tab: OverviewTab): void {
+    this.activeOverviewTab.set(tab);
+  }
+
+  protected refresh(): void {
+    this.applyFilters();
+  }
+
+  private loadTasksAndSubtasks(): void {
+    this.workspaceLoading.set(true);
+    let params = new HttpParams().set('isCsoLabeled', 'true');
+    if (this.selectedProjectId()) params = params.set('projectId', this.selectedProjectId());
+    if (this.selectedCustomerId()) params = params.set('customerId', this.selectedCustomerId());
+
+    this.http.get<TaskSummary[]>('/api/tasks', { params }).pipe(
+      switchMap((tasks) => {
+        if (tasks.length === 0) return of({ tasks, subtasks: [] as CsoSubtaskView[] });
+        return forkJoin(tasks.map((task) =>
+          this.http.get<Subtask[]>(`/api/tasks/${task.id}/subtasks`).pipe(
+            map((subtasks) => subtasks.map((subtask) => ({
+              ...subtask,
+              taskTitle: task.title,
+              caseTitle: task.case.title,
+              projectName: task.case.project?.name ?? '',
+            }))),
+          ),
+        )).pipe(map((groups) => ({ tasks, subtasks: groups.flat() })));
+      }),
+    ).subscribe({
+      next: ({ tasks, subtasks }) => {
+        this.taskItems.set(tasks);
+        this.subtaskItems.set(subtasks);
+        this.workspaceLoading.set(false);
+      },
+      error: () => {
+        this.taskItems.set([]);
+        this.subtaskItems.set([]);
+        this.workspaceLoading.set(false);
+      },
+    });
   }
 
   protected hasActiveFilters(): boolean {
@@ -188,8 +247,16 @@ export class CsoOverviewTabComponent implements OnInit {
     this.isTaskModalOpen = false;
   }
 
-  onTaskClick(caseId: string): void {
+  onCaseClick(caseId: string): void {
     this.router.navigate(['/cases', caseId]);
+  }
+
+  protected onTaskClick(taskId: string): void {
+    this.router.navigate(['/tasks', taskId]);
+  }
+
+  protected assigneeNames(assignees: { name: string }[]): string {
+    return assignees.map((assignee) => assignee.name).join(', ') || '—';
   }
 
   onCreateTask(formData: CaseFormData): void {

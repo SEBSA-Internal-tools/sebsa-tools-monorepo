@@ -3,7 +3,7 @@ import { ChangeDetectionStrategy, Component, Input, OnChanges, OnInit, computed,
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import type { CreateCaseRequest, ProjectSummary, TaskCategory } from '@sebsa-pm-tool/shared-models';
-import { CsoTaskQueueService, CsoQueueTaskView } from '../../../../core/services/cso-task-queue.service';
+import { CsoTaskQueueService, CsoQueueCaseView } from '../../../../core/services/cso-task-queue.service';
 import { ProjectsService } from '../../../projects/services/projects.service';
 import { CasesService } from '../../../../core/services/cases.service';
 import { CreateCaseModalComponent, type CaseFormData } from '../../../cases/create-case/create-case-modal.component';
@@ -36,7 +36,7 @@ export class CsoQueueTabComponent implements OnInit, OnChanges {
   private readonly casesService = inject(CasesService);
   private readonly router = inject(Router);
 
-  protected readonly tasks = this.csoTaskQueueService.tasks;
+  protected readonly cases = this.csoTaskQueueService.cases;
   protected readonly isLoading = this.csoTaskQueueService.isLoading;
 
   protected readonly availableProjects = signal<ProjectSummary[]>([]);
@@ -71,10 +71,10 @@ export class CsoQueueTabComponent implements OnInit, OnChanges {
   protected isCaseModalOpen = false;
   protected errorMessage = '';
 
-  protected readonly filteredTasks = computed<CsoQueueTaskView[]>(() => {
+  protected readonly filteredCases = computed<CsoQueueCaseView[]>(() => {
     const status = this.selectedStatus();
-    if (!status) return this.tasks();
-    return this.tasks().filter((task) => task.statusLabel === status);
+    if (!status) return this.cases();
+    return this.cases().filter((kase) => kase.statusLabel === status);
   });
 
   ngOnInit(): void {
@@ -102,6 +102,10 @@ export class CsoQueueTabComponent implements OnInit, OnChanges {
     });
   }
 
+  protected refresh(): void {
+    this.applyFilters();
+  }
+
   protected hasActiveFilters(): boolean {
     return !!(
       this.selectedProjectId() ||
@@ -125,8 +129,8 @@ export class CsoQueueTabComponent implements OnInit, OnChanges {
     this.isCaseModalOpen = false;
   }
 
-  onTaskClick(taskId: string): void {
-    this.router.navigate(['/tasks', taskId]);
+  onCaseClick(caseId: string): void {
+    this.router.navigate(['/cases', caseId]);
   }
 
   onCreateTask(formData: CaseFormData): void {
@@ -158,7 +162,7 @@ export class CsoQueueTabComponent implements OnInit, OnChanges {
     });
   }
 
-  statusLabelText(status: CsoQueueTaskView['statusLabel']): string {
+  statusLabelText(status: CsoQueueCaseView['statusLabel']): string {
     switch (status) {
       case 'new':
         return 'New';

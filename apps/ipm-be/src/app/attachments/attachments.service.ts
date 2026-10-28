@@ -73,7 +73,7 @@ export class AttachmentsService {
         uploadedById: user?.id || '',
       },
       include: {
-        uploadedBy: { select: { id: true, name: true } },
+        uploadedBy: { select: { id: true, name: true, avatarUrl: true } },
       },
     });
 
@@ -97,7 +97,7 @@ export class AttachmentsService {
         OR: [{ taskId }, { comment: { taskId } }],
       },
       include: {
-        uploadedBy: { select: { id: true, name: true } },
+        uploadedBy: { select: { id: true, name: true, avatarUrl: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -121,7 +121,7 @@ export class AttachmentsService {
         OR: [{ caseId }, { comment: { caseId } }],
       },
       include: {
-        uploadedBy: { select: { id: true, name: true } },
+        uploadedBy: { select: { id: true, name: true, avatarUrl: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -141,7 +141,7 @@ export class AttachmentsService {
     const attachments = await this.prisma.attachment.findMany({
       where: { commentId },
       include: {
-        uploadedBy: { select: { id: true, name: true } },
+        uploadedBy: { select: { id: true, name: true, avatarUrl: true } },
       },
       orderBy: { createdAt: 'desc' },
     });

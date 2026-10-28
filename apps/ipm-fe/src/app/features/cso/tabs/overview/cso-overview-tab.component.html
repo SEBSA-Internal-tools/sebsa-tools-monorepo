@@ -1,6 +1,11 @@
 <div class="cso-overview-tab">
   <div class="tab-toolbar">
-    <p class="tab-subtitle">Every CSO-flagged task across all projects, in one place.</p>
+    <div class="assigned-tabs-nav" role="tablist" aria-label="CSO work types">
+      <button type="button" role="tab" class="assigned-tab-btn" [class.active]="activeOverviewTab() === 'cases'" [attr.aria-selected]="activeOverviewTab() === 'cases'" (click)="setOverviewTab('cases')"><span class="material-symbols-outlined tab-icon">folder_shared</span><span class="tab-label">Cases</span></button>
+      <button type="button" role="tab" class="assigned-tab-btn" [class.active]="activeOverviewTab() === 'tasks'" [attr.aria-selected]="activeOverviewTab() === 'tasks'" (click)="setOverviewTab('tasks')"><span class="material-symbols-outlined tab-icon">task_alt</span><span class="tab-label">Tasks</span></button>
+      <button type="button" role="tab" class="assigned-tab-btn" [class.active]="activeOverviewTab() === 'subtasks'" [attr.aria-selected]="activeOverviewTab() === 'subtasks'" (click)="setOverviewTab('subtasks')"><span class="material-symbols-outlined tab-icon">checklist</span><span class="tab-label">Subtask</span></button>
+    </div>
+    <button type="button" class="btn-refresh" [class.spinning]="isLoading() || workspaceLoading()" (click)="refresh()" title="Refresh CSO work" aria-label="Refresh CSO work"><span class="material-symbols-outlined">refresh</span></button>
     <button type="button" class="btn-primary" (click)="openTaskModal()">
       <span class="material-symbols-outlined">add</span>
       Create Task
@@ -77,22 +82,30 @@
   </div>
 
   <div class="results-card">
-    @if (isLoading()) {
+    @if (activeOverviewTab() === 'cases' && isLoading()) {
       <div class="loading-state">
         <span class="material-symbols-outlined spin">progress_activity</span>
-        Loading CSO tasks...
+        Loading CSO cases...
       </div>
-    } @else if (filteredTasks().length === 0) {
+    } @else if (activeOverviewTab() === 'tasks' && workspaceLoading()) {
+      <div class="loading-state"><span class="material-symbols-outlined spin">progress_activity</span>Loading CSO tasks...</div>
+    } @else if (activeOverviewTab() === 'subtasks' && workspaceLoading()) {
+      <div class="loading-state"><span class="material-symbols-outlined spin">progress_activity</span>Loading CSO subtasks...</div>
+    } @else if (activeOverviewTab() === 'cases' && filteredTasks().length === 0) {
       <div class="empty-state">
         <span class="material-symbols-outlined">inbox</span>
-        <p>No CSO-flagged tasks match these filters.</p>
+        <p>No CSO cases match these filters.</p>
       </div>
-    } @else {
+    } @else if (activeOverviewTab() === 'tasks' && taskItems().length === 0) {
+      <div class="empty-state"><span class="material-symbols-outlined">inbox</span><p>No CSO tasks match these filters.</p></div>
+    } @else if (activeOverviewTab() === 'subtasks' && subtaskItems().length === 0) {
+      <div class="empty-state"><span class="material-symbols-outlined">inbox</span><p>No CSO subtasks match these filters.</p></div>
+    } @else if (activeOverviewTab() === 'cases') {
       <div class="table-container">
         <table class="results-table">
           <thead>
             <tr>
-              <th>Task</th>
+              <th>Case</th>
               <th>Project</th>
               <th>Customer</th>
               <th>Priority</th>
@@ -105,8 +118,8 @@
             @for (task of filteredTasks(); track task.id) {
               <tr
                 class="clickable-row"
-                (click)="onTaskClick(task.id)"
-                (keydown.enter)="onTaskClick(task.id)"
+                (click)="onCaseClick(task.id)"
+                (keydown.enter)="onCaseClick(task.id)"
                 tabindex="0"
               >
                 <td>{{ task.title }}</td>
@@ -129,6 +142,14 @@
           </tbody>
         </table>
       </div>
+    } @else if (activeOverviewTab() === 'tasks') {
+      <div class="table-container"><table class="results-table"><thead><tr><th>Task</th><th>Case</th><th>Project</th><th>Status</th><th>Assignee</th><th>Due Date</th></tr></thead><tbody>
+        @for (task of taskItems(); track task.id) { <tr class="clickable-row" (click)="onTaskClick(task.id)" (keydown.enter)="onTaskClick(task.id)" tabindex="0"><td>{{ task.title }}</td><td>{{ task.case.title }}</td><td>{{ task.case.project?.name || '—' }}</td><td>{{ task.status }}</td><td>{{ assigneeNames(task.assignees) }}</td><td>{{ task.dueDate ? (task.dueDate | date: 'mediumDate') : '—' }}</td></tr> }
+      </tbody></table></div>
+    } @else {
+      <div class="table-container"><table class="results-table"><thead><tr><th>Subtask</th><th>Task</th><th>Case</th><th>Project</th><th>Status</th><th>Assignee</th></tr></thead><tbody>
+        @for (subtask of subtaskItems(); track subtask.id) { <tr class="clickable-row" (click)="onTaskClick(subtask.taskId)" (keydown.enter)="onTaskClick(subtask.taskId)" tabindex="0"><td>{{ subtask.title }}</td><td>{{ subtask.taskTitle }}</td><td>{{ subtask.caseTitle }}</td><td>{{ subtask.projectName || '—' }}</td><td>{{ subtask.status }}</td><td>{{ subtask.assignees.length ? subtask.assignees[0].name : '—' }}</td></tr> }
+      </tbody></table></div>
     }
   </div>
 

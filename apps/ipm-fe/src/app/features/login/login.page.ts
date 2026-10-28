@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, inject, signal } from '@angular/core';
+import { Component, OnDestroy, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -15,7 +15,7 @@ const LOW_ATTEMPTS_WARNING = 3;
   templateUrl: './login.page.html',
   styleUrls: ['./login.page.scss'],
 })
-export class LoginPageComponent {
+export class LoginPageComponent implements OnDestroy {
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
   public readonly currentYear = new Date().getFullYear();
@@ -27,10 +27,12 @@ export class LoginPageComponent {
   readonly errorMessage = signal('');
   readonly isSubmitting = signal(false);
   readonly showPassword = signal(false);
+  readonly retryAfterSeconds = signal(0);
+  private retryTimer?: ReturnType<typeof setInterval>;
 
 
   login() {
-    if (this.isSubmitting()) return;
+    if (this.isSubmitting() || this.retryAfterSeconds() > 0) return;
 
     this.isSubmitting.set(true);
     this.authService.login(this.email, this.password).subscribe({
@@ -42,13 +44,40 @@ export class LoginPageComponent {
       error: (error: HttpErrorResponse) => {
         this.hasError.set(true);
         this.isSubmitting.set(false);
-        this.errorMessage.set(this.describeLoginError(error));
+        if (error.status === 429) {
+          this.startRetryCountdown(Number(error.error?.retryAfterSeconds));
+        } else {
+          this.errorMessage.set(this.describeLoginError(error));
+        }
       },
     });
   }
 
   togglePasswordVisibility() {
     this.showPassword.update((value) => !value);
+  }
+
+  ngOnDestroy(): void {
+    if (this.retryTimer) clearInterval(this.retryTimer);
+  }
+
+  private startRetryCountdown(seconds: number): void {
+    if (this.retryTimer) clearInterval(this.retryTimer);
+    const retryAt = Date.now() + Math.max(1, seconds || 1) * 1000;
+    const update = () => {
+      const remaining = Math.max(0, Math.ceil((retryAt - Date.now()) / 1000));
+      this.retryAfterSeconds.set(remaining);
+      if (remaining === 0) {
+        if (this.retryTimer) clearInterval(this.retryTimer);
+        this.retryTimer = undefined;
+        this.hasError.set(false);
+        this.errorMessage.set('');
+      } else {
+        this.errorMessage.set(`Too many attempts. Please try again in ${remaining} ${remaining === 1 ? 'second' : 'seconds'}.`);
+      }
+    };
+    update();
+    this.retryTimer = setInterval(update, 250);
   }
 
   /** The API sends a ready-made message when rate limited; otherwise warn once
