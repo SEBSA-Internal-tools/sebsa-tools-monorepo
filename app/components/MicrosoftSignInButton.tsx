@@ -35,6 +35,10 @@ export default function MicrosoftSignInButton({ next = '/dashboard', onError }: 
   const signIn = async () => {
     setBusy(true);
     const supabase = createClient();
+    // Drop any stale session first. Otherwise, if the Microsoft sign-in fails on the way back, the
+    // old session would still be there and the failure would look like a successful login as the
+    // previous user. scope 'local' only clears this browser.
+    await supabase.auth.signOut({ scope: 'local' });
     // `email` is required: Supabase must receive a verified address from Entra to match the account.
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'azure',

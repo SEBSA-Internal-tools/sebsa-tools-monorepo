@@ -10,6 +10,8 @@ import {
 import { Loader2 } from 'lucide-react';
 
 const INVALID_LINK_MESSAGE = 'Invite link is invalid or has expired. Please contact an administrator.';
+const OAUTH_FAILED_MESSAGE =
+  'Microsoft sign-in could not be completed. Please try again, or sign in with your email and password.';
 const ALLOWED_DESTINATIONS = new Set(['/auth/set-password', '/dashboard']);
 
 /**
@@ -63,7 +65,13 @@ export default function AuthCallbackPage() {
 
       const fail = () => {
         sessionStorage.removeItem(RECOVERY_SESSION_STORAGE_KEY);
-        const message = isRecovery ? INVALID_RECOVERY_LINK_MESSAGE : INVALID_LINK_MESSAGE;
+        // A ?code= with no hash tokens is an OAuth (Microsoft) return, not an invite or recovery link.
+        const isOAuthReturn = !isRecovery && search.has('code') && !accessToken;
+        const message = isRecovery
+          ? INVALID_RECOVERY_LINK_MESSAGE
+          : isOAuthReturn
+            ? OAUTH_FAILED_MESSAGE
+            : INVALID_LINK_MESSAGE;
         setError(message);
         goTo(
           isRecovery
@@ -108,9 +116,20 @@ export default function AuthCallbackPage() {
 
       const code = search.get('code');
       if (!sessionEstablished && code) {
-        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-        if (!exchangeError) {
+        // The browser client auto-detects a ?code= on creation (detectSessionInUrl) and completes the
+        // PKCE exchange itself, then deletes the one-time code verifier AND removes `code` from the
+        // URL. Wait for that to finish; a second manual exchange would always fail with "code
+        // verifier missing" and wrongly report a broken link even though sign-in succeeded.
+        await supabase.auth.getSession();
+        const codeStillInUrl = new URLSearchParams(window.location.search).get('code');
+        if (!codeStillInUrl) {
+          // Consumed by the library. getUser() below still verifies the session with Supabase Auth.
           sessionEstablished = true;
+        } else {
+          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+          if (!exchangeError) {
+            sessionEstablished = true;
+          }
         }
       }
 
