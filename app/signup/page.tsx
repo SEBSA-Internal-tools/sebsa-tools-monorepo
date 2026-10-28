@@ -3,20 +3,14 @@
 import React, { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { PageWrapper } from '../components/PageWrapper';
 import PasswordRequirementsList from '../components/PasswordRequirementsList';
-import { createClient } from '@/lib/supabase/client';
 import { isPasswordValid } from '@/lib/passwordValidation';
+import { SIGNUP_EMAIL_MESSAGE, isSebsaWorkEmail } from '@/lib/auth/signupRules';
+import { registerAction } from './actions';
 import { Mail, Eye, EyeOff, UserPlus, CheckCircle2 } from 'lucide-react';
 
-// Until Microsoft SSO is wired in (docs/04-rbac-security.md §8), self-signup is restricted to
-// real SEBSA work emails in firstname.lastname@sebsaworld.com form — keeps the employee directory
-// consistent and prevents junk/duplicate accounts.
-const SEBSA_WORK_EMAIL = /^[a-z]+\.[a-z]+@sebsaworld\.com$/i;
-
 export default function SignupPage() {
-  const router = useRouter();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -30,8 +24,8 @@ export default function SignupPage() {
     e.preventDefault();
     setError(null);
 
-    if (!SEBSA_WORK_EMAIL.test(email.trim())) {
-      setError('Please use your SEBSA work email, in firstname.lastname@sebsaworld.com format.');
+    if (!isSebsaWorkEmail(email)) {
+      setError(SIGNUP_EMAIL_MESSAGE);
       return;
     }
     if (!isPasswordValid(password)) {
@@ -44,29 +38,16 @@ export default function SignupPage() {
     }
 
     setIsLoading(true);
-    const supabase = createClient();
-    const { data, error: signUpError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { full_name: fullName } },
-    });
+    // The server creates the (unconfirmed) account and emails the confirmation link. It answers the
+    // same for an address that already has an account, so this screen never reveals which exist.
+    const result = await registerAction({ fullName, email, password });
+    setIsLoading(false);
 
-    if (signUpError) {
-      setIsLoading(false);
-      setError(signUpError.message);
+    if ('error' in result) {
+      setError(result.error);
       return;
     }
-
-    // Every new signup gets role='employee' automatically (handle_new_user trigger, 0002).
-    if (data.session) {
-      // Email confirmation is off for this Supabase project — session is active immediately.
-      router.push('/onboarding');
-      router.refresh();
-    } else {
-      // Email confirmation is required — they'll get a session on first login after confirming.
-      setIsLoading(false);
-      setAwaitingConfirmation(true);
-    }
+    setAwaitingConfirmation(true);
   };
 
   if (awaitingConfirmation) {

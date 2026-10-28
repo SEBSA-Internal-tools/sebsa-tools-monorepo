@@ -35,6 +35,37 @@ it belongs to.
 Differences from Brevo: the sender name is the mailbox's own display name (not `EMAIL_FROM_NAME`),
 and only the HTML part is sent (Graph carries one body).
 
+## Which emails use this
+
+With `EMAIL_PROVIDER=graph`, **every** email the portal sends goes out as the shared mailbox:
+
+- account invitations and re-sent invitations
+- profile review / approval notifications
+- **password-reset links** (forgot password)
+- **signup confirmation links**
+
+The last two used to be sent by Supabase's own mailer. They are now created with Supabase's admin
+`generateLink` (which only mints the link and sends nothing) and delivered by `sendEmail`, exactly like
+invitations (`lib/auth/authEmails.ts`). Supabase's Authentication, SMTP settings are no longer used by
+the app and can be left as they are.
+
+Behaviour worth knowing:
+
+- **No account oracle.** The forgot-password and signup screens answer identically whether or not an
+  address has an account. Reset sending happens after the response, so timing does not reveal it either.
+- **Limits** (per server instance, best effort): one reset email per address per minute and 10 per IP per
+  10 minutes; signup 3 per address and 5 per IP per hour. Because the endpoints are public, also add a
+  Vercel Firewall rate-limit rule on `/auth/forgot-password` and `/signup` for a hard guarantee, and so one
+  abuser cannot use up the shared mailbox's sending quota (invitations share it).
+- **Deactivated accounts** are not sent reset links.
+- **Signup rollback.** If the confirmation email cannot be sent, the new account is removed again.
+- **Links work from any device.** A reset or confirmation link no longer has to be opened in the same
+  browser that requested it. Confirming a signup also signs the person in.
+- **Redirect URLs must allow query strings.** The links return to `/auth/callback?flow=recovery&next=...`
+  and `/auth/callback?next=/dashboard`. Supabase ignores a redirect with a query string unless the
+  Redirect URLs list has a wildcard entry such as `https://sebsa-cv-generator.vercel.app/**`; otherwise it
+  silently sends people to the Site URL. `NEXT_PUBLIC_APP_URL` must be the production site URL.
+
 ## What must exist in Microsoft 365 (IT)
 
 - A **mailbox** to send as (shared mailbox is fine): `cv.generator@sebsaworld.com`.

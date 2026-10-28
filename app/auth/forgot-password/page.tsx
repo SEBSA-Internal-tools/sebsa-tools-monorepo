@@ -5,8 +5,8 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { PageWrapper } from '@/app/components/PageWrapper';
-import { createClient } from '@/lib/supabase/client';
-import { PASSWORD_RESET_REQUESTED_MESSAGE, requestPasswordReset } from '@/lib/auth/recovery';
+import { PASSWORD_RESET_REQUESTED_MESSAGE } from '@/lib/auth/recovery';
+import { requestPasswordResetAction } from './actions';
 import { ArrowLeft, CheckCircle2, Loader2, Mail } from 'lucide-react';
 
 export default function ForgotPasswordPage() {
@@ -34,12 +34,8 @@ function ForgotPasswordContent() {
     setLinkError(null);
 
     try {
-      const supabase = createClient();
-      await requestPasswordReset(
-        supabase.auth,
-        email,
-        `${window.location.origin}/auth/callback?flow=recovery&next=/auth/reset-password`
-      );
+      // The server sends the link (through the app's own mail transport) and always answers the same.
+      await requestPasswordResetAction(email);
     } finally {
       // Always show the same result, including for unknown addresses and rate-limited requests.
       setIsLoading(false);
