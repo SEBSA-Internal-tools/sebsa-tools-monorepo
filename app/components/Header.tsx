@@ -9,17 +9,31 @@ import {
   markAllNotificationsReadAction,
 } from '@/app/(authenticated)/notifications/actions';
 import type { AppNotification } from '@/services/notification-service';
-import { Bell, UserCircle, Loader2 } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
+import { Search, Bell, UserCircle, Loader2, LogOut } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 interface HeaderProps {
   user: CurrentUser;
+  placeholder?: string;
+  /** Callback for when the search value changes. */
+  onSearchChange?: (val: string) => void;
+  searchValue?: string;
+  /** For pages with nothing to search (e.g. the assessments module) — avoids a dead input. */
+  hideSearch?: boolean;
 }
 
-export const Header: React.FC<HeaderProps> = ({ user }) => {
+export const Header: React.FC<HeaderProps> = ({
+  user,
+  placeholder = 'Search employees, skills, or departments...',
+  onSearchChange,
+  searchValue = '',
+  hideSearch = false,
+}) => {
   const [showNotificationDropdown, setShowNotificationDropdown] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [signingOut, setSigningOut] = useState(false);
   const router = useRouter();
   const notificationRef = useRef<HTMLDivElement>(null);
 
@@ -78,8 +92,43 @@ export const Header: React.FC<HeaderProps> = ({ user }) => {
     }
   };
 
+  const handleSignOut = async () => {
+    if (signingOut) return;
+
+    setSigningOut(true);
+    const supabase = createClient();
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      console.error('Failed to sign out:', error);
+      setSigningOut(false);
+      return;
+    }
+
+    router.replace('/login');
+    router.refresh();
+  };
+
   return (
-    <header className="fixed top-0 right-0 w-[calc(100%-260px)] h-16 bg-white/80 backdrop-blur-md border-b border-slate-200/80 flex items-center justify-end px-8 z-40">
+    <header className="fixed top-0 right-0 w-[calc(100%-260px)] h-16 bg-white/80 backdrop-blur-md border-b border-slate-200/80 flex items-center justify-between px-8 z-40">
+      {/* Search Bar */}
+      {hideSearch ? (
+        <div className="flex-1" />
+      ) : (
+        <div className="flex-1 max-w-md">
+          <div className="relative w-full group">
+            <Search className="w-4 h-4 text-slate-400 absolute left-4.5 top-1/2 -translate-y-1/2 group-focus-within:text-slate-600 transition-colors" />
+            <input
+              type="text"
+              placeholder={placeholder}
+              value={searchValue}
+              onChange={(e) => onSearchChange?.(e.target.value)}
+              className="w-full bg-slate-100/90 hover:bg-slate-200/50 border border-slate-200/50 rounded-full py-2 pl-11 pr-4 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-500/10 focus:border-slate-400 transition-all duration-300 placeholder:text-slate-400 font-sans text-slate-700"
+            />
+          </div>
+        </div>
+      )}
+
       {/* Action Utilities */}
       <div className="flex items-center gap-5">
         {/* Notifications Icon */}
@@ -154,6 +203,20 @@ export const Header: React.FC<HeaderProps> = ({ user }) => {
               <UserCircle className="w-6 h-6 text-slate-400" />
             )}
           </div>
+          <button
+            type="button"
+            onClick={handleSignOut}
+            disabled={signingOut}
+            title="Sign out"
+            aria-label="Sign out"
+            className="p-2.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {signingOut ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <LogOut className="w-5 h-5" />
+            )}
+          </button>
         </div>
       </div>
     </header>

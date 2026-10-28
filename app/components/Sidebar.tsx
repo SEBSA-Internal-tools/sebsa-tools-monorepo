@@ -3,10 +3,9 @@
 import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { usePathname, useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import { usePathname } from 'next/navigation';
 import type { CurrentUser } from '@/lib/auth';
-import { isAdminOrAbove, isReviewerOrAbove } from '@/lib/roles';
+import { isAdminOrAbove, isReviewerOrAbove, canManageAssessments } from '@/lib/roles';
 import {
   LayoutDashboard,
   FolderOpen,
@@ -17,10 +16,14 @@ import {
   Users,
   User,
   ClipboardCheck,
-  LogOut,
   UserCircle,
   Download,
-  PenLine
+  PenLine,
+  GraduationCap,
+  Award,
+  BarChart3,
+  CalendarRange,
+  LibraryBig
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -29,14 +32,6 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ user }) => {
   const pathname = usePathname() || '';
-  const router = useRouter();
-
-  const handleSignOut = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push('/login');
-    router.refresh();
-  };
 
   // Nav visibility follows the permission matrix (docs/04-rbac-security.md §2/§10): Employee only
   // ever has their own profile; CV Reviewer can view profiles, create profiles, manage CV
@@ -61,6 +56,48 @@ export const Sidebar: React.FC<SidebarProps> = ({ user }) => {
         ...(isReviewerOrAbove(user.role) ? [{ name: 'Pending Approvals', path: '/review', icon: ClipboardCheck }] : []),
       ];
 
+  // Assessments are for everyone (all employees take them). The management screens are for the
+  // HR tier (CV Reviewer, Super Admin) -- see canManageAssessments in lib/roles.ts.
+  const assessmentItems = [
+    { name: 'My Assessment', path: '/assessments', icon: GraduationCap, exact: true },
+    { name: 'My Certificates', path: '/assessments/certificates', icon: Award, exact: false },
+  ];
+
+  const assessmentAdminItems = canManageAssessments(user.role)
+    ? [
+        { name: 'Assessment Tracker', path: '/assessments/manage', icon: BarChart3, exact: true },
+        { name: 'Assessment Cycles', path: '/assessments/manage/cycles', icon: CalendarRange, exact: false },
+        { name: 'Question Bank', path: '/assessments/manage/questions', icon: LibraryBig, exact: false },
+      ]
+    : [];
+
+  const renderNavLink = (item: { name: string; path: string; icon: React.ElementType; exact?: boolean }) => {
+    const isActive = item.exact ? pathname === item.path : pathname === item.path || pathname.startsWith(item.path + '/');
+    const Icon = item.icon;
+    return (
+      <Link
+        key={item.name}
+        href={item.path}
+        className={`flex items-center px-4 py-3 rounded-xl gap-3.5 transition-all duration-300 group ${
+          isActive
+            ? 'bg-gradient-to-r from-sky-500/20 to-indigo-500/10 border border-sky-500/30 text-sky-300 font-semibold'
+            : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/50'
+        }`}
+      >
+        <Icon
+          className={`w-5 h-5 transition-transform duration-300 group-hover:scale-110 ${
+            isActive ? 'text-sky-400' : 'text-slate-400 group-hover:text-slate-200'
+          }`}
+        />
+        <span className="font-sans text-sm tracking-wide">{item.name}</span>
+      </Link>
+    );
+  };
+
+  const sectionLabel = (label: string) => (
+    <p className="px-4 pt-2 pb-1 text-[10px] font-black uppercase tracking-widest text-slate-500">{label}</p>
+  );
+
   return (
     <aside className="fixed left-0 top-0 h-full w-[260px] bg-slate-900 text-slate-100 flex flex-col p-5 border-r border-slate-800 z-50">
       {/* Brand Header */}
@@ -75,39 +112,21 @@ export const Sidebar: React.FC<SidebarProps> = ({ user }) => {
           />
         </div>
         <div>
-          <h1 className="font-sans text-xl font-black tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
-            SEBSA-CV
+          <h1 className="font-sans text-s font-black tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
+            SEBSA Employee ManagementPortal
           </h1>
-          <p className="text-[11px] font-semibold text-sky-400 uppercase tracking-widest leading-none mt-0.5">
-            CV Generation
-          </p>
         </div>
       </div>
 
       {/* Navigation Links */}
       <nav className="flex-1 flex flex-col gap-1.5">
-        {navItems.map((item) => {
-          const isActive = pathname === item.path || pathname.startsWith(item.path + '/');
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.name}
-              href={item.path}
-              className={`flex items-center px-4 py-3 rounded-xl gap-3.5 transition-all duration-300 group ${
-                isActive
-                  ? 'bg-gradient-to-r from-sky-500/20 to-indigo-500/10 border border-sky-500/30 text-sky-300 font-semibold'
-                  : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/50'
-              }`}
-            >
-              <Icon
-                className={`w-5 h-5 transition-transform duration-300 group-hover:scale-110 ${
-                  isActive ? 'text-sky-400' : 'text-slate-400 group-hover:text-slate-200'
-                }`}
-              />
-              <span className="font-sans text-sm tracking-wide">{item.name}</span>
-            </Link>
-          );
-        })}
+        {sectionLabel('CV Generator')}
+        {navItems.map(renderNavLink)}
+
+        <div className="w-full h-px bg-slate-800/80 my-3" />
+        {sectionLabel('Assessments')}
+        {assessmentItems.map(renderNavLink)}
+        {assessmentAdminItems.map(renderNavLink)}
 
         {isAdminOrAbove(user.role) && (
           <>
@@ -157,13 +176,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ user }) => {
             {user.role}
           </p>
         </div>
-        <button
-          onClick={handleSignOut}
-          title="Sign out"
-          className="p-2 text-slate-400 hover:text-rose-400 hover:bg-slate-800/60 rounded-lg transition-colors shrink-0"
-        >
-          <LogOut className="w-4 h-4" />
-        </button>
       </div>
     </aside>
   );

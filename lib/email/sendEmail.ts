@@ -8,11 +8,17 @@ export interface EmailAttachment {
   contentType: string;
 }
 
+export interface EmailAttachment {
+  filename: string;
+  content: Buffer;
+  contentType: string;
+}
+
 export interface EmailContent {
   subject: string;
   html: string;
   text: string;
-  /** Optional files (e.g. a certificate PDF). Existing callers never set this. */
+  /** Optional files (e.g. the assessment certificate PDF). Existing callers never set this. */
   attachments?: EmailAttachment[];
 }
 
