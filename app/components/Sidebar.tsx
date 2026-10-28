@@ -3,8 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { usePathname, useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import { usePathname } from 'next/navigation';
 import type { CurrentUser } from '@/lib/auth';
 import { isAdminOrAbove, isReviewerOrAbove, canManageAssessments } from '@/lib/roles';
 import {
@@ -17,7 +16,6 @@ import {
   Users,
   User,
   ClipboardCheck,
-  LogOut,
   UserCircle,
   Download,
   PenLine,
@@ -34,14 +32,6 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ user }) => {
   const pathname = usePathname() || '';
-  const router = useRouter();
-
-  const handleSignOut = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push('/login');
-    router.refresh();
-  };
 
   // Nav visibility follows the permission matrix (docs/04-rbac-security.md §2/§10): Employee only
   // ever has their own profile; CV Reviewer can view profiles, create profiles, manage CV
@@ -186,13 +176,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ user }) => {
             {user.role}
           </p>
         </div>
-        <button
-          onClick={handleSignOut}
-          title="Sign out"
-          className="p-2 text-slate-400 hover:text-rose-400 hover:bg-slate-800/60 rounded-lg transition-colors shrink-0"
-        >
-          <LogOut className="w-4 h-4" />
-        </button>
       </div>
     </aside>
   );

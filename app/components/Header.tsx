@@ -9,7 +9,8 @@ import {
   markAllNotificationsReadAction,
 } from '@/app/(authenticated)/notifications/actions';
 import type { AppNotification } from '@/services/notification-service';
-import { Search, Bell, UserCircle, Loader2 } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
+import { Search, Bell, UserCircle, Loader2, LogOut } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 interface HeaderProps {
@@ -32,6 +33,7 @@ export const Header: React.FC<HeaderProps> = ({
   const [showNotificationDropdown, setShowNotificationDropdown] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [signingOut, setSigningOut] = useState(false);
   const router = useRouter();
   const notificationRef = useRef<HTMLDivElement>(null);
 
@@ -88,6 +90,23 @@ export const Header: React.FC<HeaderProps> = ({
     } catch (err) {
       console.error('Failed to mark all notifications read:', err);
     }
+  };
+
+  const handleSignOut = async () => {
+    if (signingOut) return;
+
+    setSigningOut(true);
+    const supabase = createClient();
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      console.error('Failed to sign out:', error);
+      setSigningOut(false);
+      return;
+    }
+
+    router.replace('/login');
+    router.refresh();
   };
 
   return (
@@ -184,6 +203,20 @@ export const Header: React.FC<HeaderProps> = ({
               <UserCircle className="w-6 h-6 text-slate-400" />
             )}
           </div>
+          <button
+            type="button"
+            onClick={handleSignOut}
+            disabled={signingOut}
+            title="Sign out"
+            aria-label="Sign out"
+            className="p-2.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {signingOut ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <LogOut className="w-5 h-5" />
+            )}
+          </button>
         </div>
       </div>
     </header>
