@@ -19,7 +19,9 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
-  if ((pathname === '/login' || pathname === '/signup') && user) {
+  // A signed-in user is normally sent on to the dashboard, but not when /login carries an error:
+  // otherwise a failed sign-in (e.g. Microsoft) is silently hidden behind the previous session.
+  if ((pathname === '/login' || pathname === '/signup') && user && !request.nextUrl.searchParams.has('error')) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
