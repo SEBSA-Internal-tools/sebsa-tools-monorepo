@@ -21,3 +21,14 @@ export function canAssignRole(actorRole: UserRole, targetRole: UserRole): boolea
   if (actorRole === 'admin') return targetRole === 'cv_reviewer' || targetRole === 'employee';
   return false;
 }
+
+/**
+ * HR / assessment-admin privileges: manage the question bank and cycles, send and resend
+ * invitations, and see every person's results. Exclusive to CV Reviewer and Super Admin -- Admin is
+ * deliberately NOT included (docs/04-rbac-security.md §18). The database enforces the same rule
+ * through is_assessment_manager() in the assessment_* RLS policies (migration 0031), so this is a
+ * UI/route gate, not the only line of defence.
+ */
+export function canManageAssessments(role: UserRole): boolean {
+  return role === 'cv_reviewer' || role === 'super_admin';
+}

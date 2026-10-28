@@ -3,24 +3,15 @@ insert into storage.buckets (id, name, public)
 values ('profile-pictures', 'profile-pictures', true)
 on conflict (id) do nothing;
 
--- Allow any authenticated user to upload their own profile picture
-create policy if not exists profile_pictures_auth_upload on storage.objects
-  for insert
-  with check (
-    bucket_id = 'profile-pictures'
-    and auth.role() = 'authenticated'
-  );
-
--- Allow any authenticated user to read profile pictures (public bucket is already readable,
--- but adding an explicit SELECT policy for defence-in-depth)
-create policy if not exists profile_pictures_auth_read on storage.objects
-  for select
-  using (
-    bucket_id = 'profile-pictures'
-  );
+-- NOTE: the original file also created profile_pictures_auth_upload and profile_pictures_auth_read
+-- with `create policy if not exists`, which is not valid Postgres, so those statements could never
+-- have run. Production does NOT have either policy (checked against a schema dump), and uploads go
+-- through the server (service role). They are omitted here so a database rebuilt from migrations
+-- matches production rather than being more permissive.
 
 -- Allow admin users to delete/update profile pictures
-create policy if not exists profile_pictures_admin_rw on storage.objects
+drop policy if exists profile_pictures_admin_rw on storage.objects;
+create policy profile_pictures_admin_rw on storage.objects
   for all
   using (
     bucket_id = 'profile-pictures'

@@ -25,7 +25,7 @@ const envSchema = z.object({
   BREVO_SMTP_KEY: z.preprocess(emptyToUndefined, z.string().optional()),
   BREVO_SMTP_LOGIN: z.preprocess(emptyToUndefined, z.string().optional()),
   EMAIL_FROM_ADDRESS: z.preprocess(emptyToUndefined, z.string().optional()),
-  EMAIL_FROM_NAME: z.preprocess(emptyToUndefined, z.string().default('SEBSA CV Generator')),
+  EMAIL_FROM_NAME: z.preprocess(emptyToUndefined, z.string().default('SEBSA Employee Management Portal')),
 });
 
 /**
@@ -51,7 +51,7 @@ export function requireEnv<K extends keyof typeof env>(key: K): NonNullable<(typ
   const value = env[key];
   if (value === undefined || value === '') {
     throw new Error(
-      `Missing required environment variable: ${key}. Set it in .env.local (see .env.local.example).`
+      `Missing required environment variable: ${key}. Set it in .env.dev (see .env.local.example).`
     );
   }
   return value as NonNullable<(typeof env)[K]>;
