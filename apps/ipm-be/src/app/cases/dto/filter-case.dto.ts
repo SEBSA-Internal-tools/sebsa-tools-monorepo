@@ -46,6 +46,11 @@ export class FilterCaseDto {
   @IsUUID()
   assigneeId?: string;
 
+  @ApiPropertyOptional({ description: 'Filters to cases with no assignees when true.' })
+  @IsOptional()
+  @Transform(({ value }) => value === 'true')
+  unassigned?: boolean;
+
   @ApiPropertyOptional({ format: 'uuid' })
   @IsOptional()
   @IsUUID()

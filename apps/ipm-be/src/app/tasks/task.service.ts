@@ -870,7 +870,11 @@ export class TaskService {
     }
 
     if (filter.isCsoLabeled !== undefined) {
-      andConditions.push({ case: { isCsoLabeled: filter.isCsoLabeled } });
+      if (filter.isCsoLabeled) {
+        andConditions.push({ OR: [{ case: { isCsoLabeled: true } }, { case: { project: { isCsoProject: true } } }] });
+      } else {
+        andConditions.push({ case: { isCsoLabeled: false, project: { isCsoProject: false } } });
+      }
     }
 
     if (filter.search) {

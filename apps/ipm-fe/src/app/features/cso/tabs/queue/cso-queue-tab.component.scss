@@ -51,6 +51,18 @@ $desktop: 1024px;
   }
 }
 
+.btn-refresh {
+  margin-left: auto;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  color: var(--app-text-muted);
+  border-radius: 8px;
+  padding: 9px;
+  cursor: pointer;
+
+  &.spinning .material-symbols-outlined { animation: spin 1s linear infinite; }
+}
+
 .error-banner {
   background-color: var(--status-error-bg);
   border: 1px solid #f5c6c6;

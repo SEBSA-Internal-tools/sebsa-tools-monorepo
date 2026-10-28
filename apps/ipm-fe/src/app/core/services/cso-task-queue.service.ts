@@ -1,7 +1,7 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
 import { catchError, map, Observable, of, switchMap } from 'rxjs';
-import { ProjectSummary, TaskCategory, TaskStatus, TaskSummary } from '@sebsa-pm-tool/shared-models';
+import { CaseStatus, CaseSummary, ProjectSummary, TaskCategory } from '@sebsa-pm-tool/shared-models';
 
 export interface CsoTaskQueueFilters {
   projectId?: string;
@@ -12,16 +12,14 @@ export interface CsoTaskQueueFilters {
   category: TaskCategory;
 }
 
-export interface CsoQueueTaskView {
+export interface CsoQueueCaseView {
   id: string;
   title: string;
   priority: string;
   priorityColor: string | null;
   /** Bucketed from the fixed, global TaskStatus enum. */
   statusLabel: 'new' | 'todo' | 'inprogress' | 'done';
-  taskTypeName: string | null;
-  complexityName: string | null;
-  complexityColor: string | null;
+  caseType: string;
   dueDate: string;
   caseId: string;
   caseTitle: string;
@@ -30,7 +28,7 @@ export interface CsoQueueTaskView {
   customerName?: string;
 }
 
-function bucketStatus(status: TaskStatus): CsoQueueTaskView['statusLabel'] {
+function bucketStatus(status: CaseStatus): CsoQueueCaseView['statusLabel'] {
   switch (status) {
     case 'TO_DO':
       return 'new';
@@ -57,8 +55,8 @@ function bucketStatus(status: TaskStatus): CsoQueueTaskView['statusLabel'] {
 export class CsoTaskQueueService {
   private readonly http = inject(HttpClient);
 
-  private readonly _tasks = signal<CsoQueueTaskView[]>([]);
-  readonly tasks = this._tasks.asReadonly();
+  private readonly _cases = signal<CsoQueueCaseView[]>([]);
+  readonly cases = this._cases.asReadonly();
 
   private readonly _isLoading = signal(false);
   readonly isLoading = this._isLoading.asReadonly();
@@ -75,16 +73,16 @@ export class CsoTaskQueueService {
     if (filters.priorityId) params = params.set('priorityId', filters.priorityId);
 
     this.http
-      .get<TaskSummary[]>('/api/tasks', { params })
-      .pipe(switchMap((tasks) => this.resolveDetails(tasks)))
+      .get<CaseSummary[]>('/api/cases', { params })
+      .pipe(switchMap((cases) => this.resolveDetails(cases)))
       .subscribe({
         next: (views) => {
-          this._tasks.set(views);
+          this._cases.set(views);
           this._isLoading.set(false);
         },
         error: (err) => {
-          console.error('Failed to load CSO tasks:', err);
-          this._tasks.set([]);
+          console.error('Failed to load CSO cases:', err);
+          this._cases.set([]);
           this._isLoading.set(false);
         },
       });
@@ -92,32 +90,30 @@ export class CsoTaskQueueService {
 
   /** customerName isn't present on the flat tasks response, so resolve it
    *  via one /api/projects call, same trick CsoOverviewService uses. */
-  private resolveDetails(tasks: TaskSummary[]): Observable<CsoQueueTaskView[]> {
-    if (tasks.length === 0) return of([]);
+  private resolveDetails(cases: CaseSummary[]): Observable<CsoQueueCaseView[]> {
+    if (cases.length === 0) return of([]);
 
     return this.http.get<ProjectSummary[]>('/api/projects').pipe(
       catchError(() => of([])),
       map((projects) => {
         const projectById = new Map(projects.map((project) => [project.id, project]));
-        return tasks.map((task) => this.toQueueTaskView(task, projectById.get(task.case.projectId)));
+        return cases.map((kase) => this.toQueueCaseView(kase, projectById.get(kase.projectId)));
       }),
     );
   }
 
-  private toQueueTaskView(task: TaskSummary, project: ProjectSummary | undefined): CsoQueueTaskView {
+  private toQueueCaseView(kase: CaseSummary, project: ProjectSummary | undefined): CsoQueueCaseView {
     return {
-      id: task.id,
-      title: task.title,
-      priority: task.priority?.name ?? '',
-      priorityColor: task.priority?.color ?? null,
-      statusLabel: bucketStatus(task.status),
-      taskTypeName: task.taskType?.name ?? null,
-      complexityName: task.complexityLevel?.name ?? null,
-      complexityColor: task.complexityLevel?.color ?? null,
-      dueDate: task.dueDate ?? '',
-      caseId: task.caseId,
-      caseTitle: task.case?.title ?? '',
-      projectId: task.case.projectId,
+      id: kase.id,
+      title: kase.title,
+      priority: kase.priority?.name ?? '',
+      priorityColor: kase.priority?.color ?? null,
+      statusLabel: bucketStatus(kase.status),
+      caseType: kase.type,
+      dueDate: kase.dueDate ?? '',
+      caseId: kase.id,
+      caseTitle: kase.title,
+      projectId: kase.projectId,
       projectName: project?.name ?? '',
       customerName: project?.customer?.name,
     };

@@ -1,6 +1,16 @@
 <div class="cso-queue-tab" [class.technical]="category === 'TECHNICAL'">
   <div class="tab-toolbar">
-    <p class="tab-subtitle">Every unassigned task tagged {{ queueLabel }}, across all CSO cases.</p>
+    <p class="tab-subtitle">Every unassigned {{ queueLabel }} case across accessible CSO projects.</p>
+    <button
+      type="button"
+      class="btn-refresh"
+      [class.spinning]="isLoading()"
+      (click)="refresh()"
+      title="Refresh {{ queueLabel }} queue"
+      [attr.aria-label]="'Refresh ' + queueLabel + ' queue'"
+    >
+      <span class="material-symbols-outlined">refresh</span>
+    </button>
     <button type="button" class="btn-primary" (click)="openTaskModal()">
       <span class="material-symbols-outlined">add</span>
       Create Case
@@ -61,60 +71,48 @@
         <span class="material-symbols-outlined spin">progress_activity</span>
         Loading {{ queueLabel }} queue...
       </div>
-    } @else if (filteredTasks().length === 0) {
+    } @else if (filteredCases().length === 0) {
       <div class="empty-state">
         <span class="material-symbols-outlined">inbox</span>
-        <p>No {{ queueLabel }} tasks match these filters.</p>
+        <p>No unassigned {{ queueLabel }} cases match these filters.</p>
       </div>
     } @else {
       <div class="table-container">
         <table class="results-table">
           <thead>
             <tr>
-              <th>Task</th>
               <th>Case</th>
               <th>Project</th>
               <th>Customer</th>
               <th>Type</th>
-              <th>Complexity</th>
               <th>Priority</th>
               <th>Status</th>
               <th>Due Date</th>
             </tr>
           </thead>
           <tbody>
-            @for (task of filteredTasks(); track task.id) {
+            @for (kase of filteredCases(); track kase.id) {
               <tr
                 class="clickable-row"
-                (click)="onTaskClick(task.id)"
-                (keydown.enter)="onTaskClick(task.id)"
+                (click)="onCaseClick(kase.id)"
+                (keydown.enter)="onCaseClick(kase.id)"
                 tabindex="0"
               >
-                <td>{{ task.title }}</td>
-                <td>{{ task.caseTitle }}</td>
-                <td>{{ task.projectName }}</td>
-                <td>{{ task.customerName || '—' }}</td>
-                <td>{{ task.taskTypeName || '—' }}</td>
+                <td>{{ kase.title }}</td>
+                <td>{{ kase.projectName }}</td>
+                <td>{{ kase.customerName || '—' }}</td>
+                <td>{{ kase.caseType }}</td>
                 <td>
-                  @if (task.complexityName) {
-                    <span class="priority-badge" [style.--priority-color]="task.complexityColor || '#94a3b8'">
-                      {{ task.complexityName }}
-                    </span>
-                  } @else {
-                    —
-                  }
-                </td>
-                <td>
-                  <span class="priority-badge" [style.--priority-color]="task.priorityColor || '#f59e0b'">
-                    {{ task.priority }}
+                  <span class="priority-badge" [style.--priority-color]="kase.priorityColor || '#f59e0b'">
+                    {{ kase.priority }}
                   </span>
                 </td>
                 <td>
-                  <span class="status-badge" [class]="'status-' + task.statusLabel">
-                    {{ statusLabelText(task.statusLabel) }}
+                  <span class="status-badge" [class]="'status-' + kase.statusLabel">
+                    {{ statusLabelText(kase.statusLabel) }}
                   </span>
                 </td>
-                <td>{{ task.dueDate ? (task.dueDate | date: 'mediumDate') : '—' }}</td>
+                <td>{{ kase.dueDate ? (kase.dueDate | date: 'mediumDate') : '—' }}</td>
               </tr>
             }
           </tbody>
