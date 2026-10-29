@@ -36,6 +36,18 @@ export interface ManagedAttemptRow {
   submitted_at: string;
 }
 
+export interface EmailDeliveryRow {
+  id: string;
+  user_id: string;
+  cycle_id: string;
+  email_type: 'invitation' | 'reminder';
+  status: 'pending' | 'sending' | 'sent' | 'failed' | 'skipped';
+  attempt_count: number;
+  sent_at: string | null;
+  last_attempt_at: string | null;
+  last_error: string | null;
+}
+
 export interface QuestionInputRow {
   question_text: string;
   option_a: string;
@@ -142,9 +154,77 @@ export async function insertInvitationRows(
   rows: { user_id: string; cycle_id: string; expires_at: string; email_status: 'sent' | 'failed'; email_error: string | null }[]
 ): Promise<{ id: string; user_id: string }[]> {
   if (rows.length === 0) return [];
-  const { data, error } = await supabase.from('assessment_invitations').insert(rows).select('id, user_id');
+  const { data, error } = await supabase
+    .from('assessment_invitations')
+    .upsert(rows, { onConflict: 'user_id,cycle_id', ignoreDuplicates: true })
+    .select('id, user_id');
   if (error) throw error;
   return (data ?? []) as { id: string; user_id: string }[];
+}
+
+export async function ensureEmailDeliveryRows(
+  supabase: SupabaseClient,
+  rows: { user_id: string; cycle_id: string; email_type: 'invitation' | 'reminder' }[]
+): Promise<EmailDeliveryRow[]> {
+  if (rows.length === 0) return [];
+  const { data, error } = await supabase
+    .from('assessment_email_deliveries')
+    .upsert(rows, { onConflict: 'user_id,cycle_id,email_type', ignoreDuplicates: true })
+    .select('*');
+  if (error) throw error;
+  return (data ?? []) as EmailDeliveryRow[];
+}
+
+export async function listEmailDeliveryRows(supabase: SupabaseClient, cycleIds: string[]): Promise<EmailDeliveryRow[]> {
+  if (cycleIds.length === 0) return [];
+  const { data, error } = await supabase.from('assessment_email_deliveries').select('*').in('cycle_id', cycleIds);
+  if (error) throw error;
+  return (data ?? []) as EmailDeliveryRow[];
+}
+
+export async function claimEmailDelivery(supabase: SupabaseClient, deliveryId: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('claim_assessment_email_delivery', { p_delivery_id: deliveryId });
+  if (error) throw error;
+  return data === true;
+}
+
+export async function finishEmailDelivery(
+  supabase: SupabaseClient,
+  deliveryId: string,
+  result: { sent: boolean; error?: string | null }
+): Promise<void> {
+  const { error } = await supabase.from('assessment_email_deliveries').update({
+    status: result.sent ? 'sent' : 'failed',
+    sent_at: result.sent ? new Date().toISOString() : null,
+    last_error: result.error ?? null,
+  }).eq('id', deliveryId);
+  if (error) throw error;
+}
+
+export async function skipEmailDelivery(supabase: SupabaseClient, deliveryId: string, reason: string): Promise<void> {
+  const { error } = await supabase.from('assessment_email_deliveries').update({
+    status: 'skipped', sent_at: null, last_error: reason,
+  }).eq('id', deliveryId);
+  if (error) throw error;
+}
+
+export async function resetEmailDeliveryForRetry(
+  supabase: SupabaseClient,
+  cycleId: string,
+  userId: string,
+  emailType: 'invitation' | 'reminder'
+): Promise<EmailDeliveryRow | null> {
+  const { data, error } = await supabase
+    .from('assessment_email_deliveries')
+    .update({ status: 'pending' })
+    .eq('cycle_id', cycleId)
+    .eq('user_id', userId)
+    .eq('email_type', emailType)
+    .eq('status', 'failed')
+    .select('*')
+    .maybeSingle();
+  if (error) throw error;
+  return data as EmailDeliveryRow | null;
 }
 
 export async function findInvitationRow(

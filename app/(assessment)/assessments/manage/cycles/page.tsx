@@ -17,5 +17,5 @@ export default async function ManageCyclesPage() {
     listInvitablePeople(createAdminClient()),
   ]);
 
-  return <CyclesClient cycles={cycles} recipientCount={people.length} />;
+  return <CyclesClient cycles={cycles} people={people.map(({ userId, name, email }) => ({ userId, name, email }))} />;
 }

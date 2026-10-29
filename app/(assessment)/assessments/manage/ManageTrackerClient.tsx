@@ -38,7 +38,7 @@ export default function ManageTrackerClient({ cycles, tracker }: { cycles: Cycle
         { title: 'Recipients', value: cycle.recipients, icon: Users, gradient: 'from-purple-800 via-violet-900 to-slate-950', iconColor: 'text-purple-200', labelColor: 'text-violet-200' },
         { title: 'Completed', value: `${cycle.completed}`, icon: CheckCircle2, gradient: 'from-indigo-900 to-slate-950', iconColor: 'text-sky-300', labelColor: 'text-indigo-300' },
         { title: 'Pass rate', value: `${cycle.passRate}%`, icon: Send, gradient: 'from-slate-800 to-slate-950', iconColor: 'text-emerald-300', labelColor: 'text-slate-300' },
-        { title: 'Emails failed', value: cycle.emailsFailed, icon: MailWarning, gradient: 'from-rose-900 to-slate-950', iconColor: 'text-rose-200', labelColor: 'text-rose-200' },
+        { title: 'Emails failed', value: cycle.emailsFailed + cycle.reminderEmailsFailed, icon: MailWarning, gradient: 'from-rose-900 to-slate-950', iconColor: 'text-rose-200', labelColor: 'text-rose-200' },
       ]
     : [];
 
@@ -146,6 +146,11 @@ export default function ManageTrackerClient({ cycles, tracker }: { cycles: Cycle
                         {r.emailStatus === 'failed' && (
                           <p className="flex items-center gap-1 text-[10px] font-black text-rose-600 mt-0.5" title={r.emailError ?? undefined}>
                             <MailWarning className="w-3 h-3" />Email failed
+                          </p>
+                        )}
+                        {r.reminderStatus === 'failed' && (
+                          <p className="flex items-center gap-1 text-[10px] font-black text-rose-600 mt-0.5" title={r.reminderError ?? undefined}>
+                            <MailWarning className="w-3 h-3" />Reminder failed
                           </p>
                         )}
                       </td>

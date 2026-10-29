@@ -17,6 +17,8 @@ import {
   getCycleRecipients,
   resendFailedInvitations,
   resendInvitation,
+  retryFailedAssessmentEmail,
+  sendManualReminders,
   setCycleActive,
   updateQuestion,
 } from '@/services/assessment-admin-service';
@@ -43,8 +45,22 @@ async function run<T>(op: (ctx: { actor: Actor; supabase: Awaited<ReturnType<typ
   }
 }
 
-export async function createCycleAction(input: { label: string; passingScore: number }): Promise<ManageResult<CreateCycleResult>> {
+export async function createCycleAction(input: { label: string; passingScore: number; employeeIds: string[] }): Promise<ManageResult<CreateCycleResult>> {
   return run(({ actor, supabase, admin }) => createCycleAndInvite(supabase, admin, actor, input));
+}
+
+export async function sendRemindersAction(
+  cycleId: string
+): Promise<ManageResult<{ eligible: number; attempted: number; delivered: number; failed: number }>> {
+  return run(({ actor, supabase, admin }) => sendManualReminders(supabase, admin, actor, cycleId));
+}
+
+export async function retryFailedEmailAction(
+  cycleId: string,
+  userId: string,
+  emailType: 'invitation' | 'reminder'
+): Promise<ManageResult<{ email: string; error: string | null }>> {
+  return run(({ actor, supabase, admin }) => retryFailedAssessmentEmail(supabase, admin, actor, cycleId, userId, emailType));
 }
 
 export async function setCycleActiveAction(cycleId: string, active: boolean): Promise<ManageResult> {

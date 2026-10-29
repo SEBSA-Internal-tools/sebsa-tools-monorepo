@@ -5,8 +5,11 @@ import {
   type ManagedCycleRow,
   type ManagedInvitationRow,
   type QuestionInputRow,
+  claimEmailDelivery,
   deleteQuestionRow,
+  ensureEmailDeliveryRows,
   findInvitationRow,
+  finishEmailDelivery,
   findOtherActiveCycle,
   getCycleRowById,
   insertCycleRow,
@@ -15,9 +18,12 @@ import {
   isQuestionUsedByAttempts,
   listAttemptRowsForCycles,
   listCycleRows,
+  listEmailDeliveryRows,
   listInvitationRowsForCycles,
   listQuestionRows,
   markInvitationsSent,
+  resetEmailDeliveryForRetry,
+  skipEmailDelivery,
   updateCycleStatus,
   updateInvitationRow,
   updateQuestionRow,
@@ -26,8 +32,8 @@ import type { QuestionRow } from '@/repositories/assessment-repository';
 import { AssessmentError } from '@/services/assessment-service';
 import { recordAuditLog, type AuditAction } from '@/services/audit-service';
 import { deriveAccountStatus } from '@/services/account-service';
-import { INVITATION_VALID_DAYS } from '@/lib/assessment/rules';
-import { buildInvitationEmail } from '@/lib/email/assessmentEmails';
+import { INVITATION_VALID_DAYS, reminderRecipientIds, selectAssessmentRecipients } from '@/lib/assessment/rules';
+import { buildInvitationEmail, buildReminderEmail } from '@/lib/email/assessmentEmails';
 import { sendEmail } from '@/lib/email/sendEmail';
 import { canManageAssessments, type UserRole } from '@/lib/roles';
 
@@ -67,6 +73,7 @@ export interface Person {
   email: string;
   name: string;
   deactivated: boolean;
+  role: UserRole;
 }
 
 type AdminUser = User & { banned_until?: string | null };
@@ -81,9 +88,14 @@ async function listPeople(admin: SupabaseClient): Promise<Person[]> {
     if (data.users.length < 1000) break;
   }
 
-  const { data: profiles, error } = await admin.from('profiles').select('user_id, full_name').not('user_id', 'is', null);
+  const [{ data: profiles, error }, { data: roles, error: rolesError }] = await Promise.all([
+    admin.from('profiles').select('user_id, full_name').not('user_id', 'is', null),
+    admin.from('user_roles').select('user_id, role'),
+  ]);
   if (error) throw error;
+  if (rolesError) throw rolesError;
   const nameByUser = new Map((profiles ?? []).map((p: { user_id: string; full_name: string }) => [p.user_id, p.full_name]));
+  const roleByUser = new Map((roles ?? []).map((row: { user_id: string; role: UserRole }) => [row.user_id, row.role]));
 
   return users
     .filter((u) => u.email)
@@ -92,12 +104,13 @@ async function listPeople(admin: SupabaseClient): Promise<Person[]> {
       email: u.email as string,
       name: nameByUser.get(u.id) || (u.email as string).split('@')[0],
       deactivated: deriveAccountStatus(u) === 'deactivated',
+      role: roleByUser.get(u.id) ?? 'employee',
     }));
 }
 
 /** Everyone who should receive an invitation: every account that has not been deactivated. */
 export async function listInvitablePeople(admin: SupabaseClient): Promise<Person[]> {
-  return (await listPeople(admin)).filter((p) => !p.deactivated);
+  return (await listPeople(admin)).filter((p) => !p.deactivated && p.role === 'employee');
 }
 
 // ── Cycles ────────────────────────────────────────────────────────────────────────────────────
@@ -112,6 +125,7 @@ export interface CycleSummary {
   recipients: number;
   emailsSent: number;
   emailsFailed: number;
+  reminderEmailsFailed: number;
   expiredInvitations: number;
   started: number;
   completed: number;
@@ -124,9 +138,10 @@ export async function listCycleSummaries(supabase: SupabaseClient, actor: Actor)
   assertCanManage(actor);
   const cycles = await listCycleRows(supabase);
   const ids = cycles.map((c) => c.id);
-  const [invitations, attempts] = await Promise.all([
+  const [invitations, attempts, deliveries] = await Promise.all([
     listInvitationRowsForCycles(supabase, ids),
     listAttemptRowsForCycles(supabase, ids),
+    listEmailDeliveryRows(supabase, ids),
   ]);
   const now = Date.now();
 
@@ -144,6 +159,9 @@ export async function listCycleSummaries(supabase: SupabaseClient, actor: Actor)
       recipients: invs.length,
       emailsSent: invs.filter((i) => i.email_status === 'sent').length,
       emailsFailed: invs.filter((i) => i.email_status === 'failed').length,
+      reminderEmailsFailed: deliveries.filter((delivery) =>
+        delivery.cycle_id === c.id && delivery.email_type === 'reminder' && delivery.status === 'failed'
+      ).length,
       expiredInvitations: invs.filter((i) => i.status !== 'completed' && new Date(i.expires_at).getTime() < now).length,
       started: invs.filter((i) => i.status === 'opened' || i.status === 'completed').length,
       completed: finals.length,
@@ -157,6 +175,8 @@ export async function listCycleSummaries(supabase: SupabaseClient, actor: Actor)
 const cycleSchema = z.object({
   label: z.string().trim().min(3, 'Cycle label must be at least 3 characters.').max(80),
   passingScore: z.number().int().min(0).max(10),
+  employeeIds: z.array(z.string().uuid()).min(1, 'Select at least one employee.')
+    .refine((ids) => new Set(ids).size === ids.length, 'Employees may only be selected once.'),
 });
 
 export interface CreateCycleResult {
@@ -188,7 +208,7 @@ export async function createCycleAndInvite(
   supabase: SupabaseClient,
   admin: SupabaseClient,
   actor: Actor,
-  input: { label: string; passingScore: number }
+  input: { label: string; passingScore: number; employeeIds: string[] }
 ): Promise<CreateCycleResult> {
   assertCanManage(actor);
   const parsed = cycleSchema.safeParse(input);
@@ -199,8 +219,10 @@ export async function createCycleAndInvite(
     throw new AssessmentError('ACTIVE_CYCLE_EXISTS', `"${existing.label}" is already the active cycle. Deactivate it before opening a new one.`);
   }
 
-  const people = await listInvitablePeople(admin);
-  if (people.length === 0) throw new AssessmentError('NO_RECIPIENTS', 'There are no active accounts to invite.');
+  const eligible = await listInvitablePeople(admin);
+  const requested = new Set(parsed.data.employeeIds);
+  const people = selectAssessmentRecipients(eligible, parsed.data.employeeIds);
+  if (people.length !== requested.size) throw new AssessmentError('INVALID_SUBMISSION', 'One or more selected employees are not eligible.');
 
   const expiresAt = new Date(Date.now() + INVITATION_VALID_DAYS * 24 * 60 * 60 * 1000);
   const cycle = await insertCycleRow(supabase, {
@@ -220,10 +242,22 @@ export async function createCycleAndInvite(
     }))
   );
   const personByUser = new Map(people.map((p) => [p.userId, p]));
+  const deliveries = await ensureEmailDeliveryRows(admin, rows.map((row) => ({
+    user_id: row.user_id,
+    cycle_id: cycle.id,
+    email_type: 'invitation' as const,
+  })));
+  const deliveryByUser = new Map(deliveries.map((delivery) => [delivery.user_id, delivery]));
 
   const outcomes = await inChunks(rows, SEND_CONCURRENCY, async (row) => ({
     row,
-    error: await deliverInvitation(personByUser.get(row.user_id)!, cycle.label, expiresAt),
+    error: await (async () => {
+      const delivery = deliveryByUser.get(row.user_id);
+      if (!delivery || !(await claimEmailDelivery(admin, delivery.id))) return 'Email delivery was already claimed.';
+      const deliveryError = await deliverInvitation(personByUser.get(row.user_id)!, cycle.label, expiresAt);
+      await finishEmailDelivery(admin, delivery.id, { sent: !deliveryError, error: deliveryError });
+      return deliveryError;
+    })(),
   }));
 
   await markInvitationsSent(supabase, outcomes.filter((o) => !o.error).map((o) => o.row.id));
@@ -292,6 +326,8 @@ export interface TrackerRow {
   attemptCount: number;
   score: number | null;
   submittedAt: string | null;
+  reminderStatus: 'pending' | 'sending' | 'sent' | 'failed' | 'skipped' | null;
+  reminderError: string | null;
 }
 
 export interface TrackerData {
@@ -321,10 +357,11 @@ export async function getCycleRecipients(
   cycleId: string
 ): Promise<TrackerRow[]> {
   assertCanManage(actor);
-  const [invitations, attempts, people] = await Promise.all([
+  const [invitations, attempts, people, deliveries] = await Promise.all([
     listInvitationRowsForCycles(supabase, [cycleId]),
     listAttemptRowsForCycles(supabase, [cycleId]),
     listPeople(admin),
+    listEmailDeliveryRows(supabase, [cycleId]),
   ]);
   const personById = new Map(people.map((p) => [p.userId, p]));
 
@@ -332,6 +369,7 @@ export async function getCycleRecipients(
     const mine = attempts.filter((a) => a.user_id === inv.user_id);
     const latest = mine[mine.length - 1];
     const person = personById.get(inv.user_id);
+    const reminder = deliveries.find((delivery) => delivery.user_id === inv.user_id && delivery.email_type === 'reminder');
     return {
       userId: inv.user_id,
       name: person?.name ?? 'Unknown',
@@ -345,6 +383,8 @@ export async function getCycleRecipients(
       attemptCount: mine.length,
       score: latest?.score ?? null,
       submittedAt: latest?.submitted_at ?? null,
+      reminderStatus: reminder?.status ?? null,
+      reminderError: reminder?.last_error ?? null,
     };
   });
   rows.sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || a.name.localeCompare(b.name));
@@ -436,10 +476,133 @@ export async function resendFailedInvitations(
   const personById = new Map(people.map((p) => [p.userId, p]));
   const targets = invitations.filter((i) => i.email_status === 'failed' && i.status !== 'completed' && personById.get(i.user_id) && !personById.get(i.user_id)!.deactivated);
 
-  const results = await inChunks(targets, SEND_CONCURRENCY, (inv) => reissueInvitation(supabase, cycle, personById.get(inv.user_id)!, inv));
+  const results = await inChunks(targets, SEND_CONCURRENCY, async (inv) => {
+    try {
+      return (await retryFailedAssessmentEmail(supabase, admin, actor, cycleId, inv.user_id, 'invitation')).error;
+    } catch (error) {
+      return (error as Error).message;
+    }
+  });
   const failed = results.filter(Boolean).length;
   await audit(actor, 'ASSESSMENT_INVITATION_RESENT', 'assessment_cycle', cycleId, { label: cycle.label, bulk: true, attempted: targets.length, failed });
   return { attempted: targets.length, delivered: targets.length - failed, failed };
+}
+
+export async function sendManualReminders(
+  supabase: SupabaseClient,
+  admin: SupabaseClient,
+  actor: Actor,
+  cycleId: string
+): Promise<{ eligible: number; attempted: number; delivered: number; failed: number }> {
+  assertCanManage(actor);
+  const cycle = await getCycleRowById(supabase, cycleId);
+  if (!cycle) throw new AssessmentError('NOT_FOUND', 'Cycle not found.');
+  if (cycle.status !== 'active') throw new AssessmentError('CONFLICT', 'Reminders can only be sent for the active cycle.');
+
+  const [invitations, attempts, people] = await Promise.all([
+    listInvitationRowsForCycles(supabase, [cycleId]),
+    listAttemptRowsForCycles(supabase, [cycleId]),
+    listInvitablePeople(admin),
+  ]);
+  const reminderUsers = new Set(reminderRecipientIds(
+    invitations.map((invitation) => ({ userId: invitation.user_id, status: invitation.status })),
+    attempts.map((attempt) => ({ userId: attempt.user_id, isFinal: attempt.is_final }))
+  ));
+  const personById = new Map(people.map((person) => [person.userId, person]));
+  const eligible = invitations.filter((invitation) =>
+    reminderUsers.has(invitation.user_id) && personById.has(invitation.user_id)
+  );
+
+  await ensureEmailDeliveryRows(admin, eligible.map((invitation) => ({
+    user_id: invitation.user_id,
+    cycle_id: cycleId,
+    email_type: 'reminder' as const,
+  })));
+  const deliveries = (await listEmailDeliveryRows(admin, [cycleId]))
+    .filter((delivery) => delivery.email_type === 'reminder' && delivery.status === 'pending');
+
+  const results = await inChunks(deliveries, SEND_CONCURRENCY, async (delivery) => {
+    if (!(await claimEmailDelivery(admin, delivery.id))) return { attempted: false, error: null as string | null };
+    // Completion is checked again after claiming, immediately before email delivery.
+    const latestAttempts = await listAttemptRowsForCycles(admin, [cycleId]);
+    if (latestAttempts.some((attempt) => attempt.user_id === delivery.user_id && attempt.is_final)) {
+      await skipEmailDelivery(admin, delivery.id, 'Employee completed before reminder delivery.');
+      return { attempted: false, error: null as string | null };
+    }
+    const person = personById.get(delivery.user_id);
+    if (!person) {
+      await finishEmailDelivery(admin, delivery.id, { sent: false, error: 'Employee is no longer eligible.' });
+      return { attempted: true, error: 'Employee is no longer eligible.' };
+    }
+    const sent = await sendEmail(person.email, buildReminderEmail({ employeeName: person.name, cycleLabel: cycle.label }));
+    const error = sent ? null : 'Email could not be sent.';
+    await finishEmailDelivery(admin, delivery.id, { sent, error });
+    return { attempted: true, error };
+  });
+  const actualResults = results.filter((result) => result.attempted);
+  const attempted = actualResults.length;
+  const failed = actualResults.filter((result) => Boolean(result.error)).length;
+  await audit(actor, 'ASSESSMENT_REMINDERS_SENT', 'assessment_cycle', cycleId, {
+    label: cycle.label, eligible: eligible.length, attempted, failed,
+  });
+  return { eligible: eligible.length, attempted, delivered: attempted - failed, failed };
+}
+
+export async function retryFailedAssessmentEmail(
+  supabase: SupabaseClient,
+  admin: SupabaseClient,
+  actor: Actor,
+  cycleId: string,
+  userId: string,
+  emailType: 'invitation' | 'reminder'
+): Promise<{ email: string; error: string | null }> {
+  assertCanManage(actor);
+  const [cycle, invitation, people, attempts] = await Promise.all([
+    getCycleRowById(supabase, cycleId),
+    findInvitationRow(supabase, cycleId, userId),
+    listPeople(admin),
+    listAttemptRowsForCycles(supabase, [cycleId]),
+  ]);
+  if (!cycle || !invitation) throw new AssessmentError('NOT_FOUND', 'Assessment invitation not found.');
+  const person = people.find((item) => item.userId === userId);
+  if (!person || person.deactivated) throw new AssessmentError('CONFLICT', 'This employee is no longer active.');
+  if (invitation.status === 'completed' || attempts.some((attempt) => attempt.user_id === userId && attempt.is_final)) {
+    throw new AssessmentError('CONFLICT', 'This employee has already completed the assessment.');
+  }
+
+  const created = await ensureEmailDeliveryRows(admin, [{ user_id: userId, cycle_id: cycleId, email_type: emailType }]);
+  const existing = (await listEmailDeliveryRows(admin, [cycleId]))
+    .find((delivery) => delivery.user_id === userId && delivery.email_type === emailType);
+  const delivery = created[0]
+    ?? (existing?.status === 'pending' ? existing : null)
+    ?? await resetEmailDeliveryForRetry(admin, cycleId, userId, emailType);
+  if (!delivery) throw new AssessmentError('CONFLICT', 'Only a failed email delivery can be retried.');
+  if (!(await claimEmailDelivery(admin, delivery.id))) throw new AssessmentError('CONFLICT', 'This retry is already being processed.');
+
+  const retryExpiry = emailType === 'invitation'
+    ? new Date(Date.now() + INVITATION_VALID_DAYS * 24 * 60 * 60 * 1000)
+    : new Date(invitation.expires_at);
+  if (emailType === 'invitation') {
+    await updateInvitationRow(supabase, invitation.id, {
+      sent_at: new Date().toISOString(),
+      expires_at: retryExpiry.toISOString(),
+      resent_at: new Date().toISOString(),
+      status: 'pending',
+    });
+  }
+  const content = emailType === 'invitation'
+    ? buildInvitationEmail({ employeeName: person.name, cycleLabel: cycle.label, expiresAt: retryExpiry })
+    : buildReminderEmail({ employeeName: person.name, cycleLabel: cycle.label });
+  const sent = await sendEmail(person.email, content);
+  const error = sent ? null : 'Email could not be sent.';
+  await finishEmailDelivery(admin, delivery.id, { sent, error });
+  if (emailType === 'invitation') {
+    await updateInvitationRow(supabase, invitation.id, { email_status: sent ? 'sent' : 'failed', email_error: error });
+  }
+  await audit(actor, 'ASSESSMENT_INVITATION_RESENT', 'assessment_cycle', cycleId, {
+    label: cycle.label, recipient: person.email, emailType, delivered: sent,
+  });
+  return { email: person.email, error };
 }
 
 // ── Question bank ─────────────────────────────────────────────────────────────────────────────

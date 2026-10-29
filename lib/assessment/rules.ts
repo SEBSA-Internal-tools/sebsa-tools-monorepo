@@ -36,3 +36,18 @@ export function scoreAttempt(
 export function isFinalAttempt(attemptNumber: number, score: number): boolean {
   return attemptNumber >= 2 || score >= RETRY_THRESHOLD;
 }
+
+export function selectAssessmentRecipients<T extends { userId: string }>(people: T[], employeeIds: string[]): T[] {
+  const requested = new Set(employeeIds);
+  return people.filter((person) => requested.has(person.userId));
+}
+
+export function reminderRecipientIds(
+  invitations: { userId: string; status: string }[],
+  attempts: { userId: string; isFinal: boolean }[]
+): string[] {
+  const finalUsers = new Set(attempts.filter((attempt) => attempt.isFinal).map((attempt) => attempt.userId));
+  return invitations
+    .filter((invitation) => invitation.status !== 'completed' && !finalUsers.has(invitation.userId))
+    .map((invitation) => invitation.userId);
+}

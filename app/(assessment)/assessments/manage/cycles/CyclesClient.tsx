@@ -9,6 +9,8 @@ import {
   listCycleRecipientsAction,
   resendFailedAction,
   resendInvitationAction,
+  retryFailedEmailAction,
+  sendRemindersAction,
   setCycleActiveAction,
 } from '../actions';
 import ConfirmDialog from '../ConfirmDialog';
@@ -58,7 +60,7 @@ const monthKey = (iso: string) => {
 
 type RecipientState = { state: 'loading' } | { state: 'error'; message: string } | { state: 'ready'; rows: TrackerRow[] };
 
-export default function CyclesClient({ cycles, recipientCount }: { cycles: CycleSummary[]; recipientCount: number }) {
+export default function CyclesClient({ cycles, people }: { cycles: CycleSummary[]; people: { userId: string; name: string; email: string }[] }) {
   const router = useRouter();
   const [formOpen, setFormOpen] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -114,7 +116,7 @@ export default function CyclesClient({ cycles, recipientCount }: { cycles: Cycle
     });
   }, [cycles, query, statusFilter, dateMode, monthValue, fromDate, toDate, order]);
 
-  const create = (input: { label: string; passingScore: number }) => {
+  const create = (input: { label: string; passingScore: number; employeeIds: string[] }) => {
     setFormError(null);
     startTransition(async () => {
       const res = await createCycleAction(input);
@@ -205,6 +207,40 @@ export default function CyclesClient({ cycles, recipientCount }: { cycles: Cycle
             ? { tone: 'error', text: `${delivered} of ${attempted} resent; ${failed} still failed.` }
             : { tone: 'ok', text: `All ${attempted} failed invitations were resent.` }
       );
+      await loadRecipients(cycleId);
+      router.refresh();
+    });
+  };
+
+  const sendReminders = (cycleId: string) => {
+    setMessage(null);
+    setBusyKey(`reminders:${cycleId}`);
+    startTransition(async () => {
+      const res = await sendRemindersAction(cycleId);
+      setBusyKey(null);
+      if (res.status === 'error') setMessage({ tone: 'error', text: res.message });
+      else {
+        const { eligible, attempted, delivered, failed } = res.data;
+        setMessage(failed
+          ? { tone: 'error', text: `${delivered} reminders sent and ${failed} failed.` }
+          : { tone: 'ok', text: attempted ? `${delivered} reminders sent to ${eligible} incomplete employees.` : 'No new reminders were required.' });
+      }
+      await loadRecipients(cycleId);
+      router.refresh();
+    });
+  };
+
+  const retryFailedEmail = (cycleId: string, userId: string, emailType: 'invitation' | 'reminder') => {
+    setMessage(null);
+    setBusyKey(`retry:${emailType}:${userId}`);
+    startTransition(async () => {
+      const res = await retryFailedEmailAction(cycleId, userId, emailType);
+      setBusyKey(null);
+      setMessage(res.status === 'error'
+        ? { tone: 'error', text: res.message }
+        : res.data.error
+          ? { tone: 'error', text: `${emailType} retry failed: ${res.data.error}` }
+          : { tone: 'ok', text: `${emailType === 'invitation' ? 'Invitation' : 'Reminder'} sent to ${res.data.email}.` });
       await loadRecipients(cycleId);
       router.refresh();
     });
@@ -326,6 +362,7 @@ export default function CyclesClient({ cycles, recipientCount }: { cycles: Cycle
               { label: 'Recipients', value: c.recipients },
               { label: 'Emails sent', value: c.emailsSent },
               { label: 'Failed', value: c.emailsFailed, danger: c.emailsFailed > 0 },
+              { label: 'Reminder failed', value: c.reminderEmailsFailed, danger: c.reminderEmailsFailed > 0 },
               { label: 'Expired', value: c.expiredInvitations },
               { label: 'Completed', value: c.completed },
               { label: 'Pass rate', value: c.completed ? `${c.passRate}%` : '—' },
@@ -396,6 +433,8 @@ export default function CyclesClient({ cycles, recipientCount }: { cycles: Cycle
                     disabled={isPending}
                     onResendOne={(userId) => resendOne(c.id, userId)}
                     onResendFailed={() => resendFailed(c.id)}
+                    onSendReminders={() => sendReminders(c.id)}
+                    onRetryFailed={(userId, emailType) => retryFailedEmail(c.id, userId, emailType)}
                     onReload={() => loadRecipients(c.id)}
                   />
                 )}
@@ -406,7 +445,7 @@ export default function CyclesClient({ cycles, recipientCount }: { cycles: Cycle
       )}
 
       {formOpen && (
-        <CycleFormModal recipientCount={recipientCount} busy={isPending} error={formError} onSubmit={create} onClose={() => setFormOpen(false)} />
+        <CycleFormModal people={people} busy={isPending} error={formError} onSubmit={create} onClose={() => setFormOpen(false)} />
       )}
 
       <ConfirmDialog
@@ -434,6 +473,8 @@ function RecipientPanel({
   disabled,
   onResendOne,
   onResendFailed,
+  onSendReminders,
+  onRetryFailed,
   onReload,
 }: {
   cycle: CycleSummary;
@@ -442,6 +483,8 @@ function RecipientPanel({
   disabled: boolean;
   onResendOne: (userId: string) => void;
   onResendFailed: () => void;
+  onSendReminders: () => void;
+  onRetryFailed: (userId: string, emailType: 'invitation' | 'reminder') => void;
   onReload: () => void;
 }) {
   const canResend = cycle.status === 'active';
@@ -450,6 +493,12 @@ function RecipientPanel({
     <div className="border-t border-slate-100 bg-slate-50/40">
       <div className="flex items-center justify-between gap-3 px-6 py-3">
         <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">Recipients</p>
+        <div className="flex items-center gap-2">
+        {canResend && (
+          <button type="button" onClick={onSendReminders} disabled={disabled} className="flex items-center gap-2 px-3.5 py-2 bg-indigo-600 text-white font-bold rounded-xl text-[11px] hover:bg-indigo-700 disabled:opacity-50 transition-colors cursor-pointer">
+            {busyKey === `reminders:${cycle.id}` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}Send reminders
+          </button>
+        )}
         {canResend && cycle.emailsFailed > 0 && (
           <button
             type="button"
@@ -461,6 +510,7 @@ function RecipientPanel({
             Resend {cycle.emailsFailed} failed
           </button>
         )}
+        </div>
       </div>
 
       {(!data || data.state === 'loading') && (
@@ -511,9 +561,22 @@ function RecipientPanel({
                           <MailWarning className="w-3 h-3" />Email failed
                         </p>
                       )}
+                      {r.reminderStatus === 'failed' && (
+                        <p className="flex items-center gap-1 text-[10px] font-black text-rose-600 mt-0.5" title={r.reminderError ?? undefined}>
+                          <MailWarning className="w-3 h-3" />Reminder failed
+                        </p>
+                      )}
                     </td>
                     <td className="px-6 py-3 text-right">
-                      {canResend && r.status !== 'Pass' && r.status !== 'Fail' && (
+                      {canResend && r.emailStatus === 'failed' ? (
+                        <button type="button" onClick={() => onRetryFailed(r.userId, 'invitation')} disabled={disabled} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[11px] font-black disabled:opacity-40 cursor-pointer">
+                          {busyKey === `retry:invitation:${r.userId}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}Retry invitation
+                        </button>
+                      ) : canResend && r.reminderStatus === 'failed' ? (
+                        <button type="button" onClick={() => onRetryFailed(r.userId, 'reminder')} disabled={disabled} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[11px] font-black disabled:opacity-40 cursor-pointer">
+                          {busyKey === `retry:reminder:${r.userId}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}Retry reminder
+                        </button>
+                      ) : canResend && r.status !== 'Pass' && r.status !== 'Fail' && (
                         <button
                           type="button"
                           onClick={() => onResendOne(r.userId)}

@@ -74,3 +74,20 @@ export function buildInvitationEmail(params: {
     }),
   };
 }
+
+export function buildReminderEmail(params: { employeeName: string; cycleLabel: string }): EmailContent {
+  return {
+    subject: `Reminder: complete your assessment | ${params.cycleLabel}`,
+    text:
+      `Hi ${params.employeeName}, this is a reminder to complete the ${params.cycleLabel} knowledge assessment. ` +
+      'Open the employee portal to start or continue your assessment.',
+    html: renderEmailHtml({
+      heading: 'Assessment reminder',
+      body:
+        `Hi ${escapeHtml(params.employeeName)}, you have not yet completed the ` +
+        `<strong>${escapeHtml(params.cycleLabel)}</strong> knowledge assessment. Open the portal to start or continue it.`,
+      ctaLabel: 'Complete my assessment',
+      ctaPath: '/assessments/take',
+    }),
+  };
+}
