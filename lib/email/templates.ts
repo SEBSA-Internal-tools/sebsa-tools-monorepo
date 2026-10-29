@@ -186,14 +186,9 @@ export function buildEmployeeInviteEmail(actionLink: string, isResend: boolean):
         isResend
           ? 'An administrator has sent you a new invitation to SEBSA CV Generator. This link replaces any invitation sent earlier. Use it to activate your account and set up your password.'
           : 'An administrator has created a SEBSA CV Generator account for you. Use the link below to verify your email address, activate your account, and set up your password.',
-        'Please complete your account activation and log in to the system before the deadline below.',
+        'Please activate your account and log in within the time shown below. The link stops working after that.',
       ],
       highlights: [
-        {
-          label: 'Activation deadline',
-          value: 'Before October 26, 2026',
-          description: 'Activate your account, set up your password, and log in before this date.',
-        },
         {
           label: 'Link validity',
           value: '4 hours only',
@@ -204,7 +199,7 @@ export function buildEmployeeInviteEmail(actionLink: string, isResend: boolean):
       ctaUrl: actionLink,
       support: {
         message: 'If you are unable to activate your account within 4 hours, please send an email to',
-        email: 'cv.generator.sebsa@gmail.com',
+        email: 'cv.generator@sebsaworld.com',
         afterEmail: 'to request a new activation email from the system administrator',
       },
       nextSteps: {
@@ -218,6 +213,45 @@ export function buildEmployeeInviteEmail(actionLink: string, isResend: boolean):
       tone: 'welcome',
     }
   );
+}
+
+export function buildPasswordResetEmail(actionLink: string): EmailContent {
+  return content('Reset your SEBSA CV Generator password', {
+    preheader: 'Use this link to choose a new password.',
+    eyebrow: 'Password reset',
+    heading: 'Choose a new password',
+    greeting: 'Hello,',
+    paragraphs: [
+      'We received a request to reset the password for your SEBSA CV Generator account. Use the button below to choose a new password.',
+      'The link works once and expires after a short time.',
+    ],
+    ctaLabel: 'Reset my password',
+    ctaUrl: actionLink,
+    note: 'If you did not ask for this, you can safely ignore this email. Your password will not change unless you use the link.',
+    tone: 'action',
+  });
+}
+
+export function buildSignupConfirmationEmail(actionLink: string, fullName: string): EmailContent {
+  const name = singleLine(fullName);
+  return content('Confirm your SEBSA CV Generator account', {
+    preheader: 'Confirm your email address to finish creating your account.',
+    eyebrow: 'Welcome to SEBSA',
+    heading: 'Confirm your email address',
+    greeting: name ? `Hello ${name},` : 'Hello,',
+    paragraphs: [
+      'Thanks for creating a SEBSA CV Generator account. Confirm your email address to finish and sign in.',
+      'The link works once and expires after a short time.',
+    ],
+    ctaLabel: 'Confirm my email address',
+    ctaUrl: actionLink,
+    nextSteps: {
+      heading: 'After you confirm',
+      items: ['You are signed in automatically.', 'Set up your CV profile so it can be reviewed and published.'],
+    },
+    note: 'If you did not create this account, you can safely ignore this email and no account will be activated.',
+    tone: 'welcome',
+  });
 }
 
 export function buildNewProfileSubmittedEmail(employeeName: string): EmailContent {
