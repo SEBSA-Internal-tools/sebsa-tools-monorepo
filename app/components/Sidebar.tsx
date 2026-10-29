@@ -16,7 +16,6 @@ import {
   Users,
   User,
   ClipboardCheck,
-  UserCircle,
   Download,
   PenLine,
   GraduationCap,
@@ -152,31 +151,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ user }) => {
         )}
       </nav>
 
-      {/* User Footer Profile */}
-      <div className="flex items-center gap-3 mt-4 pt-4 border-t border-slate-800/80">
-        <div className="relative">
-          {user.avatarUrl && !user.avatarUrl.includes('unsplash.com') ? (
-            <img
-              src={user.avatarUrl}
-              alt={user.fullName}
-              className="w-10 h-10 rounded-full border border-slate-700 object-cover"
-            />
-          ) : (
-            <div className="w-10 h-10 rounded-full border border-slate-700 bg-slate-800 flex items-center justify-center">
-              <UserCircle className="w-6 h-6 text-slate-400" />
-            </div>
-          )}
-          <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 rounded-full border border-slate-950"></span>
-        </div>
-        <div className="truncate flex-1">
-          <p className="font-sans text-xs font-black text-slate-200 truncate leading-tight">
-            {user.fullName}
-          </p>
-          <p className="text-[10px] text-slate-400 truncate mt-0.5 font-semibold uppercase tracking-wider">
-            {user.role}
-          </p>
-        </div>
-      </div>
     </aside>
   );
 };
