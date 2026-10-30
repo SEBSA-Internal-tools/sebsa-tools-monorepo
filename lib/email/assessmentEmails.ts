@@ -49,6 +49,7 @@ export function buildInvitationEmail(params: {
   employeeName: string;
   cycleLabel: string;
   expiresAt: Date;
+  passingScore: number;
 }): EmailContent {
   const expiry = params.expiresAt.toLocaleDateString('en-GB', {
     day: 'numeric',
@@ -60,15 +61,15 @@ export function buildInvitationEmail(params: {
     subject: `Internal assessment ready | ${params.cycleLabel}`,
     text:
       `Hi ${params.employeeName}, the ${params.cycleLabel} knowledge assessment is now open for you.\n\n` +
-      `Invitation expires: ${expiry}\nAttempts: up to 2\n` +
-      'Retry policy: if you score below 6 on your first attempt, you can retry once using the same questions.',
+      `Invitation expires: ${expiry}\nPass mark: ${params.passingScore}/10\nAttempts: up to 2\n` +
+      `Retry policy: if you score below ${params.passingScore} on your first attempt, you can retry once using the same questions.`,
     html: renderEmailHtml({
       heading: 'Your internal assessment is ready',
       body:
         `Hi ${escapeHtml(params.employeeName)}, the <strong>${escapeHtml(params.cycleLabel)}</strong> knowledge ` +
         `assessment is now open for you.<br><br><strong>Invitation expires:</strong> ${expiry}<br>` +
-        '<strong>Attempts:</strong> up to 2<br><strong>Retry policy:</strong> if you score below 6 on your ' +
-        'first attempt you can retry once using the same questions.',
+        `<strong>Pass mark:</strong> ${params.passingScore}/10<br><strong>Attempts:</strong> up to 2<br>` +
+        `<strong>Retry policy:</strong> if you score below ${params.passingScore} on your first attempt you can retry once using the same questions.`,
       ctaLabel: 'Start my assessment',
       ctaPath: '/assessments',
     }),

@@ -189,9 +189,9 @@ export interface CreateCycleResult {
 }
 
 /** Sends one invitation email and returns an error message, or null on success. */
-async function deliverInvitation(person: Person, cycleLabel: string, expiresAt: Date): Promise<string | null> {
+async function deliverInvitation(person: Person, cycleLabel: string, expiresAt: Date, passingScore: number): Promise<string | null> {
   try {
-    const ok = await sendEmail(person.email, buildInvitationEmail({ employeeName: person.name, cycleLabel, expiresAt }));
+    const ok = await sendEmail(person.email, buildInvitationEmail({ employeeName: person.name, cycleLabel, expiresAt, passingScore }));
     return ok ? null : 'Email could not be sent.';
   } catch (err) {
     return (err as Error).message || 'Email could not be sent.';
@@ -254,7 +254,7 @@ export async function createCycleAndInvite(
     error: await (async () => {
       const delivery = deliveryByUser.get(row.user_id);
       if (!delivery || !(await claimEmailDelivery(admin, delivery.id))) return 'Email delivery was already claimed.';
-      const deliveryError = await deliverInvitation(personByUser.get(row.user_id)!, cycle.label, expiresAt);
+      const deliveryError = await deliverInvitation(personByUser.get(row.user_id)!, cycle.label, expiresAt, cycle.passing_score);
       await finishEmailDelivery(admin, delivery.id, { sent: !deliveryError, error: deliveryError });
       return deliveryError;
     })(),
@@ -417,7 +417,7 @@ async function reissueInvitation(
 ): Promise<string | null> {
   const now = new Date();
   const expiresAt = new Date(now.getTime() + INVITATION_VALID_DAYS * 24 * 60 * 60 * 1000);
-  const error = await deliverInvitation(person, cycle.label, expiresAt);
+  const error = await deliverInvitation(person, cycle.label, expiresAt, cycle.passing_score);
 
   const base = {
     sent_at: now.toISOString(),
@@ -591,7 +591,7 @@ export async function retryFailedAssessmentEmail(
     });
   }
   const content = emailType === 'invitation'
-    ? buildInvitationEmail({ employeeName: person.name, cycleLabel: cycle.label, expiresAt: retryExpiry })
+    ? buildInvitationEmail({ employeeName: person.name, cycleLabel: cycle.label, expiresAt: retryExpiry, passingScore: cycle.passing_score })
     : buildReminderEmail({ employeeName: person.name, cycleLabel: cycle.label });
   const sent = await sendEmail(person.email, content);
   const error = sent ? null : 'Email could not be sent.';

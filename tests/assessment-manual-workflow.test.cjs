@@ -8,7 +8,13 @@ const source = ts.transpileModule(fs.readFileSync('lib/assessment/rules.ts', 'ut
 }).outputText;
 const loaded = { exports: {} };
 new Function('module', 'exports', source)(loaded, loaded.exports);
-const { selectAssessmentRecipients, reminderRecipientIds } = loaded.exports;
+const { selectAssessmentRecipients, reminderRecipientIds, isFinalAttempt } = loaded.exports;
+
+test('a first score below the configured pass mark gets exactly one retry', () => {
+  assert.equal(isFinalAttempt(1, 7, 8), false);
+  assert.equal(isFinalAttempt(1, 8, 8), true);
+  assert.equal(isFinalAttempt(2, 7, 8), true);
+});
 
 test('manual cycle creation includes only employees selected by the administrator', () => {
   const people = [{ userId: 'one' }, { userId: 'two' }, { userId: 'three' }];

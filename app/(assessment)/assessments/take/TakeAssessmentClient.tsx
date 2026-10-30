@@ -33,7 +33,7 @@ function QuestionFlow({ session }: { session: Extract<AssessmentSession, { kind:
     return result.isFinal ? (
       <AssessmentResultView result={result} firstAttemptScore={firstAttemptScore ?? undefined} />
     ) : (
-      <RetryPanel score={result.score} total={result.total} onRetry={() => router.refresh()} />
+      <RetryPanel score={result.score} total={result.total} passingScore={result.passingScore} onRetry={() => router.refresh()} />
     );
   }
 
@@ -210,19 +210,19 @@ function QuestionFlow({ session }: { session: Extract<AssessmentSession, { kind:
   );
 }
 
-function RetryPanel({ score, total, onRetry }: { score: number; total: number; onRetry: () => void }) {
+function RetryPanel({ score, total, passingScore, onRetry }: { score: number; total: number; passingScore: number; onRetry: () => void }) {
   return (
     <PageWrapper className="p-8 flex items-start justify-center">
       <div className="w-full max-w-md bg-white rounded-2xl border border-slate-200/80 shadow-sm p-8 text-center mt-10">
         <div className="mx-auto mb-5 w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
           <RotateCcw className="w-7 h-7" />
         </div>
-        <h2 className="text-xl font-black tracking-tight text-slate-900">One more attempt available</h2>
+        <h2 className="text-xl font-black tracking-tight text-slate-900">You did not reach the pass mark</h2>
         <p className="text-4xl font-black text-slate-900 mt-4">
           {score}<span className="text-xl text-slate-400">/{total}</span>
         </p>
         <p className="text-xs font-medium text-slate-500 mt-3 leading-relaxed">
-          You can try once more using the <strong>same questions</strong>. Take your time to review before starting.
+          The pass mark is <strong>{passingScore}/{total}</strong>. You can try once more using the <strong>same questions</strong>. This is your final attempt.
         </p>
         <div className="mt-6 flex items-center justify-center gap-3 flex-wrap">
           <button

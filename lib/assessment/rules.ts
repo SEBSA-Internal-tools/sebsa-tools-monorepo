@@ -3,9 +3,6 @@ import type { AnswerOption } from '@/types/assessment';
 /** Questions drawn from the active bank for each person's test. */
 export const QUESTIONS_PER_ATTEMPT = 10;
 
-/** A first-attempt score strictly below this allows one retry (same questions). */
-export const RETRY_THRESHOLD = 6;
-
 /** How long an invitation stays valid after it is sent. */
 export const INVITATION_VALID_DAYS = 7;
 
@@ -33,8 +30,8 @@ export function scoreAttempt(
 }
 
 /** Whether an attempt closes the assessment for this person and cycle. */
-export function isFinalAttempt(attemptNumber: number, score: number): boolean {
-  return attemptNumber >= 2 || score >= RETRY_THRESHOLD;
+export function isFinalAttempt(attemptNumber: number, score: number, passingScore: number): boolean {
+  return attemptNumber >= 2 || score >= passingScore;
 }
 
 export function selectAssessmentRecipients<T extends { userId: string }>(people: T[], employeeIds: string[]): T[] {

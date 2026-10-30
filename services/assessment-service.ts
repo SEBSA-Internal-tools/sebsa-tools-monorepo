@@ -281,7 +281,7 @@ export async function submitAssessment(
   const storedAnswers = Object.fromEntries(questionIds.filter((id) => answers[id]).map((id) => [id, answers[id]])) as Record<string, AnswerOption>;
   const score = scoreAttempt(questions.map((q) => ({ id: q.id, correctOption: q.correct_option })), storedAnswers);
   const passed = score >= cycle.passing_score;
-  const isFinal = isFinalAttempt(attemptNumber, score);
+  const isFinal = isFinalAttempt(attemptNumber, score, cycle.passing_score);
 
   let attempt: AttemptRow;
   try {
