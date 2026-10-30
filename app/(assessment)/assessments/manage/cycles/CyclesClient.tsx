@@ -4,6 +4,7 @@ import React, { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { PageWrapper } from '@/app/components/PageWrapper';
 import type { CycleSummary, TrackerRow, TrackerStatus } from '@/services/assessment-admin-service';
+import type { UserRole } from '@/lib/roles';
 import {
   createCycleAction,
   listCycleRecipientsAction,
@@ -60,7 +61,7 @@ const monthKey = (iso: string) => {
 
 type RecipientState = { state: 'loading' } | { state: 'error'; message: string } | { state: 'ready'; rows: TrackerRow[] };
 
-export default function CyclesClient({ cycles, people }: { cycles: CycleSummary[]; people: { userId: string; name: string; email: string }[] }) {
+export default function CyclesClient({ cycles, people }: { cycles: CycleSummary[]; people: { userId: string; name: string; email: string; role: UserRole }[] }) {
   const router = useRouter();
   const [formOpen, setFormOpen] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);

@@ -104,7 +104,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ user }) => {
         <div className="w-10 h-10 rounded-2xl flex items-center justify-center mb-4 hover:scale-105 transition-transform duration-300">
           <Image
             src="/images/seb-logo-2.png"
-            alt="Sebsa CV Generator Logo"
+            alt="SEBSA Employee Management Portal logo"
             width={36}
             height={36}
             className="object-contain"
@@ -112,7 +112,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ user }) => {
         </div>
         <div>
           <h1 className="font-sans text-s font-black tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
-            SEBSA Employee ManagementPortal
+            SEBSA Employee Management Portal
           </h1>
         </div>
       </div>

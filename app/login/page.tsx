@@ -94,31 +94,34 @@ function LoginPageContent() {
           <div className="mb-6">
           <Image
             src="/images/seb-logo-1.png"
-            alt="AI CV Generator"
+            alt="SEBSA Employee Management Portal"
             width={180}
             height={180}
           />
         </div>
           <h1 className="text-3xl font-black tracking-tight mb-4 text-slate-100 font-sans leading-tight">
-            Smarter Resumes <br></br> Better Opportunities
+            SEBSA Employee Management Portal
           </h1>
+          <h2 className="text-lg font-bold text-sky-200 mb-4">
+            Manage People. Develop Talent. Drive Performance.
+          </h2>
           <p className="text-sm text-slate-300 font-medium leading-relaxed max-w-md opacity-90 mb-10">
-            Transform your career profile into a professional resume with AI-driven content recommendations and customizable templates designed to help you succeed.
+            A centralized employee management platform designed to simplify workforce operations through professional CV generation, employee assessments, and streamlined talent management.
           </p>
 
           {/* Trust Indicators */}
           <div className="flex flex-wrap justify-center gap-6 text-slate-300 font-sans">
             <div className="flex items-center gap-2 bg-slate-800/40 border border-slate-700/30 px-3.5 py-2 rounded-xl backdrop-blur-sm">
               <CheckCircle className="w-4 h-4 text-sky-400" />
-              <span className="text-xs font-bold uppercase tracking-wider">AI Content Enhancement</span>
+              <span className="text-xs font-bold uppercase tracking-wider">Professional CV Generation</span>
             </div>
             <div className="flex items-center gap-2 bg-slate-800/40 border border-slate-700/30 px-3.5 py-2 rounded-xl backdrop-blur-sm">
               <ShieldCheck className="w-4 h-4 text-sky-400" />
-              <span className="text-xs font-bold uppercase tracking-wider">Customizable Templates</span>
+              <span className="text-xs font-bold uppercase tracking-wider">Employee Assessment Management</span>
             </div>
             <div className="flex items-center gap-2 bg-slate-800/40 border border-slate-700/30 px-3.5 py-2 rounded-xl backdrop-blur-sm">
               <TrendingUp className="w-4 h-4 text-sky-400" />
-              <span className="text-xs font-bold uppercase tracking-wider">Export-Ready CVs</span>
+              <span className="text-xs font-bold uppercase tracking-wider">Centralized Employee Records</span>
             </div>
           </div>
         </div>
@@ -132,14 +135,14 @@ function LoginPageContent() {
            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4 hover:scale-105 transition-transform duration-300">
               <Image
                 src="/images/seb-logo-2.png"
-                alt="Sebsa CV Generator Logo"
+                alt="SEBSA Employee Management Portal logo"
                 width={36}
                 height={36}
                 className="object-contain"
               />
             </div>
             <h2 className="text-3xl font-black tracking-tight text-slate-900 leading-none">
-              SEBSA-CV
+              SEBSA Employee Management Portal
             </h2>
             <p className="text-sm font-bold text-slate-500 uppercase tracking-widest mt-2 leading-none">
               Internal User Login

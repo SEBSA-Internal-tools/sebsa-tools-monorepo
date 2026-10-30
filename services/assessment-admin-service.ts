@@ -108,9 +108,9 @@ async function listPeople(admin: SupabaseClient): Promise<Person[]> {
     }));
 }
 
-/** Everyone who should receive an invitation: every account that has not been deactivated. */
+/** Every active account, regardless of role, that can receive an assessment invitation. */
 export async function listInvitablePeople(admin: SupabaseClient): Promise<Person[]> {
-  return (await listPeople(admin)).filter((p) => !p.deactivated && p.role === 'employee');
+  return (await listPeople(admin)).filter((p) => !p.deactivated);
 }
 
 // ── Cycles ────────────────────────────────────────────────────────────────────────────────────

@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Loader2, Send, X } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Loader2, Search, Send, X } from 'lucide-react';
+import type { UserRole } from '@/lib/roles';
 
 interface CycleFormModalProps {
-  people: { userId: string; name: string; email: string }[];
+  people: { userId: string; name: string; email: string; role: UserRole }[];
   busy: boolean;
   error: string | null;
   onSubmit: (input: { label: string; passingScore: number; employeeIds: string[] }) => void;
@@ -19,6 +20,17 @@ export default function CycleFormModal({ people, busy, error, onSubmit, onClose 
   const [label, setLabel] = useState('');
   const [passingScore, setPassingScore] = useState(8);
   const [selected, setSelected] = useState(() => new Set(people.map((person) => person.userId)));
+  const [query, setQuery] = useState('');
+  const visiblePeople = useMemo(() => {
+    const search = query.trim().toLowerCase();
+    if (!search) return people;
+    return people.filter((person) =>
+      person.name.toLowerCase().includes(search)
+      || person.email.toLowerCase().includes(search)
+      || person.role.replace('_', ' ').includes(search)
+    );
+  }, [people, query]);
+  const allVisibleSelected = visiblePeople.length > 0 && visiblePeople.every((person) => selected.has(person.userId));
   const valid = label.trim().length >= 3 && passingScore >= 0 && passingScore <= 10 && selected.size > 0;
 
   return (
@@ -44,26 +56,49 @@ export default function CycleFormModal({ people, busy, error, onSubmit, onClose 
           </label>
           <fieldset>
             <div className="flex items-center justify-between gap-3">
-              <legend className="text-[11px] font-black uppercase tracking-wider text-slate-500">Employees</legend>
-              <button type="button" onClick={() => setSelected(selected.size === people.length ? new Set() : new Set(people.map((person) => person.userId)))} className="text-[11px] font-black text-indigo-600">
-                {selected.size === people.length ? 'Clear all' : 'Select all'}
+              <legend className="text-[11px] font-black uppercase tracking-wider text-slate-500">Recipients</legend>
+              <button
+                type="button"
+                onClick={() => setSelected((current) => {
+                  const next = new Set(current);
+                  visiblePeople.forEach((person) => allVisibleSelected ? next.delete(person.userId) : next.add(person.userId));
+                  return next;
+                })}
+                disabled={visiblePeople.length === 0}
+                className="text-[11px] font-black text-indigo-600 disabled:text-slate-300"
+              >
+                {allVisibleSelected ? 'Clear visible' : 'Select visible'}
               </button>
             </div>
+            <div className="relative mt-2">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search name, email, or role"
+                aria-label="Search assessment recipients"
+                className={`${inputCls} pl-9`}
+              />
+            </div>
             <div className="mt-2 max-h-52 overflow-y-auto rounded-xl border border-slate-200 divide-y divide-slate-100">
-              {people.map((person) => (
+              {visiblePeople.map((person) => (
                 <label key={person.userId} className="flex items-center gap-3 px-3.5 py-2.5 hover:bg-slate-50 cursor-pointer">
                   <input type="checkbox" checked={selected.has(person.userId)} onChange={() => setSelected((current) => {
                     const next = new Set(current);
                     if (next.has(person.userId)) next.delete(person.userId); else next.add(person.userId);
                     return next;
                   })} className="accent-indigo-600" />
-                  <span className="min-w-0">
+                  <span className="min-w-0 flex-1">
                     <span className="block text-xs font-black text-slate-800 truncate">{person.name}</span>
                     <span className="block text-[10px] font-semibold text-slate-400 truncate">{person.email}</span>
                   </span>
+                  <span className="shrink-0 rounded-full bg-slate-100 px-2 py-1 text-[9px] font-black uppercase tracking-wide text-slate-600">
+                    {person.role.replace('_', ' ')}
+                  </span>
                 </label>
               ))}
-              {people.length === 0 && <p className="p-4 text-xs text-slate-500">No active employees are available.</p>}
+              {visiblePeople.length === 0 && <p className="p-4 text-xs text-slate-500">No active users match your search.</p>}
             </div>
           </fieldset>
           <label className="block">
@@ -73,7 +108,7 @@ export default function CycleFormModal({ people, busy, error, onSubmit, onClose 
         </div>
 
         <p className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-xs font-semibold text-amber-800 leading-relaxed">
-          Opening this cycle emails an invitation to <strong>{selected.size}</strong> selected {selected.size === 1 ? 'employee' : 'employees'} straight away.
+          Opening this cycle emails an invitation to <strong>{selected.size}</strong> selected {selected.size === 1 ? 'user' : 'users'} straight away.
           Invitations are valid for 7 days.
         </p>
 
