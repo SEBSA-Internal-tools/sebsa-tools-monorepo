@@ -36,7 +36,7 @@ export default function CycleFormModal({ people, busy, error, onSubmit, onClose 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 md:p-6" role="dialog" aria-modal="true">
       <form
-        className="w-full max-w-md bg-white rounded-2xl shadow-xl p-6"
+        className="w-full min-w-0 max-w-md max-h-[calc(100vh-2rem)] overflow-x-hidden overflow-y-auto bg-white rounded-2xl shadow-xl p-6"
         onSubmit={(e) => {
           e.preventDefault();
           if (valid && !busy) onSubmit({ label: label.trim(), passingScore, employeeIds: [...selected] });
@@ -54,9 +54,9 @@ export default function CycleFormModal({ people, busy, error, onSubmit, onClose 
             <span className="text-[11px] font-black uppercase tracking-wider text-slate-500">Cycle label</span>
             <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="e.g. 2027 H1" maxLength={80} className={`${inputCls} mt-1.5`} autoFocus />
           </label>
-          <fieldset>
-            <div className="flex items-center justify-between gap-3">
-              <legend className="text-[11px] font-black uppercase tracking-wider text-slate-500">Recipients</legend>
+          <fieldset className="min-w-0 max-w-full overflow-hidden">
+            <div className="flex min-w-0 items-center justify-between gap-3">
+              <legend className="min-w-0 text-[11px] font-black uppercase tracking-wider text-slate-500">Recipients</legend>
               <button
                 type="button"
                 onClick={() => setSelected((current) => {
@@ -65,12 +65,12 @@ export default function CycleFormModal({ people, busy, error, onSubmit, onClose 
                   return next;
                 })}
                 disabled={visiblePeople.length === 0}
-                className="text-[11px] font-black text-indigo-600 disabled:text-slate-300"
+                className="shrink-0 whitespace-nowrap text-[11px] font-black text-indigo-600 disabled:text-slate-300"
               >
                 {allVisibleSelected ? 'Clear visible' : 'Select visible'}
               </button>
             </div>
-            <div className="relative mt-2">
+            <div className="relative mt-2 min-w-0 max-w-full">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <input
                 type="search"
@@ -78,17 +78,17 @@ export default function CycleFormModal({ people, busy, error, onSubmit, onClose 
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search name, email, or role"
                 aria-label="Search assessment recipients"
-                className={`${inputCls} pl-9`}
+                className={`${inputCls} box-border min-w-0 max-w-full pl-9`}
               />
             </div>
-            <div className="mt-2 max-h-52 overflow-y-auto rounded-xl border border-slate-200 divide-y divide-slate-100">
+            <div className="mt-2 w-full min-w-0 max-w-full max-h-52 overflow-x-hidden overflow-y-auto rounded-xl border border-slate-200 divide-y divide-slate-100">
               {visiblePeople.map((person) => (
-                <label key={person.userId} className="flex items-center gap-3 px-3.5 py-2.5 hover:bg-slate-50 cursor-pointer">
+                <label key={person.userId} className="flex w-full min-w-0 items-center gap-3 px-3.5 py-2.5 hover:bg-slate-50 cursor-pointer">
                   <input type="checkbox" checked={selected.has(person.userId)} onChange={() => setSelected((current) => {
                     const next = new Set(current);
                     if (next.has(person.userId)) next.delete(person.userId); else next.add(person.userId);
                     return next;
-                  })} className="accent-indigo-600" />
+                  })} className="shrink-0 accent-indigo-600" />
                   <span className="min-w-0 flex-1">
                     <span className="block text-xs font-black text-slate-800 truncate">{person.name}</span>
                     <span className="block text-[10px] font-semibold text-slate-400 truncate">{person.email}</span>
