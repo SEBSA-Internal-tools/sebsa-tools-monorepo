@@ -31,7 +31,7 @@ export interface ProfileChangeSubmission extends EmployeeDetails {
 
 /**
  * Employee self-edit of an already-published profile (docs/04-rbac-security.md §10). Stages the
- * proposed values in `pending_change` rather than writing them live — a Super Admin/CV Reviewer
+ * proposed values in `pending_change` rather than writing them live — a Super Admin/HR
  * must approve (app/(authenticated)/review/actions.ts) before they take effect. Uses the
  * RLS-bound client: profiles_self_propose_change (0020) is the real enforcement — it only allows
  * touching the caller's own row, and only while status='published'.

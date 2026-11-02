@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import type { CurrentUser } from '@/lib/auth';
-import { isAdminOrAbove, isReviewerOrAbove, canManageAssessments } from '@/lib/roles';
+import { isAdminOrAbove, isReviewerOrAbove, canManageAssessments, canEditProfilesAndCvs } from '@/lib/roles';
 import {
   LayoutDashboard,
   FolderOpen,
@@ -33,9 +33,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ user }) => {
   const pathname = usePathname() || '';
 
   // Nav visibility follows the permission matrix (docs/04-rbac-security.md §2/§10): Employee only
-  // ever has their own profile; CV Reviewer can view profiles, create profiles, manage CV
-  // templates, and review pending approvals, but can't edit others' profiles or generate CVs;
-  // Admin/Super Admin keep the full set.
+  // ever has their own profile; HR can view, create, edit and review profiles and customize
+  // CVs but has no Dashboard; Admin/Super Admin keep the full set.
   const navItems = user.role === 'employee'
     ? [
         { name: 'My Profile', path: `/repository/${user.profileId}`, icon: User },
@@ -46,7 +45,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ user }) => {
         ...(isAdminOrAbove(user.role) ? [{ name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard }] : []),
         { name: 'Employee Profiles', path: '/repository', icon: FolderOpen },
         ...(isReviewerOrAbove(user.role) ? [{ name: 'Create Profile', path: '/upload', icon: CloudUpload }] : []),
-        ...(isAdminOrAbove(user.role)
+        ...(canEditProfilesAndCvs(user.role)
           ? [
               { name: 'Update Profile', path: '/update-profile', icon: Users },
               { name: 'Customize CVs', path: '/generate', icon: BrainCircuit },
@@ -56,7 +55,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ user }) => {
       ];
 
   // Assessments are for everyone (all employees take them). The management screens are for the
-  // HR tier (CV Reviewer, Super Admin) -- see canManageAssessments in lib/roles.ts.
+  // HR tier (HR, Super Admin) -- see canManageAssessments in lib/roles.ts.
   const assessmentItems = [
     { name: 'My Assessment', path: '/assessments', icon: GraduationCap, exact: true },
     { name: 'My Certificates', path: '/assessments/certificates', icon: Award, exact: false },

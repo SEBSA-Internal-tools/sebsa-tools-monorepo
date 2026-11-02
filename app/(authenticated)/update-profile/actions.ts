@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getEmployeeById, updateEmployee } from '@/services/employee-service';
-import { getCurrentUser, isAdminOrAbove } from '@/lib/auth';
+import { getCurrentUser, canEditProfilesAndCvs } from '@/lib/auth';
 import { notifyUser } from '@/lib/notifications';
 import { emailUser } from '@/lib/email/notify';
 import { buildProfileUpdatedByAdminEmail } from '@/lib/email/templates';
@@ -38,8 +38,8 @@ export async function updateEmployeeAction(
   // edit an arbitrary profile by id.
   const user = await getCurrentUser();
   if (!user) throw new Error('Not authenticated.');
-  if (!isAdminOrAbove(user.role)) {
-    throw new Error('Unauthorized: Admin or Super Admin role required.');
+  if (!canEditProfilesAndCvs(user.role)) {
+    throw new Error('Unauthorized: Admin, Super Admin, or HR role required.');
   }
 
   const adminClient = createAdminClient();

@@ -278,7 +278,7 @@ export default function OnboardingClient({ userEmail, departments, claimableProf
               Waiting for approval
             </h1>
             <p className="text-sm text-slate-500 mb-2">
-              We've asked a Super Admin or CV Reviewer to confirm this profile is yours. You'll
+              We've asked a Super Admin or HR to confirm this profile is yours. You'll
               get access as soon as it's approved.
             </p>
           </div>

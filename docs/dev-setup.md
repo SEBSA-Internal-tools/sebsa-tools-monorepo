@@ -50,7 +50,7 @@ Every seeded account uses the password **`DevPass-123!`**.
 |---|---|---|
 | `super.admin@sebsa.test` | Super Admin | Assessment manager |
 | `admin@sebsa.test` | Admin | Not an assessment manager |
-| `reviewer@sebsa.test` | CV Reviewer | HR: assessment manager |
+| `reviewer@sebsa.test` | HR (cv_reviewer) | HR: assessment manager |
 | `employee1@sebsa.test` | Employee | Has a profile and a sample CV |
 | `employee2@sebsa.test` | Employee | Has a profile |
 | `newhire@sebsa.test` | Employee | No profile: exercises onboarding |

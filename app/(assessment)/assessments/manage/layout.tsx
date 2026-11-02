@@ -8,7 +8,7 @@ export const maxDuration = 60;
 /**
  * Gate for the HR / assessment-admin screens. This is the first line of defence only: every
  * server action re-checks the role, and the assessment_* RLS policies refuse the data to anyone
- * outside the HR tier (CV Reviewer, Super Admin) regardless of what the UI shows.
+ * outside the HR tier (HR, Super Admin) regardless of what the UI shows.
  */
 export default async function ManageAssessmentsLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();

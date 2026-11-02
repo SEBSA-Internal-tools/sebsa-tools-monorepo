@@ -80,7 +80,7 @@ const GHOST_BTN =
 export default function UploadPage() {
   const router = useRouter();
   const { addEmployee } = useData();
-  // Employee/CV Reviewer have no profile-creation permission (docs/04-rbac-security.md §2) —
+  // Employee/HR have no profile-creation permission (docs/04-rbac-security.md §2) —
   // this is the UX guard; RLS + createEmployeeAction's own role check are the real boundary.
   useRoleGate(isReviewerOrAbove);
 

@@ -32,7 +32,7 @@ import {
   GraduationCap,
   Briefcase,
   Award,
-  Layers,
+  Layers, GripVertical,
   ImageIcon,
   UserCircle2,
   Search,
@@ -382,6 +382,23 @@ export default function UpdateProfileClient({
   // Special Projects
   const addProject = () =>
     updateField('specialProjects', [...profile.specialProjects, { title: '', brief: '', skills: [] }]);
+  // Drag-and-drop reordering (the order is saved as display_order, so it drives the CV too).
+  // Dragging starts only from the grip handle, so selecting text in the fields still works.
+  const [armedProject, setArmedProject] = useState<number | null>(null);
+  const [dragProject, setDragProject] = useState<number | null>(null);
+  const [overProject, setOverProject] = useState<number | null>(null);
+  const moveProject = (from: number, to: number) => {
+    if (from === to) return;
+    const next = [...profile.specialProjects];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    updateField('specialProjects', next);
+  };
+  const endProjectDrag = () => {
+    setArmedProject(null);
+    setDragProject(null);
+    setOverProject(null);
+  };
   const removeProject = (i: number) =>
     updateField('specialProjects', profile.specialProjects.filter((_, idx) => idx !== i));
   const updateProject = (i: number, field: 'title' | 'brief', value: string) =>
@@ -848,7 +865,7 @@ export default function UpdateProfileClient({
               </div>
 
               {/* Experience */}
-              <div>
+              <div className="mt-10">
                 <SectionTitle icon={Briefcase}>Work Experience</SectionTitle>
                 <div className="space-y-5">
                   {profile.experience.map((exp, i) => (
@@ -944,7 +961,7 @@ export default function UpdateProfileClient({
               </div>
 
               {/* Academic */}
-              <div>
+              <div className="mt-10">
                 <SectionTitle icon={GraduationCap}>Academic History</SectionTitle>
                 <div className="space-y-3">
                   {profile.academic.map((acad, i) => (
@@ -1006,13 +1023,50 @@ export default function UpdateProfileClient({
               </div>
 
               {/* Special Projects */}
-              <div>
+              <div className="mt-10">
                 <SectionTitle icon={Layers}>Special Projects</SectionTitle>
                 <div className="space-y-3">
                   {profile.specialProjects.map((proj, i) => (
-                    <div key={i} className="border border-slate-200 rounded-xl p-4 bg-slate-50/40 space-y-3">
+                    <div
+                      key={i}
+                      draggable={armedProject === i}
+                      onDragStart={(e) => {
+                        setDragProject(i);
+                        e.dataTransfer.effectAllowed = 'move';
+                        e.dataTransfer.setData('text/plain', String(i));
+                      }}
+                      onDragOver={(e) => {
+                        if (dragProject === null) return;
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'move';
+                        if (overProject !== i) setOverProject(i);
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        if (dragProject !== null) moveProject(dragProject, i);
+                        endProjectDrag();
+                      }}
+                      onDragEnd={endProjectDrag}
+                      className={`border rounded-xl p-4 bg-slate-50/40 space-y-3 transition-colors ${
+                        dragProject === i
+                          ? 'opacity-50 border-sky-300'
+                          : overProject === i && dragProject !== null
+                            ? 'border-sky-500 ring-2 ring-sky-200'
+                            : 'border-slate-200'
+                      }`}
+                    >
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-sky-500">
+                        <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-sky-500">
+                          <span
+                            role="button"
+                            aria-label={`Drag to reorder project ${i + 1}`}
+                            title="Drag to reorder"
+                            onMouseDown={() => setArmedProject(i)}
+                            onMouseUp={() => setArmedProject(null)}
+                            className="cursor-grab active:cursor-grabbing text-slate-400 hover:text-sky-500 -ml-1 p-1"
+                          >
+                            <GripVertical className="w-4 h-4" />
+                          </span>
                           Project {i + 1}
                         </span>
                         <button
@@ -1060,7 +1114,7 @@ export default function UpdateProfileClient({
               </div>
 
               {/* Certifications */}
-              <div>
+              <div className="mt-10">
                 <SectionTitle icon={Award}>Certifications</SectionTitle>
                 <div className="space-y-3">
                   {profile.certifications.map((cert, i) => (
