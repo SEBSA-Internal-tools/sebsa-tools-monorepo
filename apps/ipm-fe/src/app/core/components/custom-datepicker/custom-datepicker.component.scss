@@ -132,10 +132,17 @@
   animation: pickerFadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
   user-select: none;
 
-  .custom-datepicker-wrapper.align-right & {
+  .custom-datepicker-wrapper.align-right &:not(.month-popup) {
     left: auto !important;
     right: 0 !important;
   }
+}
+
+.datepicker-popup.month-popup {
+  width: min(300px, calc(100vw - 24px));
+  max-width: none;
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
 }
 
 @keyframes pickerFadeIn {
@@ -374,6 +381,11 @@
     border-color: var(--brand-primary, #7000ff);
     color: #ffffff;
   }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
 }
 
 // Footer
@@ -474,7 +486,7 @@
     padding: 8px 12px;
   }
 
-  .datepicker-popup {
+  .datepicker-popup:not(.month-popup) {
     width: 100% !important;
     max-width: 100% !important;
     left: 0 !important;

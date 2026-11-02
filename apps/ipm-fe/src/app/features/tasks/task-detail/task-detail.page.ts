@@ -29,6 +29,7 @@ import { CommentSectionComponent } from '../../../core/components/comment-sectio
 import { TaskAttachmentsComponent } from '../../../core/components/task-attachments/task-attachments.component';
 import { CustomSelectComponent } from '../../../core/components/custom-select/custom-select.component';
 import { CustomDatepickerComponent } from '../../../core/components/custom-datepicker/custom-datepicker.component';
+import { ConfirmationService } from '../../../core/services/confirmation.service';
 
 interface TaskEditDraft {
   title: string;
@@ -62,6 +63,7 @@ interface TaskEditDraft {
   styleUrls: ['./task-detail.page.scss'],
 })
 export class TaskDetailPageComponent implements OnInit {
+  private readonly confirmation = inject(ConfirmationService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private location = inject(Location);
@@ -376,11 +378,11 @@ export class TaskDetailPageComponent implements OnInit {
     });
   }
 
-  deleteTask(): void {
+  async deleteTask(): Promise<void> {
     const current = this.task();
     if (!current) return;
 
-    if (!confirm(`Delete "${current.title}"? This cannot be undone.`)) return;
+    if (!(await this.confirmation.confirm({ title: 'Delete task', message: `Delete "${current.title}"?`, consequence: 'This task will be permanently deleted and cannot be restored.', confirmLabel: 'Delete task' }))) return;
 
     this.isLoading.set(true);
     this.errorMessage.set('');
@@ -532,8 +534,8 @@ export class TaskDetailPageComponent implements OnInit {
     return dto;
   }
 
-  deleteSubtask(subtask: Subtask): void {
-    if (!confirm(`Delete subtask "${subtask.title}"? This cannot be undone.`)) return;
+  async deleteSubtask(subtask: Subtask): Promise<void> {
+    if (!(await this.confirmation.confirm({ title: 'Delete subtask', message: `Delete "${subtask.title}"?`, consequence: 'This subtask will be permanently deleted and cannot be restored.', confirmLabel: 'Delete subtask' }))) return;
 
     this.errorMessage.set('');
     this.subtasksService.delete(subtask.id).subscribe({
@@ -587,10 +589,10 @@ export class TaskDetailPageComponent implements OnInit {
       });
   }
 
-  removeDependency(dependencyId: string): void {
+  async removeDependency(dependencyId: string): Promise<void> {
     const current = this.task();
     if (!current) return;
-    if (!confirm('Remove this dependency?')) return;
+    if (!(await this.confirmation.confirm({ title: 'Remove dependency', message: 'Remove this dependency from the task?', consequence: 'The link between these tasks will be removed. The tasks themselves will remain.', confirmLabel: 'Remove dependency' }))) return;
 
     this.tasksService.removeDependency(current.id, dependencyId).subscribe({
       next: () => this.loadDependencies(current.id),

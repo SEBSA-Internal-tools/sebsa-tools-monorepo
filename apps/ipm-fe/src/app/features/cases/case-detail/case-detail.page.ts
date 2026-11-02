@@ -22,6 +22,7 @@ import { TaskAttachmentsComponent } from '../../../core/components/task-attachme
 import { CustomSelectComponent } from '../../../core/components/custom-select/custom-select.component';
 import { CustomDatepickerComponent } from '../../../core/components/custom-datepicker/custom-datepicker.component';
 import { ToastService } from '../../../core/services/toast.service';
+import { ConfirmationService } from '../../../core/services/confirmation.service';
 
 interface CaseEditDraft {
   title: string;
@@ -53,6 +54,7 @@ interface CaseEditDraft {
   styleUrls: ['./case-detail.page.scss'],
 })
 export class CaseDetailPageComponent implements OnInit {
+  private readonly confirmation = inject(ConfirmationService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private location = inject(Location);
@@ -142,9 +144,10 @@ export class CaseDetailPageComponent implements OnInit {
     });
   }
 
-  unlinkJira(): void {
+  async unlinkJira(): Promise<void> {
     const current = this.kase();
-    if (!current || !window.confirm('Unlink this Jira issue? The synced status and description will be cleared.')) return;
+    if (!current) return;
+    if (!(await this.confirmation.confirm({ title: 'Unlink Jira issue', message: 'Unlink the Jira issue from this case?', consequence: 'The synced status and description will be cleared from this case.', confirmLabel: 'Unlink issue' }))) return;
 
     this.casesService.unlinkJiraIssue(current.id).subscribe({
       next: () => {
@@ -343,10 +346,10 @@ export class CaseDetailPageComponent implements OnInit {
     });
   }
 
-  deleteCase(): void {
+  async deleteCase(): Promise<void> {
     const current = this.kase();
     if (!current) return;
-    if (!confirm(`Delete "${current.title}"? This cannot be undone.`)) return;
+    if (!(await this.confirmation.confirm({ title: 'Delete case', message: `Delete "${current.title}"?`, consequence: 'This case will be permanently deleted and cannot be restored.', confirmLabel: 'Delete case' }))) return;
 
     this.isLoading.set(true);
     this.errorMessage.set('');

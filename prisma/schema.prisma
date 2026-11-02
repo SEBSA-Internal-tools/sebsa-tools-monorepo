@@ -276,12 +276,25 @@ model PrivilegeGroup {
   id                       String   @id @default(uuid())
   name                     String   @unique
   description              String?
-  canCreateTask            Boolean  @default(false)
-  canDeleteTask            Boolean  @default(false)
-  canManageMembers         Boolean  @default(false)
-  canConfigureIntegrations Boolean  @default(false)
-  canManageWorkflow        Boolean  @default(false)
+  /// Master switch. When true every write check fails regardless of the
+  /// grants below, so a view-only group cannot be made writable by accident.
   isReadOnly               Boolean  @default(false)
+
+  canCreateCase            Boolean  @default(false)
+  canEditCase              Boolean  @default(false)
+  canDeleteCase            Boolean  @default(false)
+
+  /// Tasks and subtasks share these — a subtask is a unit of its task, not a
+  /// separately permissioned thing.
+  canCreateTask            Boolean  @default(false)
+  canEditTask              Boolean  @default(false)
+  canDeleteTask            Boolean  @default(false)
+
+  canComment               Boolean  @default(false)
+  canManageMembers         Boolean  @default(false)
+  canManageSprints         Boolean  @default(false)
+  canManageLabels          Boolean  @default(false)
+  canConfigureIntegrations Boolean  @default(false)
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
 
@@ -468,14 +481,17 @@ model Sprint {
   status    SprintStatus @default(PLANNED)
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
+  deletedAt DateTime?
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   cases   Case[]
 
   // NOTE: a partial unique index enforcing "max one ACTIVE sprint per
-  // project" is added by hand in the initial migration.
+  // project" is added by hand in the initial migration; it ignores
+  // soft-deleted rows so a deleted active sprint does not hold the slot.
   @@index([projectId])
   @@index([projectId, status])
+  @@index([projectId, deletedAt])
   @@map("sprints")
 }
 
@@ -485,14 +501,17 @@ model Label {
   projectId String
   name      String
   color     String?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
 
   project Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
   cases   CaseLabel[]
   tasks   TaskLabel[]
 
-  @@unique([projectId, name])
+  // NOTE: name uniqueness is a partial unique index added by hand, so a
+  // deleted label's name can be reused. Look labels up with findFirst.
   @@index([projectId])
+  @@index([projectId, deletedAt])
   @@map("labels")
 }
 
@@ -901,7 +920,8 @@ model Attachment {
   fileSize     Int
   mimeType     String
   uploadedById String
-  createdAt    DateTime @default(now())
+  createdAt    DateTime  @default(now())
+  deletedAt    DateTime?
 
   case       Case?    @relation(fields: [caseId], references: [id], onDelete: Cascade)
   task       Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)

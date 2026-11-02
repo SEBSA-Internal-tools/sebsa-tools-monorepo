@@ -6,6 +6,7 @@ import { ConfigKind, ConfigOption, ConfigScope } from '@sebsa-pm-tool/shared-mod
 import { ConfigOptionsService } from '../../services/config-options.service';
 import { ToastService } from '../../services/toast.service';
 import { AuthService } from '../../services/auth.service';
+import { ConfirmationService } from '../../services/confirmation.service';
 
 interface ConfigList {
   kind: ConfigKind;
@@ -80,6 +81,7 @@ const EMPTY_DRAFT: DraftOption = {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ConfigurationPanelComponent implements OnChanges {
+  private readonly confirmation = inject(ConfirmationService);
   @Input({ required: true }) scope!: ConfigScope;
 
   private readonly configOptions = inject(ConfigOptionsService);
@@ -210,8 +212,8 @@ export class ConfigurationPanelComponent implements OnChanges {
     });
   }
 
-  protected remove(option: ConfigOption): void {
-    if (!window.confirm(`Delete "${option.label}"? This cannot be undone.`)) return;
+  protected async remove(option: ConfigOption): Promise<void> {
+    if (!(await this.confirmation.confirm({ title: 'Delete configuration option', message: `Delete "${option.label}"?`, consequence: 'This option will be permanently removed from the available choices. The action may be blocked while records still use it.', confirmLabel: 'Delete option' }))) return;
 
     this.configOptions.delete(option.id).subscribe({
       next: () => {

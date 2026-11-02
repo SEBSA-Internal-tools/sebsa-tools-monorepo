@@ -1,45 +1,8 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsOptional, IsString, MinLength } from 'class-validator';
+import { PartialType } from '@nestjs/mapped-types';
+import { ApiExtraModels } from '@nestjs/swagger';
+import { CreatePrivilegeGroupDto } from './create-privilege-group.dto';
 
-export class UpdatePrivilegeGroupDto {
-  @ApiPropertyOptional({ minLength: 1 })
-  @IsOptional()
-  @IsString()
-  @MinLength(1)
-  name?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  description?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsBoolean()
-  canCreateTask?: boolean;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsBoolean()
-  canDeleteTask?: boolean;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsBoolean()
-  canManageMembers?: boolean;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsBoolean()
-  canConfigureIntegrations?: boolean;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsBoolean()
-  canManageWorkflow?: boolean;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsBoolean()
-  isReadOnly?: boolean;
-}
+/** Every field optional — derived from the create DTO so a new flag only has to
+ * be declared once. */
+@ApiExtraModels()
+export class UpdatePrivilegeGroupDto extends PartialType(CreatePrivilegeGroupDto) {}

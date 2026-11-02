@@ -26,6 +26,7 @@ import { ActivityLogsModule } from './activity-logs/activity-logs.module';
 import { CommentsModule } from './comments/comments.module';
 import { ConfigOptionsModule } from './config-options/config-options.module';
 import { FriendlyThrottlerGuard } from './common/friendly-throttler.guard';
+import { CommonModule } from './common/common.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { NotificationModule } from './notifications/notification.module';
 import { AttachmentsModule } from './attachments/attachments.module';
@@ -42,6 +43,7 @@ import { AttachmentsModule } from './attachments/attachments.module';
     }),
     // Global ceiling per IP. Auth routes tighten this further with @Throttle.
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
+    CommonModule,
     ScheduleModule.forRoot(),
     PrismaModule,
     AuthModule,

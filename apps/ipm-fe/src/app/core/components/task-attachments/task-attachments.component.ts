@@ -10,6 +10,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { AttachmentsService } from '../../services/attachments.service';
 import { ToastService } from '../../services/toast.service';
+import { ConfirmationService } from '../../services/confirmation.service';
 import type { CommentTargetType, UploadAttachmentResponse } from '@sebsa-pm-tool/shared-models';
 
 @Component({
@@ -21,6 +22,7 @@ import type { CommentTargetType, UploadAttachmentResponse } from '@sebsa-pm-tool
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TaskAttachmentsComponent implements OnChanges, OnDestroy {
+  private readonly confirmation = inject(ConfirmationService);
   /** Which entity owns the attachments shown here. Defaults to TASK so
    *  existing [taskId]-only usages keep working unchanged. */
   @Input() targetType: CommentTargetType = 'TASK';
@@ -76,8 +78,8 @@ export class TaskAttachmentsComponent implements OnChanges, OnDestroy {
     });
   }
 
-  deleteAttachment(attachmentId: string, fileName: string): void {
-    if (!confirm(`Delete "${fileName}"?`)) return;
+  async deleteAttachment(attachmentId: string, fileName: string): Promise<void> {
+    if (!(await this.confirmation.confirm({ title: 'Delete attachment', message: `Delete "${fileName}"?`, consequence: 'This file will be permanently removed from the item and cannot be restored.', confirmLabel: 'Delete attachment' }))) return;
 
     this.attachmentsService.deleteAttachment(attachmentId).subscribe({
       next: () => {

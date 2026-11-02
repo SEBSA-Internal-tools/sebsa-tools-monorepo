@@ -13,7 +13,7 @@ import { CustomSelectComponent } from '../../core/components/custom-select/custo
   selector: 'app-signup-page',
   imports: [CommonModule, FormsModule, RouterLink, CustomSelectComponent],
   templateUrl: './signup.page.html',
-  styleUrls: ['./signup.page.scss'],
+  styleUrls: ['../login/login.page.scss', './signup.page.scss'],
 })
 export class SignupPageComponent implements OnInit {
   private readonly authService = inject(AuthService);
@@ -34,6 +34,9 @@ export class SignupPageComponent implements OnInit {
   readonly isRegistered = signal(false);
   readonly successMessage = signal('');
 
+  readonly isSubmitting = signal(false);
+  readonly showPassword = signal(false);
+
   ngOnInit(): void {
     this.departmentsService.list().subscribe({
       next: (departments) => this.departments.set(departments),
@@ -41,6 +44,9 @@ export class SignupPageComponent implements OnInit {
   }
 
   register(): void {
+    if (this.isSubmitting()) return;
+
+    this.isSubmitting.set(true);
     this.authService
       .register({
         name: this.name,
@@ -51,13 +57,19 @@ export class SignupPageComponent implements OnInit {
       .subscribe({
         next: (response) => {
           this.hasError.set(false);
+          this.isSubmitting.set(false);
           this.successMessage.set(response.message);
           this.isRegistered.set(true);
         },
         error: (error: HttpErrorResponse) => {
           this.hasError.set(true);
+          this.isSubmitting.set(false);
           this.errorMessage.set(error.error?.message ?? 'Registration failed. Please try again.');
         },
       });
+  }
+
+  togglePasswordVisibility(): void {
+    this.showPassword.update((value) => !value);
   }
 }
