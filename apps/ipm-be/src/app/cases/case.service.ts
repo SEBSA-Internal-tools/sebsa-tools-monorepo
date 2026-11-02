@@ -775,6 +775,7 @@ export class CaseService {
     if (filter.milestoneId) where.milestoneId = filter.milestoneId;
     if (filter.createdById) where.createdById = filter.createdById;
     if (filter.assigneeId) where.assignees = { some: { userId: filter.assigneeId } };
+    if (filter.unassigned) where.assignees = { none: {} };
     if (filter.labelId) where.labels = { some: { labelId: filter.labelId } };
     if (filter.customerId) where.project = { customerId: filter.customerId };
 

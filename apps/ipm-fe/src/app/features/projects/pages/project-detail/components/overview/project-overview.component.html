@@ -282,7 +282,7 @@
             {{ activeSprint()!.name }}
           </div>
           <p class="sprint-dates">
-            {{ activeSprint()!.startDate }} to {{ activeSprint()!.endDate }}
+            {{ formatSprintDate(activeSprint()!.startDate) }} to {{ formatSprintDate(activeSprint()!.endDate) }}
           </p>
         </div>
       }

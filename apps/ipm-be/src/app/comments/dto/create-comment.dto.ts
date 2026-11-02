@@ -1,4 +1,4 @@
-import { ArrayMaxSize, IsArray, IsNotEmpty, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 /** Caps an individual comment. Long enough for a real discussion, short enough
@@ -24,7 +24,6 @@ export class CreateCommentDto {
 
   @ApiProperty({ maxLength: COMMENT_MAX_LENGTH, description: 'Plain text. Stored and returned unmodified.' })
   @IsString()
-  @IsNotEmpty()
   @MaxLength(COMMENT_MAX_LENGTH)
   body!: string;
 

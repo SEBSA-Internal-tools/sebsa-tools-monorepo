@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, Subject } from 'rxjs';
 import { CommentTargetType, UploadAttachmentResponse } from '@sebsa-pm-tool/shared-models';
 
 @Injectable({
@@ -8,6 +8,12 @@ import { CommentTargetType, UploadAttachmentResponse } from '@sebsa-pm-tool/shar
 })
 export class AttachmentsService {
   private readonly http = inject(HttpClient);
+  private readonly changedSubject = new Subject<void>();
+  readonly changed$ = this.changedSubject.asObservable();
+
+  notifyChanged(): void {
+    this.changedSubject.next();
+  }
 
   uploadAttachment(
     file: File,
