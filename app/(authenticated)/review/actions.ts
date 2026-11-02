@@ -114,7 +114,7 @@ async function requireReviewer(): Promise<CurrentUser> {
   const user = await getCurrentUser();
   if (!user) throw new Error('Not authenticated.');
   if (!isReviewerOrAbove(user.role)) {
-    throw new Error('Unauthorized: Admin, Super Admin, or CV Reviewer role required.');
+    throw new Error('Unauthorized: Admin, Super Admin, or HR role required.');
   }
   return user;
 }
@@ -126,7 +126,7 @@ function revalidateAll() {
 }
 
 /**
- * Everything currently awaiting Super Admin/CV Reviewer review — three independent maker-checker
+ * Everything currently awaiting Super Admin/HR review — three independent maker-checker
  * gates (docs/04-rbac-security.md §10): a new self-service profile pending its first publish, a
  * claim request pending link approval, and a proposed edit to an already-published profile.
  */

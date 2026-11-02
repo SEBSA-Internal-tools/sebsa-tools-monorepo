@@ -10,7 +10,7 @@ interface AccountStatusControlProps {
   rowId: string;
   employeeName: string;
   status: AccountStatus;
-  /** False for CV Reviewers — the chip still renders, it just isn't clickable. */
+  /** False for HR — the chip still renders, it just isn't clickable. */
   canManage: boolean;
 }
 

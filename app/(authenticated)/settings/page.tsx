@@ -30,7 +30,7 @@ const ASSIGNABLE_ROLES: UserRole[] = ['super_admin', 'admin', 'cv_reviewer', 'em
 const ROLE_LABELS: Record<UserRole, string> = {
   super_admin: 'Super Admin',
   admin: 'Admin',
-  cv_reviewer: 'CV Reviewer',
+  cv_reviewer: 'HR',
   employee: 'Employee',
 };
 
@@ -144,7 +144,7 @@ export default function SettingsPage() {
     { label: 'Total Employees', value: users.length, icon: Users, color: 'text-indigo-600 bg-indigo-50' },
     { label: 'Super Admins', value: roleCounts.super_admin, icon: Crown, color: 'text-amber-600 bg-amber-50' },
     { label: 'Admins', value: roleCounts.admin, icon: ShieldCheck, color: 'text-sky-600 bg-sky-50' },
-    { label: 'CV Reviewers', value: roleCounts.cv_reviewer, icon: Eye, color: 'text-emerald-600 bg-emerald-50' },
+    { label: 'HR', value: roleCounts.cv_reviewer, icon: Eye, color: 'text-emerald-600 bg-emerald-50' },
   ];
 
   const templatesList = [

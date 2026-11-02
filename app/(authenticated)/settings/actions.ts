@@ -13,7 +13,7 @@ export interface ManagedUser {
   role: UserRole;
   createdAt: string;
   /** Null for accounts with no `profiles` row — not every user is an "employee" with a CV
-   *  (Admin/Super Admin/CV Reviewer accounts often have none). */
+   *  (Admin/Super Admin/HR accounts often have none). */
   name: string | null;
   /** Null when there's no real uploaded photo — deliberately NOT the generic stock-photo
    *  fallback other Employee-facing views use, since showing a fake photo for an Admin who
@@ -22,7 +22,7 @@ export interface ManagedUser {
 }
 
 /**
- * Admin/Super Admin/CV Reviewer only (matches user_roles_select RLS — everyone at
+ * Admin/Super Admin/HR only (matches user_roles_select RLS — everyone at
  * reviewer-or-above can see the roster; only admin-or-above can change roles, enforced both
  * here and by the user_roles_write RLS policy as the real backstop).
  */
@@ -57,7 +57,7 @@ export async function listUsersAction(): Promise<ManagedUser[]> {
     page += 1;
   }
 
-  // Not every account has a profiles row — Admin/Super Admin/CV Reviewer accounts often don't,
+  // Not every account has a profiles row — Admin/Super Admin/HR accounts often don't,
   // since profiles represent employees specifically. Left-join in whatever's there.
   const { data: profileRows, error: profileError } = await adminClient
     .from('profiles')

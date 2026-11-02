@@ -176,7 +176,7 @@ export default function SignupPage() {
 
           <p className="text-xs text-slate-400 text-center mt-6 leading-relaxed">
             Creating an account gives you Employee access — you'll set up your profile next.
-            Admin, Super Admin, and CV Reviewer accounts are provisioned separately.
+            Admin, Super Admin, and HR accounts are provisioned separately.
           </p>
         </div>
 

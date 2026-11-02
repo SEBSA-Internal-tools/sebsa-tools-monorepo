@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { PageWrapper } from '../../../components/PageWrapper';
 import type { Employee } from '@/types/domain';
 import type { CvExperienceEntry } from '@/lib/cvTypes';
-import { isAdminOrAbove, type UserRole } from '@/lib/roles';
+import { isAdminOrAbove, canEditProfilesAndCvs, type UserRole } from '@/lib/roles';
 import CvPreviewTemplate from '../../generate/CvPreviewTemplate';
 import AccountStatusControl from '../AccountStatusControl';
 import { buildTailoredCvFromEmployee } from '@/lib/templates/buildTailoredCvFromEmployee';
@@ -35,11 +35,11 @@ interface EmployeeProfileClientProps {
 
 export default function EmployeeProfileClient({ employee, viewerRole }: EmployeeProfileClientProps) {
   const router = useRouter();
-  const canGenerateCv = isAdminOrAbove(viewerRole);
+  const canGenerateCv = canEditProfilesAndCvs(viewerRole);
   // Admin/Super Admin can edit anyone's profile (docs/04-rbac-security.md §2) — surfaced here as
   // a pencil icon instead of a standalone "Update Profile" sidebar page/menu item, so editing
   // starts from the profile you're already looking at rather than a separate employee picker.
-  const canEditAnyProfile = isAdminOrAbove(viewerRole);
+  const canEditAnyProfile = canEditProfilesAndCvs(viewerRole);
   const canManageAccounts = isAdminOrAbove(viewerRole);
 
   const handleBack = () => {

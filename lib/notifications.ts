@@ -45,7 +45,7 @@ export async function notifyUser(
 /**
  * Notifies everyone who can act on the maker-checker approval queue — Super Admin, Admin, and CV
  * Reviewer (docs/04-rbac-security.md §12) — used when something new lands in /review. Admin was
- * originally left out here (only Super Admin/CV Reviewer), even though Admin has always had full
+ * originally left out here (only Super Admin/HR), even though Admin has always had full
  * approve/reject rights via isReviewerOrAbove() — meaning an Admin's only way to find out
  * something was pending was to check /review manually.
  */

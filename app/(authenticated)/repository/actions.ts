@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { deleteEmployee } from '@/services/employee-service';
-import { getCurrentUser, isAdminOrAbove } from '@/lib/auth';
+import { getCurrentUser, isAdminOrAbove, canDeleteProfiles } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { provisionEmployeeAccount, resendEmployeeInvite } from '@/lib/auth/provisionAccount';
 import { setAccountAccess } from '@/lib/auth/accountAccess';
@@ -18,8 +18,8 @@ export interface DeleteEmployeeResult {
 export async function deleteEmployeeAction(rowId: string): Promise<DeleteEmployeeResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, message: 'Your session has expired. Please log in and try again.' };
-  if (!isAdminOrAbove(user.role)) {
-    return { ok: false, message: 'Only an Admin or Super Admin can delete profiles.' };
+  if (!canDeleteProfiles(user.role)) {
+    return { ok: false, message: 'Only an Admin, Super Admin or HR can delete profiles.' };
   }
 
   try {
@@ -87,7 +87,7 @@ interface AccountProfileRow {
   user_id: string | null;
 }
 
-/** Account lifecycle is Admin/Super-Admin only — CV Reviewers keep read-only repository access. */
+/** Account lifecycle is Admin/Super-Admin only — HR keep read-only repository access. */
 async function requireAccountManager() {
   const user = await getCurrentUser();
   if (!user) throw new Error('Not authenticated.');

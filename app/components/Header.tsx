@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import type { CurrentUser } from '@/lib/auth';
+import { roleLabel } from '@/lib/roles';
 import { NotificationList } from './NotificationList';
 import {
   listNotificationsAction,
@@ -190,7 +191,7 @@ export const Header: React.FC<HeaderProps> = ({
               {user.fullName}
             </p>
             <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider leading-none mt-0.5">
-              {user.role.replace(/_/g, ' ')}
+              {roleLabel(user.role)}
             </p>
           </div>
           <div

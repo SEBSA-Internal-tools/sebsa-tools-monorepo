@@ -114,7 +114,7 @@ export default function MyProfileClient({ employee, departments }: MyProfileClie
             Update pending review
           </h1>
           <p className="text-sm text-slate-500">
-            Your proposed changes are waiting for a Super Admin or CV Reviewer to approve. Your
+            Your proposed changes are waiting for a Super Admin or HR to approve. Your
             current profile stays as-is until then.
           </p>
         </div>
@@ -138,7 +138,7 @@ export default function MyProfileClient({ employee, departments }: MyProfileClie
             Update My Profile
           </h2>
           <p className="text-sm font-medium text-slate-500 mt-2">
-            Your changes are reviewed by a Super Admin or CV Reviewer before they appear on your profile.
+            Your changes are reviewed by a Super Admin or HR before they appear on your profile.
           </p>
         </div>
 

@@ -11,7 +11,7 @@ export default async function DashboardPage() {
   if (!user) redirect('/login');
 
   // Dashboard's quick actions (Upload CV, Generate Customer CV, Manage Templates) aren't
-  // relevant to Employee (own profile only) or CV Reviewer (no create/generate permissions) —
+  // relevant to Employee (own profile only) or HR (no create/generate permissions) —
   // docs/04-rbac-security.md §2. Send them to the page that actually matches their role.
   if (user.role === 'employee') redirect(`/repository/${user.profileId}`);
   if (user.role === 'cv_reviewer') redirect('/repository');

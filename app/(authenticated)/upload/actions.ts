@@ -75,7 +75,7 @@ export async function createEmployeeAction(input: CreateEmployeeInput): Promise<
   const user = await getCurrentUser();
   if (!user) throw new Error('Not authenticated.');
   if (!isReviewerOrAbove(user.role)) {
-    throw new Error('Unauthorized: Admin, Super Admin, or CV Reviewer role required. Employees self-register their own profile at /onboarding.');
+    throw new Error('Unauthorized: Admin, Super Admin, or HR role required. Employees self-register their own profile at /onboarding.');
   }
   if (!input.avatarUrl) {
     throw new Error('A profile photo is required.');

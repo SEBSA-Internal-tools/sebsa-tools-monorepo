@@ -26,7 +26,7 @@ export async function emailUser(adminClient: SupabaseClient, userId: string, con
   await sendEmail(to, content);
 }
 
-/** Emails every Super Admin/Admin/CV Reviewer. Mirrors notifyReviewers (lib/notifications.ts). */
+/** Emails every Super Admin/Admin/HR. Mirrors notifyReviewers (lib/notifications.ts). */
 export async function emailReviewers(adminClient: SupabaseClient, content: EmailContent): Promise<void> {
   const { data: reviewers, error } = await adminClient
     .from('user_roles')

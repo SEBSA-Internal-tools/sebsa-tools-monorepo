@@ -68,7 +68,7 @@ export async function findClaimableProfileAction(): Promise<ClaimableProfile | n
 
 /**
  * Requests linking an existing unclaimed profile to the caller's own account — stages the
- * request (pending_claim_user_id) rather than linking immediately; a Super Admin or CV Reviewer
+ * request (pending_claim_user_id) rather than linking immediately; a Super Admin or HR
  * must approve it (app/(authenticated)/review/actions.ts) before profiles.user_id is actually
  * set. Uses the RLS-bound client — profiles_self_claim_request (0020) is the real enforcement:
  * it only allows touching a row that is currently unclaimed and matches the caller's own

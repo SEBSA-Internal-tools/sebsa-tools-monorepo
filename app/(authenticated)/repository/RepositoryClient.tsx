@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { PageWrapper } from '../../components/PageWrapper';
 import type { Employee } from '@/types/domain';
 import type { AccountStatus } from '@/lib/accountStatus';
-import { isAdminOrAbove, isReviewerOrAbove, type UserRole } from '@/lib/roles';
+import { isAdminOrAbove, isReviewerOrAbove, canDeleteProfiles, type UserRole } from '@/lib/roles';
 import { deleteEmployeeAction } from './actions';
 import AccountStatusControl from './AccountStatusControl';
 import {
@@ -57,10 +57,10 @@ export default function RepositoryClient({ employees, viewerRole, departments }:
   const [isDeleting, startDeleteTransition] = useTransition();
   const [employeePendingDelete, setEmployeePendingDelete] = useState<Employee | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-  // CV Reviewer can now create profiles too (docs/04-rbac-security.md §13), but editing/deleting
+  // HR can now create profiles too (docs/04-rbac-security.md §13), but editing/deleting
   // someone else's existing profile stays Admin/Super-Admin-only.
   const canCreateEmployees = isReviewerOrAbove(viewerRole);
-  const canDeleteEmployees = isAdminOrAbove(viewerRole);
+  const canDeleteEmployees = canDeleteProfiles(viewerRole);
   // Inviting and deactivating are account-lifecycle actions, same tier as deleting a profile.
   const canManageAccounts = isAdminOrAbove(viewerRole);
 

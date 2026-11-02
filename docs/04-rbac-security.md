@@ -505,3 +505,15 @@ host (`smtp-relay.brevo.com`), port `587`, the Brevo SMTP login/key, and the ver
 by the application. Also allow `${NEXT_PUBLIC_APP_URL}/auth/callback` under Authentication -> URL
 Configuration -> Redirect URLs. The `BREVO_*` values in `.env.local` configure application-owned
 transactional mail only; Supabase's hosted Auth service cannot read local application variables.
+
+## 19. CV Reviewer renamed to HR, with Update Profile and Customize CVs
+
+The `cv_reviewer` role is shown as **HR** everywhere people see it (`roleLabel` in `lib/roles.ts`).
+The stored database value stays `cv_reviewer` so no production migration is needed; the older
+sections of this document keep the original name.
+
+HR now also gets what Admin has for **Update Profile** and **Customize CVs** (`canEditProfilesAndCvs`
+in `lib/roles.ts`): the sidebar items, the `/update-profile` and `/generate` pages, the edit and
+generate buttons on a profile, and the `updateEmployeeAction` server action. HR can also delete
+(soft-delete) profiles (`canDeleteProfiles`, `deleteEmployeeAction`). HR still has no Dashboard, no
+account activation/deactivation, and no role management.
