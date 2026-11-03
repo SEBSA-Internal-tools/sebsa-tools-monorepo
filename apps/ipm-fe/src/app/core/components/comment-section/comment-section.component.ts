@@ -7,7 +7,7 @@ import { AttachmentsService } from '../../services/attachments.service';
 import { ToastService } from '../../services/toast.service';
 import { AuthService } from '../../services/auth.service';
 import { UserAvatarComponent } from '../user-avatar/user-avatar.component';
-import { forkJoin, Subscription } from 'rxjs';
+import { forkJoin } from 'rxjs';
 import type { UploadAttachmentResponse } from '@sebsa-pm-tool/shared-models';
 
 /** Matches the server-side cap in CreateCommentDto. */
@@ -18,6 +18,10 @@ const MENTION_RESULT_LIMIT = 6;
 const MENTION_ALL_ID = '__all__';
 
 type MentionContext = 'new' | 'reply' | 'edit';
+
+type PendingDeletion =
+  | { kind: 'comment'; comment: CommentSummary }
+  | { kind: 'attachment'; attachment: { id: string; fileName: string } };
 
 /** Minimal shape needed to offer someone as a mention. */
 export interface MentionableUser {
@@ -84,6 +88,8 @@ export class CommentSectionComponent implements OnChanges, OnDestroy {
   protected replyFiles = signal<File[]>([]);
   protected editFiles = signal<File[]>([]);
   protected isUploadingFiles = signal(false);
+  protected readonly pendingDeletion = signal<PendingDeletion | null>(null);
+  protected readonly isDeleting = signal(false);
   private readonly attachmentChanges = this.attachments.changed$.subscribe(() => this.load());
 
   ngOnDestroy(): void {
@@ -296,22 +302,64 @@ export class CommentSectionComponent implements OnChanges, OnDestroy {
   }
 
   protected remove(comment: CommentSummary): void {
+    if (this.isDeleting()) return;
+    this.pendingDeletion.set({ kind: 'comment', comment });
+  }
+
+  protected deleteAttachment(attachment: { id: string; fileName: string }): void {
+    if (this.isDeleting()) return;
+    this.pendingDeletion.set({ kind: 'attachment', attachment });
+  }
+
+  protected cancelDeletion(): void {
+    if (!this.isDeleting()) this.pendingDeletion.set(null);
+  }
+
+  protected confirmDeletion(): void {
+    const pending = this.pendingDeletion();
+    if (!pending || this.isDeleting()) return;
+
+    this.isDeleting.set(true);
+    if (pending.kind === 'attachment') {
+      this.attachments.deleteAttachment(pending.attachment.id).subscribe({
+        next: () => {
+          this.isDeleting.set(false);
+          this.pendingDeletion.set(null);
+          this.toast.success('Attachment deleted.');
+          this.attachments.notifyChanged();
+          this.load();
+        },
+        error: () => {
+          this.isDeleting.set(false);
+          this.toast.error('Could not delete the attachment.');
+        },
+      });
+      return;
+    }
+
+    const comment = pending.comment;
     const linkedAttachments = comment.attachments ?? [];
-    const deleteAttachments = linkedAttachments.length > 0
-      ? window.confirm(`This comment has ${linkedAttachments.length} attached file(s): ${linkedAttachments.map((a) => a.fileName).join(', ')}.\n\nDelete these files too? Select OK to delete them, or Cancel to keep them. The comment will be deleted either way.`)
-      : false;
-    if (linkedAttachments.length === 0 && !window.confirm('Delete this comment? This cannot be undone.')) return;
 
     const deleteComment = () => this.comments.delete(comment.id).subscribe({
       next: () => {
+        this.isDeleting.set(false);
+        this.pendingDeletion.set(null);
         this.toast.success('Comment deleted.');
-        if (deleteAttachments) this.attachments.notifyChanged();
+        if (linkedAttachments.length > 0) this.attachments.notifyChanged();
         this.load();
       },
-      error: () => this.toast.error('Could not delete the comment.'),
+      error: () => {
+        this.isDeleting.set(false);
+        if (linkedAttachments.length > 0) {
+          this.pendingDeletion.set(null);
+          this.toast.error('The attached files were deleted, but the comment could not be deleted.');
+        } else {
+          this.toast.error('Could not delete the comment.');
+        }
+      },
     });
 
-    if (!deleteAttachments) {
+    if (linkedAttachments.length === 0) {
       deleteComment();
       return;
     }
@@ -320,7 +368,11 @@ export class CommentSectionComponent implements OnChanges, OnDestroy {
         this.attachments.notifyChanged();
         deleteComment();
       },
-      error: () => this.toast.error('Could not delete all files attached to this comment. The comment was kept.'),
+      error: () => {
+        this.isDeleting.set(false);
+        this.pendingDeletion.set(null);
+        this.toast.error('Could not delete all files attached to this comment. The comment was kept.');
+      },
     });
   }
 
@@ -331,16 +383,8 @@ export class CommentSectionComponent implements OnChanges, OnDestroy {
       || user?.systemRole === 'SUPER_ADMIN';
   }
 
-  protected deleteAttachment(attachment: { id: string; fileName: string }): void {
-    if (!window.confirm(`Delete "${attachment.fileName}"?`)) return;
-    this.attachments.deleteAttachment(attachment.id).subscribe({
-      next: () => {
-        this.toast.success('Attachment deleted.');
-        this.attachments.notifyChanged();
-        this.load();
-      },
-      error: () => this.toast.error('Could not delete the attachment.'),
-    });
+  protected attachmentCount(comment: CommentSummary): number {
+    return comment.attachments?.length ?? 0;
   }
 
   // ---------------------------------------------------------------------------

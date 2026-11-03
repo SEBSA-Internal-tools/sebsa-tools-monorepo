@@ -33,6 +33,8 @@ export class TaskAttachmentsComponent implements OnChanges, OnDestroy {
 
   attachments = signal<UploadAttachmentResponse[]>([]);
   isLoading = signal(false);
+  protected readonly pendingDelete = signal<{ id: string; fileName: string } | null>(null);
+  protected readonly isDeleting = signal(false);
   private readonly changedSubscription = this.attachmentsService.changed$.subscribe(() => this.loadAttachments());
 
   ngOnDestroy(): void {
@@ -78,16 +80,30 @@ export class TaskAttachmentsComponent implements OnChanges, OnDestroy {
     });
   }
 
-  async deleteAttachment(attachmentId: string, fileName: string): Promise<void> {
-    if (!(await this.confirmation.confirm({ title: 'Delete attachment', message: `Delete "${fileName}"?`, consequence: 'This file will be permanently removed from the item and cannot be restored.', confirmLabel: 'Delete attachment' }))) return;
+  deleteAttachment(attachmentId: string, fileName: string): void {
+    if (this.isDeleting()) return;
+    this.pendingDelete.set({ id: attachmentId, fileName });
+  }
 
-    this.attachmentsService.deleteAttachment(attachmentId).subscribe({
+  cancelDelete(): void {
+    if (!this.isDeleting()) this.pendingDelete.set(null);
+  }
+
+  confirmDelete(): void {
+    const attachment = this.pendingDelete();
+    if (!attachment || this.isDeleting()) return;
+
+    this.isDeleting.set(true);
+    this.attachmentsService.deleteAttachment(attachment.id).subscribe({
       next: () => {
+        this.isDeleting.set(false);
+        this.pendingDelete.set(null);
         this.toast.success('Attachment deleted');
         this.attachmentsService.notifyChanged();
         this.loadAttachments();
       },
       error: () => {
+        this.isDeleting.set(false);
         this.toast.error('Failed to delete attachment');
       },
     });
