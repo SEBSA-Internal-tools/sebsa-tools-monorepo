@@ -445,3 +445,54 @@
     }
   </ol>
 </section>
+
+@if (pendingDeletion(); as deletion) {
+  <button
+    type="button"
+    class="modal-overlay"
+    aria-label="Close delete confirmation"
+    (click)="cancelDeletion()"
+  ></button>
+  <section
+    class="modal-container confirmation-dialog"
+    role="alertdialog"
+    aria-modal="true"
+    aria-labelledby="delete-confirmation-title"
+    aria-describedby="delete-confirmation-description"
+  >
+    <div class="modal-header">
+      <h2 id="delete-confirmation-title">{{ deletion.kind === 'comment' ? 'Delete comment' : 'Delete file' }}</h2>
+      <button type="button" class="close-btn" aria-label="Close" [disabled]="isDeleting()" (click)="cancelDeletion()">
+        <span class="material-symbols-outlined" aria-hidden="true">close</span>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="confirmation-icon" aria-hidden="true">
+        <span class="material-symbols-outlined">warning</span>
+      </div>
+      <p id="delete-confirmation-description">
+        @if (deletion.kind === 'comment') {
+          @if (attachmentCount(deletion.comment) > 0) {
+            This comment has {{ attachmentCount(deletion.comment) }} attached {{ attachmentCount(deletion.comment) === 1 ? 'file' : 'files' }}. Deleting the comment will also delete {{ attachmentCount(deletion.comment) === 1 ? 'it' : 'them' }}. This action cannot be undone.
+          } @else {
+            Delete this comment? This action cannot be undone.
+          }
+        } @else {
+          Delete <strong>{{ deletion.attachment.fileName }}</strong>? This action cannot be undone.
+        }
+      </p>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn-cancel" [disabled]="isDeleting()" (click)="cancelDeletion()">Cancel</button>
+      <button type="button" class="btn-delete" [disabled]="isDeleting()" (click)="confirmDeletion()">
+        @if (isDeleting()) {
+          Deleting...
+        } @else if (deletion.kind === 'comment' && attachmentCount(deletion.comment) > 0) {
+          Delete comment and files
+        } @else {
+          {{ deletion.kind === 'comment' ? 'Delete comment' : 'Delete file' }}
+        }
+      </button>
+    </div>
+  </section>
+}

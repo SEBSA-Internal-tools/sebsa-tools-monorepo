@@ -462,3 +462,142 @@
     font-size: 18px;
   }
 }
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  border: 0;
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(4px);
+}
+
+.modal-container {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 1000;
+  width: min(480px, calc(100vw - 32px));
+  transform: translate(-50%, -50%);
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  background: var(--surface-card);
+  box-shadow: var(--shadow-elevated);
+}
+
+.modal-header,
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+}
+
+.modal-header {
+  border-bottom: 1px solid var(--border-subtle);
+
+  h2 {
+    margin: 0;
+    color: var(--text-heading);
+    font-size: 18px;
+  }
+}
+
+.modal-body {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 20px;
+
+  p {
+    margin: 0;
+    color: var(--text-primary);
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+}
+
+.modal-footer {
+  justify-content: flex-end;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--surface-soft);
+}
+
+.close-btn,
+.btn-cancel,
+.btn-delete {
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.close-btn {
+  display: inline-flex;
+  padding: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.btn-cancel,
+.btn-delete {
+  min-height: 40px;
+  padding: 8px 16px;
+  border-radius: var(--radius-control);
+}
+
+.btn-cancel {
+  border: 1px solid var(--border-default);
+  background: var(--surface-card);
+  color: var(--text-primary);
+}
+
+.btn-delete {
+  border: 1px solid var(--status-error-fg);
+  background: var(--status-error-fg);
+  color: #fff;
+}
+
+.confirmation-icon {
+  display: flex;
+  flex: 0 0 44px;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--status-warning-bg);
+  color: var(--status-warning-fg);
+}
+
+.close-btn:disabled,
+.btn-cancel:disabled,
+.btn-delete:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+@media (max-width: 640px) {
+  .modal-container {
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    max-width: none;
+    transform: none;
+    border-radius: 16px 16px 0 0;
+  }
+
+  .modal-header,
+  .modal-body,
+  .modal-footer {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .modal-footer > button {
+    flex: 1;
+  }
+}
