@@ -26,6 +26,7 @@ import {
   PROJECT_OWNER_ROLE_NAME,
 } from './constants';
 import { ActivityLogsService } from '../activity-logs/activity-logs.service';
+import { PROJECT_PERMISSIONS } from '../common/project-access.service';
 
 const ADMIN_SYSTEM_ROLES: AuthUser['systemRole'][] = ['ADMIN', 'SUPER_ADMIN'];
 
@@ -53,7 +54,9 @@ const projectDetailInclude = {
     select: { id: true, name: true, order: true, color: true },
     orderBy: { order: 'asc' as const },
   },
-  _count: { select: { cases: true, members: { where: { deletedAt: null } } } },
+  _count: {
+    select: { cases: { where: { deletedAt: null } }, members: { where: { deletedAt: null } } },
+  },
 } satisfies Prisma.ProjectInclude;
 
 type ProjectWithDetail = Prisma.ProjectGetPayload<{ include: typeof projectDetailInclude }>;
@@ -327,6 +330,48 @@ export class ProjectsService {
       include: { privilegeGroup: true },
     });
     return this.toProjectRole(role);
+  }
+
+  /** Removes a project role. Refused while anyone still holds it — reassigning
+   * those members is a decision for a human, not a silent side effect. The
+   * seeded defaults are kept so every project retains a usable set. */
+  async deleteRole(id: string, roleId: string, user: AuthUser): Promise<{ message: string }> {
+    const project = await this.loadProjectWithMembership(id);
+    this.assertCanManageMembers(project, user);
+    await this.assertRoleBelongsToProject(id, roleId);
+
+    const role = await this.prisma.role.findUnique({
+      where: { id: roleId },
+      select: { name: true, isSystemDefault: true },
+    });
+    if (!role) throw new NotFoundException('Role not found.');
+
+    if (role.isSystemDefault) {
+      throw new BadRequestException(`"${role.name}" is a default role and cannot be deleted.`);
+    }
+
+    const holders = await this.prisma.projectMember.count({
+      where: { roleId, deletedAt: null },
+    });
+    if (holders > 0) {
+      throw new BadRequestException(
+        `${holders} member(s) still have the "${role.name}" role. Move them to another role first.`,
+      );
+    }
+
+    await this.prisma.role.delete({ where: { id: roleId } });
+
+    await this.activityLogs.record({
+      projectId: id,
+      entityType: EntityType.PROJECT,
+      entityId: id,
+      entityLabel: project.name,
+      action: ActivityAction.ROLE_CHANGED,
+      actorId: user.id,
+      description: `Deleted the "${role.name}" role`,
+    });
+
+    return { message: `Role "${role.name}" deleted.` };
   }
 
   async getMembers(id: string, user: AuthUser): Promise<ProjectMemberSummary[]> {
@@ -681,12 +726,10 @@ export class ProjectsService {
       throw new ForbiddenException('You do not have permission to assign privilege groups.');
     }
 
+    // Derived from PROJECT_PERMISSIONS rather than listed by hand, so adding a
+    // flag cannot silently open an escalation path here.
     const grantsMoreThanIHave =
-      (candidateGroup.canCreateTask && !myGroup.canCreateTask) ||
-      (candidateGroup.canDeleteTask && !myGroup.canDeleteTask) ||
-      (candidateGroup.canManageMembers && !myGroup.canManageMembers) ||
-      (candidateGroup.canConfigureIntegrations && !myGroup.canConfigureIntegrations) ||
-      (candidateGroup.canManageWorkflow && !myGroup.canManageWorkflow) ||
+      PROJECT_PERMISSIONS.some((p) => candidateGroup[p] && !myGroup[p]) ||
       (myGroup.isReadOnly && !candidateGroup.isReadOnly);
 
     if (grantsMoreThanIHave) {
@@ -720,7 +763,13 @@ export class ProjectsService {
         canDeleteTask: role.privilegeGroup.canDeleteTask,
         canManageMembers: role.privilegeGroup.canManageMembers,
         canConfigureIntegrations: role.privilegeGroup.canConfigureIntegrations,
-        canManageWorkflow: role.privilegeGroup.canManageWorkflow,
+        canManageSprints: role.privilegeGroup.canManageSprints,
+        canManageLabels: role.privilegeGroup.canManageLabels,
+        canCreateCase: role.privilegeGroup.canCreateCase,
+        canEditCase: role.privilegeGroup.canEditCase,
+        canDeleteCase: role.privilegeGroup.canDeleteCase,
+        canEditTask: role.privilegeGroup.canEditTask,
+        canComment: role.privilegeGroup.canComment,
         isReadOnly: role.privilegeGroup.isReadOnly,
         createdAt: role.privilegeGroup.createdAt.toISOString(),
         updatedAt: role.privilegeGroup.updatedAt.toISOString(),

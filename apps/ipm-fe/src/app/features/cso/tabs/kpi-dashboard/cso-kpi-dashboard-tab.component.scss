@@ -2,6 +2,7 @@
 .cso-kpi-dashboard {
   width: 100%;
   max-width: 100%;
+  min-width: 0;
   padding: 24px;
   display: flex;
   flex-direction: column;
@@ -9,7 +10,7 @@
   box-sizing: border-box;
 
   @media (max-width: 768px) {
-    padding: 16px 12px;
+    padding: 0;
     gap: 16px;
   }
 }
@@ -66,6 +67,7 @@
 
     .tab-btn {
       flex: 1;
+      min-width: 0;
       justify-content: center;
       padding: 10px 12px;
       font-size: 0.82rem;
@@ -93,6 +95,10 @@
 
   .tab-label-mobile {
     display: inline;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }
 
@@ -160,26 +166,25 @@
 // ── KPI Grid (3 × 3) ──────────────────────────────────────────────────────────
 .kpi-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
 
   @media (max-width: 900px) {
-    grid-template-columns: repeat(3, 1fr);
     gap: 12px;
   }
 
   @media (max-width: 640px) {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
   }
 
   @media (max-width: 380px) {
-    grid-template-columns: repeat(3, 1fr);
     gap: 6px;
   }
 }
 
 .kpi-card {
+  min-width: 0;
   --accent: #6366f1;
   background: var(--app-surface);
   border: 1px solid var(--app-border);
@@ -221,6 +226,7 @@
     font-weight: 700;
     color: var(--app-text);
     line-height: 1;
+    overflow-wrap: anywhere;
   }
 
   .kpi-label {
@@ -314,6 +320,7 @@
 
 // ── Chart Card (shared container) ─────────────────────────────────────────────
 .chart-card {
+  min-width: 0;
   background: var(--app-surface);
   border: 1px solid var(--app-border);
   border-radius: 12px;
@@ -327,6 +334,7 @@
 }
 
 .chart-card-header {
+  min-width: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -336,6 +344,7 @@
   flex-wrap: wrap;
 
   h3 {
+    min-width: 0;
     font-size: 0.95rem;
     font-weight: 600;
     color: var(--app-text);
@@ -436,13 +445,21 @@
 // ── Two-col row (50 / 50) ─────────────────────────────────────────────────────
 .two-col-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 20px;
 
-  @media (max-width: 768px) { grid-template-columns: 1fr; }
+  @media (max-width: 900px) { grid-template-columns: minmax(0, 1fr); }
 }
 
 // ── Month filter ──────────────────────────────────────────────────────────────
+.customer-month-card {
+  overflow: visible;
+}
+
+.customer-month-table-scroll {
+  overflow-x: auto;
+}
+
 .month-filter {
   display: flex;
   align-items: center;
@@ -472,10 +489,10 @@
 // ── Chart row (55 / 45 for resolution + donut) ────────────────────────────────
 .chart-row {
   display: grid;
-  grid-template-columns: 55fr 45fr;
+  grid-template-columns: minmax(0, 55fr) minmax(0, 45fr);
   gap: 20px;
 
-  @media (max-width: 768px) { grid-template-columns: 1fr; }
+  @media (max-width: 900px) { grid-template-columns: minmax(0, 1fr); }
 }
 
 // ── Donut Chart ───────────────────────────────────────────────────────────────
@@ -497,6 +514,7 @@
   cursor: pointer;
   transition: stroke-width 0.2s ease;
   &.active { stroke-width: 34; }
+  &:focus-visible { outline: 2px solid var(--app-primary); outline-offset: 4px; }
 }
 
 .donut-center-value {
@@ -527,7 +545,13 @@
     align-items: center;
     gap: 8px;
     padding: 4px 8px;
+    width: 100%;
+    border: 0;
     border-radius: 6px;
+    background: transparent;
+    font: inherit;
+    color: inherit;
+    text-align: left;
     transition: background 0.15s;
     &:hover { background: var(--app-hover); }
     &.active { background: var(--app-hover); font-weight: 600; }

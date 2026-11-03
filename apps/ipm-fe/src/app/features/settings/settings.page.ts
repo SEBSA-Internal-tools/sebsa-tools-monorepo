@@ -6,6 +6,7 @@ import { ProfileService } from '../../core/services/profile.service';
 import { AuthService } from '../../core/services/auth.service';
 import { DepartmentsService } from '../../core/services/departments.service';
 import { ToastService } from '../../core/services/toast.service';
+import { ConfirmationService } from '../../core/services/confirmation.service';
 import { UserAvatarComponent } from '../../core/components/user-avatar/user-avatar.component';
 import { AvatarCropperModalComponent } from '../../core/components/avatar-cropper-modal/avatar-cropper-modal.component';
 
@@ -20,6 +21,7 @@ const AVATAR_ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
   styleUrl: './settings.page.scss',
 })
 export class SettingsPageComponent implements OnInit {
+  private readonly confirmation = inject(ConfirmationService);
   private readonly profileService = inject(ProfileService);
   private readonly authService = inject(AuthService);
   private readonly departmentsService = inject(DepartmentsService);
@@ -163,7 +165,9 @@ export class SettingsPageComponent implements OnInit {
     });
   }
 
-  removeAvatar(): void {
+  async removeAvatar(): Promise<void> {
+    if (this.isSavingAvatar()) return;
+    if (!(await this.confirmation.confirm({ title: 'Remove profile picture', message: 'Remove your profile picture?', consequence: 'Your current picture will be deleted and your default avatar will be shown.', confirmLabel: 'Remove picture' }))) return;
     this.isSavingAvatar.set(true);
     this.profileService.removeAvatar().subscribe({
       next: (updated) => this.applyAvatarUpdate(updated, 'Profile picture removed.'),

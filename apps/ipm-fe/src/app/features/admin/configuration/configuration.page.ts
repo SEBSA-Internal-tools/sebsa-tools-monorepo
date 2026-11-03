@@ -29,7 +29,7 @@ import { ConfigurationPanelComponent } from '../../../core/components/configurat
       display: block;
       min-height: 100%;
       width: 100%;
-      background-color: var(--surface-page);
+      background-color: var(--surface-card);
     }
     .page-container {
       padding: var(--page-gutter);

@@ -10,6 +10,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import type { Customer } from '@sebsa-pm-tool/shared-models';
+import { ConfirmationService } from '../../../../../../core/services/confirmation.service';
 
 @Component({
   standalone: true,
@@ -20,6 +21,7 @@ import type { Customer } from '@sebsa-pm-tool/shared-models';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CustomersListComponent {
+  private readonly confirmation = inject(ConfirmationService);
   @Input() customers: Customer[] | null = null;
   @Output() newCustomerClick = new EventEmitter<void>();
   @Output() editCustomer = new EventEmitter<Customer>();
@@ -58,11 +60,11 @@ export class CustomersListComponent {
     this.editCustomer.emit(customer);
   }
 
-  onDeleteCustomer(customerId: string, event: Event): void {
+  async onDeleteCustomer(customerId: string, event: Event): Promise<void> {
     event.stopPropagation();
-    if (confirm('Are you sure you want to delete this customer?')) {
-      this.deleteCustomer.emit(customerId);
-    }
+    const customer = this.customers?.find((item) => item.id === customerId);
+    if (!(await this.confirmation.confirm({ title: 'Delete customer', message: customer ? `Delete "${customer.name}"?` : 'Delete this customer?', consequence: 'This customer will be permanently deleted and cannot be restored. The action may be blocked if projects still use this customer.', confirmLabel: 'Delete customer' }))) return;
+    this.deleteCustomer.emit(customerId);
   }
 
   initials(name: string): string {
