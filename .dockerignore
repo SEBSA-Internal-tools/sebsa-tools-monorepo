@@ -1,0 +1,14 @@
+.git
+.nx
+.angular
+.claude
+.vscode
+node_modules
+dist
+tmp
+uploads
+.env
+.env.*
+!.env.example
+deploy/.env
+docker/.env

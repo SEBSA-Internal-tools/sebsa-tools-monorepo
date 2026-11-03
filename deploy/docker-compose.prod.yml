@@ -1,0 +1,68 @@
+# SEBSA PM Tool — VPS deployment (HTTP on the server IP, Postgres on the VPS).
+#
+#   cd deploy
+#   cp .env.example .env     # fill in real values
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Only port 80 is exposed. Postgres and the API are reachable only on the
+# internal network.
+
+name: sebsa-pm-prod
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DATABASE_USER}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+      POSTGRES_DB: ${DATABASE_NAME}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${DATABASE_USER} -d ${DATABASE_NAME}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.be
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_USER: ${DATABASE_USER}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD}
+      DATABASE_NAME: ${DATABASE_NAME}
+      DATABASE_URL: postgresql://${DATABASE_USER}:${DATABASE_PASSWORD}@postgres:5432/${DATABASE_NAME}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
+      CORS_ORIGIN: http://${SERVER_IP}
+      # nginx is in front and overwrites X-Forwarded-For.
+      TRUST_PROXY: 'true'
+      SIGNUP_ALLOWED_EMAIL_DOMAINS: ${SIGNUP_ALLOWED_EMAIL_DOMAINS}
+      JIRA_POLLING_ENABLED: 'false'
+      BLOB_READ_WRITE_TOKEN: ${BLOB_READ_WRITE_TOKEN:-}
+    volumes:
+      - uploads:/app/uploads
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.fe
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - '80:80'
+
+volumes:
+  postgres-data:
+  uploads:
