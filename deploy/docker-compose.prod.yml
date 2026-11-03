@@ -4,7 +4,7 @@
 #   cp .env.example .env     # fill in real values
 #   docker compose -f docker-compose.prod.yml up -d --build
 #
-# Only port 80 is exposed. Postgres and the API are reachable only on the
+# Only HTTP_PORT (default 8003) is exposed. Postgres and the API are reachable only on the
 # internal network.
 
 name: sebsa-pm-prod
@@ -44,7 +44,7 @@ services:
       DATABASE_URL: postgresql://${DATABASE_USER}:${DATABASE_PASSWORD}@postgres:5432/${DATABASE_NAME}
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
-      CORS_ORIGIN: http://${SERVER_IP}
+      CORS_ORIGIN: http://${SERVER_IP}:${HTTP_PORT:-8003}
       # nginx is in front and overwrites X-Forwarded-For.
       TRUST_PROXY: 'true'
       SIGNUP_ALLOWED_EMAIL_DOMAINS: ${SIGNUP_ALLOWED_EMAIL_DOMAINS}
@@ -61,7 +61,7 @@ services:
     depends_on:
       - backend
     ports:
-      - '80:80'
+      - '${HTTP_PORT:-8003}:80'
 
 volumes:
   postgres-data:
