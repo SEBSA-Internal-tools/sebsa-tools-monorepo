@@ -49,7 +49,6 @@ services:
       TRUST_PROXY: 'true'
       SIGNUP_ALLOWED_EMAIL_DOMAINS: ${SIGNUP_ALLOWED_EMAIL_DOMAINS}
       JIRA_POLLING_ENABLED: 'false'
-      BLOB_READ_WRITE_TOKEN: ${BLOB_READ_WRITE_TOKEN:-}
     volumes:
       - uploads:/app/uploads
 

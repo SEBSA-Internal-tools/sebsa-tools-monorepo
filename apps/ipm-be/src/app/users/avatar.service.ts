@@ -1,10 +1,13 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '@sebsa-pm-tool/core';
 import { UserProfileDto } from '@sebsa-pm-tool/shared-models';
-import { put, del } from '@vercel/blob';
+import * as fs from 'fs';
+import * as path from 'path';
 import type { Multer } from 'multer';
 import { UsersService } from './users.service';
+
+export const AVATAR_URL_PREFIX = '/api/users/avatars/';
+export const AVATAR_FILE_PATTERN = /^[0-9a-fA-F-]{36}-\d+\.(png|jpg|webp)$/;
 
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024; // 5MB
 const ALLOWED_MIME_TYPES: Record<string, string> = {
@@ -20,8 +23,14 @@ export class AvatarService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly usersService: UsersService,
-    private readonly configService: ConfigService,
-  ) {}
+  ) {
+    fs.mkdirSync(AvatarService.avatarsDir(), { recursive: true });
+  }
+
+  /** Stored under <cwd>/uploads, which is a mounted volume in production. */
+  static avatarsDir(): string {
+    return path.join(process.cwd(), 'uploads', 'avatars');
+  }
 
   async uploadAvatar(userId: string, file: Multer.File): Promise<UserProfileDto> {
     if (!file) {
@@ -41,20 +50,16 @@ export class AvatarService {
       throw new NotFoundException('User not found.');
     }
 
-    const token = this.configService.get<string>('BLOB_READ_WRITE_TOKEN');
-    const blob = await put(`avatars/${userId}-${Date.now()}.${extension}`, file.buffer, {
-      access: 'public',
-      contentType: file.mimetype,
-      token,
-    });
+    const fileName = `${userId}-${Date.now()}.${extension}`;
+    await fs.promises.writeFile(path.join(AvatarService.avatarsDir(), fileName), file.buffer);
 
     if (user.avatarUrl) {
-      await this.deleteBlob(user.avatarUrl, token);
+      await this.deleteFile(user.avatarUrl);
     }
 
     await this.prisma.user.update({
       where: { id: userId },
-      data: { avatarUrl: blob.url },
+      data: { avatarUrl: `${AVATAR_URL_PREFIX}${fileName}` },
     });
 
     return this.usersService.getProfile(userId);
@@ -67,8 +72,7 @@ export class AvatarService {
     }
 
     if (user.avatarUrl) {
-      const token = this.configService.get<string>('BLOB_READ_WRITE_TOKEN');
-      await this.deleteBlob(user.avatarUrl, token);
+      await this.deleteFile(user.avatarUrl);
     }
 
     await this.prisma.user.update({
@@ -79,13 +83,17 @@ export class AvatarService {
     return this.usersService.getProfile(userId);
   }
 
-  private async deleteBlob(url: string, token?: string): Promise<void> {
+  private async deleteFile(avatarUrl: string): Promise<void> {
+    if (!avatarUrl.startsWith(AVATAR_URL_PREFIX)) return;
+    const fileName = avatarUrl.slice(AVATAR_URL_PREFIX.length);
+    if (!AVATAR_FILE_PATTERN.test(fileName)) return;
+
     try {
-      await del(url, { token });
+      await fs.promises.unlink(path.join(AvatarService.avatarsDir(), fileName));
     } catch (error) {
-      // Cleanup is best-effort — an orphaned blob is preferable to failing
+      // Cleanup is best-effort — an orphaned file is preferable to failing
       // the user's upload/removal request over it.
-      this.logger.warn(`Failed to delete old avatar blob: ${(error as Error).message}`);
+      this.logger.warn(`Failed to delete old avatar file: ${(error as Error).message}`);
     }
   }
 }
