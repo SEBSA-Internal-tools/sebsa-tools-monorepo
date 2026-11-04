@@ -43,7 +43,7 @@ interface CvSuggestionSelectorProps {
   onDraftChange: (draft: CvSuggestionDraft) => void;
   onApply: (selection: CvSuggestionSelection) => Promise<void>;
   applying: boolean;
-  source?: 'ai' | 'saved';
+  source?: 'rules' | 'saved';
   /** True once the live one-page preview (driven by this same draft, measured by the parent)
    *  exceeds one page — blocks Apply until the selection is trimmed back down. */
   pageLimitExceeded?: boolean;
@@ -55,6 +55,25 @@ const smallInputCls = `${inputCls} py-1.5 text-[11px]`;
 
 const nextIndex = (items: { index: number }[]) =>
   items.length === 0 ? 0 : Math.max(...items.map((item) => item.index)) + 1;
+
+function EvidenceSummary({ item, compact = false }: {
+  item: { score?: number; rank?: number; reason?: string; matchedRequiredSkills?: string[] };
+  compact?: boolean;
+}) {
+  if (item.score === undefined) return null;
+  return (
+    <div className={`rounded-lg border border-slate-200 bg-white/70 ${compact ? 'px-2 py-1' : 'px-3 py-2'} space-y-1`}>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-[10px] font-black text-indigo-700">{item.score}% match</span>
+        {item.rank !== undefined && <span className="text-[9px] font-bold text-slate-400">Rank #{item.rank}</span>}
+        {item.matchedRequiredSkills?.map((skill) => (
+          <span key={skill} className="rounded bg-indigo-50 px-1.5 py-0.5 text-[9px] font-bold text-indigo-600">{skill}</span>
+        ))}
+      </div>
+      {!compact && item.reason && <p className="text-[10px] leading-relaxed text-slate-500">{item.reason}</p>}
+    </div>
+  );
+}
 
 /**
  * Pure projection from the in-progress draft (checkbox state) to the actual selected content —
@@ -99,10 +118,9 @@ export function buildSelectionFromDraft(
 }
 
 /**
- * Review step for the AI's content SELECTION (never generation — see suggestCvContentAction's
- * doc comment) — every project/experience/skill/task/certification shown here is the employee's
- * own real data with the AI's relevance flag as the initial checkbox state, which the user can
- * freely override. Only Objective is AI-written text. Checking "I verified the generated content"
+ * Review step for deterministic recommendations. Every project, experience, skill, task, and
+ * certification shown here is the employee's own profile data with a relevance score and initial
+ * checkbox state. The objective is preserved from the profile. Checking the review confirmation
  * and clicking Apply saves the selected subset directly as the CV and moves to Preview & Export —
  * Edits and manually added items live only in this local draft. Applying projects the checked
  * draft into generated_cvs.content; no profile mutation is performed anywhere in this flow.
@@ -113,7 +131,7 @@ export default function CvSuggestionSelector({
   onDraftChange,
   onApply,
   applying,
-  source = 'ai',
+  source = 'rules',
   pageLimitExceeded = false,
 }: CvSuggestionSelectorProps) {
   const [isVerified, setIsVerified] = useState(false);
@@ -266,12 +284,12 @@ export default function CvSuggestionSelector({
           <p className="text-xs font-black text-indigo-800">
             {source === 'saved'
               ? 'Last Customized CV — Select & Edit Content'
-              : 'AI Suggested Selection — Review Before Continuing'}
+              : 'Recommended Selection — Review Before Continuing'}
           </p>
           <p className="text-[10px] text-indigo-600 font-medium mt-0.5">
             {source === 'saved'
-              ? 'Your previously saved content is loaded below. Select or deselect sections, entries, and description points, then apply the updated CV. No AI request was made.'
-              : 'AI suggestions start from the employee profile. Edit or add CV-only content here, choose what to include, then apply it to this customized CV. The employee profile will not be changed.'}
+              ? 'Your previously saved content is loaded below. Select or deselect sections, entries, and description points, then apply the updated CV.'
+              : 'Recommendations are ranked by deterministic keyword and skill matching against the employee profile. Review the evidence, then select or deselect entries and individual work points.'}
           </p>
         </div>
       </div>
@@ -296,7 +314,7 @@ export default function CvSuggestionSelector({
         </div>
       </SectionCard>
 
-      {/* Objective — the one AI-generated field */}
+      {/* Objective is preserved verbatim from the employee profile. */}
       <SectionCard label="Objective / Summary" icon={FileText} expanded onToggle={() => {}}>
         <label className="flex items-center gap-2.5 cursor-pointer select-none">
           <input
@@ -379,6 +397,7 @@ export default function CvSuggestionSelector({
               </div>
               <button type="button" onClick={() => onDraftChange({ ...draft, experience: experience.filter((item) => item.index !== exp.index) })} className="p-1.5 text-slate-400 hover:text-rose-600" aria-label="Remove work experience"><Trash2 className="w-4 h-4" /></button>
             </div>
+            <div className="pl-6.5"><EvidenceSummary item={exp} /></div>
 
             {exp.relevant && (
               <div className="pl-6.5 space-y-1.5">
@@ -390,7 +409,10 @@ export default function CvSuggestionSelector({
                       onChange={() => toggleTask(exp.index, task.index)}
                       className={`${checkboxCls} mt-0.5`}
                     />
-                    <textarea rows={2} value={task.text} onChange={(e) => updateTask(exp.index, task.index, e.target.value)} placeholder="Responsibility" className={smallInputCls} />
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <textarea rows={2} value={task.text} onChange={(e) => updateTask(exp.index, task.index, e.target.value)} placeholder="Responsibility" className={smallInputCls} />
+                      <EvidenceSummary item={task} compact />
+                    </div>
                     <button type="button" onClick={() => updateExperience(exp.index, { tasks: exp.tasks.filter((item) => item.index !== task.index) })} className="p-1 text-slate-400 hover:text-rose-600" aria-label="Remove responsibility"><Trash2 className="w-3.5 h-3.5" /></button>
                   </div>
                 ))}
@@ -416,6 +438,16 @@ export default function CvSuggestionSelector({
               />
               <div className="min-w-0 flex-1 space-y-2">
                 <input value={proj.title} onChange={(e) => updateProject(proj.index, { title: e.target.value })} placeholder="Project title" className={inputCls} />
+                <EvidenceSummary item={proj} />
+                {proj.skills.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {proj.skills.map((skill) => (
+                      <span key={skill.index} className={`rounded px-1.5 py-0.5 text-[9px] font-bold ${skill.relevant ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                        {skill.text}{skill.score !== undefined ? ` · ${skill.score}%` : ''}
+                      </span>
+                    ))}
+                  </div>
+                )}
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-slate-500 uppercase block">Project Description Points</label>
                   {proj.descriptionPoints.map((point) => (
@@ -428,14 +460,17 @@ export default function CvSuggestionSelector({
                         className={`${checkboxCls} mt-2 disabled:cursor-not-allowed`}
                         aria-label="Include project description point"
                       />
-                      <textarea
-                        rows={2}
-                        value={point.text}
-                        onChange={(event) => updateProjectPoint(proj.index, point.index, event.target.value)}
-                        disabled={!proj.relevant}
-                        placeholder="Describe one project contribution or outcome..."
-                        className={`${smallInputCls} disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400`}
-                      />
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <textarea
+                          rows={2}
+                          value={point.text}
+                          onChange={(event) => updateProjectPoint(proj.index, point.index, event.target.value)}
+                          disabled={!proj.relevant}
+                          placeholder="Describe one project contribution or outcome..."
+                          className={`${smallInputCls} disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400`}
+                        />
+                        <EvidenceSummary item={point} compact />
+                      </div>
                       <button type="button" onClick={() => removeProjectPoint(proj.index, point.index)} disabled={proj.descriptionPoints.length <= 1} className="p-1 text-slate-400 hover:text-rose-600 disabled:opacity-25" aria-label="Remove project description point"><Trash2 className="w-3.5 h-3.5" /></button>
                     </div>
                   ))}
@@ -467,6 +502,7 @@ export default function CvSuggestionSelector({
               <input value={cert.name} onChange={(e) => updateCertification(cert.index, { name: e.target.value })} placeholder="Certification name" className={`${inputCls} sm:col-span-2`} />
               <input value={cert.issuer} onChange={(e) => updateCertification(cert.index, { issuer: e.target.value })} placeholder="Issuer (optional)" className={smallInputCls} />
               <input value={cert.year} onChange={(e) => updateCertification(cert.index, { year: e.target.value })} placeholder="Year (optional)" className={smallInputCls} />
+              <div className="sm:col-span-2"><EvidenceSummary item={cert} /></div>
             </div>
             <button type="button" onClick={() => onDraftChange({ ...draft, certifications: certifications.filter((item) => item.index !== cert.index) })} className="p-1.5 text-slate-400 hover:text-rose-600" aria-label="Remove certification"><Trash2 className="w-4 h-4" /></button>
           </div>
@@ -482,7 +518,7 @@ export default function CvSuggestionSelector({
             onChange={(event) => setIsVerified(event.target.checked)}
             className={checkboxCls}
           />
-          <span className="text-xs font-bold text-slate-700">I verified the generated content</span>
+          <span className="text-xs font-bold text-slate-700">I reviewed the recommended profile content</span>
         </label>
 
         <button

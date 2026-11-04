@@ -52,12 +52,15 @@ export async function updateGeneratedCvRow(
   supabase: SupabaseClient,
   id: string,
   content: Record<string, any>,
-  updatedBy: string
+  updatedBy: string,
+  source: { provider: string | null; model: string | null }
 ): Promise<GeneratedCvRow> {
   const { data, error } = await supabase
     .from('generated_cvs')
     .update({
       content,
+      ai_provider: source.provider,
+      ai_model: source.model,
       updated_by: updatedBy,
       updated_at: new Date().toISOString(),
     })
