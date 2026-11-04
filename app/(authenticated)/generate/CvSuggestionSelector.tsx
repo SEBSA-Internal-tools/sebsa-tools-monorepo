@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useDragReorder, moveItem, DragHandle } from '@/app/components/useDragReorder';
 import { FileText, Briefcase, Lightbulb, Award, ArrowRight, Sparkles, Loader2, Plus, Trash2, GraduationCap } from 'lucide-react';
 import { SectionCard, textareaCls } from '@/app/components/CvEntrySections';
 import type { CvAcademicEntry, CvExperienceEntry, CvProjectEntry, CvCertificationEntry } from '@/lib/cvTypes';
@@ -248,6 +249,10 @@ export default function CvSuggestionSelector({
     certifications: [...certifications, { index: nextIndex(certifications), name: '', issuer: '', year: '', relevant: true }],
   });
 
+  // Reordering changes the order of the draft lists, which is the order they appear on the CV.
+  const experienceDrag = useDragReorder(experience.length, (from, to) => onDraftChange({ ...draft, experience: moveItem(experience, from, to) }));
+  const projectDrag = useDragReorder(projects.length, (from, to) => onDraftChange({ ...draft, projects: moveItem(projects, from, to) }));
+
   const selectedExperienceCount = experience.filter((e) => e.relevant).length;
   const selectedAcademicCount = includeEducation ? academic.filter((entry) => entry.relevant).length : 0;
   const selectedProjectCount = projects.filter((p) => p.relevant).length;
@@ -363,9 +368,10 @@ export default function CvSuggestionSelector({
         onToggle={() => {}}
       >
         {experience.length === 0 && <p className="text-xs text-slate-400 italic">No experience on record.</p>}
-        {experience.map((exp) => (
-          <div key={exp.index} className="border border-slate-200 rounded-xl p-4 bg-slate-50/30 space-y-2.5">
+        {experience.map((exp, expPos) => (
+          <div key={exp.index} {...experienceDrag.cardProps(expPos)} className={`border rounded-xl p-4 bg-slate-50/30 space-y-2.5 transition-colors ${experienceDrag.stateClass(expPos)}`}>
             <div className="flex items-start gap-2.5">
+              <DragHandle label="work experience" handleProps={experienceDrag.handleProps(expPos)} />
               <input
                 type="checkbox"
                 checked={exp.relevant}
@@ -405,9 +411,10 @@ export default function CvSuggestionSelector({
       {/* Special Projects */}
       <SectionCard label="Special Projects" icon={Lightbulb} count={selectedProjectCount} expanded onToggle={() => {}}>
         {projects.length === 0 && <p className="text-xs text-slate-400 italic">No special projects on record.</p>}
-        {projects.map((proj) => (
-          <div key={proj.index} className="border border-slate-200 rounded-xl p-4 bg-slate-50/30 space-y-2.5">
+        {projects.map((proj, projPos) => (
+          <div key={proj.index} {...projectDrag.cardProps(projPos)} className={`border rounded-xl p-4 bg-slate-50/30 space-y-2.5 transition-colors ${projectDrag.stateClass(projPos)}`}>
             <div className="flex items-start gap-2.5">
+              <DragHandle label="project" handleProps={projectDrag.handleProps(projPos)} />
               <input
                 type="checkbox"
                 checked={proj.relevant}

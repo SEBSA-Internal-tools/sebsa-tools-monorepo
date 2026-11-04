@@ -903,7 +903,7 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
                 </p>
               </div>
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 shadow-inner flex justify-center">
-                <CvPreviewTemplate cv={originalProfileCv} id="original-cv-preview-root" />
+                <CvPreviewTemplate cv={originalProfileCv} id="original-cv-preview-root" editable={false} />
               </div>
             </section>}
 

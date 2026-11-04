@@ -14,6 +14,7 @@ import { getProfilePictureValidationError } from '@/lib/profilePicture';
 import { useRoleGate } from '@/lib/useRoleGate';
 import { isReviewerOrAbove } from '@/lib/roles';
 import { ProjectSkillsInput } from '@/app/components/CvEntrySections';
+import { useDragReorder, moveItem, DragHandle } from '@/app/components/useDragReorder';
 import {
   emptyCvProfile,
   type CvProfile,
@@ -189,6 +190,12 @@ export default function UploadPage() {
 
   const updateField = <K extends keyof CvProfile>(key: K, value: CvProfile[K]) =>
     setProfile((p) => ({ ...p, [key]: value }));
+
+  // Drag-and-drop reordering of work experience and special projects.
+  const experienceDrag = useDragReorder(profile.experience.length, (from, to) =>
+    updateField('experience', moveItem(profile.experience, from, to)));
+  const projectDrag = useDragReorder(profile.specialProjects.length, (from, to) =>
+    updateField('specialProjects', moveItem(profile.specialProjects, from, to)));
 
   // Experience
   const addExperience = () =>
@@ -566,9 +573,10 @@ export default function UploadPage() {
               <SectionTitle icon={Briefcase}>Work Experience</SectionTitle>
               <div className="space-y-5">
                 {profile.experience.map((exp, i) => (
-                  <div key={i} className="border border-slate-200 rounded-xl p-4 bg-slate-50/40 space-y-3">
+                  <div key={i} {...experienceDrag.cardProps(i)} className={`border rounded-xl p-4 bg-slate-50/40 space-y-3 transition-colors ${experienceDrag.stateClass(i)}`}>
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-black uppercase tracking-widest text-indigo-500">
+                      <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-indigo-500">
+                        <DragHandle label={`work experience ${i + 1}`} handleProps={experienceDrag.handleProps(i)} />
                         Position {i + 1}
                       </span>
                       <button
@@ -724,9 +732,10 @@ export default function UploadPage() {
               <SectionTitle icon={Layers}>Special Projects</SectionTitle>
               <div className="space-y-3">
                 {profile.specialProjects.map((proj, i) => (
-                  <div key={i} className="border border-slate-200 rounded-xl p-4 bg-slate-50/40 space-y-3">
+                  <div key={i} {...projectDrag.cardProps(i)} className={`border rounded-xl p-4 bg-slate-50/40 space-y-3 transition-colors ${projectDrag.stateClass(i)}`}>
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-black uppercase tracking-widest text-sky-500">
+                      <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-sky-500">
+                        <DragHandle label={`project ${i + 1}`} handleProps={projectDrag.handleProps(i)} />
                         Project {i + 1}
                       </span>
                       <button

@@ -9,6 +9,7 @@ import { PageWrapper } from '../../components/PageWrapper';
 import { uploadProfilePictureAction } from '../upload/actions';
 import { getEmployeeDetailsAction, updateEmployeeAction } from './actions';
 import { ProjectSkillsInput } from '@/app/components/CvEntrySections';
+import { useDragReorder, moveItem, DragHandle } from '@/app/components/useDragReorder';
 import { toTitleCase } from '@/lib/text';
 import { getProfilePictureValidationError } from '@/lib/profilePicture';
 import {
@@ -32,7 +33,7 @@ import {
   GraduationCap,
   Briefcase,
   Award,
-  Layers, GripVertical,
+  Layers,
   ImageIcon,
   UserCircle2,
   Search,
@@ -383,22 +384,10 @@ export default function UpdateProfileClient({
   const addProject = () =>
     updateField('specialProjects', [...profile.specialProjects, { title: '', brief: '', skills: [] }]);
   // Drag-and-drop reordering (the order is saved as display_order, so it drives the CV too).
-  // Dragging starts only from the grip handle, so selecting text in the fields still works.
-  const [armedProject, setArmedProject] = useState<number | null>(null);
-  const [dragProject, setDragProject] = useState<number | null>(null);
-  const [overProject, setOverProject] = useState<number | null>(null);
-  const moveProject = (from: number, to: number) => {
-    if (from === to) return;
-    const next = [...profile.specialProjects];
-    const [moved] = next.splice(from, 1);
-    next.splice(to, 0, moved);
-    updateField('specialProjects', next);
-  };
-  const endProjectDrag = () => {
-    setArmedProject(null);
-    setDragProject(null);
-    setOverProject(null);
-  };
+  const projectDrag = useDragReorder(profile.specialProjects.length, (from, to) =>
+    updateField('specialProjects', moveItem(profile.specialProjects, from, to)));
+  const experienceDrag = useDragReorder(profile.experience.length, (from, to) =>
+    updateField('experience', moveItem(profile.experience, from, to)));
   const removeProject = (i: number) =>
     updateField('specialProjects', profile.specialProjects.filter((_, idx) => idx !== i));
   const updateProject = (i: number, field: 'title' | 'brief', value: string) =>
@@ -869,9 +858,14 @@ export default function UpdateProfileClient({
                 <SectionTitle icon={Briefcase}>Work Experience</SectionTitle>
                 <div className="space-y-5">
                   {profile.experience.map((exp, i) => (
-                    <div key={i} className="border border-slate-200 rounded-xl p-4 bg-slate-50/40 space-y-3">
+                    <div
+                      key={i}
+                      {...experienceDrag.cardProps(i)}
+                      className={`border rounded-xl p-4 bg-slate-50/40 space-y-3 transition-colors ${experienceDrag.stateClass(i)}`}
+                    >
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-indigo-500">
+                        <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-indigo-500">
+                          <DragHandle label={`work experience ${i + 1}`} handleProps={experienceDrag.handleProps(i)} />
                           Position {i + 1}
                         </span>
                         <button
@@ -1029,44 +1023,12 @@ export default function UpdateProfileClient({
                   {profile.specialProjects.map((proj, i) => (
                     <div
                       key={i}
-                      draggable={armedProject === i}
-                      onDragStart={(e) => {
-                        setDragProject(i);
-                        e.dataTransfer.effectAllowed = 'move';
-                        e.dataTransfer.setData('text/plain', String(i));
-                      }}
-                      onDragOver={(e) => {
-                        if (dragProject === null) return;
-                        e.preventDefault();
-                        e.dataTransfer.dropEffect = 'move';
-                        if (overProject !== i) setOverProject(i);
-                      }}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        if (dragProject !== null) moveProject(dragProject, i);
-                        endProjectDrag();
-                      }}
-                      onDragEnd={endProjectDrag}
-                      className={`border rounded-xl p-4 bg-slate-50/40 space-y-3 transition-colors ${
-                        dragProject === i
-                          ? 'opacity-50 border-sky-300'
-                          : overProject === i && dragProject !== null
-                            ? 'border-sky-500 ring-2 ring-sky-200'
-                            : 'border-slate-200'
-                      }`}
+                      {...projectDrag.cardProps(i)}
+                      className={`border rounded-xl p-4 bg-slate-50/40 space-y-3 transition-colors ${projectDrag.stateClass(i)}`}
                     >
                       <div className="flex items-center justify-between">
                         <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-sky-500">
-                          <span
-                            role="button"
-                            aria-label={`Drag to reorder project ${i + 1}`}
-                            title="Drag to reorder"
-                            onMouseDown={() => setArmedProject(i)}
-                            onMouseUp={() => setArmedProject(null)}
-                            className="cursor-grab active:cursor-grabbing text-slate-400 hover:text-sky-500 -ml-1 p-1"
-                          >
-                            <GripVertical className="w-4 h-4" />
-                          </span>
+                          <DragHandle label={`project ${i + 1}`} handleProps={projectDrag.handleProps(i)} />
                           Project {i + 1}
                         </span>
                         <button
