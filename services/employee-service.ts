@@ -138,18 +138,22 @@ export async function getEmployeeById(
 
   // ── Certifications mapping ────────────────────────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const certs: string[] = ((row as any).certifications ?? []).map((c: any) =>
-    [c.name, c.issuer ? `(${c.issuer}${c.issued_date ? ` • ${new Date(c.issued_date).getFullYear()}` : ''})` : null]
-      .filter(Boolean)
-      .join(' ')
-  );
+  const certs: string[] = ((row as any).certifications ?? [])
+    .sort((a: any, b: any) => a.display_order - b.display_order)
+    .map((c: any) =>
+      [c.name, c.issuer ? `(${c.issuer}${c.issued_date ? ` • ${new Date(c.issued_date).getFullYear()}` : ''})` : null]
+        .filter(Boolean)
+        .join(' ')
+    );
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const cvCertifications: CvCertificationEntry[] = ((row as any).certifications ?? []).map((c: any) => ({
-    name: c.name,
-    issuer: c.issuer ?? '',
-    year: c.issued_date ? String(new Date(c.issued_date).getFullYear()) : '',
-  }));
+  const cvCertifications: CvCertificationEntry[] = ((row as any).certifications ?? [])
+    .sort((a: any, b: any) => a.display_order - b.display_order)
+    .map((c: any) => ({
+      name: c.name,
+      issuer: c.issuer ?? '',
+      year: c.issued_date ? String(new Date(c.issued_date).getFullYear()) : '',
+    }));
 
   // ── Academic mapping ──────────────────────────────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

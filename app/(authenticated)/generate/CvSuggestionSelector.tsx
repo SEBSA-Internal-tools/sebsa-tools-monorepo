@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useDragReorder, moveItem, DragHandle } from '@/app/components/useDragReorder';
 import { FileText, Briefcase, Lightbulb, Award, ArrowRight, Sparkles, Loader2, Plus, Trash2, GraduationCap } from 'lucide-react';
 import { SectionCard, textareaCls } from '@/app/components/CvEntrySections';
-import type { CvAcademicEntry, CvExperienceEntry, CvProjectEntry, CvCertificationEntry } from '@/lib/cvTypes';
+import { isCertificationComplete, type CvAcademicEntry, type CvExperienceEntry, type CvProjectEntry, type CvCertificationEntry } from '@/lib/cvTypes';
 import { toTitleCase, toUpperCaseText } from '@/lib/text';
 import type {
   CvSuggestion,
@@ -252,14 +252,18 @@ export default function CvSuggestionSelector({
   // Reordering changes the order of the draft lists, which is the order they appear on the CV.
   const experienceDrag = useDragReorder(experience.length, (from, to) => onDraftChange({ ...draft, experience: moveItem(experience, from, to) }));
   const projectDrag = useDragReorder(projects.length, (from, to) => onDraftChange({ ...draft, projects: moveItem(projects, from, to) }));
+  const certificationDrag = useDragReorder(certifications.length, (from, to) => onDraftChange({ ...draft, certifications: moveItem(certifications, from, to) }));
 
   const selectedExperienceCount = experience.filter((e) => e.relevant).length;
   const selectedAcademicCount = includeEducation ? academic.filter((entry) => entry.relevant).length : 0;
   const selectedProjectCount = projects.filter((p) => p.relevant).length;
   const selectedCertCount = certifications.filter((c) => c.relevant).length;
+  const certificationsComplete = certifications
+    .filter((certification) => certification.relevant)
+    .every(isCertificationComplete);
 
   const handleApply = async () => {
-    if (!isVerified || applying || pageLimitExceeded) return;
+    if (!isVerified || applying || pageLimitExceeded || !certificationsComplete) return;
     await onApply(buildSelectionFromDraft(draft));
   };
 
@@ -459,11 +463,13 @@ export default function CvSuggestionSelector({
       {/* Certifications */}
       <SectionCard label="Certifications" icon={Award} count={selectedCertCount} expanded onToggle={() => {}}>
         {certifications.length === 0 && <p className="text-xs text-slate-400 italic">No certifications on record.</p>}
-        {certifications.map((cert) => (
+        {certifications.map((cert, certPos) => (
           <div
             key={cert.index}
-            className="flex items-start gap-2.5 border border-slate-200 rounded-xl p-4 bg-slate-50/30"
+            {...certificationDrag.cardProps(certPos)}
+            className={`flex items-start gap-2.5 border rounded-xl p-4 bg-slate-50/30 transition-colors ${certificationDrag.stateClass(certPos)}`}
           >
+            <DragHandle label={`certification ${certPos + 1}`} handleProps={certificationDrag.handleProps(certPos)} />
             <input
               type="checkbox"
               checked={cert.relevant}
@@ -471,13 +477,18 @@ export default function CvSuggestionSelector({
               className={`${checkboxCls} mt-0.5`}
             />
             <div className="min-w-0 flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <input value={cert.name} onChange={(e) => updateCertification(cert.index, { name: e.target.value })} placeholder="Certification name" className={`${inputCls} sm:col-span-2`} />
-              <input value={cert.issuer} onChange={(e) => updateCertification(cert.index, { issuer: e.target.value })} placeholder="Issuer (optional)" className={smallInputCls} />
-              <input value={cert.year} onChange={(e) => updateCertification(cert.index, { year: e.target.value })} placeholder="Year (optional)" className={smallInputCls} />
+              <input required value={cert.name} onChange={(e) => updateCertification(cert.index, { name: e.target.value })} placeholder="Certification name" className={`${inputCls} sm:col-span-2`} />
+              <input required value={cert.issuer} onChange={(e) => updateCertification(cert.index, { issuer: e.target.value })} placeholder="Issuer" className={smallInputCls} />
+              <input required value={cert.year} onChange={(e) => updateCertification(cert.index, { year: e.target.value })} placeholder="Year" className={smallInputCls} />
             </div>
             <button type="button" onClick={() => onDraftChange({ ...draft, certifications: certifications.filter((item) => item.index !== cert.index) })} className="p-1.5 text-slate-400 hover:text-rose-600" aria-label="Remove certification"><Trash2 className="w-4 h-4" /></button>
           </div>
         ))}
+        {!certificationsComplete && (
+          <p className="text-[10px] font-bold text-rose-600">
+            Every selected certification must include its name, issuer, and year.
+          </p>
+        )}
         <button type="button" onClick={addCertification} className="flex items-center gap-2 px-3 py-2 border border-dashed border-indigo-300 rounded-lg text-xs font-bold text-indigo-700 hover:bg-indigo-50"><Plus className="w-4 h-4" /> Add certification</button>
       </SectionCard>
 
@@ -495,7 +506,7 @@ export default function CvSuggestionSelector({
         <button
           type="button"
           onClick={handleApply}
-          disabled={!isVerified || applying || pageLimitExceeded}
+          disabled={!isVerified || applying || pageLimitExceeded || !certificationsComplete}
           className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs font-black uppercase tracking-wider transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-sm"
         >
           {applying ? (

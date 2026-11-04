@@ -10,7 +10,7 @@ import { PageWrapper } from '../components/PageWrapper';
 import { createClient } from '@/lib/supabase/client';
 import { extractText } from '@/lib/parsing/extractClientText';
 import { getProfilePictureValidationError } from '@/lib/profilePicture';
-import type { CvProfile } from '@/lib/cvTypes';
+import { getCertificationsValidationError, type CvProfile } from '@/lib/cvTypes';
 import ProfileFieldsEditor, { emptyProfileFieldsValue, type ProfileFieldsValue } from '../components/ProfileFieldsEditor';
 import { createOwnProfileAction, claimProfileAction, type ClaimableProfile } from './actions';
 import { uploadProfilePictureAction } from '../(authenticated)/upload/actions';
@@ -200,8 +200,15 @@ export default function OnboardingClient({ userEmail, departments, claimableProf
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
     setSubmitError(null);
+
+    const certificationError = getCertificationsValidationError(profileValue.certifications);
+    if (certificationError) {
+      setSubmitError(certificationError);
+      return;
+    }
+
+    setIsSubmitting(true);
 
     try {
       await createOwnProfileAction({

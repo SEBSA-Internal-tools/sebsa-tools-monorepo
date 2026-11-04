@@ -490,28 +490,33 @@ export function CertificationsSection({
   onToggle: () => void;
   onChange: (v: CvCertificationEntry[]) => void;
 }) {
+  const drag = useDragReorder(certifications.length, (from, to) => onChange(moveItem(certifications, from, to)));
+
   return (
     <SectionCard label="Certifications" icon={Award} count={certifications.length} expanded={expanded} onToggle={onToggle}>
       {certifications.map((cert, idx) => (
-        <div key={idx} className="border border-slate-200 rounded-xl p-4 space-y-3 bg-slate-50/30">
+        <div key={idx} {...drag.cardProps(idx)} className={`border rounded-xl p-4 space-y-3 bg-slate-50/30 transition-colors ${drag.stateClass(idx)}`}>
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Certification {idx + 1}</span>
+            <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
+              <DragHandle label={`certification ${idx + 1}`} handleProps={drag.handleProps(idx)} />
+              Certification {idx + 1}
+            </span>
             <button type="button" onClick={() => onChange(certifications.filter((_, i) => i !== idx))} className="text-rose-400 hover:text-rose-600 transition-colors cursor-pointer">
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           </div>
           <div className="space-y-1">
-            <label className="text-[10px] font-bold text-slate-500 uppercase block">Certification Name</label>
-            <input type="text" value={cert.name} onChange={(e) => onChange(certifications.map((c, i) => (i === idx ? { ...c, name: e.target.value } : c)))} placeholder="e.g. AWS Certified Solutions Architect" className={inputCls} />
+            <label className="text-[10px] font-bold text-slate-500 uppercase block">Certification Name *</label>
+            <input type="text" required value={cert.name} onChange={(e) => onChange(certifications.map((c, i) => (i === idx ? { ...c, name: e.target.value } : c)))} placeholder="e.g. AWS Certified Solutions Architect" className={inputCls} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-500 uppercase block">Issuing Organisation</label>
-              <input type="text" value={cert.issuer} onChange={(e) => onChange(certifications.map((c, i) => (i === idx ? { ...c, issuer: e.target.value } : c)))} placeholder="e.g. Amazon Web Services" className={inputCls} />
+              <label className="text-[10px] font-bold text-slate-500 uppercase block">Issuing Organisation *</label>
+              <input type="text" required value={cert.issuer} onChange={(e) => onChange(certifications.map((c, i) => (i === idx ? { ...c, issuer: e.target.value } : c)))} placeholder="e.g. Amazon Web Services" className={inputCls} />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-500 uppercase block">Year Obtained</label>
-              <input type="text" value={cert.year} onChange={(e) => onChange(certifications.map((c, i) => (i === idx ? { ...c, year: e.target.value } : c)))} placeholder="e.g. 2023" className={inputCls} />
+              <label className="text-[10px] font-bold text-slate-500 uppercase block">Year Obtained *</label>
+              <input type="text" required value={cert.year} onChange={(e) => onChange(certifications.map((c, i) => (i === idx ? { ...c, year: e.target.value } : c)))} placeholder="e.g. 2023" className={inputCls} />
             </div>
           </div>
         </div>

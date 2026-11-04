@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { GripVertical } from 'lucide-react';
 
 /**
- * Drag-and-drop reordering for a list of cards (Special Projects, Work Experience), shared by the
+ * Drag-and-drop reordering for a list of cards (Special Projects, Work Experience, Certifications), shared by the
  * Update Profile form, the Customize CVs editor and the profile-creation forms so they all behave
  * the same way.
  *

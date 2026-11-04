@@ -3,6 +3,7 @@
 import EmployeeDetailTabs from '@/app/components/EmployeeDetailTabs';
 import { pickEmployeeDetails, type EmployeeDetails } from '@/lib/employeeDetails';
 import { getProfilePictureValidationError } from '@/lib/profilePicture';
+import { getCertificationsValidationError } from '@/lib/cvTypes';
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -70,8 +71,15 @@ export default function MyProfileClient({ employee, departments }: MyProfileClie
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
     setSubmitError(null);
+
+    const certificationError = getCertificationsValidationError(value.certifications);
+    if (certificationError) {
+      setSubmitError(certificationError);
+      return;
+    }
+
+    setIsSubmitting(true);
 
     try {
       await proposeProfileChangeAction({

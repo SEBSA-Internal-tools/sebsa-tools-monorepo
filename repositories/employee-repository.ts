@@ -26,7 +26,7 @@ const DETAIL_SELECT = `
   education, summary, status, pending_change, pending_change_submitted_at,
   experiences ( company, role_title, employment_type, start_date, end_date, period_text, is_current, description, display_order ),
   projects ( name, description, skills, display_order ),
-  certifications ( name, issuer, issued_date )
+  certifications ( name, issuer, issued_date, display_order )
 `;
 
 export async function listEmployeeRows(supabase: SupabaseClient) {
@@ -148,11 +148,23 @@ function yearToDate(year: string): string | null {
   return `${y}-01-01`;
 }
 
+function validateCertifications(certifications: CvCertificationEntry[] | undefined): void {
+  (certifications ?? []).forEach((certification, index) => {
+    if (!certification.name.trim() || !certification.issuer.trim() || !certification.year.trim()) {
+      throw new Error(`Certification ${index + 1} must include a name, issuer, and year.`);
+    }
+    if (!yearToDate(certification.year.trim())) {
+      throw new Error(`Certification ${index + 1} must use a valid year between 1900 and 2100.`);
+    }
+  });
+}
+
 export async function createEmployeeRow(
   supabase: SupabaseClient,
   input: CreateEmployeeInput,
   createdBy: string
 ): Promise<string> {
+  validateCertifications(input.cvCertifications);
   const details = normalizeEmployeeDetails(input);
   const detailColumns = Object.fromEntries(employeeDetailFields
     .filter(field => details[field.key] !== undefined)
@@ -262,12 +274,26 @@ async function insertCertifications(
   profileId: string,
   certs: CvCertificationEntry[]
 ) {
-  const rows = certs.map((c) => ({
-    profile_id: profileId,
-    name: c.name,
-    issuer: c.issuer,
-    issued_date: yearToDate(c.year),
-  }));
+  const rows = certs.map((c, index) => {
+    const name = c.name.trim();
+    const issuer = c.issuer.trim();
+    const year = c.year.trim();
+    const issuedDate = yearToDate(year);
+    if (!name || !issuer || !year) {
+      throw new Error(`Certification ${index + 1} must include a name, issuer, and year.`);
+    }
+    if (!issuedDate) {
+      throw new Error(`Certification ${index + 1} must use a valid year between 1900 and 2100.`);
+    }
+
+    return {
+      profile_id: profileId,
+      name,
+      issuer,
+      issued_date: issuedDate,
+      display_order: index,
+    };
+  });
 
   const { error } = await supabase.from('certifications').insert(rows);
   if (error) throw error;
@@ -307,6 +333,7 @@ export async function updateEmployeeRow(
   input: UpdateEmployeeInput,
   updatedBy: string
 ): Promise<void> {
+  validateCertifications(input.cvCertifications);
   const { data: dept } = await supabase
     .from('departments')
     .select('id')

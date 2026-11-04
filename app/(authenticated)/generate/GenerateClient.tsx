@@ -21,6 +21,7 @@ import {
   saveGeneratedCvAction,
 } from './actions';
 import { exportToPdf } from '@/lib/cvExport';
+import { isCertificationComplete } from '@/lib/cvTypes';
 import { anonymizeTailoredCv, buildTailoredCvFromSelection, getCvDisplayName } from '@/lib/templates/buildTailoredCvFromEmployee';
 import {
   BrainCircuit,
@@ -222,6 +223,7 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
     [selectedEmployee, suggestion, suggestionDraft, selectedTemplate, restoredCvBase]
   );
   const livePreviewCv = tailoredCv ?? draftPreviewCv;
+  const certificationsComplete = (tailoredCv?.certifications ?? []).every(isCertificationComplete);
 
   // ── Step 3 "before / after" comparison (Complete Profile CV vs Customized CV) ──────────────
   // originalProfileCv: unfiltered "before" view of the whole profile, display-only.
@@ -415,7 +417,10 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
     setWizardStep(suggestion ? 2 : 1);
   };
 
-  const handleGoToPreview = () => setWizardStep(3);
+  const handleGoToPreview = () => {
+    if (!certificationsComplete) return;
+    setWizardStep(3);
+  };
 
   const handleDownloadDocx = async () => {
     if (!tailoredCv) return;
@@ -728,7 +733,7 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
                   <button
                     type="button"
                     onClick={handleGoToPreview}
-                    disabled={saving || !isHumanVerified || previewOverflowMm > 0}
+                    disabled={saving || !isHumanVerified || previewOverflowMm > 0 || !certificationsComplete}
                     className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-xl text-xs font-black uppercase tracking-wider transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-sm"
                   >
                     {saving ? (
@@ -750,7 +755,9 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
                   </button>
 
                   <p className="text-[10px] text-slate-400 text-center leading-relaxed">
-                    {previewOverflowMm > 0
+                    {!certificationsComplete
+                      ? 'Every certification must include its name, issuer, and year.'
+                      : previewOverflowMm > 0
                       ? 'Reduce the selected content to fit one page before applying.'
                       : 'Saves your customized CV and generates the template preview.'}
                   </p>

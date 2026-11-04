@@ -192,6 +192,28 @@ export async function listPendingItemsAction(): Promise<PendingItem[]> {
   return items.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
 }
 
+/** Lightweight queue count for the sidebar badge. A single profile can contribute more than one
+ * pending item, so count each approval gate rather than just counting matching profile rows. */
+export async function getPendingApprovalCountAction(): Promise<number> {
+  await requireReviewer();
+  const adminClient = createAdminClient();
+
+  const { data, error } = await adminClient
+    .from('profiles')
+    .select('status, pending_claim_user_id, pending_change')
+    .or('status.eq.draft,pending_claim_user_id.not.is.null,pending_change.not.is.null')
+    .is('deleted_at', null);
+
+  if (error) throw error;
+
+  return (data ?? []).reduce((count, row) => {
+    return count
+      + (row.status === 'draft' ? 1 : 0)
+      + (row.pending_claim_user_id ? 1 : 0)
+      + (row.pending_change ? 1 : 0);
+  }, 0);
+}
+
 /** Publishes a self-service "created from scratch" profile (0018), making it searchable. */
 export async function approveNewProfileAction(profileId: string): Promise<void> {
   const user = await requireReviewer();

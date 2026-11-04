@@ -14,6 +14,7 @@ import { toTitleCase } from '@/lib/text';
 import { getProfilePictureValidationError } from '@/lib/profilePicture';
 import {
   emptyCvProfile,
+  getCertificationsValidationError,
   type CvProfile,
   type CvExperienceEntry,
   type CvAcademicEntry,
@@ -388,6 +389,8 @@ export default function UpdateProfileClient({
     updateField('specialProjects', moveItem(profile.specialProjects, from, to)));
   const experienceDrag = useDragReorder(profile.experience.length, (from, to) =>
     updateField('experience', moveItem(profile.experience, from, to)));
+  const certificationDrag = useDragReorder(profile.certifications.length, (from, to) =>
+    updateField('certifications', moveItem(profile.certifications, from, to)));
   const removeProject = (i: number) =>
     updateField('specialProjects', profile.specialProjects.filter((_, idx) => idx !== i));
   const updateProject = (i: number, field: 'title' | 'brief', value: string) =>
@@ -420,6 +423,13 @@ export default function UpdateProfileClient({
 
     setSaveError(null);
     setSuccessMessage(null);
+
+    const certificationError = getCertificationsValidationError(profile.certifications);
+    if (certificationError) {
+      setSaveError(certificationError);
+      return;
+    }
+
     setIsSaving(true);
 
     try {
@@ -1080,9 +1090,10 @@ export default function UpdateProfileClient({
                 <SectionTitle icon={Award}>Certifications</SectionTitle>
                 <div className="space-y-3">
                   {profile.certifications.map((cert, i) => (
-                    <div key={i} className="border border-slate-200 rounded-xl p-4 bg-slate-50/40 space-y-3">
+                    <div key={i} {...certificationDrag.cardProps(i)} className={`border rounded-xl p-4 bg-slate-50/40 space-y-3 transition-colors ${certificationDrag.stateClass(i)}`}>
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-amber-500">
+                        <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-amber-500">
+                          <DragHandle label={`certification ${i + 1}`} handleProps={certificationDrag.handleProps(i)} />
                           Cert {i + 1}
                         </span>
                         <button
@@ -1095,9 +1106,10 @@ export default function UpdateProfileClient({
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div className="sm:col-span-1">
-                          <FieldLabel>Certification Name</FieldLabel>
+                          <FieldLabel>Certification Name *</FieldLabel>
                           <input
                             type="text"
+                            required
                             placeholder="e.g. AWS Certified Solutions Architect"
                             value={cert.name}
                             onChange={(e) => updateCertification(i, 'name', e.target.value)}
@@ -1105,9 +1117,10 @@ export default function UpdateProfileClient({
                           />
                         </div>
                         <div>
-                          <FieldLabel>Issuer</FieldLabel>
+                          <FieldLabel>Issuer *</FieldLabel>
                           <input
                             type="text"
+                            required
                             placeholder="e.g. Amazon Web Services"
                             value={cert.issuer}
                             onChange={(e) => updateCertification(i, 'issuer', e.target.value)}
@@ -1115,9 +1128,10 @@ export default function UpdateProfileClient({
                           />
                         </div>
                         <div>
-                          <FieldLabel>Year</FieldLabel>
+                          <FieldLabel>Year *</FieldLabel>
                           <input
                             type="text"
+                            required
                             placeholder="e.g. 2023"
                             value={cert.year}
                             onChange={(e) => updateCertification(i, 'year', e.target.value)}

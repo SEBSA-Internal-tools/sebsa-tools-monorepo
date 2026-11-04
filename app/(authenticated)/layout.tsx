@@ -2,7 +2,8 @@ import React from 'react';
 import { redirect } from 'next/navigation';
 import { Sidebar } from '../components/Sidebar';
 import { Header } from '../components/Header';
-import { getCurrentUser } from '@/lib/auth';
+import { getCurrentUser, isReviewerOrAbove } from '@/lib/auth';
+import { getPendingApprovalCountAction } from './review/actions';
 
 export default async function AuthenticatedLayout({
   children,
@@ -19,9 +20,13 @@ export default async function AuthenticatedLayout({
   // outside this route group so it doesn't loop back here.
   if (user.role === 'employee' && !user.hasLinkedProfile) redirect('/onboarding');
 
+  const pendingApprovalCount = isReviewerOrAbove(user.role)
+    ? await getPendingApprovalCountAction()
+    : 0;
+
   return (
     <div className="min-h-screen bg-[#fbf9fb] text-[#1b1b1d] font-sans">
-      <Sidebar user={user} />
+      <Sidebar user={user} pendingApprovalCount={pendingApprovalCount} />
       <div className="pl-[260px] min-h-screen flex flex-col">
         <Header user={user} />
         <main className="flex-1 pt-16">

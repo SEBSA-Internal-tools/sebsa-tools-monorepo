@@ -27,9 +27,10 @@ import {
 
 interface SidebarProps {
   user: CurrentUser;
+  pendingApprovalCount?: number;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ user }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ user, pendingApprovalCount = 0 }) => {
   const pathname = usePathname() || '';
 
   // Nav visibility follows the permission matrix (docs/04-rbac-security.md §2/§10): Employee only
@@ -51,7 +52,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ user }) => {
               { name: 'Customize CVs', path: '/generate', icon: BrainCircuit },
             ]
           : []),
-        ...(isReviewerOrAbove(user.role) ? [{ name: 'Pending Approvals', path: '/review', icon: ClipboardCheck }] : []),
+        ...(isReviewerOrAbove(user.role)
+          ? [{ name: 'Pending Approvals', path: '/review', icon: ClipboardCheck, badgeCount: pendingApprovalCount }]
+          : []),
       ];
 
   // Assessments are for everyone (all employees take them). The management screens are for the
@@ -69,14 +72,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ user }) => {
       ]
     : [];
 
-  const renderNavLink = (item: { name: string; path: string; icon: React.ElementType; exact?: boolean }) => {
+  const renderNavLink = (item: { name: string; path: string; icon: React.ElementType; exact?: boolean; badgeCount?: number }) => {
     const isActive = item.exact ? pathname === item.path : pathname === item.path || pathname.startsWith(item.path + '/');
     const Icon = item.icon;
     return (
       <Link
         key={item.name}
         href={item.path}
-        className={`flex items-center px-4 py-3 rounded-xl gap-3.5 transition-all duration-300 group ${
+        className={`relative flex items-center px-4 py-3 rounded-xl gap-3.5 transition-all duration-300 group ${
           isActive
             ? 'bg-gradient-to-r from-sky-500/20 to-indigo-500/10 border border-sky-500/30 text-sky-300 font-semibold'
             : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/50'
@@ -88,6 +91,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ user }) => {
           }`}
         />
         <span className="font-sans text-sm tracking-wide">{item.name}</span>
+        {item.badgeCount !== undefined && item.badgeCount > 0 && (
+          <span
+            className="absolute right-3 top-1/2 z-10 h-2.5 w-2.5 -translate-y-1/2 rounded-full bg-red-500 ring-4 ring-red-500/15 shadow-[0_0_8px_2px_rgba(239,68,68,0.45)]"
+            aria-label={`${item.badgeCount} pending approvals`}
+          />
+        )}
       </Link>
     );
   };
