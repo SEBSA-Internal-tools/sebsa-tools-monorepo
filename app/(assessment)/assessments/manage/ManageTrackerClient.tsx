@@ -1,11 +1,15 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { PageWrapper } from '@/app/components/PageWrapper';
 import type { CycleSummary, TrackerData, TrackerStatus } from '@/services/assessment-admin-service';
 import { CheckCircle2, MailWarning, Search, Send, Users } from 'lucide-react';
+import { Pagination } from '@/app/components/Pagination';
+import type { PaginatedResult } from '@/lib/pagination';
+import type { TrackerRow } from '@/services/assessment-admin-service';
+import { listCycleRecipientsPageAction, listCycleSummariesPageAction } from './actions';
 
 const STATUS_STYLE: Record<TrackerStatus, string> = {
   Pass: 'bg-emerald-50 text-emerald-700 border-emerald-100',
@@ -20,18 +24,37 @@ const FILTERS: ('All' | TrackerStatus)[] = ['All', 'Pass', 'Fail', 'Retry Availa
 const formatDate = (iso: string | null) =>
   iso ? new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
 
-export default function ManageTrackerClient({ cycles, tracker }: { cycles: CycleSummary[]; tracker: TrackerData | null }) {
+export default function ManageTrackerClient({ initialCycles, tracker, initialRecipients }: { initialCycles: PaginatedResult<CycleSummary>; tracker: TrackerData | null; initialRecipients: PaginatedResult<TrackerRow> | null }) {
   const router = useRouter();
+  const [cyclesResult, setCyclesResult] = useState(initialCycles);
+  const [cyclePage, setCyclePage] = useState(initialCycles.page);
+  const [cyclePageSize, setCyclePageSize] = useState(initialCycles.pageSize);
   const [filter, setFilter] = useState<'All' | TrackerStatus>('All');
   const [query, setQuery] = useState('');
+  const [rows, setRows] = useState(initialRecipients?.items ?? []);
+  const [total, setTotal] = useState(initialRecipients?.total ?? 0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [loading, setLoading] = useState(false);
+  const cycles = cyclesResult.items;
+
+  useEffect(() => {
+    listCycleSummariesPageAction({ page: cyclePage, pageSize: cyclePageSize }).then((res) => {
+      if (res.status === 'ok') setCyclesResult(res.data);
+    });
+  }, [cyclePage, cyclePageSize]);
 
   const cycle = tracker?.cycle ?? null;
-  const rows = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return (tracker?.rows ?? []).filter(
-      (r) => (filter === 'All' || r.status === filter) && (!q || r.name.toLowerCase().includes(q) || r.email.toLowerCase().includes(q))
-    );
-  }, [tracker, filter, query]);
+  useEffect(() => {
+    if (!tracker?.cycle.id) return;
+    const timer = setTimeout(() => {
+      setLoading(true);
+      listCycleRecipientsPageAction(tracker.cycle.id, page, pageSize, query, filter).then((res) => {
+        if (res.status === 'ok') { setRows(res.data.items); setTotal(res.data.total); }
+      }).finally(() => setLoading(false));
+    }, query ? 250 : 0);
+    return () => clearTimeout(timer);
+  }, [tracker?.cycle.id, page, pageSize, query, filter]);
 
   const kpis = cycle
     ? [
@@ -49,11 +72,12 @@ export default function ManageTrackerClient({ cycles, tracker }: { cycles: Cycle
           <h2 className="text-3xl font-black tracking-tight text-slate-900 font-sans leading-none">Assessment Tracker</h2>
           <p className="text-sm font-medium text-slate-500 mt-2">See who has been invited, who has finished, and who needs a nudge.</p>
         </div>
-        {cycles.length > 0 && (
+        {cyclesResult.total > 0 && (
+          <div className="min-w-[320px]">
           <select
             aria-label="Assessment cycle"
             value={cycle?.id ?? ''}
-            onChange={(e) => router.push(`/assessments/manage?cycle=${e.target.value}`)}
+            onChange={(e) => router.push(`/assessments/manage?cycle=${e.target.value}&cyclePage=${cyclePage}&cyclePageSize=${cyclePageSize}`)}
             className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
           >
             {cycles.map((c) => (
@@ -62,6 +86,9 @@ export default function ManageTrackerClient({ cycles, tracker }: { cycles: Cycle
               </option>
             ))}
           </select>
+          <Pagination page={cyclePage} pageSize={cyclePageSize} total={cyclesResult.total}
+            onPageChange={setCyclePage} onPageSizeChange={(size) => { setCyclePageSize(size); setCyclePage(1); }} />
+          </div>
         )}
       </div>
 
@@ -95,7 +122,7 @@ export default function ManageTrackerClient({ cycles, tracker }: { cycles: Cycle
                   <button
                     key={f}
                     type="button"
-                    onClick={() => setFilter(f)}
+                    onClick={() => { setFilter(f); setPage(1); }}
                     className={`px-3 py-1.5 rounded-full text-[11px] font-black transition-colors cursor-pointer ${filter === f ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
                   >
                     {f}
@@ -107,7 +134,7 @@ export default function ManageTrackerClient({ cycles, tracker }: { cycles: Cycle
                   <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
                     value={query}
-                    onChange={(e) => setQuery(e.target.value)}
+                    onChange={(e) => { setQuery(e.target.value); setPage(1); }}
                     placeholder="Search name or email"
                     aria-label="Search people"
                     className="bg-slate-100/90 border border-slate-200/50 rounded-full py-2 pl-10 pr-4 text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-500/10 placeholder:text-slate-400"
@@ -162,6 +189,8 @@ export default function ManageTrackerClient({ cycles, tracker }: { cycles: Cycle
                 </tbody>
               </table>
             </div>
+            <Pagination page={page} pageSize={pageSize} total={total} disabled={loading}
+              onPageChange={setPage} onPageSizeChange={(size) => { setPageSize(size); setPage(1); }} />
           </div>
         </>
       )}

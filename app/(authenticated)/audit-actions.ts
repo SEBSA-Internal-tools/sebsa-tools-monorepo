@@ -1,7 +1,15 @@
 'use server';
 
 import { getCurrentUser } from '@/lib/auth';
-import { recordAuditLog } from '@/services/audit-service';
+import { recordAuditLog, listAuditLogsPage, type AuditLogRecord } from '@/services/audit-service';
+import { createClient } from '@/lib/supabase/server';
+import type { PaginatedResult } from '@/lib/pagination';
+
+export async function listAuditLogsPageAction(page: number, pageSize: number): Promise<PaginatedResult<AuditLogRecord>> {
+  const user = await getCurrentUser();
+  if (!user) return { items: [], total: 0, page: 1, pageSize: 20 };
+  return listAuditLogsPage(await createClient(), page, pageSize);
+}
 
 /** Records a completed client-side PDF export without changing the CV or profile being exported. */
 export async function recordCvDownloadAction(

@@ -39,7 +39,7 @@ import { recordCvDownloadAction } from '../audit-actions';
 import { formatExperiencePeriodAsYears } from '@/lib/experiencePeriod';
 
 interface GenerateClientProps {
-  employees: Employee[];
+  initialPage: import('@/lib/pagination').PaginatedResult<Employee>;
 }
 
 function withYearOnlyExperiencePeriods(selection: CvSuggestionSelection): CvSuggestionSelection {
@@ -131,7 +131,7 @@ function TemplateSelector({
   );
 }
 
-export default function GenerateClient({ employees }: GenerateClientProps) {
+export default function GenerateClient({ initialPage }: GenerateClientProps) {
   return (
     <Suspense
       fallback={
@@ -140,12 +140,14 @@ export default function GenerateClient({ employees }: GenerateClientProps) {
         </div>
       }
     >
-      <GeneratePageContent employees={employees} />
+      <GeneratePageContent initialPage={initialPage} />
     </Suspense>
   );
 }
 
-function GeneratePageContent({ employees }: GenerateClientProps) {
+function GeneratePageContent({ initialPage }: GenerateClientProps) {
+  const employees = initialPage.items;
+  const [selectedCandidateOverride, setSelectedCandidateOverride] = useState<Employee | null>(null);
   const searchParams = useSearchParams();
   const preselectedName = searchParams ? searchParams.get('name') : '';
 
@@ -195,8 +197,8 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
 
   // ── Derived ─────────────────────────────────────────────────────────────────
   const selectedEmployee = useMemo(
-    () => employees.find((emp) => emp.rowId === selectedCandidateId),
-    [employees, selectedCandidateId]
+    () => employees.find((emp) => emp.rowId === selectedCandidateId) ?? (selectedCandidateOverride?.rowId === selectedCandidateId ? selectedCandidateOverride : undefined),
+    [employees, selectedCandidateId, selectedCandidateOverride]
   );
 
   // Live preview of what "Continue"/"Apply to CV" would currently produce — recomputed on every
@@ -455,7 +457,7 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
   };
 
   // ── Empty state ─────────────────────────────────────────────────────────────
-  if (employees.length === 0) {
+  if (initialPage.total === 0) {
     return (
       <PageWrapper className="p-8">
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-12 flex flex-col items-center text-center">
@@ -535,10 +537,11 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
                   Select Talent Profile
                 </label>
                 <TalentSearchSelect
-                  employees={employees}
+                  initialPage={initialPage}
                   selectedId={selectedCandidateId}
-                  onSelect={(id) => {
+                  onSelect={(id, employee) => {
                     setSelectedCandidateId(id);
+                    setSelectedCandidateOverride(employee);
                     setLastCvError(null);
                   }}
                 />

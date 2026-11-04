@@ -175,7 +175,7 @@ export const Header: React.FC<HeaderProps> = ({
                     <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
                   </div>
                 ) : (
-                  <NotificationList notifications={notifications.slice(0, 8)} onItemClick={handleItemClick} />
+                  <NotificationList notifications={notifications} onItemClick={handleItemClick} />
                 )}
               </div>
             </div>

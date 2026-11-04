@@ -11,6 +11,7 @@ import { emailUser } from '@/lib/email/notify';
 import { buildProfileApprovedEmail, buildProfileChangesApprovedEmail } from '@/lib/email/templates';
 import type { UpdateEmployeeInput, Employee } from '@/types/domain';
 import { profileChanges, recordAuditLog } from '@/services/audit-service';
+import { pageRange, type PaginatedResult } from '@/lib/pagination';
 
 export type PendingItemType = 'new_profile' | 'claim' | 'change';
 
@@ -192,26 +193,43 @@ export async function listPendingItemsAction(): Promise<PendingItem[]> {
   return items.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
 }
 
+export async function listPendingItemsPageAction(page: number, pageSize: number): Promise<PaginatedResult<PendingItem>> {
+  await requireReviewer();
+  const adminClient = createAdminClient();
+  const range = pageRange(page, pageSize);
+  const { data, error, count } = await adminClient.from('pending_review_items')
+    .select('profile_id, full_name, email, item_type, submitted_at, proposed_change', { count: 'exact' })
+    .order('submitted_at', { ascending: false }).range(range.from, range.to);
+  if (error) throw error;
+  const items = await Promise.all(((data ?? []) as any[]).map(async (row): Promise<PendingItem> => {
+    const item: PendingItem = {
+      profileId: row.profile_id, name: row.full_name, email: row.email,
+      type: row.item_type as PendingItemType, submittedAt: row.submitted_at,
+      proposedChange: row.proposed_change as UpdateEmployeeInput | undefined,
+    };
+    if (item.type === 'change' && item.proposedChange) {
+      const current = await getEmployeeById(adminClient, item.profileId);
+      if (current) item.changedFields = computeChangedFields(current, item.proposedChange);
+    }
+    return item;
+  }));
+  return { items, total: count ?? 0, page: range.page, pageSize: range.pageSize };
+}
+
 /** Lightweight queue count for the sidebar badge. A single profile can contribute more than one
  * pending item, so count each approval gate rather than just counting matching profile rows. */
 export async function getPendingApprovalCountAction(): Promise<number> {
   await requireReviewer();
   const adminClient = createAdminClient();
 
-  const { data, error } = await adminClient
-    .from('profiles')
-    .select('status, pending_claim_user_id, pending_change')
-    .or('status.eq.draft,pending_claim_user_id.not.is.null,pending_change.not.is.null')
-    .is('deleted_at', null);
-
-  if (error) throw error;
-
-  return (data ?? []).reduce((count, row) => {
-    return count
-      + (row.status === 'draft' ? 1 : 0)
-      + (row.pending_claim_user_id ? 1 : 0)
-      + (row.pending_change ? 1 : 0);
-  }, 0);
+  const queries = [
+    adminClient.from('profiles').select('id', { count: 'exact', head: true }).eq('status', 'draft').is('deleted_at', null),
+    adminClient.from('profiles').select('id', { count: 'exact', head: true }).not('pending_claim_user_id', 'is', null).is('deleted_at', null),
+    adminClient.from('profiles').select('id', { count: 'exact', head: true }).not('pending_change', 'is', null).is('deleted_at', null),
+  ];
+  const results = await Promise.all(queries);
+  for (const result of results) if (result.error) throw result.error;
+  return results.reduce((sum, result) => sum + (result.count ?? 0), 0);
 }
 
 /** Publishes a self-service "created from scratch" profile (0018), making it searchable. */

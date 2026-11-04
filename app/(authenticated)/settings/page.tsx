@@ -6,7 +6,8 @@ import { useData } from '../../context/DataContext';
 import { PageWrapper } from '../../components/PageWrapper';
 import { createClient } from '@/lib/supabase/client';
 import { isAdminOrAbove, canAssignRole, type UserRole } from '@/lib/roles';
-import { listUsersAction, updateUserRoleAction, type ManagedUser } from './actions';
+import { listUsersPageAction, updateUserRoleAction, type ManagedUser } from './actions';
+import { Pagination } from '@/app/components/Pagination';
 import {
   Settings,
   Building2,
@@ -54,6 +55,10 @@ export default function SettingsPage() {
   const [savingUserId, setSavingUserId] = useState<string | null>(null);
   const [userSearch, setUserSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<UserRole | 'all'>('all');
+  const [userPage, setUserPage] = useState(1);
+  const [userPageSize, setUserPageSize] = useState(20);
+  const [userTotal, setUserTotal] = useState(0);
+  const [serverRoleCounts, setServerRoleCounts] = useState<Record<UserRole, number>>({ employee: 0, cv_reviewer: 0, admin: 0, super_admin: 0 });
 
   const loadUserAccess = useCallback(async () => {
     setUsersLoading(true);
@@ -81,18 +86,21 @@ export default function SettingsPage() {
         return;
       }
 
-      const list = await listUsersAction();
-      setUsers(list);
+      const result = await listUsersPageAction(userPage, userPageSize, userSearch, roleFilter);
+      setUsers(result.items);
+      setUserTotal(result.total);
+      setServerRoleCounts(result.roleCounts);
     } catch (err) {
       console.error('Failed to load user access data:', err);
       setUsersError(err instanceof Error ? err.message : 'Failed to load users.');
     } finally {
       setUsersLoading(false);
     }
-  }, []);
+  }, [router, userPage, userPageSize, userSearch, roleFilter]);
 
   useEffect(() => {
-    loadUserAccess();
+    const timer = setTimeout(loadUserAccess, userSearch ? 250 : 0);
+    return () => clearTimeout(timer);
   }, [loadUserAccess]);
 
   const handleRoleChange = async (targetUserId: string, newRole: UserRole) => {
@@ -122,26 +130,14 @@ export default function SettingsPage() {
     }, 2000);
   };
 
-  const filteredUsers = users.filter((usr) => {
-    const matchesSearch = usr.email.toLowerCase().includes(userSearch.trim().toLowerCase());
-    const matchesRole = roleFilter === 'all' || usr.role === roleFilter;
-    return matchesSearch && matchesRole;
-  });
+  const filteredUsers = users;
 
   // Counted from the full roster, not filteredUsers — these tiles summarize everyone regardless
   // of the search/filter above.
-  const roleCounts: Record<UserRole, number> = {
-    employee: 0,
-    cv_reviewer: 0,
-    admin: 0,
-    super_admin: 0,
-  };
-  users.forEach((usr) => {
-    roleCounts[usr.role] += 1;
-  });
+  const roleCounts = serverRoleCounts;
 
   const roleKpis = [
-    { label: 'Total Employees', value: users.length, icon: Users, color: 'text-indigo-600 bg-indigo-50' },
+    { label: 'Total Employees', value: Object.values(roleCounts).reduce((sum, count) => sum + count, 0), icon: Users, color: 'text-indigo-600 bg-indigo-50' },
     { label: 'Super Admins', value: roleCounts.super_admin, icon: Crown, color: 'text-amber-600 bg-amber-50' },
     { label: 'Admins', value: roleCounts.admin, icon: ShieldCheck, color: 'text-sky-600 bg-sky-50' },
     { label: 'HR', value: roleCounts.cv_reviewer, icon: Eye, color: 'text-emerald-600 bg-emerald-50' },
@@ -185,13 +181,13 @@ export default function SettingsPage() {
                     type="text"
                     placeholder="Search by email..."
                     value={userSearch}
-                    onChange={(e) => setUserSearch(e.target.value)}
+                    onChange={(e) => { setUserSearch(e.target.value); setUserPage(1); }}
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg text-[11px] py-2 pl-8 pr-3 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-all"
                   />
                 </div>
                 <select
                   value={roleFilter}
-                  onChange={(e) => setRoleFilter(e.target.value as UserRole | 'all')}
+                  onChange={(e) => { setRoleFilter(e.target.value as UserRole | 'all'); setUserPage(1); }}
                   className="bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-bold py-2 px-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-all shrink-0"
                 >
                   <option value="all">All Roles</option>
@@ -290,6 +286,11 @@ export default function SettingsPage() {
                   );
                 })}
               </div>
+            )}
+            {!usersLoading && currentUserRole && isAdminOrAbove(currentUserRole) && (
+              <Pagination page={userPage} pageSize={userPageSize} total={userTotal}
+                onPageChange={setUserPage}
+                onPageSizeChange={(size) => { setUserPageSize(size); setUserPage(1); }} />
             )}
           </div>
         </div>

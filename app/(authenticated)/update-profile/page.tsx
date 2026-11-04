@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { listEmployees } from '@/services/employee-service';
+import { listEmployeesPageAction } from '../repository/actions';
 import { getDepartmentsAction } from '../upload/actions';
 import { getCurrentUser, canEditProfilesAndCvs } from '@/lib/auth';
 import UpdateProfileClient from './UpdateProfileClient';
@@ -19,11 +19,11 @@ export default async function UpdateProfilePage({
   if (!canEditProfilesAndCvs(user.role)) redirect('/repository');
 
   const supabase = await createClient();
-  const employees = await listEmployees(supabase);
+  const employees = await listEmployeesPageAction(1, 20);
   const departments = await getDepartmentsAction();
   const { id } = await searchParams;
 
   // Arriving from the pencil icon on an employee's own profile page (EmployeeProfileClient.tsx)
   // pre-selects them instead of making the Admin re-pick from the dropdown.
-  return <UpdateProfileClient initialEmployees={employees} departments={departments} initialId={id} />;
+  return <UpdateProfileClient initialPage={employees} departments={departments} initialId={id} />;
 }

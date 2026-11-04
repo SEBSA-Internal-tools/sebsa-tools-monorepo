@@ -51,6 +51,7 @@ export interface AssessmentOverview {
   canRetry: boolean;
   /** Distinct cycles the person has finalized — a retry is not a second assessment. */
   completedAssessmentCount: number;
+  certificateCount: number;
   certificates: AssessmentCertificate[];
 }
 

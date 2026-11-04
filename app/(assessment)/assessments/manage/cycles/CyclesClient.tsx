@@ -1,19 +1,22 @@
 'use client';
 
-import React, { useMemo, useState, useTransition } from 'react';
+import React, { useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { PageWrapper } from '@/app/components/PageWrapper';
 import type { CycleSummary, TrackerRow, TrackerStatus } from '@/services/assessment-admin-service';
 import type { UserRole } from '@/lib/roles';
 import {
   createCycleAction,
-  listCycleRecipientsAction,
+  listCycleRecipientsPageAction,
   resendFailedAction,
   resendInvitationAction,
   retryFailedEmailAction,
   sendRemindersAction,
   setCycleActiveAction,
+  listCycleSummariesPageAction,
 } from '../actions';
+import { Pagination } from '@/app/components/Pagination';
+import type { PaginatedResult } from '@/lib/pagination';
 import ConfirmDialog from '../ConfirmDialog';
 import CycleFormModal from './CycleFormModal';
 import {
@@ -59,10 +62,16 @@ const monthKey = (iso: string) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 };
 
-type RecipientState = { state: 'loading' } | { state: 'error'; message: string } | { state: 'ready'; rows: TrackerRow[] };
+type RecipientState = { state: 'loading' } | { state: 'error'; message: string } | { state: 'ready'; result: PaginatedResult<TrackerRow> };
 
-export default function CyclesClient({ cycles, people }: { cycles: CycleSummary[]; people: { userId: string; name: string; email: string; role: UserRole }[] }) {
+export default function CyclesClient({ initialPage, initialPeople, monthKeys }: { initialPage: PaginatedResult<CycleSummary>; initialPeople: PaginatedResult<{ userId: string; name: string; email: string; role: UserRole; deactivated: boolean }>; monthKeys: string[] }) {
   const router = useRouter();
+  const [cycles, setCycles] = useState(initialPage.items);
+  const [total, setTotal] = useState(initialPage.total);
+  const [page, setPage] = useState(initialPage.page);
+  const [pageSize, setPageSize] = useState(initialPage.pageSize);
+  const [listLoading, setListLoading] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [formOpen, setFormOpen] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<{ cycle: CycleSummary; activate: boolean } | null>(null);
@@ -85,39 +94,28 @@ export default function CyclesClient({ cycles, people }: { cycles: CycleSummary[
 
   const hasActive = cycles.some((c) => c.status === 'active');
 
-  const monthOptions = useMemo(() => {
-    const seen = new Map<string, string>();
-    cycles.forEach((c) => {
-      const key = monthKey(c.openedAt);
-      if (!seen.has(key)) seen.set(key, new Date(c.openedAt).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }));
-    });
-    return [...seen.entries()].sort((a, b) => b[0].localeCompare(a[0]));
-  }, [cycles]);
+  const monthOptions = useMemo(() => monthKeys.map((key) => [key, new Date(`${key}-01T00:00:00Z`).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })] as const), [monthKeys]);
 
-  const visible = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const fromTs = fromDate ? new Date(fromDate).getTime() : null;
-    const toTs = toDate ? new Date(toDate).getTime() + 24 * 60 * 60 * 1000 - 1 : null; // include the whole "to" day
+  const visible = cycles;
 
-    const filtered = cycles.filter((c) => {
-      if (statusFilter !== 'all' && c.status !== statusFilter) return false;
-      if (q && !c.label.toLowerCase().includes(q)) return false;
-      if (dateMode === 'month' && monthValue && monthKey(c.openedAt) !== monthValue) return false;
-      if (dateMode === 'custom') {
-        const ts = new Date(c.openedAt).getTime();
-        if (fromTs !== null && ts < fromTs) return false;
-        if (toTs !== null && ts > toTs) return false;
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      let effectiveFrom = dateMode === 'custom' ? fromDate : undefined;
+      let effectiveTo = dateMode === 'custom' ? toDate : undefined;
+      if (dateMode === 'month' && monthValue) {
+        const [year, month] = monthValue.split('-').map(Number);
+        effectiveFrom = `${monthValue}-01`;
+        effectiveTo = new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
       }
-      return true;
-    });
+      setListLoading(true);
+      listCycleSummariesPageAction({ page, pageSize, search: query, status: statusFilter, fromDate: effectiveFrom, toDate: effectiveTo, order }).then((res) => {
+        if (res.status === 'ok') { setCycles(res.data.items); setTotal(res.data.total); }
+      }).finally(() => setListLoading(false));
+    }, query ? 250 : 0);
+    return () => clearTimeout(timer);
+  }, [page, pageSize, query, statusFilter, dateMode, monthValue, fromDate, toDate, order, refreshKey]);
 
-    return filtered.sort((a, b) => {
-      const diff = new Date(b.openedAt).getTime() - new Date(a.openedAt).getTime();
-      return order === 'newest' ? diff : -diff;
-    });
-  }, [cycles, query, statusFilter, dateMode, monthValue, fromDate, toDate, order]);
-
-  const create = (input: { label: string; passingScore: number; employeeIds: string[] }) => {
+  const create = (input: { label: string; passingScore: number; employeeIds?: string[]; selectAll?: boolean; excludedIds?: string[] }) => {
     setFormError(null);
     startTransition(async () => {
       const res = await createCycleAction(input);
@@ -126,6 +124,7 @@ export default function CyclesClient({ cycles, people }: { cycles: CycleSummary[
         return;
       }
       setFormOpen(false);
+      setRefreshKey((value) => value + 1);
       const { label, emailsSent, emailsFailed } = res.data;
       setMessage(
         emailsFailed
@@ -147,16 +146,16 @@ export default function CyclesClient({ cycles, people }: { cycles: CycleSummary[
           ? { tone: 'ok', text: `"${cycle.label}" was ${activate ? 'reactivated' : 'deactivated'}.` }
           : { tone: 'error', text: res.message }
       );
-      if (res.status === 'ok') router.refresh();
+      if (res.status === 'ok') { setRefreshKey((value) => value + 1); router.refresh(); }
     });
   };
 
-  const loadRecipients = async (cycleId: string) => {
+  const loadRecipients = async (cycleId: string, recipientPage = 1, recipientPageSize = 20) => {
     setRecipients((prev) => ({ ...prev, [cycleId]: { state: 'loading' } }));
-    const res = await listCycleRecipientsAction(cycleId);
+    const res = await listCycleRecipientsPageAction(cycleId, recipientPage, recipientPageSize);
     setRecipients((prev) => ({
       ...prev,
-      [cycleId]: res.status === 'ok' ? { state: 'ready', rows: res.data } : { state: 'error', message: res.message },
+      [cycleId]: res.status === 'ok' ? { state: 'ready', result: res.data } : { state: 'error', message: res.message },
     }));
   };
 
@@ -283,7 +282,7 @@ export default function CyclesClient({ cycles, people }: { cycles: CycleSummary[
               <button
                 key={f}
                 type="button"
-                onClick={() => setStatusFilter(f)}
+                onClick={() => { setStatusFilter(f); setPage(1); }}
                 className={`px-3 py-1.5 rounded-full text-[11px] font-black capitalize transition-colors cursor-pointer ${statusFilter === f ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
               >
                 {f === 'all' ? 'All' : f}
@@ -294,7 +293,7 @@ export default function CyclesClient({ cycles, people }: { cycles: CycleSummary[
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => { setQuery(e.target.value); setPage(1); }}
               placeholder="Search by cycle name"
               aria-label="Search cycles"
               className="bg-slate-100/90 border border-slate-200/50 rounded-full py-2 pl-10 pr-4 text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-500/10 placeholder:text-slate-400"
@@ -305,7 +304,7 @@ export default function CyclesClient({ cycles, people }: { cycles: CycleSummary[
         <div className="flex flex-wrap items-center gap-3 mt-4 pt-4 border-t border-slate-100">
           <label className="flex items-center gap-2 text-[11px] font-black uppercase tracking-wider text-slate-500">
             Sort by date sent
-            <select value={order} onChange={(e) => setOrder(e.target.value as 'newest' | 'oldest')} aria-label="Sort order" className={inputCls}>
+            <select value={order} onChange={(e) => { setOrder(e.target.value as 'newest' | 'oldest'); setPage(1); }} aria-label="Sort order" className={inputCls}>
               <option value="newest">Newest first</option>
               <option value="oldest">Oldest first</option>
             </select>
@@ -315,7 +314,7 @@ export default function CyclesClient({ cycles, people }: { cycles: CycleSummary[
             <CalendarRange className="w-3.5 h-3.5 text-slate-400" />Date sent
             <select
               value={dateMode}
-              onChange={(e) => setDateMode(e.target.value as DateMode)}
+              onChange={(e) => { setDateMode(e.target.value as DateMode); setPage(1); }}
               aria-label="Date filter mode"
               className={inputCls}
             >
@@ -326,7 +325,7 @@ export default function CyclesClient({ cycles, people }: { cycles: CycleSummary[
           </label>
 
           {dateMode === 'month' && (
-            <select value={monthValue} onChange={(e) => setMonthValue(e.target.value)} aria-label="Month" className={inputCls}>
+            <select value={monthValue} onChange={(e) => { setMonthValue(e.target.value); setPage(1); }} aria-label="Month" className={inputCls}>
               <option value="">All months</option>
               {monthOptions.map(([key, label]) => (
                 <option key={key} value={key}>{label}</option>
@@ -336,14 +335,14 @@ export default function CyclesClient({ cycles, people }: { cycles: CycleSummary[
 
           {dateMode === 'custom' && (
             <div className="flex items-center gap-2">
-              <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} aria-label="From date" className={inputCls} />
+              <input type="date" value={fromDate} onChange={(e) => { setFromDate(e.target.value); setPage(1); }} aria-label="From date" className={inputCls} />
               <span className="text-xs font-bold text-slate-400">to</span>
-              <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} aria-label="To date" className={inputCls} />
+              <input type="date" value={toDate} onChange={(e) => { setToDate(e.target.value); setPage(1); }} aria-label="To date" className={inputCls} />
             </div>
           )}
 
           <span className="ml-auto text-[11px] font-bold text-slate-400">
-            {visible.length} of {cycles.length} {cycles.length === 1 ? 'cycle' : 'cycles'}
+            {visible.length} of {total} {total === 1 ? 'cycle' : 'cycles'}
           </span>
         </div>
       </div>
@@ -436,7 +435,7 @@ export default function CyclesClient({ cycles, people }: { cycles: CycleSummary[
                     onResendFailed={() => resendFailed(c.id)}
                     onSendReminders={() => sendReminders(c.id)}
                     onRetryFailed={(userId, emailType) => retryFailedEmail(c.id, userId, emailType)}
-                    onReload={() => loadRecipients(c.id)}
+                    onReload={(recipientPage, recipientPageSize) => loadRecipients(c.id, recipientPage, recipientPageSize)}
                   />
                 )}
               </div>
@@ -446,8 +445,11 @@ export default function CyclesClient({ cycles, people }: { cycles: CycleSummary[
       )}
 
       {formOpen && (
-        <CycleFormModal people={people} busy={isPending} error={formError} onSubmit={create} onClose={() => setFormOpen(false)} />
+        <CycleFormModal initialPage={initialPeople} busy={isPending} error={formError} onSubmit={create} onClose={() => setFormOpen(false)} />
       )}
+
+      <Pagination page={page} pageSize={pageSize} total={total} disabled={listLoading || isPending}
+        onPageChange={setPage} onPageSizeChange={(size) => { setPageSize(size); setPage(1); }} />
 
       <ConfirmDialog
         open={confirm !== null}
@@ -486,7 +488,7 @@ function RecipientPanel({
   onResendFailed: () => void;
   onSendReminders: () => void;
   onRetryFailed: (userId: string, emailType: 'invitation' | 'reminder') => void;
-  onReload: () => void;
+  onReload: (page: number, pageSize: number) => void;
 }) {
   const canResend = cycle.status === 'active';
 
@@ -523,12 +525,12 @@ function RecipientPanel({
       {data?.state === 'error' && (
         <div className="px-6 py-8 text-center">
           <p className="text-xs font-semibold text-rose-600">{data.message}</p>
-          <button type="button" onClick={onReload} className="mt-2 text-[11px] font-black text-indigo-600 hover:text-indigo-700 uppercase tracking-wide cursor-pointer">Try again</button>
+          <button type="button" onClick={() => onReload(1, 20)} className="mt-2 text-[11px] font-black text-indigo-600 hover:text-indigo-700 uppercase tracking-wide cursor-pointer">Try again</button>
         </div>
       )}
 
       {data?.state === 'ready' && (
-        data.rows.length === 0 ? (
+        data.result.items.length === 0 ? (
           <p className="px-6 py-8 text-center text-xs text-slate-400">No one was invited to this cycle.</p>
         ) : (
           <div className="overflow-x-auto">
@@ -544,7 +546,7 @@ function RecipientPanel({
                 </tr>
               </thead>
               <tbody>
-                {data.rows.map((r) => (
+                {data.result.items.map((r) => (
                   <tr key={r.userId} className="border-b border-slate-100 last:border-b-0 hover:bg-white/70">
                     <td className="px-6 py-3">
                       <p className="font-black text-slate-800">{r.name}</p>
@@ -592,6 +594,9 @@ function RecipientPanel({
                 ))}
               </tbody>
             </table>
+            <Pagination page={data.result.page} pageSize={data.result.pageSize} total={data.result.total} disabled={disabled}
+              onPageChange={(nextPage) => onReload(nextPage, data.result.pageSize)}
+              onPageSizeChange={(size) => onReload(1, size)} />
           </div>
         )
       )}

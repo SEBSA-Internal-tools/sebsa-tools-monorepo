@@ -1,10 +1,9 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { listEmployees } from '@/services/employee-service';
 import { getCurrentUser } from '@/lib/auth';
 import RepositoryClient from './RepositoryClient';
 import { getDepartmentsAction } from '@/app/(authenticated)/upload/actions';
-import { getAccountStatusMap } from '@/services/account-service';
+import { listEmployeePositionsAction, listEmployeesPageAction } from './actions';
 
 export default async function RepositoryPage() {
   const user = await getCurrentUser();
@@ -15,18 +14,13 @@ export default async function RepositoryPage() {
   if (user.role === 'employee') redirect(`/repository/${user.profileId}`);
 
   const supabase = await createClient();
-  const [employees, departments, accountStatuses] = await Promise.all([
-    listEmployees(supabase),
+  const [initialPage, departments, positions] = await Promise.all([
+    listEmployeesPageAction(1, 20),
     getDepartmentsAction(),
-    getAccountStatusMap(),
+    listEmployeePositionsAction(),
   ]);
 
   // Account status lives in Supabase Auth, not on the profile row, so it's stitched on here
   // rather than inside listEmployees() — the service layer only ever sees the RLS client.
-  const enriched = employees.map(({ accountUserId, ...emp }) => ({
-    ...emp,
-    accountStatus: accountUserId ? accountStatuses.get(accountUserId) ?? 'inactive' : ('inactive' as const),
-  }));
-
-  return <RepositoryClient employees={enriched} viewerRole={user.role} departments={departments} />;
+  return <RepositoryClient initialPage={initialPage} viewerRole={user.role} departments={departments} positions={positions} />;
 }

@@ -1,13 +1,15 @@
 'use client';
 
-import React, { useState, useMemo, useTransition } from 'react';
+import React, { useState, useEffect, useMemo, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { PageWrapper } from '../../components/PageWrapper';
 import type { Employee } from '@/types/domain';
 import type { AccountStatus } from '@/lib/accountStatus';
 import { isAdminOrAbove, isReviewerOrAbove, canDeleteProfiles, type UserRole } from '@/lib/roles';
-import { deleteEmployeeAction } from './actions';
+import { deleteEmployeeAction, listEmployeesPageAction } from './actions';
 import AccountStatusControl from './AccountStatusControl';
+import { Pagination } from '@/app/components/Pagination';
+import type { PaginatedResult } from '@/lib/pagination';
 import {
   Search,
   Filter,
@@ -24,9 +26,10 @@ import {
 } from 'lucide-react';
 
 interface RepositoryClientProps {
-  employees: Employee[];
+  initialPage: PaginatedResult<Employee>;
   viewerRole: UserRole;
   departments: { id: string; name: string }[];
+  positions: string[];
 }
 
 const EMPLOYEES_PER_PAGE = 30;
@@ -52,11 +55,16 @@ function getPaginationItems(currentPage: number, totalPages: number): Array<numb
   return items;
 }
 
-export default function RepositoryClient({ employees, viewerRole, departments }: RepositoryClientProps) {
+export default function RepositoryClient({ initialPage, viewerRole, departments, positions }: RepositoryClientProps) {
   const router = useRouter();
   const [isDeleting, startDeleteTransition] = useTransition();
   const [employeePendingDelete, setEmployeePendingDelete] = useState<Employee | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [employees, setEmployees] = useState(initialPage.items);
+  const [total, setTotal] = useState(initialPage.total);
+  const [pageSize, setPageSize] = useState(initialPage.pageSize);
+  const [loading, setLoading] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
   // HR can now create profiles too (docs/04-rbac-security.md §13), but editing/deleting
   // someone else's existing profile stays Admin/Super-Admin-only.
   const canCreateEmployees = isReviewerOrAbove(viewerRole);
@@ -77,6 +85,7 @@ export default function RepositoryClient({ employees, viewerRole, departments }:
           return;
         }
         setEmployeePendingDelete(null);
+        setRefreshKey((value) => value + 1);
         router.refresh();
       } catch (error) {
         setDeleteError(error instanceof Error ? error.message : 'Could not delete this profile.');
@@ -89,53 +98,40 @@ export default function RepositoryClient({ employees, viewerRole, departments }:
   const [selectedDept, setSelectedDept] = useState('All Departments');
   const [selectedPosition, setSelectedPosition] = useState('All Positions');
   const [selectedAccountStatus, setSelectedAccountStatus] = useState<'all' | AccountStatus>('all');
-  const [requestedPage, setRequestedPage] = useState(1);
+  const [requestedPage, setRequestedPage] = useState(initialPage.page);
 
-  const positions = useMemo(
-    () => [...new Set(employees.map((employee) => employee.role).filter(Boolean))].sort((a, b) =>
-      a.localeCompare(b, undefined, { sensitivity: 'base' })
-    ),
-    [employees]
-  );
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setLoading(true);
+      const departmentId = selectedDept === 'All Departments' ? undefined : departments.find((item) => item.name === selectedDept)?.id;
+      listEmployeesPageAction(requestedPage, pageSize, {
+        search: searchTerm,
+        departmentId,
+        position: selectedPosition === 'All Positions' ? undefined : selectedPosition,
+        accountStatus: selectedAccountStatus,
+      }).then((result) => {
+        setEmployees(result.items);
+        setTotal(result.total);
+      }).catch((error) => setDeleteError(error instanceof Error ? error.message : 'Could not load employees.'))
+        .finally(() => setLoading(false));
+    }, searchTerm ? 250 : 0);
+    return () => clearTimeout(timer);
+  }, [requestedPage, pageSize, searchTerm, selectedDept, selectedPosition, selectedAccountStatus, departments, refreshKey]);
 
   // Stats Calculations
   const stats = useMemo(() => {
     return {
-      total: employees.length,
+      total,
       aiSynced: '94%',
     };
-  }, [employees]);
+  }, [total]);
 
   // Dynamic Filtering Logic
-  const filteredEmployees = useMemo(() => {
-    return employees.filter((emp) => {
-      // 1. Search term match (Name, email, position)
-      const matchesSearch =
-        emp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        emp.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        emp.role.toLowerCase().includes(searchTerm.toLowerCase());
-
-      // 2. Department match
-      const matchesDept =
-        selectedDept === 'All Departments' ||
-        emp.department.toLowerCase() === selectedDept.toLowerCase();
-
-      const matchesPosition = selectedPosition === 'All Positions' || emp.role === selectedPosition;
-      const matchesAccountStatus =
-        selectedAccountStatus === 'all' ||
-        (emp.accountStatus ?? 'inactive') === selectedAccountStatus;
-
-      return matchesSearch && matchesDept && matchesPosition && matchesAccountStatus;
-    }).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
-  }, [employees, searchTerm, selectedDept, selectedPosition, selectedAccountStatus]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredEmployees.length / EMPLOYEES_PER_PAGE));
+  const paginatedEmployees = employees;
+  const filteredEmployees = employees;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const currentPage = Math.min(requestedPage, totalPages);
-  const firstEmployeeIndex = (currentPage - 1) * EMPLOYEES_PER_PAGE;
-  const paginatedEmployees = filteredEmployees.slice(
-    firstEmployeeIndex,
-    firstEmployeeIndex + EMPLOYEES_PER_PAGE
-  );
+  const firstEmployeeIndex = (currentPage - 1) * pageSize;
   const paginationItems = getPaginationItems(currentPage, totalPages);
 
   const handleClearFilters = () => {
@@ -385,7 +381,7 @@ export default function RepositoryClient({ employees, viewerRole, departments }:
         </div>
 
         {/* Table Pagination */}
-        <div className="p-5 border-t border-slate-100 flex items-center justify-between bg-slate-50/50">
+        <div className="hidden">
           <p className="text-xs font-semibold text-slate-400">
             Showing {filteredEmployees.length === 0 ? 0 : firstEmployeeIndex + 1}–{firstEmployeeIndex + paginatedEmployees.length} of {filteredEmployees.length} employees
           </p>
@@ -430,6 +426,9 @@ export default function RepositoryClient({ employees, viewerRole, departments }:
             </button>
           </div>
         </div>
+        <Pagination page={requestedPage} pageSize={pageSize} total={total} disabled={loading}
+          onPageChange={setRequestedPage}
+          onPageSizeChange={(size) => { setPageSize(size); setRequestedPage(1); }} />
       </div>
 
       {employeePendingDelete && (

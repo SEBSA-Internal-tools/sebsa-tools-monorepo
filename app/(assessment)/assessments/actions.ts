@@ -4,12 +4,18 @@ import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getCurrentUser } from '@/lib/auth';
-import { AssessmentError, submitAssessment } from '@/services/assessment-service';
+import { AssessmentError, submitAssessment, listMyCertificatesPage } from '@/services/assessment-service';
 import type { AnswerOption, AssessmentResult } from '@/types/assessment';
 
 export type SubmitAssessmentOutcome =
   | { ok: true; result: AssessmentResult }
   | { ok: false; code: string; message: string };
+
+export async function listMyCertificatesPageAction(page: number, pageSize: number) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error('Not authenticated.');
+  return listMyCertificatesPage(await createClient(), user.id, page, pageSize);
+}
 
 /**
  * Submits the signed-in person's answers. Identity comes from the session, never from the

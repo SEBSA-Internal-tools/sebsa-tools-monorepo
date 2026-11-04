@@ -1,5 +1,7 @@
 import { randomUUID } from 'crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { pageRange, type PaginatedResult } from '@/lib/pagination';
+import type { AssessmentCertificate } from '@/types/assessment';
 import { z } from 'zod';
 import {
   type AttemptRow,
@@ -89,10 +91,14 @@ function inAttemptOrder(ids: string[], rows: QuestionRow[]): QuestionRow[] {
 // ── Employee dashboard ───────────────────────────────────────────────────────────────────────
 
 export async function getMyOverview(supabase: SupabaseClient, userId: string): Promise<AssessmentOverview> {
-  const [cycle, attempts] = await Promise.all([getActiveCycleRow(supabase), listAttemptRowsForUser(supabase, userId)]);
+  const cycle = await getActiveCycleRow(supabase);
+  const [attempts, countsResult] = await Promise.all([
+    cycle ? listAttemptRowsForCycle(supabase, userId, cycle.id) : Promise.resolve([]),
+    supabase.rpc('get_my_assessment_counts'),
+  ]);
+  if (countsResult.error) throw countsResult.error;
+  const counts = (countsResult.data as Array<{ completed_count: number; certificate_count: number }> | null)?.[0];
   const invitation = cycle ? await getInvitationRow(supabase, userId, cycle.id) : null;
-  const certificateRows = await listCertificateRowsForAttempts(supabase, attempts.map((a) => a.id));
-  const attemptById = new Map(attempts.map((a) => [a.id, a]));
 
   const latest = cycle
     ? attempts.filter((a) => a.cycle_id === cycle.id).sort((a, b) => b.attempt_number - a.attempt_number)[0] ?? null
@@ -125,18 +131,24 @@ export async function getMyOverview(supabase: SupabaseClient, userId: string): P
       : null,
     pendingAssessment: cycle ? !latest : false,
     canRetry: Boolean(latest && !latest.is_final),
-    completedAssessmentCount: new Set(attempts.filter((a) => a.is_final).map((a) => a.cycle_id)).size,
-    certificates: certificateRows.map((c) => {
-      const attempt = attemptById.get(c.attempt_id);
-      return {
-        id: c.id,
-        certificateNumber: c.certificate_number,
-        issuedAt: c.issued_at,
-        score: attempt?.score ?? null,
-        cycleLabel: attempt?.assessment_cycles?.label ?? null,
-      };
-    }),
+    completedAssessmentCount: Number(counts?.completed_count ?? 0),
+    certificateCount: Number(counts?.certificate_count ?? 0),
+    certificates: [],
   };
+}
+
+export async function listMyCertificatesPage(supabase: SupabaseClient, userId: string, page: number, pageSize: number): Promise<PaginatedResult<AssessmentCertificate>> {
+  const range = pageRange(page, pageSize);
+  const { data, error, count } = await supabase.from('assessment_certificates')
+    .select('id, certificate_number, issued_at, assessment_attempts!inner(user_id, score, assessment_cycles(label))', { count: 'exact' })
+    .eq('assessment_attempts.user_id', userId).order('issued_at', { ascending: false }).range(range.from, range.to);
+  if (error) throw error;
+  const items = (data ?? []).map((row: any): AssessmentCertificate => {
+    const attempt = Array.isArray(row.assessment_attempts) ? row.assessment_attempts[0] : row.assessment_attempts;
+    const cycle = Array.isArray(attempt?.assessment_cycles) ? attempt.assessment_cycles[0] : attempt?.assessment_cycles;
+    return { id: row.id, certificateNumber: row.certificate_number, issuedAt: row.issued_at, score: attempt?.score ?? null, cycleLabel: cycle?.label ?? null };
+  });
+  return { items, total: count ?? 0, page: range.page, pageSize: range.pageSize };
 }
 
 // ── Opening the assessment ───────────────────────────────────────────────────────────────────

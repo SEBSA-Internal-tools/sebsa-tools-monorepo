@@ -41,6 +41,51 @@ export async function listEmployeeRows(supabase: SupabaseClient) {
   return data ?? [];
 }
 
+export interface EmployeePageQuery {
+  page: number;
+  pageSize: number;
+  search?: string;
+  searchDepartmentIds?: string[];
+  departmentId?: string;
+  position?: string;
+  accountUserIds?: string[];
+  includeUnlinkedAccounts?: boolean;
+}
+
+export async function listEmployeeRowsPage(supabase: SupabaseClient, params: EmployeePageQuery) {
+  const from = (params.page - 1) * params.pageSize;
+  let query = supabase
+    .from('profiles')
+    .select(LIST_SELECT, { count: 'exact' })
+    .eq('status', 'published')
+    .is('deleted_at', null);
+  const search = params.search?.trim();
+  if (search) {
+    const conditions = [`full_name.ilike.%${search}%`, `display_name.ilike.%${search}%`, `email.ilike.%${search}%`, `role_title.ilike.%${search}%`];
+    if (params.searchDepartmentIds?.length) conditions.push(`department_id.in.(${params.searchDepartmentIds.join(',')})`);
+    query = query.or(conditions.join(','));
+  }
+  if (params.departmentId) query = query.eq('department_id', params.departmentId);
+  if (params.position) query = query.eq('role_title', params.position);
+  if (params.accountUserIds) {
+    const ids = params.accountUserIds;
+    if (ids.length === 0 && !params.includeUnlinkedAccounts) return { rows: [], total: 0 };
+    if (ids.length > 0 && params.includeUnlinkedAccounts) query = query.or(`user_id.in.(${ids.join(',')}),user_id.is.null`);
+    else if (ids.length > 0) query = query.in('user_id', ids);
+    else query = query.is('user_id', null);
+  }
+  const { data, error, count } = await query.order('full_name').range(from, from + params.pageSize - 1);
+  if (error) throw error;
+  return { rows: data ?? [], total: count ?? 0 };
+}
+
+export async function listEmployeePositions(supabase: SupabaseClient): Promise<string[]> {
+  const { data, error } = await supabase.from('profiles').select('role_title')
+    .eq('status', 'published').is('deleted_at', null).not('role_title', 'is', null).order('role_title');
+  if (error) throw error;
+  return [...new Set((data ?? []).map((row) => row.role_title as string).filter(Boolean))];
+}
+
 export async function getEmployeeRowById(supabase: SupabaseClient, profileId: string) {
   const { data, error } = await supabase
     .from('profiles')

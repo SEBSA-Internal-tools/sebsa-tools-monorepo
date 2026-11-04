@@ -1,18 +1,25 @@
 'use client';
 
-import React, { useMemo, useState, useTransition } from 'react';
+import React, { useEffect, useState, useTransition } from 'react';
 import { PageWrapper } from '@/app/components/PageWrapper';
 import { QUESTIONS_PER_ATTEMPT } from '@/lib/assessment/rules';
 import type { ManagedQuestion } from '@/services/assessment-admin-service';
-import { createQuestionAction, deleteQuestionAction, updateQuestionAction } from '../actions';
+import { createQuestionAction, deleteQuestionAction, updateQuestionAction, listQuestionsPageAction } from '../actions';
+import { Pagination } from '@/app/components/Pagination';
 import ConfirmDialog from '../ConfirmDialog';
 import QuestionFormModal from './QuestionFormModal';
 import { AlertTriangle, CheckCircle2, Pencil, Plus, Search, Trash2, XCircle } from 'lucide-react';
 
 type StatusFilter = 'all' | 'active' | 'inactive';
 
-export default function QuestionsClient({ initialQuestions }: { initialQuestions: ManagedQuestion[] }) {
-  const [questions, setQuestions] = useState(initialQuestions);
+export default function QuestionsClient({ initialPage }: { initialPage: { items: ManagedQuestion[]; total: number; activeTotal: number; page: number; pageSize: number } }) {
+  const [questions, setQuestions] = useState(initialPage.items);
+  const [total, setTotal] = useState(initialPage.total);
+  const [activeCount, setActiveCount] = useState(initialPage.activeTotal);
+  const [page, setPage] = useState(initialPage.page);
+  const [pageSize, setPageSize] = useState(initialPage.pageSize);
+  const [listLoading, setListLoading] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [editing, setEditing] = useState<ManagedQuestion | 'new' | null>(null);
@@ -21,15 +28,18 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
   const [message, setMessage] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const activeCount = questions.filter((q) => q.status === 'active').length;
-  const shown = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return questions.filter(
-      (item) =>
-        (statusFilter === 'all' || item.status === statusFilter) &&
-        (!q || item.questionText.toLowerCase().includes(q) || (item.category ?? '').toLowerCase().includes(q))
-    );
-  }, [questions, query, statusFilter]);
+  const shown = questions;
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setListLoading(true);
+      listQuestionsPageAction(page, pageSize, query, statusFilter).then((res) => {
+        if (res.status === 'error') return setMessage({ tone: 'error', text: res.message });
+        setQuestions(res.data.items); setTotal(res.data.total); setActiveCount(res.data.activeTotal);
+      }).finally(() => setListLoading(false));
+    }, query ? 250 : 0);
+    return () => clearTimeout(timer);
+  }, [page, pageSize, query, statusFilter, refreshKey]);
 
   const save = (draft: Omit<ManagedQuestion, 'id'>) => {
     setFormError(null);
@@ -42,6 +52,7 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
       const saved = res.data;
       setQuestions((prev) => (prev.some((x) => x.id === saved.id) ? prev.map((x) => (x.id === saved.id ? saved : x)) : [...prev, saved]));
       setEditing(null);
+      setRefreshKey((value) => value + 1);
       setMessage({ tone: 'ok', text: 'Question saved.' });
     });
   };
@@ -52,6 +63,7 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
       const res = await updateQuestionAction(q.id, { status: next });
       if (res.status === 'error') return setMessage({ tone: 'error', text: res.message });
       setQuestions((prev) => prev.map((x) => (x.id === q.id ? res.data : x)));
+      setRefreshKey((value) => value + 1);
     });
   };
 
@@ -63,6 +75,7 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
       setDeleting(null);
       if (res.status === 'error') return setMessage({ tone: 'error', text: res.message });
       setQuestions((prev) => prev.filter((x) => x.id !== target.id));
+      setRefreshKey((value) => value + 1);
       setMessage({ tone: 'ok', text: 'Question deleted.' });
     });
   };
@@ -73,7 +86,7 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
         <div>
           <h2 className="text-3xl font-black tracking-tight text-slate-900 font-sans leading-none">Question Bank</h2>
           <p className="text-sm font-medium text-slate-500 mt-2">
-            {activeCount} active of {questions.length}. Each person is asked {QUESTIONS_PER_ATTEMPT} random active questions.
+            {activeCount} active of {total}. Each person is asked {QUESTIONS_PER_ATTEMPT} random active questions.
           </p>
         </div>
         <button
@@ -103,14 +116,14 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
         <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex gap-1.5">
             {(['all', 'active', 'inactive'] as const).map((f) => (
-              <button key={f} type="button" onClick={() => setStatusFilter(f)} className={`px-3 py-1.5 rounded-full text-[11px] font-black capitalize transition-colors cursor-pointer ${statusFilter === f ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+              <button key={f} type="button" onClick={() => { setStatusFilter(f); setPage(1); }} className={`px-3 py-1.5 rounded-full text-[11px] font-black capitalize transition-colors cursor-pointer ${statusFilter === f ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
                 {f}
               </button>
             ))}
           </div>
           <div className="relative">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search questions" aria-label="Search questions" className="bg-slate-100/90 border border-slate-200/50 rounded-full py-2 pl-10 pr-4 text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-500/10 placeholder:text-slate-400" />
+            <input value={query} onChange={(e) => { setQuery(e.target.value); setPage(1); }} placeholder="Search questions" aria-label="Search questions" className="bg-slate-100/90 border border-slate-200/50 rounded-full py-2 pl-10 pr-4 text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-500/10 placeholder:text-slate-400" />
           </div>
         </div>
 
@@ -155,6 +168,9 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
           {shown.length === 0 && <li className="px-5 py-12 text-center text-xs text-slate-400">No questions match.</li>}
         </ul>
       </div>
+
+      <Pagination page={page} pageSize={pageSize} total={total} disabled={listLoading || isPending}
+        onPageChange={setPage} onPageSizeChange={(size) => { setPageSize(size); setPage(1); }} />
 
       {editing && (
         <QuestionFormModal

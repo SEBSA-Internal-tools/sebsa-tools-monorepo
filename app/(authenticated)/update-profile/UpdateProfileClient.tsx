@@ -8,6 +8,8 @@ import { useRouter } from 'next/navigation';
 import { PageWrapper } from '../../components/PageWrapper';
 import { uploadProfilePictureAction } from '../upload/actions';
 import { getEmployeeDetailsAction, updateEmployeeAction } from './actions';
+import { listEmployeesPageAction } from '../repository/actions';
+import { Pagination } from '@/app/components/Pagination';
 import { ProjectSkillsInput } from '@/app/components/CvEntrySections';
 import { useDragReorder, moveItem, DragHandle } from '@/app/components/useDragReorder';
 import { toTitleCase } from '@/lib/text';
@@ -119,7 +121,7 @@ async function extractText(file: File): Promise<string> {
 // ─── Main Client Component ────────────────────────────────────────────────────
 
 interface UpdateProfileClientProps {
-  initialEmployees: Employee[];
+  initialPage: import('@/lib/pagination').PaginatedResult<Employee>;
   departments: { id: string; name: string }[];
   /** Pre-selects an employee when arriving from their profile page's edit-pencil icon, instead
    *  of requiring the Admin to re-pick them from the dropdown below. */
@@ -129,7 +131,7 @@ interface UpdateProfileClientProps {
 type CvUploadStatus = 'idle' | 'extracting' | 'analyzing' | 'done' | 'error';
 
 export default function UpdateProfileClient({
-  initialEmployees,
+  initialPage,
   departments,
   initialId,
 }: UpdateProfileClientProps) {
@@ -139,20 +141,26 @@ export default function UpdateProfileClient({
   const [selectedId, setSelectedId] = useState<string>(initialId ?? '');
   const [loadingProfile, setLoadingProfile] = useState<boolean>(false);
   const [activeProfile, setActiveProfile] = useState<Employee | null>(null);
+  const [employees, setEmployees] = useState(initialPage.items);
+  const [employeeTotal, setEmployeeTotal] = useState(initialPage.total);
+  const [employeePage, setEmployeePage] = useState(initialPage.page);
+  const [employeePageSize, setEmployeePageSize] = useState(initialPage.pageSize);
+  const [employeeListLoading, setEmployeeListLoading] = useState(false);
 
   // Search filter for the employee picker list (shown before an employee is selected)
   const [searchTerm, setSearchTerm] = useState('');
-  const filteredEmployees = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
-    if (!term) return initialEmployees;
-    return initialEmployees.filter(
-      (emp) =>
-        emp.name.toLowerCase().includes(term) ||
-        emp.email.toLowerCase().includes(term) ||
-        emp.role.toLowerCase().includes(term) ||
-        emp.department.toLowerCase().includes(term)
-    );
-  }, [initialEmployees, searchTerm]);
+  const filteredEmployees = employees;
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setEmployeeListLoading(true);
+      listEmployeesPageAction(employeePage, employeePageSize, { search: searchTerm }).then((result) => {
+        setEmployees(result.items);
+        setEmployeeTotal(result.total);
+      }).finally(() => setEmployeeListLoading(false));
+    }, searchTerm ? 250 : 0);
+    return () => clearTimeout(timer);
+  }, [employeePage, employeePageSize, searchTerm]);
 
   // Form editable states
   const [profile, setProfile] = useState<CvProfile>(emptyCvProfile());
@@ -566,7 +574,7 @@ export default function UpdateProfileClient({
               type="text"
               placeholder="Search by name, email, role, or department..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => { setSearchTerm(e.target.value); setEmployeePage(1); }}
               className="w-full bg-slate-50 border border-slate-200/80 rounded-xl py-3 pl-10 pr-4 text-xs font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-all text-slate-700 placeholder:text-slate-400"
             />
           </div>
@@ -613,6 +621,9 @@ export default function UpdateProfileClient({
               </div>
             )}
           </div>
+          <Pagination page={employeePage} pageSize={employeePageSize} total={employeeTotal} disabled={employeeListLoading}
+            onPageChange={setEmployeePage}
+            onPageSizeChange={(size) => { setEmployeePageSize(size); setEmployeePage(1); }} />
         </>
       )}
 

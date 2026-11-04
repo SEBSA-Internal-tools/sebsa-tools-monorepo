@@ -1,9 +1,9 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { listNotifications } from '@/services/notification-service';
+import { listNotificationsPage } from '@/services/notification-service';
 import { getCurrentUser } from '@/lib/auth';
 import ActivityLogClient from './ActivityLogClient';
-import { listAuditLogs } from '@/services/audit-service';
+import { listAuditLogsPage } from '@/services/audit-service';
 
 /**
  * Unlike the old Dashboard-only "system activity" panel, this is every user's OWN notification
@@ -22,8 +22,8 @@ export default async function ActivityLogPage({
   const supabase = await createClient();
   const [{ tab }, notifications, auditLogs] = await Promise.all([
     searchParams,
-    listNotifications(supabase, null),
-    listAuditLogs(supabase),
+    listNotificationsPage(supabase, 1, 20),
+    listAuditLogsPage(supabase, 1, 20),
   ]);
 
   return <ActivityLogClient initialNotifications={notifications} initialAuditLogs={auditLogs} initialTab={tab === 'notifications' ? 'notifications' : 'activity'} />;

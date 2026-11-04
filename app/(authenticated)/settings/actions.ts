@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { getCurrentUser, canAssignRole, isAdminOrAbove, type UserRole } from '@/lib/auth';
 import { getSignedAvatarUrl } from '@/lib/avatar';
 import { recordAuditLog } from '@/services/audit-service';
+import { pageRange, type PaginatedResult } from '@/lib/pagination';
 
 export interface ManagedUser {
   id: string;
@@ -21,12 +22,43 @@ export interface ManagedUser {
   avatarUrl: string | null;
 }
 
+export interface ManagedUsersPage extends PaginatedResult<ManagedUser> {
+  roleCounts: Record<UserRole, number>;
+}
+
+export async function listUsersPageAction(page: number, pageSize: number, search = '', role: UserRole | 'all' = 'all'): Promise<ManagedUsersPage> {
+  const currentUser = await getCurrentUser();
+  if (!currentUser) throw new Error('Not authenticated.');
+  if (!isAdminOrAbove(currentUser.role)) throw new Error('Unauthorized: Admin or Super Admin role required.');
+  const range = pageRange(page, pageSize);
+  const adminClient = createAdminClient();
+  const { data, error } = await adminClient.rpc('list_managed_users_page', {
+    search_text: search.trim(), role_filter: role === 'all' ? null : role,
+    page_offset: range.from, page_limit: range.pageSize,
+  });
+  if (error) throw error;
+  const rows = (data ?? []) as Array<{ user_id: string; email: string; role: UserRole; created_at: string; full_name: string | null; avatar_url: string | null; total_count: number }>;
+  const items = await Promise.all(rows.map(async (row): Promise<ManagedUser> => ({
+    id: row.user_id, email: row.email, role: row.role, createdAt: row.created_at,
+    name: row.full_name, avatarUrl: row.avatar_url ? await getSignedAvatarUrl(adminClient, row.avatar_url) : null,
+  })));
+  const roleCounts: Record<UserRole, number> = { employee: 0, cv_reviewer: 0, admin: 0, super_admin: 0 };
+  await Promise.all((Object.keys(roleCounts) as UserRole[]).map(async (roleKey) => {
+    const { count, error: countError } = await adminClient.from('user_roles').select('user_id', { count: 'exact', head: true }).eq('role', roleKey);
+    if (countError) throw countError;
+    roleCounts[roleKey] = count ?? 0;
+  }));
+  return { items, total: Number(rows[0]?.total_count ?? 0), page: range.page, pageSize: range.pageSize, roleCounts };
+}
+
 /**
  * Admin/Super Admin/HR only (matches user_roles_select RLS — everyone at
  * reviewer-or-above can see the roster; only admin-or-above can change roles, enforced both
  * here and by the user_roles_write RLS policy as the real backstop).
  */
 export async function listUsersAction(): Promise<ManagedUser[]> {
+  return (await listUsersPageAction(1, 20)).items;
+  /* Legacy implementation retained below for migration history; unreachable by design.
   const currentUser = await getCurrentUser();
   if (!currentUser) throw new Error('Not authenticated.');
 
@@ -87,7 +119,7 @@ export async function listUsersAction(): Promise<ManagedUser[]> {
     })
   );
 
-  return managedUsers.sort((a, b) => a.email.localeCompare(b.email));
+  return managedUsers.sort((a, b) => a.email.localeCompare(b.email)); */
 }
 
 /**

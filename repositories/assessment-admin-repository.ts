@@ -70,6 +70,22 @@ export async function listCycleRows(supabase: SupabaseClient): Promise<ManagedCy
   return (data ?? []) as ManagedCycleRow[];
 }
 
+export async function listCycleRowsPage(supabase: SupabaseClient, params: {
+  page: number; pageSize: number; search?: string; status?: 'all' | CycleStatus;
+  fromDate?: string; toDate?: string; order?: 'newest' | 'oldest';
+}) {
+  const from = (params.page - 1) * params.pageSize;
+  let query = supabase.from('assessment_cycles')
+    .select('id, label, passing_score, status, opened_at, closed_at, deactivated_at', { count: 'exact' });
+  if (params.search?.trim()) query = query.ilike('label', `%${params.search.trim()}%`);
+  if (params.status && params.status !== 'all') query = query.eq('status', params.status);
+  if (params.fromDate) query = query.gte('opened_at', params.fromDate);
+  if (params.toDate) query = query.lte('opened_at', `${params.toDate}T23:59:59.999Z`);
+  const { data, error, count } = await query.order('opened_at', { ascending: params.order === 'oldest' }).range(from, from + params.pageSize - 1);
+  if (error) throw error;
+  return { rows: (data ?? []) as ManagedCycleRow[], total: count ?? 0 };
+}
+
 export async function getCycleRowById(supabase: SupabaseClient, id: string): Promise<ManagedCycleRow | null> {
   const { data, error } = await supabase
     .from('assessment_cycles')
@@ -276,6 +292,18 @@ export async function listQuestionRows(supabase: SupabaseClient): Promise<Questi
   const { data, error } = await supabase.from('assessment_questions').select('*').order('created_at', { ascending: true });
   if (error) throw error;
   return (data ?? []) as QuestionRow[];
+}
+
+export async function listQuestionRowsPage(supabase: SupabaseClient, page: number, pageSize: number, search = '', status: 'all' | 'active' | 'inactive' = 'all') {
+  const from = (page - 1) * pageSize;
+  let query = supabase.from('assessment_questions').select('*', { count: 'exact' });
+  if (status !== 'all') query = query.eq('status', status);
+  if (search.trim()) query = query.or(`question_text.ilike.%${search.trim()}%,category.ilike.%${search.trim()}%`);
+  const { data, error, count } = await query.order('created_at', { ascending: true }).range(from, from + pageSize - 1);
+  if (error) throw error;
+  const { count: activeCount, error: activeError } = await supabase.from('assessment_questions').select('id', { count: 'exact', head: true }).eq('status', 'active');
+  if (activeError) throw activeError;
+  return { rows: (data ?? []) as QuestionRow[], total: count ?? 0, activeTotal: activeCount ?? 0 };
 }
 
 export async function insertQuestionRow(supabase: SupabaseClient, row: QuestionInputRow): Promise<QuestionRow> {

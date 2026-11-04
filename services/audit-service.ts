@@ -2,6 +2,7 @@ import { employeeDetailFields } from '@/lib/employeeDetails';
 import { createAdminClient } from '@/lib/supabase/admin';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { UpdateEmployeeInput, Employee } from '@/types/domain';
+import { pageRange, type PaginatedResult } from '@/lib/pagination';
 
 // `audit_logs.action` is free text in Postgres (0011_audit_logs.sql) — this union is the
 // application-side contract, so new event types are added here rather than in a migration.
@@ -91,6 +92,29 @@ export async function listAuditLogs(
     metadata: (row.metadata ?? {}) as AuditMetadata,
     createdAt: row.created_at as string,
   }));
+}
+
+export async function listAuditLogsPage(supabase: SupabaseClient, page: number, pageSize: number): Promise<PaginatedResult<AuditLogRecord>> {
+  const range = pageRange(page, pageSize);
+  const { data, error, count } = await supabase.from('audit_logs')
+    .select('id, actor_id, action, entity_type, entity_id, metadata, created_at', { count: 'exact' })
+    .order('created_at', { ascending: false }).range(range.from, range.to);
+  if (error) throw error;
+  const actorIds = [...new Set((data ?? []).map((row) => row.actor_id as string | null).filter((id): id is string => Boolean(id)))];
+  const names = new Map<string, string>();
+  if (actorIds.length > 0) {
+    const { data: profiles, error: profileError } = await supabase.from('profiles').select('user_id, full_name').in('user_id', actorIds);
+    if (profileError) throw profileError;
+    for (const profile of profiles ?? []) if (profile.user_id && profile.full_name) names.set(profile.user_id as string, profile.full_name as string);
+  }
+  const items = (data ?? []).map((row) => ({
+    id: row.id as string, actorId: row.actor_id as string | null,
+    actorName: row.actor_id ? names.get(row.actor_id as string) ?? 'Unknown User' : 'System',
+    action: row.action as string, entityType: row.entity_type as string | null,
+    entityId: row.entity_id as string | null, metadata: (row.metadata ?? {}) as AuditMetadata,
+    createdAt: row.created_at as string,
+  }));
+  return { items, total: count ?? 0, page: range.page, pageSize: range.pageSize };
 }
 
 /**

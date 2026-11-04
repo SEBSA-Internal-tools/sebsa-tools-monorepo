@@ -6,6 +6,7 @@ import {
   deleteEmployeeRow,
   getEmployeeRowById,
   listEmployeeRows,
+  listEmployeeRowsPage,
   updateEmployeeRow,
 } from '@/repositories/employee-repository';
 import type {
@@ -17,6 +18,7 @@ import type {
 import type { CvAcademicEntry, CvExperienceEntry, CvProjectEntry, CvCertificationEntry } from '@/lib/cvTypes';
 import { getSignedAvatarUrl, DEFAULT_AVATAR } from '@/lib/avatar';
 import { toTitleCase, toUpperCaseText } from '@/lib/text';
+import type { PaginatedResult } from '@/lib/pagination';
 
 function formatDate(value: string | null | undefined): string {
   if (!value) return '';
@@ -69,14 +71,19 @@ function tryParseJson<T>(value: string | null | undefined): T | null {
 }
 
 export async function listEmployees(supabase: SupabaseClient): Promise<Employee[]> {
-  const rows = await listEmployeeRows(supabase);
-  const mapped = rows.map(mapListRow);
-  await Promise.all(
-    mapped.map(async (emp) => {
-      emp.avatar = await getSignedAvatarUrl(supabase, emp.avatar);
-    })
-  );
-  return mapped;
+  return (await listEmployeesPage(supabase, { page: 1, pageSize: 20 })).items;
+}
+
+export async function listEmployeesPage(
+  supabase: SupabaseClient,
+  params: Parameters<typeof listEmployeeRowsPage>[1]
+): Promise<PaginatedResult<Employee>> {
+  const { rows, total } = await listEmployeeRowsPage(supabase, params);
+  const items = rows.map(mapListRow);
+  await Promise.all(items.map(async (employee) => {
+    employee.avatar = await getSignedAvatarUrl(supabase, employee.avatar);
+  }));
+  return { items, total, page: params.page, pageSize: params.pageSize };
 }
 
 export async function getEmployeeById(

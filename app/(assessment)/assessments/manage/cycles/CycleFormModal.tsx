@@ -1,14 +1,17 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Loader2, Search, Send, X } from 'lucide-react';
 import type { UserRole } from '@/lib/roles';
+import type { PaginatedResult } from '@/lib/pagination';
+import { Pagination } from '@/app/components/Pagination';
+import { listInvitablePeoplePageAction } from '../actions';
 
 interface CycleFormModalProps {
-  people: { userId: string; name: string; email: string; role: UserRole }[];
+  initialPage: PaginatedResult<{ userId: string; name: string; email: string; role: UserRole; deactivated: boolean }>;
   busy: boolean;
   error: string | null;
-  onSubmit: (input: { label: string; passingScore: number; employeeIds: string[] }) => void;
+  onSubmit: (input: { label: string; passingScore: number; selectAll: boolean; excludedIds: string[] }) => void;
   onClose: () => void;
 }
 
@@ -16,22 +19,29 @@ const inputCls =
   'w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400';
 
 /** Collects cycle settings and the employees who should receive invitations. */
-export default function CycleFormModal({ people, busy, error, onSubmit, onClose }: CycleFormModalProps) {
+export default function CycleFormModal({ initialPage, busy, error, onSubmit, onClose }: CycleFormModalProps) {
   const [label, setLabel] = useState('');
   const [passingScore, setPassingScore] = useState(8);
-  const [selected, setSelected] = useState(() => new Set(people.map((person) => person.userId)));
+  const [excluded, setExcluded] = useState(() => new Set<string>());
   const [query, setQuery] = useState('');
-  const visiblePeople = useMemo(() => {
-    const search = query.trim().toLowerCase();
-    if (!search) return people;
-    return people.filter((person) =>
-      person.name.toLowerCase().includes(search)
-      || person.email.toLowerCase().includes(search)
-      || person.role.replace('_', ' ').includes(search)
-    );
-  }, [people, query]);
-  const allVisibleSelected = visiblePeople.length > 0 && visiblePeople.every((person) => selected.has(person.userId));
-  const valid = label.trim().length >= 3 && passingScore >= 0 && passingScore <= 10 && selected.size > 0;
+  const [peoplePage, setPeoplePage] = useState(initialPage);
+  const [page, setPage] = useState(initialPage.page);
+  const [pageSize, setPageSize] = useState(initialPage.pageSize);
+  const [loading, setLoading] = useState(false);
+  const visiblePeople = peoplePage.items;
+  const allVisibleSelected = visiblePeople.length > 0 && visiblePeople.every((person) => !excluded.has(person.userId));
+  const selectedCount = Math.max(0, peoplePage.total - excluded.size);
+  const valid = label.trim().length >= 3 && passingScore >= 0 && passingScore <= 10 && selectedCount > 0;
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setLoading(true);
+      listInvitablePeoplePageAction(page, pageSize, query).then((res) => {
+        if (res.status === 'ok') setPeoplePage(res.data);
+      }).finally(() => setLoading(false));
+    }, query ? 250 : 0);
+    return () => clearTimeout(timer);
+  }, [page, pageSize, query]);
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 md:p-6" role="dialog" aria-modal="true">
@@ -39,7 +49,7 @@ export default function CycleFormModal({ people, busy, error, onSubmit, onClose 
         className="w-full min-w-0 max-w-md max-h-[calc(100vh-2rem)] overflow-x-hidden overflow-y-auto bg-white rounded-2xl shadow-xl p-6"
         onSubmit={(e) => {
           e.preventDefault();
-          if (valid && !busy) onSubmit({ label: label.trim(), passingScore, employeeIds: [...selected] });
+          if (valid && !busy) onSubmit({ label: label.trim(), passingScore, selectAll: true, excludedIds: [...excluded] });
         }}
       >
         <div className="flex items-start justify-between">
@@ -59,9 +69,9 @@ export default function CycleFormModal({ people, busy, error, onSubmit, onClose 
               <legend className="min-w-0 text-[11px] font-black uppercase tracking-wider text-slate-500">Recipients</legend>
               <button
                 type="button"
-                onClick={() => setSelected((current) => {
+                onClick={() => setExcluded((current) => {
                   const next = new Set(current);
-                  visiblePeople.forEach((person) => allVisibleSelected ? next.delete(person.userId) : next.add(person.userId));
+                  visiblePeople.forEach((person) => allVisibleSelected ? next.add(person.userId) : next.delete(person.userId));
                   return next;
                 })}
                 disabled={visiblePeople.length === 0}
@@ -75,7 +85,7 @@ export default function CycleFormModal({ people, busy, error, onSubmit, onClose 
               <input
                 type="search"
                 value={query}
-                onChange={(event) => setQuery(event.target.value)}
+                onChange={(event) => { setQuery(event.target.value); setPage(1); }}
                 placeholder="Search name, email, or role"
                 aria-label="Search assessment recipients"
                 className={`${inputCls} box-border min-w-0 max-w-full pl-9`}
@@ -84,7 +94,7 @@ export default function CycleFormModal({ people, busy, error, onSubmit, onClose 
             <div className="mt-2 w-full min-w-0 max-w-full max-h-52 overflow-x-hidden overflow-y-auto rounded-xl border border-slate-200 divide-y divide-slate-100">
               {visiblePeople.map((person) => (
                 <label key={person.userId} className="flex w-full min-w-0 items-center gap-3 px-3.5 py-2.5 hover:bg-slate-50 cursor-pointer">
-                  <input type="checkbox" checked={selected.has(person.userId)} onChange={() => setSelected((current) => {
+                  <input type="checkbox" checked={!excluded.has(person.userId)} onChange={() => setExcluded((current) => {
                     const next = new Set(current);
                     if (next.has(person.userId)) next.delete(person.userId); else next.add(person.userId);
                     return next;
@@ -100,6 +110,8 @@ export default function CycleFormModal({ people, busy, error, onSubmit, onClose 
               ))}
               {visiblePeople.length === 0 && <p className="p-4 text-xs text-slate-500">No active users match your search.</p>}
             </div>
+            <Pagination page={page} pageSize={pageSize} total={peoplePage.total} disabled={loading || busy}
+              onPageChange={setPage} onPageSizeChange={(size) => { setPageSize(size); setPage(1); }} />
           </fieldset>
           <label className="block">
             <span className="text-[11px] font-black uppercase tracking-wider text-slate-500">Passing score (out of 10)</span>
@@ -108,7 +120,7 @@ export default function CycleFormModal({ people, busy, error, onSubmit, onClose 
         </div>
 
         <p className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-xs font-semibold text-amber-800 leading-relaxed">
-          Opening this cycle emails an invitation to <strong>{selected.size}</strong> selected {selected.size === 1 ? 'user' : 'users'} straight away.
+          Opening this cycle emails an invitation to <strong>{selectedCount}</strong> selected {selectedCount === 1 ? 'user' : 'users'} straight away.
           Invitations are valid for 7 days.
         </p>
 

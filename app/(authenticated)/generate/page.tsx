@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { listEmployees } from '@/services/employee-service';
+import { listEmployeesPageAction } from '../repository/actions';
 import { getCurrentUser, canEditProfilesAndCvs } from '@/lib/auth';
 import GenerateClient from './GenerateClient';
 
@@ -14,7 +14,7 @@ export default async function GeneratePage() {
   if (!canEditProfilesAndCvs(user.role)) redirect('/repository');
 
   const supabase = await createClient();
-  const employees = await listEmployees(supabase);
+  const employees = await listEmployeesPageAction(1, 20);
 
-  return <GenerateClient employees={employees} />;
+  return <GenerateClient initialPage={employees} />;
 }

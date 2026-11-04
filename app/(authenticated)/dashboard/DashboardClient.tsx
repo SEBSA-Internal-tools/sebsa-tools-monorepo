@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { PageWrapper } from '../../components/PageWrapper';
 import { NotificationList } from '../../components/NotificationList';
 import { markNotificationReadAction } from '../notifications/actions';
-import type { Employee } from '@/types/domain';
 import type { AppNotification } from '@/services/notification-service';
 import type { AuditLogRecord } from '@/services/audit-service';
 import {
@@ -16,13 +15,13 @@ import {
 } from 'lucide-react';
 
 interface DashboardClientProps {
-  employees: Employee[];
+  employeeCount: number;
   generatedCvCount: number;
   initialNotifications: AppNotification[];
   recentAuditLogs: AuditLogRecord[];
 }
 
-export default function DashboardClient({ employees, generatedCvCount, initialNotifications, recentAuditLogs }: DashboardClientProps) {
+export default function DashboardClient({ employeeCount, generatedCvCount, initialNotifications, recentAuditLogs }: DashboardClientProps) {
   const router = useRouter();
   const [notifications, setNotifications] = useState(initialNotifications);
 
@@ -35,7 +34,7 @@ export default function DashboardClient({ employees, generatedCvCount, initialNo
   };
 
   // Dynamic statistics calculations
-  const totalEmployeesCount = employees.length;
+  const totalEmployeesCount = employeeCount;
 
   const kpis = [
     {
