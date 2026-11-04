@@ -198,3 +198,24 @@
 }
 
 @include dashboard.surfaces;
+
+// The shared dashboard surfaces reset `.card-header` padding to 0 (they expect
+// the card to supply its own), but `.projects-card` has none — so the heading
+// sat flush against the rounded edge and got clipped. These come after the
+// mixin and are more specific so they win.
+.cso-dashboard-tab {
+  .dashboard-context {
+    margin: 16px 0 10px;
+  }
+
+  .projects-card {
+    border-radius: 12px;
+    overflow: hidden;
+    overflow-x: auto;
+
+    .card-header {
+      padding: 16px 20px;
+      margin-bottom: 0;
+    }
+  }
+}

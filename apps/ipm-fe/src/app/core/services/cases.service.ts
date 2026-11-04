@@ -186,6 +186,15 @@ export class CasesService {
     return this.http.get<CaseStatusHistoryEntry[]>(`/api/cases/${caseId}/status-history`);
   }
 
+  /** Copies a case (new id, status reset to To Do) into the same or another
+   * project. `notes` lists anything that could not be carried over. */
+  cloneCase(
+    caseId: string,
+    options: { title?: string; projectId?: string; includeTasks?: boolean; category?: TaskCategory } = {},
+  ): Observable<{ item: BackendCase; notes: string[] }> {
+    return this.http.post<{ item: BackendCase; notes: string[] }>(`/api/cases/${caseId}/clone`, options);
+  }
+
   deleteCase(caseId: string): Observable<{ message: string }> {
     return this.http.delete<{ message: string }>(`/api/cases/${caseId}`).pipe(
       tap(() => this.setState(this._cases().filter((c) => c.id !== caseId))),

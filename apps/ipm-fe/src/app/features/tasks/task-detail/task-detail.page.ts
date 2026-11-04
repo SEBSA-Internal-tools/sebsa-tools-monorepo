@@ -30,6 +30,8 @@ import { TaskAttachmentsComponent } from '../../../core/components/task-attachme
 import { CustomSelectComponent } from '../../../core/components/custom-select/custom-select.component';
 import { CustomDatepickerComponent } from '../../../core/components/custom-datepicker/custom-datepicker.component';
 import { ConfirmationService } from '../../../core/services/confirmation.service';
+import { ToastService } from '../../../core/services/toast.service';
+import { CopyDialogComponent, type CopyRequest } from '../../../core/components/copy-dialog/copy-dialog.component';
 
 interface TaskEditDraft {
   title: string;
@@ -57,6 +59,7 @@ interface TaskEditDraft {
     TaskAttachmentsComponent,
     CustomSelectComponent,
     CustomDatepickerComponent,
+    CopyDialogComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './task-detail.page.html',
@@ -64,6 +67,7 @@ interface TaskEditDraft {
 })
 export class TaskDetailPageComponent implements OnInit {
   private readonly confirmation = inject(ConfirmationService);
+  private readonly toast = inject(ToastService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private location = inject(Location);
@@ -77,6 +81,9 @@ export class TaskDetailPageComponent implements OnInit {
   isLoading = signal(false);
   isSaving = signal(false);
   isUpdatingStatus = signal(false);
+  isCloning = signal(false);
+  isCopyDialogOpen = signal(false);
+  copyError = signal('');
   errorMessage = signal('');
   isAddSubtaskModalOpen = signal(false);
   /** Non-null while the subtask modal is open in edit mode. */
@@ -376,6 +383,45 @@ export class TaskDetailPageComponent implements OnInit {
         this.isSaving.set(false);
       },
     });
+  }
+
+  openCopyDialog(): void {
+    this.copyError.set('');
+    this.isCopyDialogOpen.set(true);
+  }
+
+  closeCopyDialog(): void {
+    if (this.isCloning()) return;
+    this.isCopyDialogOpen.set(false);
+  }
+
+  /** Creates the copy the user confirmed in the dialog and opens it. */
+  confirmCopy(request: CopyRequest): void {
+    const current = this.task();
+    if (!current || this.isCloning()) return;
+
+    this.isCloning.set(true);
+    this.copyError.set('');
+    this.tasksService
+      .cloneTask(current.id, {
+        title: request.title,
+        caseId: request.caseId,
+        category: request.category,
+      })
+      .subscribe({
+        next: ({ item, notes }) => {
+          this.isCloning.set(false);
+          this.isCopyDialogOpen.set(false);
+          this.isDirty.set(false);
+          this.toast.success(`Copied as "${item.title}".`);
+          if (notes.length) this.toast.warning(notes.join(' '), 10000);
+          this.router.navigate(['/tasks', item.id]);
+        },
+        error: (err) => {
+          this.copyError.set(err?.error?.message || 'Failed to copy task.');
+          this.isCloning.set(false);
+        },
+      });
   }
 
   async deleteTask(): Promise<void> {

@@ -1,0 +1,143 @@
+@if (isOpen) {
+  <div class="modal-overlay" (click)="onCancel()" aria-hidden="true"></div>
+
+  <div
+    class="modal-container"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="copy-dialog-title"
+    (keydown.escape)="onCancel()"
+  >
+    <div class="modal-header">
+      <div class="header-content">
+        <p class="header-label">COPY {{ kind === 'case' ? 'CASE' : 'TASK' }}</p>
+        <h2 id="copy-dialog-title">Check the details of the copy</h2>
+      </div>
+      <button type="button" class="close-btn" (click)="onCancel()" [disabled]="isBusy" title="Close" aria-label="Close dialog">
+        <span class="material-symbols-outlined" aria-hidden="true">close</span>
+      </button>
+    </div>
+
+    <div class="modal-body">
+      <p class="intro">
+        A new {{ kindLabel }} will be created from
+        <strong>"{{ sourceTitle }}"</strong>. Its status starts at <strong>To Do</strong>.
+        Change anything below before you copy.
+      </p>
+
+      <div class="form-group">
+        <label class="form-label" for="copy-title">Name <span class="required">*</span></label>
+        <input
+          id="copy-title"
+          class="form-input"
+          type="text"
+          maxlength="300"
+          [(ngModel)]="title"
+          (ngModelChange)="checkDuplicates()"
+          (keydown.enter)="onConfirm()"
+          autocomplete="off"
+        />
+        @if (title.trim().length > 0 && title.trim().length < 3) {
+          <span class="hint hint-error">The name must be at least 3 characters.</span>
+        }
+        @if (duplicateCount() > 0) {
+          <div class="notice notice-warning" role="status">
+            <span class="material-symbols-outlined" aria-hidden="true">warning</span>
+            <span>
+              {{ duplicateCount() === 1 ? 'A ' + kindLabel + ' already uses' : duplicateCount() + ' ' + kindLabel + 's already use' }}
+              this name {{ kind === 'case' ? 'in the selected project' : 'in the selected case' }}.
+              You can still copy it, but you may want to rename the copy so they are easy to tell apart.
+            </span>
+          </div>
+        }
+      </div>
+
+      <div class="form-group">
+        <span class="form-label">Project</span>
+        <app-custom-select
+          [ngModel]="selectedProjectId"
+          (ngModelChange)="onProjectChange($event)"
+          [options]="projectOptions()"
+          defaultOptionLabel="Select a project..."
+          defaultOptionValue=""
+          ariaLabel="Project for the copy"
+        ></app-custom-select>
+      </div>
+
+      @if (kind === 'task') {
+        <div class="form-group">
+          <span class="form-label">Case</span>
+          <app-custom-select
+            [ngModel]="selectedCaseId"
+            (ngModelChange)="onCaseChange($event)"
+            [options]="caseOptions()"
+            defaultOptionLabel="Select a case..."
+            defaultOptionValue=""
+            ariaLabel="Case for the copy"
+          ></app-custom-select>
+        </div>
+      }
+
+      @if (needsCategory) {
+        <div class="form-group">
+          <span class="form-label">Category <span class="required">*</span></span>
+          <app-custom-select
+            [(ngModel)]="category"
+            [options]="categoryOptions"
+            defaultOptionLabel="Functional or Technical..."
+            defaultOptionValue=""
+            ariaLabel="Category for the copy"
+          ></app-custom-select>
+          <span class="hint">The target is a CSO {{ kind === 'case' ? 'project' : 'case' }}, so the copy needs a Functional or Technical tag.</span>
+        </div>
+      }
+
+      @if (kind === 'case') {
+        <label class="checkbox-row">
+          <input type="checkbox" [(ngModel)]="includeTasks" />
+          <span>
+            Also copy this case's tasks{{ taskCount !== null ? ' (' + taskCount + ')' : '' }}
+            <small>They start at To Do, with the same assignees and labels where possible.</small>
+          </span>
+        </label>
+      }
+
+      @if (!isSameLocation) {
+        <div class="notice notice-info">
+          <span class="material-symbols-outlined" aria-hidden="true">info</span>
+          <span>
+            Copying to {{ kind === 'case' ? 'a different project' : 'a different case' }}:
+            priority and labels are matched by name, and only people who are members of the target project keep their assignment.
+            Anything that cannot be carried over is listed after the copy.
+          </span>
+        </div>
+      }
+      <div class="notice notice-info">
+        <span class="material-symbols-outlined" aria-hidden="true">info</span>
+        <span>
+          {{ kind === 'case' ? 'Sprint' : 'Subtasks, comments, attachments and dependencies' }} {{ kind === 'case' ? 'is' : 'are' }} not copied.
+        </span>
+      </div>
+
+      @if (loadError()) {
+        <div class="notice notice-error" role="alert">
+          <span class="material-symbols-outlined" aria-hidden="true">error</span>
+          <span>{{ loadError() }}</span>
+        </div>
+      }
+      @if (errorMessage) {
+        <div class="notice notice-error" role="alert">
+          <span class="material-symbols-outlined" aria-hidden="true">error</span>
+          <span>{{ errorMessage }}</span>
+        </div>
+      }
+    </div>
+
+    <div class="modal-footer">
+      <button type="button" class="btn-cancel" (click)="onCancel()" [disabled]="isBusy">Cancel</button>
+      <button type="button" class="btn-create" (click)="onConfirm()" [disabled]="!isValid || isBusy">
+        {{ isBusy ? 'Copying…' : 'Create copy' }}
+      </button>
+    </div>
+  </div>
+}

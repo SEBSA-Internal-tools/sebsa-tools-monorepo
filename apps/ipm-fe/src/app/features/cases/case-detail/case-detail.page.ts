@@ -22,6 +22,7 @@ import { TaskAttachmentsComponent } from '../../../core/components/task-attachme
 import { CustomSelectComponent } from '../../../core/components/custom-select/custom-select.component';
 import { CustomDatepickerComponent } from '../../../core/components/custom-datepicker/custom-datepicker.component';
 import { ToastService } from '../../../core/services/toast.service';
+import { CopyDialogComponent, type CopyRequest } from '../../../core/components/copy-dialog/copy-dialog.component';
 import { ConfirmationService } from '../../../core/services/confirmation.service';
 
 interface CaseEditDraft {
@@ -48,6 +49,7 @@ interface CaseEditDraft {
     TaskAttachmentsComponent,
     CustomSelectComponent,
     CustomDatepickerComponent,
+    CopyDialogComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './case-detail.page.html',
@@ -68,6 +70,9 @@ export class CaseDetailPageComponent implements OnInit {
   isLoading = signal(false);
   isSaving = signal(false);
   isUpdatingStatus = signal(false);
+  isCloning = signal(false);
+  isCopyDialogOpen = signal(false);
+  copyError = signal('');
   errorMessage = signal('');
   isAddTaskModalOpen = signal(false);
 
@@ -344,6 +349,46 @@ export class CaseDetailPageComponent implements OnInit {
         this.isSaving.set(false);
       },
     });
+  }
+
+  openCopyDialog(): void {
+    this.copyError.set('');
+    this.isCopyDialogOpen.set(true);
+  }
+
+  closeCopyDialog(): void {
+    if (this.isCloning()) return;
+    this.isCopyDialogOpen.set(false);
+  }
+
+  /** Creates the copy the user confirmed in the dialog and opens it. */
+  confirmCopy(request: CopyRequest): void {
+    const current = this.kase();
+    if (!current || this.isCloning()) return;
+
+    this.isCloning.set(true);
+    this.copyError.set('');
+    this.casesService
+      .cloneCase(current.id, {
+        title: request.title,
+        projectId: request.projectId,
+        includeTasks: request.includeTasks,
+        category: request.category,
+      })
+      .subscribe({
+        next: ({ item, notes }) => {
+          this.isCloning.set(false);
+          this.isCopyDialogOpen.set(false);
+          this.isDirty.set(false);
+          this.toast.success(`Copied as "${item.title}".`);
+          if (notes.length) this.toast.warning(notes.join(' '), 10000);
+          this.router.navigate(['/cases', item.id]);
+        },
+        error: (err) => {
+          this.copyError.set(err?.error?.message || 'Failed to copy case.');
+          this.isCloning.set(false);
+        },
+      });
   }
 
   async deleteCase(): Promise<void> {

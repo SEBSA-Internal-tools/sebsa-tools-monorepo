@@ -16,6 +16,8 @@ import {
 } from '@sebsa-pm-tool/shared-models';
 import { ActivityAction, EntityType, Prisma, TaskCategory } from '@prisma/client';
 import { CreateTaskDto } from './dto/create-task.dto';
+import { CloneTaskDto } from './dto/clone-task.dto';
+import { mapForTargetProject } from '../common/clone-mapping';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { FilterTaskDto } from './dto/filter-task.dto';
 import { CreateTaskDependencyDto } from './dto/create-task-dependency.dto';
@@ -163,6 +165,69 @@ export class TaskService {
     }
 
     return this.findOne(created.id, user);
+  }
+
+  /**
+   * Copy a task (typically one that was closed) as a fresh task: new id,
+   * status reset to To Do, title as given (defaults to the original's). It can
+   * go under the same case or any case (including in another project) the
+   * user can create tasks in. Goes through `create()` so permissions,
+   * validation, status history and the activity log behave exactly as for a
+   * hand-made task. `notes` lists anything that could not be carried over.
+   */
+  async clone(
+    id: string,
+    dto: CloneTaskDto,
+    user: AuthUser,
+  ): Promise<{ item: Task; notes: string[] }> {
+    const source = await this.prisma.task.findFirst({
+      where: { id, deletedAt: null },
+      include: {
+        case: { select: { projectId: true } },
+        assignees: { select: { userId: true } },
+        labels: { select: { labelId: true } },
+      },
+    });
+    if (!source) {
+      throw new NotFoundException('Task not found.');
+    }
+    await this.access.assertVisible(source.case.projectId, user);
+
+    const targetCaseId = dto.caseId ?? source.caseId;
+    const targetCase = await this.getCaseOrThrow(targetCaseId);
+
+    const mapped = await mapForTargetProject(
+      this.prisma,
+      source.case.projectId,
+      targetCase.projectId,
+      {
+        priorityId: source.priorityId,
+        assigneeIds: source.assignees.map((a) => a.userId),
+        labelIds: source.labels.map((l) => l.labelId),
+      },
+    );
+
+    const item = await this.create(
+      {
+        caseId: targetCaseId,
+        title: dto.title ?? source.title,
+        description: source.description ?? undefined,
+        status: 'TO_DO',
+        priorityId: mapped.priorityId,
+        startDate: source.startDate?.toISOString(),
+        dueDate: source.dueDate?.toISOString(),
+        storyPoints: source.storyPoints ?? undefined,
+        reminderLeadMinutes: source.reminderLeadMinutes ?? undefined,
+        category: dto.category ?? source.category ?? undefined,
+        taskTypeId: source.taskTypeId ?? undefined,
+        complexityLevelId: source.complexityLevelId ?? undefined,
+        assigneeIds: mapped.assigneeIds,
+        labelIds: mapped.labelIds,
+      },
+      user,
+    );
+
+    return { item, notes: mapped.notes };
   }
 
   async findAll(filter: FilterTaskDto, user: AuthUser): Promise<TaskSummary[]> {

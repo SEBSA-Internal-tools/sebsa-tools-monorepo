@@ -225,6 +225,15 @@ export class TasksService {
     );
   }
 
+  /** Copies a task (new id, status reset to To Do) under the same or another
+   * case. `notes` lists anything that could not be carried over. */
+  cloneTask(
+    taskId: string,
+    options: { title?: string; caseId?: string; category?: TaskCategory } = {},
+  ): Observable<{ item: BackendTask; notes: string[] }> {
+    return this.http.post<{ item: BackendTask; notes: string[] }>(`/api/tasks/${taskId}/clone`, options);
+  }
+
   deleteTask(taskId: string): Observable<{ message: string }> {
     return this.http.delete<{ message: string }>(`/api/tasks/${taskId}`).pipe(
       tap(() => {

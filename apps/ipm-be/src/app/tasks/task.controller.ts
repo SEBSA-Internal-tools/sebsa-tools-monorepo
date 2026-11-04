@@ -14,6 +14,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { TaskService } from './task.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
+import { CloneTaskDto } from './dto/clone-task.dto';
 import { AuthUser } from '@sebsa-pm-tool/shared-models';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
@@ -71,6 +72,15 @@ export class TaskController {
     @CurrentUser() user: AuthUser,
   ) {
     return this.taskService.update(id, dto, user);
+  }
+
+  @Post(':id/clone')
+  async clone(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CloneTaskDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.taskService.clone(id, dto, user);
   }
 
   @Delete(':id')
