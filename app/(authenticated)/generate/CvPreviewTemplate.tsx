@@ -19,9 +19,11 @@ interface CvPreviewTemplateProps {
    * preview (docs/04-rbac-security.md §15).
    */
   id?: string;
+  /** The preview text can be edited in place. Pass false for a read-only reference copy. */
+  editable?: boolean;
 }
 
-export default function CvPreviewTemplate({ cv, onChange, id = 'cv-preview-root', highlightFields = [] }: CvPreviewTemplateProps) {
+export default function CvPreviewTemplate({ cv, onChange, id = 'cv-preview-root', highlightFields = [], editable = true }: CvPreviewTemplateProps) {
   // Compile the Handlebars template with the current CV data
   const compiledHtml = useMemo(() => {
     try {
@@ -66,7 +68,7 @@ export default function CvPreviewTemplate({ cv, onChange, id = 'cv-preview-root'
         fontSize: '14px',
         color: '#2D3748',
       }}
-      contentEditable
+      contentEditable={editable}
       suppressContentEditableWarning
       dangerouslySetInnerHTML={{ __html: compiledHtml }}
     />
