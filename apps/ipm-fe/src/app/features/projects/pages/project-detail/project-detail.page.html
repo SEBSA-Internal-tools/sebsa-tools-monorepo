@@ -15,6 +15,7 @@
     <project-nav-tabs
       [activeTab]="activeTab"
       [canManage]="canManage()"
+      [canCreateCase]="project.permissions.canCreateCase"
       (tabChange)="onTabChange($event)"
       (addTaskClick)="onAddTaskClick()"
     ></project-nav-tabs>

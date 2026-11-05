@@ -154,7 +154,7 @@ export class CreateCaseModalComponent implements OnChanges {
     this.isLoadingUsers.set(true);
     this.userError.set('');
     this.selectedAssigneeId = '';
-    this.projectsService.getMembers(projectId).subscribe({
+    this.projectsService.getAssignableMembers(projectId).subscribe({
       next: (members) => {
         this.availableAssignees.set(members.map((m) => m.user));
         this.isLoadingUsers.set(false);
@@ -191,7 +191,9 @@ export class CreateCaseModalComponent implements OnChanges {
   private loadAvailableProjects(): void {
     this.projectsService.getProjects().subscribe({
       next: (projects) => {
-        let mapped = projects.map((p) => ({ id: p.id, name: p.name, isCsoProject: p.isCsoProject }));
+        let mapped = projects
+          .filter((p) => p.permissions.canCreateCase)
+          .map((p) => ({ id: p.id, name: p.name, isCsoProject: p.isCsoProject }));
         // Forced-CSO entry points (CSO Queue/Overview "Create Case") may only
         // target CSO projects — otherwise the created case would be tagged
         // CSO while its project is not, which is the contradiction this

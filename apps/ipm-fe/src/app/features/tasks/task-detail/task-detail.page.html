@@ -29,6 +29,7 @@
         {{ isSaving() ? 'Saving…' : 'Save Changes' }}
       </button>
     }
+    @if (projectPermissions()?.canCreateTask) {
     <button
       type="button"
       class="discard-btn"
@@ -38,6 +39,8 @@
       <span class="material-symbols-outlined">content_copy</span>
       Copy
     </button>
+    }
+    @if (projectPermissions()?.canDeleteTask) {
     <button
       type="button"
       class="delete-btn"
@@ -46,6 +49,7 @@
       <span class="material-symbols-outlined">delete</span>
       Delete
     </button>
+    }
   </div>
 }
   </div>
@@ -238,6 +242,7 @@
                   >
                     <span class="material-symbols-outlined">edit</span>
                   </button>
+                  @if (projectPermissions()?.canDeleteTask) {
                   <button
                     type="button"
                     class="subtask-action-btn delete"
@@ -247,6 +252,7 @@
                   >
                     <span class="material-symbols-outlined">delete</span>
                   </button>
+                  }
                 </div>
               </div>
             }

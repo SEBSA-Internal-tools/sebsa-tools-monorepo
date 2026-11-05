@@ -43,10 +43,12 @@
         customClass="customer-filter"
       ></app-custom-select>
 
-      <button type="button" class="btn-primary" (click)="onNewProject()">
-        <span class="material-symbols-outlined">add</span>
-        New project
-      </button>
+      @if (canCreate) {
+        <button type="button" class="btn-primary" (click)="onNewProject()">
+          <span class="material-symbols-outlined">add</span>
+          New project
+        </button>
+      }
     </div>
   </div>
 
@@ -104,14 +106,16 @@
             <div class="col-updated">{{ project.updatedAt | date: 'mediumDate' }}</div>
 
             <div class="col-actions">
-              <button
-                type="button"
-                class="btn-delete"
-                (click)="onDeleteProject(project.id)"
-                title="Delete project" [attr.aria-label]="'Delete project ' + project.name"
-              >
-                <span class="material-symbols-outlined">delete</span>
-              </button>
+              @if (project.permissions.canManageMembers) {
+                <button
+                  type="button"
+                  class="btn-delete"
+                  (click)="onDeleteProject(project.id)"
+                  title="Delete project" [attr.aria-label]="'Delete project ' + project.name"
+                >
+                  <span class="material-symbols-outlined">delete</span>
+                </button>
+              }
             </div>
           </div>
         }
@@ -124,9 +128,14 @@
           <p>Try another search or clear your filters.</p>
           <button type="button" class="reset-filters" (click)="resetFilters()">Clear filters</button>
         } @else {
-          <h3>Your projects start here</h3>
-          <p>Create a project to organize cases, tasks, and your team.</p>
-          <button type="button" class="btn-primary" (click)="onNewProject()">Create project</button>
+          @if (canCreate) {
+            <h3>Your projects start here</h3>
+            <p>Create a project to organize cases, tasks, and your team.</p>
+            <button type="button" class="btn-primary" (click)="onNewProject()">Create project</button>
+          } @else {
+            <h3>No projects yet</h3>
+            <p>You haven't been added to any project. Ask an administrator to add you.</p>
+          }
         }
       </div>
     }

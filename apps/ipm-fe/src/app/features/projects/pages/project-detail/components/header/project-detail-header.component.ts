@@ -34,10 +34,12 @@ const STATUS_LABELS: Record<ProjectStatus, string> = {
         <span class="badge" [class]="statusClass()">
           {{ statusLabel() }}
         </span>
-        <button type="button" class="edit-btn" (click)="onEditClick()" title="Edit project">
-          <span class="material-symbols-outlined">edit</span>
-          Edit
-        </button>
+        @if (project.permissions.canManageMembers) {
+          <button type="button" class="edit-btn" (click)="onEditClick()" title="Edit project">
+            <span class="material-symbols-outlined">edit</span>
+            Edit
+          </button>
+        }
       </div>
     </header>
   `,

@@ -111,12 +111,30 @@ export class ProjectAccessService {
     targetUserIds: string[],
     editPermission: ProjectPermission,
   ): Promise<void> {
+    if (ADMIN_SYSTEM_ROLES.includes(user.systemRole)) return;
+    if (targetUserIds.every((id) => id === user.id)) {
+      // Claiming or releasing your own work needs no edit grant, only an
+      // active, non-read-only membership (e.g. picking a case off the queue).
+      await this.assertActiveMember(projectId, user);
+      return;
+    }
     await this.assertCan(projectId, user, editPermission);
-    if (await this.can(projectId, user, 'canManageMembers')) return;
-    if (targetUserIds.some((id) => id !== user.id)) {
+    if (!(await this.can(projectId, user, 'canManageMembers'))) {
       throw new ForbiddenException(
         'You can only assign or unassign yourself. Ask a project manager to assign others.',
       );
+    }
+  }
+
+  /** Active membership whose group is not read-only. */
+  async assertActiveMember(projectId: string, user: AuthUser): Promise<void> {
+    if (ADMIN_SYSTEM_ROLES.includes(user.systemRole)) return;
+    const membership = await this.prisma.projectMember.findFirst({
+      where: { projectId, userId: user.id, deletedAt: null },
+      include: { role: { include: { privilegeGroup: true } } },
+    });
+    if (!membership || membership.role.privilegeGroup.isReadOnly) {
+      throw new ForbiddenException('You do not have access to change assignees in this project.');
     }
   }
 
@@ -129,13 +147,20 @@ export class ProjectAccessService {
     user: AuthUser,
     nextUserIds: string[],
     currentUserIds: string[] = [],
+    editPermission?: ProjectPermission,
   ): Promise<void> {
-    if (await this.can(projectId, user, 'canManageMembers')) return;
+    if (ADMIN_SYSTEM_ROLES.includes(user.systemRole)) return;
     const others = (ids: string[]) => new Set(ids.filter((id) => id !== user.id));
     const next = others(nextUserIds);
     const current = others(currentUserIds);
     const unchanged = next.size === current.size && [...next].every((id) => current.has(id));
-    if (!unchanged) {
+    if (unchanged) {
+      // Only your own presence changed: any active member may do that.
+      await this.assertActiveMember(projectId, user);
+      return;
+    }
+    if (editPermission) await this.assertCan(projectId, user, editPermission);
+    if (!(await this.can(projectId, user, 'canManageMembers'))) {
       throw new ForbiddenException(
         'You can only assign or unassign yourself. Ask a project manager to assign others.',
       );

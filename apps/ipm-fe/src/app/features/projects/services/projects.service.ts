@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, map } from 'rxjs';
+import { AuthService } from '../../../core/services/auth.service';
 import {
   Project,
   ProjectSummary,
@@ -50,6 +51,7 @@ export interface ProjectsHeroData {
 })
 export class ProjectsService {
   private readonly http = inject(HttpClient);
+  private readonly auth = inject(AuthService);
 
   getProjects(): Observable<ProjectSummary[]> {
     return this.http.get<ProjectSummary[]>('/api/projects');
@@ -97,6 +99,22 @@ export class ProjectsService {
 
   updateRole(id: string, roleId: string, dto: UpdateRoleRequest): Observable<ProjectRole> {
     return this.http.patch<ProjectRole>(`/api/projects/${id}/roles/${roleId}`, dto);
+  }
+
+  /** Members the current user may assign work to. Admins and roles that can
+   * manage members get everyone; everyone else may only pick themselves, so
+   * the pickers never offer a choice the API would refuse. */
+  getAssignableMembers(id: string): Observable<ProjectMemberSummary[]> {
+    return this.getMembers(id).pipe(
+      map((members) => {
+        const me = this.auth.currentUser();
+        if (!me) return [];
+        if (me.systemRole === 'ADMIN' || me.systemRole === 'SUPER_ADMIN') return members;
+        const mine = members.find((m) => m.userId === me.id);
+        if (mine?.role.privilegeGroup.canManageMembers) return members;
+        return members.filter((m) => m.userId === me.id);
+      }),
+    );
   }
 
   getMembers(id: string): Observable<ProjectMemberSummary[]> {

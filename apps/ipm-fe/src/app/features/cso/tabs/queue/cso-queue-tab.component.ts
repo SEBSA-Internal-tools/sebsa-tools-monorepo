@@ -5,7 +5,10 @@ import { Router } from '@angular/router';
 import type { CreateCaseRequest, ProjectSummary, TaskCategory } from '@sebsa-pm-tool/shared-models';
 import { CsoTaskQueueService, CsoQueueCaseView } from '../../../../core/services/cso-task-queue.service';
 import { ProjectsService } from '../../../projects/services/projects.service';
+import { CaseCreationAccessService } from '../../../../core/services/case-creation-access.service';
 import { CasesService } from '../../../../core/services/cases.service';
+import { AuthService } from '../../../../core/services/auth.service';
+import { ToastService } from '../../../../core/services/toast.service';
 import { CreateCaseModalComponent, type CaseFormData } from '../../../cases/create-case/create-case-modal.component';
 import { CustomSelectComponent } from '../../../../core/components/custom-select/custom-select.component';
 
@@ -32,9 +35,13 @@ export class CsoQueueTabComponent implements OnInit, OnChanges {
   @Input({ required: true }) category!: TaskCategory;
 
   private readonly csoTaskQueueService = inject(CsoTaskQueueService);
+  protected readonly caseAccess = inject(CaseCreationAccessService);
   private readonly projectsService = inject(ProjectsService);
   private readonly casesService = inject(CasesService);
   private readonly router = inject(Router);
+  private readonly auth = inject(AuthService);
+  private readonly toast = inject(ToastService);
+  protected readonly assigningId = signal<string | null>(null);
 
   protected readonly cases = this.csoTaskQueueService.cases;
   protected readonly isLoading = this.csoTaskQueueService.isLoading;
@@ -78,6 +85,7 @@ export class CsoQueueTabComponent implements OnInit, OnChanges {
   });
 
   ngOnInit(): void {
+    this.caseAccess.ensureLoaded();
     this.loadData();
   }
 
@@ -127,6 +135,25 @@ export class CsoQueueTabComponent implements OnInit, OnChanges {
 
   closeTaskModal(): void {
     this.isCaseModalOpen = false;
+  }
+
+  /** Claim a case from the queue: adds the current user as its assignee. */
+  protected assignToMe(kase: CsoQueueCaseView, event: Event): void {
+    event.stopPropagation();
+    const me = this.auth.currentUser();
+    if (!me || this.assigningId()) return;
+    this.assigningId.set(kase.id);
+    this.casesService.assignUsers(kase.id, [me.id]).subscribe({
+      next: () => {
+        this.assigningId.set(null);
+        this.toast.success(`"${kase.title}" is now assigned to you.`);
+        this.applyFilters();
+      },
+      error: (err) => {
+        this.assigningId.set(null);
+        this.toast.error(err?.error?.message ?? 'Could not assign this case.');
+      },
+    });
   }
 
   onCaseClick(caseId: string): void {

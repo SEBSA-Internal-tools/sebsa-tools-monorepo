@@ -32,6 +32,8 @@ export class ProjectNavTabsComponent {
 
   /** Activity and Integrations are management-only tabs. */
   @Input() canManage = false;
+  /** Hides the New case button for users without the create-case grant. */
+  @Input() canCreateCase = false;
 
   get tabs(): Tab[] {
     return this.allTabs.filter(

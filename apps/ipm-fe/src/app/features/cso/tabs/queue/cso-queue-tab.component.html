@@ -11,10 +11,12 @@
     >
       <span class="material-symbols-outlined">refresh</span>
     </button>
-    <button type="button" class="btn-primary" (click)="openTaskModal()">
-      <span class="material-symbols-outlined">add</span>
-      Create Case
-    </button>
+    @if (caseAccess.canCreateCso()) {
+      <button type="button" class="btn-primary" (click)="openTaskModal()">
+        <span class="material-symbols-outlined">add</span>
+        Create Case
+      </button>
+    }
   </div>
 
   @if (errorMessage) {
@@ -88,6 +90,7 @@
               <th>Priority</th>
               <th>Status</th>
               <th>Due Date</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -113,6 +116,19 @@
                   </span>
                 </td>
                 <td>{{ kase.dueDate ? (kase.dueDate | date: 'mediumDate') : '—' }}</td>
+                <td>
+                  @if (kase.canSelfAssign) {
+                    <button
+                      type="button"
+                      class="btn-primary"
+                      [disabled]="assigningId() === kase.id"
+                      (click)="assignToMe(kase, $event)"
+                      (keydown.enter)="$event.stopPropagation()"
+                    >
+                      {{ assigningId() === kase.id ? 'Assigning…' : 'Assign to me' }}
+                    </button>
+                  }
+                </td>
               </tr>
             }
           </tbody>

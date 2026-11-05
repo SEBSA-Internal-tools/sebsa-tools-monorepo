@@ -34,10 +34,12 @@
             </button>
 
             <!-- Create Case Button -->
+            @if (caseAccess.canCreateAny()) {
             <button type="button" class="btn-header-primary" (click)="onCreateCaseClicked()">
               <span class="material-symbols-outlined">add</span>
               <span>Create Case</span>
             </button>
+            }
           </div>
         </div>
       </header>

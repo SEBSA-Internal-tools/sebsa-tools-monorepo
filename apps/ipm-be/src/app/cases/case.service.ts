@@ -19,6 +19,7 @@ import { UpdateCaseDto } from './dto/update-case.dto';
 import { FilterCaseDto } from './dto/filter-case.dto';
 import { ActivityLogsService } from '../activity-logs/activity-logs.service';
 import { NotificationService } from '../notifications/notification.service';
+import { changesOnlyAssignees } from '../common/assignee-only-change';
 import { ProjectAccessService } from '../common/project-access.service';
 
 const ADMIN_SYSTEM_ROLES: AuthUser['systemRole'][] = ['ADMIN', 'SUPER_ADMIN'];
@@ -352,7 +353,12 @@ export class CaseService {
 
   async update(id: string, dto: UpdateCaseDto, user: AuthUser): Promise<Case> {
     const existing = await this.getCaseOrThrow(id);
-    await this.access.assertCan(existing.projectId, user, 'canEditCase');
+    // Changing only the assignee list is gated by the assignment rules (which
+    // let any member claim work for themselves), not by the edit grant.
+    const assigneesOnly = changesOnlyAssignees(dto, existing);
+    if (!assigneesOnly) {
+      await this.access.assertCan(existing.projectId, user, 'canEditCase');
+    }
 
     if (dto.sprintId) {
       await this.assertSprintBelongsToProject(dto.sprintId, existing.projectId);
@@ -364,7 +370,7 @@ export class CaseService {
       const currentIds = await this.prisma.caseAssignee
         .findMany({ where: { caseId: id }, select: { userId: true } })
         .then((rows) => rows.map((r) => r.userId));
-      await this.access.assertCanSetAssignees(existing.projectId, user, dto.assigneeIds, currentIds);
+      await this.access.assertCanSetAssignees(existing.projectId, user, dto.assigneeIds, currentIds, 'canEditCase');
       await this.assertAssigneesValid(dto.assigneeIds, existing.projectId);
     }
     if (dto.labelIds) {

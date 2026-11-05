@@ -9,6 +9,7 @@ import type {
   Case,
   CaseStatus,
   CreateTaskRequest,
+  ProjectPermissions,
   TaskCategory,
   UpdateCaseRequest,
 } from '@sebsa-pm-tool/shared-models';
@@ -180,6 +181,7 @@ export class CaseDetailPageComponent implements OnInit {
         this.populateDraft(kase);
         this.isLoading.set(false);
         this.tasksService.loadTasksByCase(caseId);
+        this.loadProjectPermissions(kase.projectId);
         this.loadPriorities(kase.projectId);
         this.loadAssignees(kase.projectId);
         this.cdr.markForCheck();
@@ -190,6 +192,17 @@ export class CaseDetailPageComponent implements OnInit {
         this.isLoading.set(false);
         this.cdr.markForCheck();
       },
+    });
+  }
+
+  /** What the current user may do in this case's project; actions they
+   * cannot perform (copy, delete) stay hidden until this resolves. */
+  readonly projectPermissions = signal<ProjectPermissions | null>(null);
+
+  private loadProjectPermissions(projectId: string): void {
+    this.projectsService.getProject(projectId).subscribe({
+      next: (project) => this.projectPermissions.set(project.permissions),
+      error: () => this.projectPermissions.set(null),
     });
   }
 
@@ -207,7 +220,7 @@ export class CaseDetailPageComponent implements OnInit {
   }
 
   private loadAssignees(projectId: string): void {
-    this.projectsService.getMembers(projectId).subscribe({
+    this.projectsService.getAssignableMembers(projectId).subscribe({
       next: (members) => {
         const userList: Array<{ id: string; name: string }> = members.map((m) => ({ id: m.user.id, name: m.user.name }));
         this.projectMembers.set([...userList]);
@@ -241,6 +254,13 @@ export class CaseDetailPageComponent implements OnInit {
     this.location.back();
   }
 
+  /** Snapshot of every draft field except the assignee, taken when the draft
+   * is populated. If it is unchanged at save time, only the assignee moved. */
+  private baselineKey = '';
+  private nonAssigneeKey(): string {
+    return JSON.stringify({ ...this.draft, assigneeId: null });
+  }
+
   private populateDraft(kase: Case): void {
     this.draft = {
       title: kase.title,
@@ -252,6 +272,7 @@ export class CaseDetailPageComponent implements OnInit {
       category: kase.category ?? '',
       assigneeId: kase.assignees[0]?.id ?? '',
     };
+    this.baselineKey = this.nonAssigneeKey();
     if (kase.assignees && kase.assignees.length > 0) {
       const current = this.availableAssignees();
       const merged = [...current];
@@ -318,7 +339,12 @@ export class CaseDetailPageComponent implements OnInit {
     this.isSaving.set(true);
     this.errorMessage.set('');
 
-    const dto: UpdateCaseRequest = {
+    // Only the assignee changed: send just that, so claiming a case (e.g. from
+    // the queue) does not need the edit-case permission.
+    const onlyAssigneeChanged = this.nonAssigneeKey() === this.baselineKey;
+    const dto: UpdateCaseRequest = onlyAssigneeChanged
+      ? { assigneeIds: this.draft.assigneeId ? [this.draft.assigneeId] : [] }
+      : {
       title: this.draft.title,
       description: this.draft.description || undefined,
       priorityId: this.draft.priorityId || undefined,

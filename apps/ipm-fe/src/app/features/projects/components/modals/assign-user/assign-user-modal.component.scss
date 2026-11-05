@@ -480,3 +480,67 @@ select.form-input {
 .form-group.full-width {
   grid-column: 1 / -1;
 }
+
+.search-field {
+  position: relative;
+  flex: 1;
+
+  .form-input {
+    width: 100%;
+    box-sizing: border-box;
+  }
+}
+
+.suggestions {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--app-surface, #fff);
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.suggestion {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+
+  &.active {
+    background: var(--app-surface-soft);
+  }
+}
+
+.suggestion-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.suggestion-name {
+  font-size: 0.9rem;
+  color: var(--app-text);
+}
+
+.suggestion-email {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.suggestion-empty {
+  padding: 10px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}

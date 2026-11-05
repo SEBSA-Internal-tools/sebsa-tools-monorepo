@@ -25,18 +25,47 @@
       <div class="email-input-section">
         <div class="form-group full-width">
           <label for="email" class="form-label">
-            Email Address <span class="required">*</span>
+            Name or email <span class="required">*</span>
           </label>
           <div class="email-input-wrapper">
-            <input
-              id="email"
-              type="email"
-              [(ngModel)]="emailInput"
-              placeholder="Enter user email (e.g., sarah.miller@sebsa.com)"
-              class="form-input"
-              [disabled]="isLoading()"
-              (keyup.enter)="onAddUser()"
-            />
+            <div class="search-field">
+              <input
+                id="email"
+                type="text"
+                autocomplete="off"
+                role="combobox"
+                aria-autocomplete="list"
+                [attr.aria-expanded]="showSuggestions() && suggestions().length > 0"
+                [ngModel]="emailInput"
+                (ngModelChange)="onQueryChange($event)"
+                placeholder="Start typing a name or email"
+                class="form-input"
+                [disabled]="isLoading()"
+                (keydown)="onSearchKeydown($event)"
+              />
+              @if (showSuggestions()) {
+                <ul class="suggestions" role="listbox">
+                  @for (user of suggestions(); track user.id; let i = $index) {
+                    <li
+                      role="option"
+                      class="suggestion"
+                      [class.active]="i === activeSuggestion()"
+                      [attr.aria-selected]="i === activeSuggestion()"
+                      (mousedown)="$event.preventDefault(); onPickSuggestion(user)"
+                      (mouseenter)="activeSuggestion.set(i)"
+                    >
+                      <app-user-avatar [name]="user.name" [avatarUrl]="user.avatarUrl" size="sm"></app-user-avatar>
+                      <span class="suggestion-text">
+                        <span class="suggestion-name">{{ user.name }}</span>
+                        <span class="suggestion-email">{{ user.email }}</span>
+                      </span>
+                    </li>
+                  } @empty {
+                    <li class="suggestion-empty">{{ isSearching() ? 'Searching…' : 'No matching users' }}</li>
+                  }
+                </ul>
+              }
+            </div>
             <button
               type="button"
               class="btn-add-user"
@@ -52,7 +81,7 @@
             </button>
           </div>
           <p class="form-helper">
-            Type the email address and press Enter or click Add
+            Pick a person from the suggestions, or type a full email and press Enter
           </p>
         </div>
 
@@ -114,7 +143,7 @@
         } @else {
           <div class="empty-state">
             <span class="material-symbols-outlined">person_add</span>
-            <p>No users added yet. Start by entering an email address above.</p>
+            <p>No users added yet. Start typing a name or email above.</p>
           </div>
         }
       </div>

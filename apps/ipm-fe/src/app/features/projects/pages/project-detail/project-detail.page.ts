@@ -211,6 +211,7 @@ export class ProjectDetailPageComponent implements OnInit {
   }
 
   onCreateForDate(date: Date): void {
+    if (!this.project()?.permissions.canCreateCase) return;
     const y = date.getFullYear();
     const m = String(date.getMonth() + 1).padStart(2, '0');
     const d = String(date.getDate()).padStart(2, '0');

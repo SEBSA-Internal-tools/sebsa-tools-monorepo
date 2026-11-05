@@ -1,11 +1,13 @@
 import { CommonModule } from '@angular/common';
-import { Component, HostListener, inject, OnInit } from '@angular/core';
+import { Component, HostListener, inject, OnInit, signal } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { filter } from 'rxjs';
 import { ThemeService } from '../../services/theme.service';
 import { AuthService } from '../../services/auth.service';
 import { ToastComponent } from '../../components/toast/toast.component';
 import { CreateCaseModalComponent, type CaseFormData } from '../../../features/cases/create-case/create-case-modal.component';
+import { CaseCreationAccessService } from '../../services/case-creation-access.service';
+import { ProjectsService } from '../../../features/projects/services/projects.service';
 import { CasesService } from '../../services/cases.service';
 import { ToastService } from '../../services/toast.service';
 import { NotificationService } from '../../services/notification.service';
@@ -21,6 +23,8 @@ interface NavItem {
   path: string;
   hiddenForRoles?: SystemRole[];
   onlyForRoles?: SystemRole[];
+  /** Hidden unless the user is on at least one CSO project (or has global visibility). */
+  requiresCsoProject?: boolean;
 }
 
 interface NavGroup {
@@ -40,6 +44,8 @@ export class AppShellComponent implements OnInit {
   protected readonly authService = inject(AuthService);
   protected readonly themeService = inject(ThemeService);
   private readonly casesService = inject(CasesService);
+  private readonly projectsService = inject(ProjectsService);
+  protected readonly caseAccess = inject(CaseCreationAccessService);
   private readonly toastService = inject(ToastService);
   protected readonly notificationService = inject(NotificationService);
 
@@ -48,7 +54,7 @@ export class AppShellComponent implements OnInit {
     { label: 'My work', icon: 'assignment_ind', path: '/tasks' },
     { label: 'Projects', icon: 'folder_open', path: '/projects' },
     { label: 'Customers', icon: 'domain', path: '/customers', hiddenForRoles: ['REGULAR_USER'] },
-    { label: 'CSO', icon: 'groups', path: '/cso' },
+    { label: 'CSO', icon: 'groups', path: '/cso', requiresCsoProject: true },
     { label: 'Calendar', icon: 'calendar_month', path: '/calendar' },
   ];
 
@@ -108,6 +114,10 @@ export class AppShellComponent implements OnInit {
   private isVisible(item: NavItem): boolean {
     const role = this.authService.currentUser()?.systemRole;
 
+    if (item.requiresCsoProject && !this.hasGlobalVisibility(role) && !this.hasCsoProject()) {
+      return false;
+    }
+
     // Without a resolved role yet, an `onlyForRoles` item stays hidden rather
     // than flashing into the sidebar before the session rehydrates.
     if (item.onlyForRoles) {
@@ -115,6 +125,14 @@ export class AppShellComponent implements OnInit {
     }
     return !item.hiddenForRoles || !role || !item.hiddenForRoles.includes(role);
   }
+
+  /** ADMIN / SUPER_ADMIN / EXECUTIVE see every project, so CSO is always relevant. */
+  private hasGlobalVisibility(role: SystemRole | undefined): boolean {
+    return role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'EXECUTIVE';
+  }
+
+  /** True once the user's project list shows at least one CSO project. */
+  private readonly hasCsoProject = signal(false);
 
   /** Open by default whenever one of its children is the current route; an
    * explicit click then wins over that until the user clicks again. */
@@ -158,6 +176,12 @@ export class AppShellComponent implements OnInit {
 
 
   ngOnInit(): void {
+    this.caseAccess.ensureLoaded();
+    this.projectsService.getProjects().subscribe({
+      next: (projects) => this.hasCsoProject.set(projects.some((p) => p.isCsoProject)),
+      error: () => this.hasCsoProject.set(false),
+    });
+
     try {
       this.isSidebarCollapsed = window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true';
     } catch {

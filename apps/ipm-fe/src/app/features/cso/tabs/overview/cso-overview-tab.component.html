@@ -6,10 +6,12 @@
       <button type="button" role="tab" class="assigned-tab-btn" [class.active]="activeOverviewTab() === 'subtasks'" [attr.aria-selected]="activeOverviewTab() === 'subtasks'" (click)="setOverviewTab('subtasks')"><span class="material-symbols-outlined tab-icon">checklist</span><span class="tab-label">Subtask</span></button>
     </div>
     <button type="button" class="btn-refresh" [class.spinning]="isLoading() || workspaceLoading()" (click)="refresh()" title="Refresh CSO work" aria-label="Refresh CSO work"><span class="material-symbols-outlined">refresh</span></button>
-    <button type="button" class="btn-primary" (click)="openTaskModal()">
-      <span class="material-symbols-outlined">add</span>
-      Create Task
-    </button>
+    @if (caseAccess.canCreateCso()) {
+      <button type="button" class="btn-primary" (click)="openTaskModal()">
+        <span class="material-symbols-outlined">add</span>
+        Create Case
+      </button>
+    }
   </div>
 
   @if (errorMessage) {

@@ -41,10 +41,12 @@
       </button>
     </section>
 
+    @if (caseAccess.canCreateAny()) {
     <button type="button" class="btn-primary new-task-button" aria-haspopup="dialog" [attr.aria-expanded]="isTaskModalOpen" (click)="openTaskModal()">
       <span class="material-symbols-outlined button-icon" aria-hidden="true">add</span>
       <span class="button-label">New Case</span>
     </button>
+    }
 
     <p class="workspace-caption">Workspace</p>
     <nav class="nav-list">

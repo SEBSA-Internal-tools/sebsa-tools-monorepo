@@ -1,10 +1,12 @@
 <div class="cso-dashboard-tab">
   <div class="tab-toolbar">
     <p class="tab-subtitle">Project delivery and case ownership across accessible CSO work.</p>
-    <button type="button" class="btn-primary" (click)="openCreateModal()">
-      <span class="material-symbols-outlined">add</span>
-      New CSO Project
-    </button>
+    @if (canCreateProject()) {
+      <button type="button" class="btn-primary" (click)="openCreateModal()">
+        <span class="material-symbols-outlined">add</span>
+        New CSO Project
+      </button>
+    }
   </div>
 
   @if (errorMessage) {

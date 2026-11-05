@@ -26,6 +26,8 @@ export interface CsoQueueCaseView {
   projectId: string;
   projectName: string;
   customerName?: string;
+  /** The user holds an active, non-read-only role here, so may claim the case. */
+  canSelfAssign: boolean;
 }
 
 function bucketStatus(status: CaseStatus): CsoQueueCaseView['statusLabel'] {
@@ -116,6 +118,7 @@ export class CsoTaskQueueService {
       projectId: kase.projectId,
       projectName: project?.name ?? '',
       customerName: project?.customer?.name,
+      canSelfAssign: !!project && Object.values(project.permissions).some(Boolean),
     };
   }
 }

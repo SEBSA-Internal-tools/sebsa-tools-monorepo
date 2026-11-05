@@ -16,6 +16,7 @@ import type {
   TaskStatusHistoryEntry,
   TaskType,
   TaskComplexityLevel,
+  ProjectPermissions,
   Subtask,
   UpdateSubtaskRequest,
   UpdateTaskRequest,
@@ -152,6 +153,7 @@ export class TaskDetailPageComponent implements OnInit {
         this.loadSubtasks(taskId);
         this.loadDependencies(taskId);
         this.loadDependencyTaskCandidates(task.caseId, taskId);
+        this.loadProjectPermissions(task.case.projectId);
         this.loadPriorities(task.case.projectId);
         this.loadAssignees(task.case.projectId);
         this.loadTaskTypes();
@@ -163,6 +165,20 @@ export class TaskDetailPageComponent implements OnInit {
         this.isLoading.set(false);
         this.cdr.markForCheck();
       },
+    });
+  }
+
+  /** What the current user may do in this task's project; actions they
+   * cannot perform (copy, delete) stay hidden until this resolves. */
+  readonly projectPermissions = signal<ProjectPermissions | null>(null);
+
+  private loadProjectPermissions(projectId: string): void {
+    this.projectsService.getProject(projectId).subscribe({
+      next: (project) => {
+        this.projectPermissions.set(project.permissions);
+        this.cdr.markForCheck();
+      },
+      error: () => this.projectPermissions.set(null),
     });
   }
 
@@ -180,7 +196,7 @@ export class TaskDetailPageComponent implements OnInit {
   }
 
   private loadAssignees(projectId: string): void {
-    this.projectsService.getMembers(projectId).subscribe({
+    this.projectsService.getAssignableMembers(projectId).subscribe({
       next: (members) => {
         const userList: Array<{ id: string; name: string }> = members.map((m) => ({ id: m.user.id, name: m.user.name }));
         this.projectMembers.set([...userList]);
@@ -281,6 +297,13 @@ export class TaskDetailPageComponent implements OnInit {
   // Live edit
   // ---------------------------------------------------------------------------
 
+  /** Snapshot of every draft field except the assignee, taken when the draft
+   * is populated. If it is unchanged at save time, only the assignee moved. */
+  private baselineKey = '';
+  private nonAssigneeKey(): string {
+    return JSON.stringify({ ...this.draft, assigneeId: null });
+  }
+
   private populateDraft(task: Task): void {
     this.draft = {
       title: task.title,
@@ -294,6 +317,7 @@ export class TaskDetailPageComponent implements OnInit {
       taskTypeId: task.taskTypeId ?? '',
       complexityLevelId: task.complexityLevelId ?? '',
     };
+    this.baselineKey = this.nonAssigneeKey();
     if (task.assignees && task.assignees.length > 0) {
       const current = this.availableAssignees();
       const merged = [...current];
@@ -360,7 +384,12 @@ export class TaskDetailPageComponent implements OnInit {
     this.isSaving.set(true);
     this.errorMessage.set('');
 
-    const dto: UpdateTaskRequest = {
+    // Only the assignee changed: send just that, so claiming a task does not
+    // need the edit-task permission.
+    const onlyAssigneeChanged = this.nonAssigneeKey() === this.baselineKey;
+    const dto: UpdateTaskRequest = onlyAssigneeChanged
+      ? { assigneeIds: this.draft.assigneeId ? [this.draft.assigneeId] : [] }
+      : {
       title: this.draft.title,
       description: this.draft.description || undefined,
       priorityId: this.draft.priorityId || undefined,

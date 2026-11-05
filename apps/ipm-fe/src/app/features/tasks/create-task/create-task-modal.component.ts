@@ -156,7 +156,7 @@ export class CreateTaskModalComponent implements OnChanges {
     this.isLoadingUsers.set(true);
     this.userError.set('');
     this.selectedAssigneeIds = [];
-    this.projectsService.getMembers(projectId).subscribe({
+    this.projectsService.getAssignableMembers(projectId).subscribe({
       next: (members) => {
         this.availableAssignees.set(members.map((m) => m.user));
         this.isLoadingUsers.set(false);

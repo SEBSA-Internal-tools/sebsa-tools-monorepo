@@ -149,6 +149,11 @@ export class CasesService {
     );
   }
 
+  /** Adds the given users as assignees. Members may only add themselves. */
+  assignUsers(caseId: string, assigneeIds: string[]): Observable<unknown> {
+    return this.http.post(`/api/cases/${caseId}/assignees`, { assigneeIds });
+  }
+
   updateCaseStatus(caseId: string, status: CaseStatus): Observable<CaseView> {
     return this.updateCase(caseId, { status });
   }

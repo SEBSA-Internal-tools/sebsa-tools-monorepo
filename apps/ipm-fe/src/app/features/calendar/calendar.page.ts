@@ -13,6 +13,7 @@ import { Router } from '@angular/router';
 import { Subscription, forkJoin } from 'rxjs';
 import { CalendarViewComponent } from './components/calendar-view/calendar-view.component';
 import { AuthService } from '../../core/services/auth.service';
+import { CaseCreationAccessService } from '../../core/services/case-creation-access.service';
 import { TasksService, type TaskView } from '../../core/services/tasks.service';
 import { CasesService, type CaseView } from '../../core/services/cases.service';
 import { ProjectsService } from '../projects/services/projects.service';
@@ -44,6 +45,7 @@ import { CreateCaseModalComponent, type CaseFormData } from '../cases/create-cas
 export class CalendarPageComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   protected readonly authService = inject(AuthService);
+  protected readonly caseAccess = inject(CaseCreationAccessService);
   private readonly tasksService = inject(TasksService);
   private readonly casesService = inject(CasesService);
   private readonly projectsService = inject(ProjectsService);
@@ -137,6 +139,7 @@ export class CalendarPageComponent implements OnInit, OnDestroy {
   });
 
   ngOnInit(): void {
+    this.caseAccess.ensureLoaded();
     this.loadProjects();
     this.loadTasks();
   }
@@ -195,6 +198,7 @@ export class CalendarPageComponent implements OnInit, OnDestroy {
   }
 
   onCreateForDate(date: Date): void {
+    if (!this.caseAccess.canCreateAny()) return;
     const y = date.getFullYear();
     const m = String(date.getMonth() + 1).padStart(2, '0');
     const d = String(date.getDate()).padStart(2, '0');
