@@ -15,6 +15,7 @@ import {
   approveChangeAction,
   rejectChangeAction,
   listPendingItemsPageAction,
+  getLatestPendingChangeAction,
   type PendingItem,
 } from './actions';
 import { Pagination } from '@/app/components/Pagination';
@@ -72,12 +73,18 @@ export default function ReviewClient({ initialPage }: ReviewClientProps) {
     setPreviewLoading(true);
 
     try {
-      if (item.type === 'change' && item.proposedChange) {
+      let itemToPreview = item;
+      if (item.type === 'change') {
+        itemToPreview = await getLatestPendingChangeAction(item.profileId);
+        setPreviewItem(itemToPreview);
+        setItems((current) => current.map((entry) => keyFor(entry) === keyFor(itemToPreview) ? itemToPreview : entry));
+      }
+      if (itemToPreview.type === 'change' && itemToPreview.proposedChange) {
         // The proposal only carries a new avatarUrl if the employee actually replaced their
         // photo (see ProfileChangeSubmission's doc comment) — fetch the current profile so the
         // preview falls back to their existing photo instead of showing no image at all.
         const current = await getEmployeeDetailsAction(item.profileId);
-        setPreviewCv(buildTailoredCvFromInput(item.proposedChange, current?.avatar));
+        setPreviewCv(buildTailoredCvFromInput(itemToPreview.proposedChange, current?.avatar));
       } else {
         // new_profile — nothing proposed yet to diff against, just render the submitted profile.
         const employee = await getEmployeeDetailsAction(item.profileId);
@@ -107,7 +114,7 @@ export default function ReviewClient({ initialPage }: ReviewClientProps) {
         } else if (item.type === 'claim') {
           await (action === 'approve' ? approveClaimAction : rejectClaimAction)(item.profileId);
         } else {
-          await (action === 'approve' ? approveChangeAction : rejectChangeAction)(item.profileId);
+          await (action === 'approve' ? approveChangeAction : rejectChangeAction)(item.profileId, item.pendingVersion ?? null);
         }
         const result = await listPendingItemsPageAction(page, pageSize);
         setItems(result.items);
@@ -116,6 +123,15 @@ export default function ReviewClient({ initialPage }: ReviewClientProps) {
       } catch (err) {
         console.error(`Failed to ${action} pending item:`, err);
         setError(err instanceof Error ? err.message : `Failed to ${action} this request.`);
+        // A version conflict means the employee resubmitted while this page was open. Refresh the
+        // queue immediately so the reviewer sees that latest snapshot instead of a stale card.
+        try {
+          const latest = await listPendingItemsPageAction(page, pageSize);
+          setItems(latest.items);
+          setTotal(latest.total);
+        } catch (refreshError) {
+          console.error('Failed to refresh pending approvals:', refreshError);
+        }
       } finally {
         setProcessingKey(null);
       }
