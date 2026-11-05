@@ -12,6 +12,7 @@ import { buildProfileApprovedEmail, buildProfileChangesApprovedEmail } from '@/l
 import type { UpdateEmployeeInput, Employee } from '@/types/domain';
 import { profileChanges, recordAuditLog } from '@/services/audit-service';
 import { pageRange, type PaginatedResult } from '@/lib/pagination';
+import { getSignedAvatarUrl } from '@/lib/avatar';
 
 export type PendingItemType = 'new_profile' | 'claim' | 'change';
 
@@ -30,6 +31,7 @@ export interface PendingItem {
   type: PendingItemType;
   submittedAt: string;
   proposedChange?: UpdateEmployeeInput;
+  pendingVersion?: string | null;
   /** Only populated for type 'change' — which fields actually differ from the live profile. */
   changedFields?: ProfileFieldDiff[];
 }
@@ -138,7 +140,7 @@ export async function listPendingItemsAction(): Promise<PendingItem[]> {
   const { data, error } = await adminClient
     .from('profiles')
     .select(
-      'id, full_name, email, status, pending_claim_user_id, pending_change, pending_change_submitted_at, created_at'
+      'id, full_name, email, status, pending_claim_user_id, pending_change, pending_change_submitted_at, pending_change_version, created_at'
     )
     .or('status.eq.draft,pending_claim_user_id.not.is.null,pending_change.not.is.null')
     .is('deleted_at', null);
@@ -185,6 +187,7 @@ export async function listPendingItemsAction(): Promise<PendingItem[]> {
         type: 'change',
         submittedAt: row.pending_change_submitted_at ?? row.created_at,
         proposedChange,
+        pendingVersion: row.pending_change_version ?? null,
         changedFields,
       });
     }
@@ -198,7 +201,7 @@ export async function listPendingItemsPageAction(page: number, pageSize: number)
   const adminClient = createAdminClient();
   const range = pageRange(page, pageSize);
   const { data, error, count } = await adminClient.from('pending_review_items')
-    .select('profile_id, full_name, email, item_type, submitted_at, proposed_change', { count: 'exact' })
+    .select('profile_id, full_name, email, item_type, submitted_at, proposed_change, pending_version', { count: 'exact' })
     .order('submitted_at', { ascending: false }).range(range.from, range.to);
   if (error) throw error;
   const items = await Promise.all(((data ?? []) as any[]).map(async (row): Promise<PendingItem> => {
@@ -206,6 +209,7 @@ export async function listPendingItemsPageAction(page: number, pageSize: number)
       profileId: row.profile_id, name: row.full_name, email: row.email,
       type: row.item_type as PendingItemType, submittedAt: row.submitted_at,
       proposedChange: row.proposed_change as UpdateEmployeeInput | undefined,
+      pendingVersion: row.pending_version ?? null,
     };
     if (item.type === 'change' && item.proposedChange) {
       const current = await getEmployeeById(adminClient, item.profileId);
@@ -214,6 +218,26 @@ export async function listPendingItemsPageAction(page: number, pageSize: number)
     return item;
   }));
   return { items, total: count ?? 0, page: range.page, pageSize: range.pageSize };
+}
+
+export async function getLatestPendingChangeAction(profileId: string): Promise<PendingItem> {
+  await requireReviewer();
+  const adminClient = createAdminClient();
+  const { data: row, error } = await adminClient.from('profiles')
+    .select('id, full_name, email, pending_change, pending_change_submitted_at, pending_change_version, created_at')
+    .eq('id', profileId).is('deleted_at', null).not('pending_change', 'is', null).single();
+  if (error) throw error;
+  const proposedChange = row.pending_change as UpdateEmployeeInput;
+  const previewChange: UpdateEmployeeInput = proposedChange.avatarUrl
+    ? { ...proposedChange, avatarUrl: await getSignedAvatarUrl(adminClient, proposedChange.avatarUrl) }
+    : proposedChange;
+  const current = await getEmployeeById(adminClient, profileId);
+  return {
+    profileId: row.id, name: row.full_name, email: row.email, type: 'change',
+    submittedAt: row.pending_change_submitted_at ?? row.created_at,
+    proposedChange: previewChange, pendingVersion: row.pending_change_version ?? null,
+    changedFields: current ? computeChangedFields(current, proposedChange) : undefined,
+  };
 }
 
 /** Lightweight queue count for the sidebar badge. A single profile can contribute more than one
@@ -378,19 +402,23 @@ export async function rejectClaimAction(profileId: string): Promise<void> {
  * experiences/projects/certifications/skills, which is correct here because the self-edit form
  * always submits the complete current+edited state, never a partial patch.
  */
-export async function approveChangeAction(profileId: string): Promise<void> {
+export async function approveChangeAction(profileId: string, expectedPendingVersion: string | null): Promise<void> {
   const user = await requireReviewer();
   const adminClient = createAdminClient();
 
   const { data: row, error: fetchError } = await adminClient
     .from('profiles')
-    .select('pending_change, user_id, full_name')
+    .select('pending_change, pending_change_version, user_id, full_name')
     .eq('id', profileId)
     .is('deleted_at', null)
     .single();
   if (fetchError) throw fetchError;
   const change = row.pending_change as UpdateEmployeeInput | null;
   if (!change) throw new Error('No pending change on this profile.');
+  const reviewedVersion = row.pending_change_version as string | null;
+  if (reviewedVersion !== expectedPendingVersion) {
+    throw new Error('This employee submitted newer changes. Refresh the request before approving it.');
+  }
 
   const current = await getEmployeeById(adminClient, profileId);
   if (!current) throw new Error('Employee profile not found.');
@@ -398,32 +426,41 @@ export async function approveChangeAction(profileId: string): Promise<void> {
 
   await updateEmployee(adminClient, profileId, change, user.id);
 
-  const { error } = await adminClient
+  let clearQuery = adminClient
     .from('profiles')
-    .update({ pending_change: null, pending_change_submitted_at: null })
+    .update({ pending_change: null, pending_change_submitted_at: null, pending_change_version: null })
     .eq('id', profileId)
     .is('deleted_at', null);
+  clearQuery = reviewedVersion
+    ? clearQuery.eq('pending_change_version', reviewedVersion)
+    : clearQuery.is('pending_change_version', null);
+  const { data: cleared, error } = await clearQuery.select('id').maybeSingle();
   if (error) throw error;
+  const newerSubmissionPending = !cleared;
   await recordAuditLog({
     actorId: user.id,
     action: 'APPROVE',
     entityType: 'employee_profile',
     entityId: profileId,
-    metadata: { operation: 'profile_change', target_name: row.full_name, changes },
+    metadata: { operation: 'profile_change', target_name: row.full_name, changes, newer_submission_pending: newerSubmissionPending },
   });
 
   if (row.user_id) {
     await notifyUser(adminClient, row.user_id, {
       type: 'change_approved',
       title: 'Profile changes approved',
-      message: 'Your proposed changes are now live on your profile.',
+      message: newerSubmissionPending
+        ? 'An earlier submission was approved. Your latest submitted update is still waiting for review.'
+        : 'Your proposed changes are now live on your profile.',
       link: `/repository/${profileId}`,
     });
-    await emailUser(
-      adminClient,
-      row.user_id,
-      buildProfileChangesApprovedEmail(profileId, row.full_name)
-    );
+    if (!newerSubmissionPending) {
+      await emailUser(
+        adminClient,
+        row.user_id,
+        buildProfileChangesApprovedEmail(profileId, row.full_name)
+      );
+    }
   }
   // Log the action back to the reviewer's own feed too — previously only the submitting employee
   // got a resulting notification, so the admin who approved it had no record it had gone through.
@@ -436,24 +473,34 @@ export async function approveChangeAction(profileId: string): Promise<void> {
   revalidateAll();
 }
 
-export async function rejectChangeAction(profileId: string): Promise<void> {
+export async function rejectChangeAction(profileId: string, expectedPendingVersion: string | null): Promise<void> {
   const user = await requireReviewer();
   const adminClient = createAdminClient();
 
   const { data: row, error: fetchError } = await adminClient
     .from('profiles')
-    .select('user_id, full_name')
+    .select('user_id, full_name, pending_change, pending_change_version')
     .eq('id', profileId)
     .is('deleted_at', null)
     .single();
   if (fetchError) throw fetchError;
+  if (!row.pending_change) throw new Error('No pending change on this profile.');
+  const reviewedVersion = row.pending_change_version as string | null;
+  if (reviewedVersion !== expectedPendingVersion) {
+    throw new Error('This employee submitted newer changes. Refresh the request before rejecting it.');
+  }
 
-  const { error } = await adminClient
+  let rejectQuery = adminClient
     .from('profiles')
-    .update({ pending_change: null, pending_change_submitted_at: null })
+    .update({ pending_change: null, pending_change_submitted_at: null, pending_change_version: null })
     .eq('id', profileId)
     .is('deleted_at', null);
+  rejectQuery = reviewedVersion
+    ? rejectQuery.eq('pending_change_version', reviewedVersion)
+    : rejectQuery.is('pending_change_version', null);
+  const { data: rejected, error } = await rejectQuery.select('id').maybeSingle();
   if (error) throw error;
+  if (!rejected) throw new Error('This employee submitted newer changes. Refresh the request before rejecting it.');
   await recordAuditLog({ actorId: user.id, action: 'REJECT', entityType: 'employee_profile', entityId: profileId, metadata: { operation: 'profile_change' } });
 
   if (row.user_id) {

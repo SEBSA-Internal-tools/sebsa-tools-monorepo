@@ -23,7 +23,7 @@ const LIST_SELECT = `
 const DETAIL_SELECT = `
   ${LIST_SELECT},
   ${employeeDetailFields.filter(f => f.key !== 'displayName').map(f => f.column).join(', ')},
-  education, summary, status, pending_change, pending_change_submitted_at,
+  education, summary, status, pending_change, pending_change_submitted_at, pending_change_version,
   experiences ( company, role_title, employment_type, start_date, end_date, period_text, is_current, description, display_order ),
   projects ( name, description, skills, display_order ),
   certifications ( name, issuer, issued_date, display_order )

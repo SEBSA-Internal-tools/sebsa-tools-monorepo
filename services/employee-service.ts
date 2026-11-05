@@ -168,6 +168,7 @@ export async function getEmployeeById(
   const cvAcademic: CvAcademicEntry[] = tryParseJson<CvAcademicEntry[]>(rawEducation) ?? [];
   // Legacy plain-text education field (non-JSON)
   const educationText = cvAcademic.length === 0 ? (rawEducation ?? undefined) : undefined;
+  const pendingChange = ((row as any).pending_change ?? undefined) as UpdateEmployeeInput | undefined;
 
   const emp = {
     ...mapListRow(row),
@@ -185,6 +186,12 @@ export async function getEmployeeById(
     summary: (row as any).summary ?? undefined,
     status: (row as any).status ?? undefined,
     hasPendingChange: (row as any).pending_change != null,
+    pendingChange,
+    pendingChangeSubmittedAt: (row as any).pending_change_submitted_at ?? null,
+    pendingChangeVersion: (row as any).pending_change_version ?? null,
+    pendingChangeAvatar: pendingChange?.avatarUrl
+      ? await getSignedAvatarUrl(supabase, pendingChange.avatarUrl)
+      : undefined,
   };
   emp.avatar = await getSignedAvatarUrl(supabase, emp.avatar);
   return emp;
