@@ -264,9 +264,26 @@ export class ProjectsService {
     this.assertCanManageMembers(project, user);
 
     await this.prisma.$transaction(async (tx) => {
+      const deletedAt = new Date();
       await tx.project.update({
         where: { id },
-        data: { deletedAt: new Date() },
+        data: { deletedAt },
+      });
+
+      // Cases, tasks and subtasks are filtered by their own deletedAt, so a
+      // deleted project has to take its work items with it; otherwise they
+      // linger in Assigned Work, search and the dashboards.
+      await tx.subtask.updateMany({
+        where: { deletedAt: null, task: { case: { projectId: id } } },
+        data: { deletedAt },
+      });
+      await tx.task.updateMany({
+        where: { deletedAt: null, case: { projectId: id } },
+        data: { deletedAt },
+      });
+      await tx.case.updateMany({
+        where: { deletedAt: null, projectId: id },
+        data: { deletedAt },
       });
 
       await this.activityLogs.record(
