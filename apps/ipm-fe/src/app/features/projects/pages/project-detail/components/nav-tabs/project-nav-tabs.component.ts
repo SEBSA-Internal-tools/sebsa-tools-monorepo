@@ -30,7 +30,16 @@ export class ProjectNavTabsComponent {
   @Output() tabChange = new EventEmitter<TabType>();
   @Output() addTaskClick = new EventEmitter<void>();
 
-  tabs: Tab[] = [
+  /** Activity and Integrations are management-only tabs. */
+  @Input() canManage = false;
+
+  get tabs(): Tab[] {
+    return this.allTabs.filter(
+      (t) => this.canManage || (t.id !== 'activity' && t.id !== 'integrations'),
+    );
+  }
+
+  private readonly allTabs: Tab[] = [
     { id: 'overview', label: 'Overview', icon: 'dashboard' },
     { id: 'kanban', label: 'Case Board', icon: 'view_kanban' },
     { id: 'tasklist', label: 'Case List', icon: 'task' },

@@ -18,16 +18,18 @@
       <span class="tab-label-desktop">My work</span>
       <span class="tab-label-mobile">My work</span>
     </button>
-    <button
-      type="button"  class="tab-btn"
-      [class.active]="activeTab() === 'management'"
-      [attr.aria-pressed]="activeTab() === 'management'"
-      (click)="setActiveTab('management')"
-    >
-      <span class="material-symbols-outlined">manage_accounts</span>
-      <span class="tab-label-desktop">Management</span>
-      <span class="tab-label-mobile">Management</span>
-    </button>
+    @if (isManagementAllowed()) {
+      <button
+        type="button"  class="tab-btn"
+        [class.active]="activeTab() === 'management'"
+        [attr.aria-pressed]="activeTab() === 'management'"
+        (click)="setActiveTab('management')"
+      >
+        <span class="material-symbols-outlined">manage_accounts</span>
+        <span class="tab-label-desktop">Management</span>
+        <span class="tab-label-mobile">Management</span>
+      </button>
+    }
   </div>
 
   <!-- ── Permission denied (Management tab, insufficient role) ── -->

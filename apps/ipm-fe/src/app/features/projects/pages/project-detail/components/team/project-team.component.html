@@ -6,15 +6,17 @@
     </div>
     
     <div class="header-actions">
-      <button
-        type="button"
-        class="btn-add-member"
-        (click)="onOpenModal()"
-        title="Add team member"
-      >
-        <span class="material-symbols-outlined">person_add</span>
-        Add Member
-      </button>
+      @if (canManage) {
+        <button
+          type="button"
+          class="btn-add-member"
+          (click)="onOpenModal()"
+          title="Add team member"
+        >
+          <span class="material-symbols-outlined">person_add</span>
+          Add Member
+        </button>
+      }
 
       <div class="view-toggle">
         <button type="button" class="view-btn" [class.active]="viewMode() === 'card'" (click)="toggleViewMode('card')" title="Card View">
@@ -38,14 +40,16 @@
           <!-- Card Header -->
           <div class="card-header">
             <app-user-avatar class="member-avatar" [name]="member.user.name" [avatarUrl]="member.user.avatarUrl" size="lg"></app-user-avatar>
-            <button
-              type="button"
-              class="btn-remove-member"
-              (click)="onRemoveMember(member.id)"
-              title="Remove from project"
-            >
-              <span class="material-symbols-outlined">person_remove</span>
-            </button>
+            @if (canManage) {
+              <button
+                type="button"
+                class="btn-remove-member"
+                (click)="onRemoveMember(member.id)"
+                title="Remove from project"
+              >
+                <span class="material-symbols-outlined">person_remove</span>
+              </button>
+            }
           </div>
 
           <!-- Member Info -->
@@ -72,7 +76,7 @@
             <th>Role</th>
             <th>Email</th>
             <th>Joined Date</th>
-            <th>Actions</th>
+            @if (canManage) { <th>Actions</th> }
           </tr>
         </thead>
         <tbody>
@@ -87,16 +91,18 @@
               <td><span class="role-badge">{{ member.role.name }}</span></td>
               <td>{{ member.user.email }}</td>
               <td>{{ member.joinedAt | date: 'mediumDate' }}</td>
-              <td>
-                <button
-                  type="button"
-                  class="btn-remove-member"
-                  (click)="onRemoveMember(member.id)"
-                  title="Remove from project"
-                >
-                  <span class="material-symbols-outlined">person_remove</span>
-                </button>
-              </td>
+              @if (canManage) {
+                <td>
+                  <button
+                    type="button"
+                    class="btn-remove-member"
+                    (click)="onRemoveMember(member.id)"
+                    title="Remove from project"
+                  >
+                    <span class="material-symbols-outlined">person_remove</span>
+                  </button>
+                </td>
+              }
             </tr>
           }
         </tbody>
@@ -105,14 +111,17 @@
   }
 
   <!-- Assign User Modal -->
+  @if (canManage) {
   <assign-user-modal
     [isOpen]="isModalOpen()"
     [projectId]="projectId"
     (close)="onCloseModal()"
     (submit)="onAssignUsers($event)"
   ></assign-user-modal>
+  }
 
-  <!-- Manage Roles -->
+  <!-- Manage Roles (managers only) -->
+  @if (canManage) {
   <div class="roles-section">
     <div class="team-header">
       <div class="header-info">
@@ -175,4 +184,5 @@
       </button>
     </div>
   </div>
+  }
 </div>

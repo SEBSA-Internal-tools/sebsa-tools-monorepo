@@ -82,6 +82,7 @@ export class CaseService {
 
     await this.assertSprintBelongsToProject(dto.sprintId, dto.projectId);
     await this.assertMilestoneBelongsToProject(dto.milestoneId, dto.projectId);
+    await this.access.assertCanSetAssignees(dto.projectId, user, dto.assigneeIds ?? []);
     await this.assertAssigneesValid(dto.assigneeIds, dto.projectId);
     await this.assertLabelsValid(dto.labelIds, dto.projectId);
     this.assertDatesValid(dto.startDate, dto.dueDate);
@@ -360,6 +361,10 @@ export class CaseService {
       await this.assertMilestoneBelongsToProject(dto.milestoneId, existing.projectId);
     }
     if (dto.assigneeIds) {
+      const currentIds = await this.prisma.caseAssignee
+        .findMany({ where: { caseId: id }, select: { userId: true } })
+        .then((rows) => rows.map((r) => r.userId));
+      await this.access.assertCanSetAssignees(existing.projectId, user, dto.assigneeIds, currentIds);
       await this.assertAssigneesValid(dto.assigneeIds, existing.projectId);
     }
     if (dto.labelIds) {
@@ -654,7 +659,7 @@ export class CaseService {
 
   async assignUsers(caseId: string, assigneeIds: string[], user: AuthUser): Promise<Case> {
     const kase = await this.getCaseOrThrow(caseId);
-    await this.access.assertCan(kase.projectId, user, 'canEditCase');
+    await this.access.assertCanAssign(kase.projectId, user, assigneeIds, 'canEditCase');
     await this.assertAssigneesValid(assigneeIds, kase.projectId);
 
     const existingAssignees = await this.prisma.caseAssignee
@@ -708,7 +713,7 @@ export class CaseService {
 
   async unassignUser(caseId: string, userId: string, user: AuthUser): Promise<Case> {
     const kase = await this.getCaseOrThrow(caseId);
-    await this.access.assertCan(kase.projectId, user, 'canEditCase');
+    await this.access.assertCanAssign(kase.projectId, user, [userId], 'canEditCase');
 
     const removed = await this.prisma.user.findUnique({
       where: { id: userId },

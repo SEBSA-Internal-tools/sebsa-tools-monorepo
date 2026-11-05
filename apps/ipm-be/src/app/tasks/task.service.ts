@@ -94,6 +94,7 @@ export class TaskService {
 
     const priorityId = dto.priorityId ?? (await this.resolveDefaultPriorityId(kase.projectId));
 
+    await this.access.assertCanSetAssignees(kase.projectId, user, dto.assigneeIds ?? []);
     await this.assertAssigneesValid(dto.assigneeIds, kase.projectId);
     await this.assertLabelsValid(dto.labelIds, kase.projectId);
     this.assertDatesValid(dto.startDate, dto.dueDate);
@@ -321,6 +322,10 @@ export class TaskService {
     await this.access.assertCan(existing.case.projectId, user, 'canEditTask');
 
     if (dto.assigneeIds) {
+      const currentIds = await this.prisma.taskAssignee
+        .findMany({ where: { taskId: id }, select: { userId: true } })
+        .then((rows) => rows.map((r) => r.userId));
+      await this.access.assertCanSetAssignees(existing.case.projectId, user, dto.assigneeIds, currentIds);
       await this.assertAssigneesValid(dto.assigneeIds, existing.case.projectId);
     }
     if (dto.labelIds) {
@@ -538,7 +543,7 @@ export class TaskService {
 
   async assignUsers(taskId: string, assigneeIds: string[], user: AuthUser): Promise<Task> {
     const task = await this.getTaskWithProjectOrThrow(taskId);
-    await this.access.assertCan(task.case.projectId, user, 'canEditTask');
+    await this.access.assertCanAssign(task.case.projectId, user, assigneeIds, 'canEditTask');
     await this.assertAssigneesValid(assigneeIds, task.case.projectId);
 
     const existingAssignees = await this.prisma.taskAssignee
@@ -590,7 +595,7 @@ export class TaskService {
 
   async unassignUser(taskId: string, userId: string, user: AuthUser): Promise<Task> {
     const task = await this.getTaskWithProjectOrThrow(taskId);
-    await this.access.assertCan(task.case.projectId, user, 'canEditTask');
+    await this.access.assertCanAssign(task.case.projectId, user, [userId], 'canEditTask');
 
     const removed = await this.prisma.user.findUnique({
       where: { id: userId },

@@ -101,6 +101,47 @@ export class ProjectAccessService {
     }
   }
 
+  /** Assigning people to work. The edit grant is still required; on top of
+   * that, only users who can manage members (project owners/managers, and
+   * system admins) may assign or unassign OTHER people. Everyone else may
+   * only add or remove themselves. */
+  async assertCanAssign(
+    projectId: string,
+    user: AuthUser,
+    targetUserIds: string[],
+    editPermission: ProjectPermission,
+  ): Promise<void> {
+    await this.assertCan(projectId, user, editPermission);
+    if (await this.can(projectId, user, 'canManageMembers')) return;
+    if (targetUserIds.some((id) => id !== user.id)) {
+      throw new ForbiddenException(
+        'You can only assign or unassign yourself. Ask a project manager to assign others.',
+      );
+    }
+  }
+
+  /** Create/update form of the rule above, where the whole assignee list is
+   * supplied. A user without member-management rights may only change their
+   * own presence in it: the set of OTHER people must stay exactly as it is
+   * (empty, for a create). */
+  async assertCanSetAssignees(
+    projectId: string,
+    user: AuthUser,
+    nextUserIds: string[],
+    currentUserIds: string[] = [],
+  ): Promise<void> {
+    if (await this.can(projectId, user, 'canManageMembers')) return;
+    const others = (ids: string[]) => new Set(ids.filter((id) => id !== user.id));
+    const next = others(nextUserIds);
+    const current = others(currentUserIds);
+    const unchanged = next.size === current.size && [...next].every((id) => current.has(id));
+    if (!unchanged) {
+      throw new ForbiddenException(
+        'You can only assign or unassign yourself. Ask a project manager to assign others.',
+      );
+    }
+  }
+
   /** Non-throwing form, for shaping a response rather than rejecting it. */
   async can(
     projectId: string,

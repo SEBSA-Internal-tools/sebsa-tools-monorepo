@@ -9,6 +9,7 @@
     <div class="cso-body" [class.dashboard-active]="activeTab === 'dashboard'">
       <cso-nav-tabs
         [activeTab]="activeTab"
+        [showConfiguration]="canViewConfiguration"
         (tabChange)="onTabChange($event)"
       ></cso-nav-tabs>
 

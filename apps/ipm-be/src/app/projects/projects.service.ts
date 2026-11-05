@@ -32,7 +32,7 @@ const ADMIN_SYSTEM_ROLES: AuthUser['systemRole'][] = ['ADMIN', 'SUPER_ADMIN'];
 
 const memberInclude = {
   user: { select: { id: true, name: true, email: true, avatarUrl: true } },
-  role: { select: { id: true, name: true, privilegeGroup: { select: { isReadOnly: true } } } },
+  role: { select: { id: true, name: true, privilegeGroup: { select: { isReadOnly: true, canManageMembers: true } } } },
 } satisfies Prisma.ProjectMemberInclude;
 
 type MemberWithRelations = Prisma.ProjectMemberGetPayload<{ include: typeof memberInclude }>;

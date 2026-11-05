@@ -17,7 +17,7 @@ export interface ProjectMemberSummary {
   roleId: string;
   joinedAt: string;
   user: Pick<UserSummary, 'id' | 'name' | 'email' | 'avatarUrl'>;
-  role: Pick<ProjectRole, 'id' | 'name'> & { privilegeGroup: Pick<PrivilegeGroup, 'isReadOnly'> };
+  role: Pick<ProjectRole, 'id' | 'name'> & { privilegeGroup: Pick<PrivilegeGroup, 'isReadOnly' | 'canManageMembers'> };
 }
 
 /** List-view shape — lighter than Project, no nested roles. */
