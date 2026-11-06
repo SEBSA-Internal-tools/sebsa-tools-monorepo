@@ -17,7 +17,6 @@ import type { Employee } from '@/types/domain';
 import type { CvTemplateId, TailoredCv, CvSuggestion } from './types';
 import {
   getSavedGeneratedCvAction,
-  suggestCvContentAction,
   saveGeneratedCvAction,
 } from './actions';
 import { exportToPdf } from '@/lib/cvExport';
@@ -86,6 +85,7 @@ function buildReviewStateFromSavedCv(cv: TailoredCv): {
       originalObjective: cv.summary,
       objective: cv.summary,
       academic: cv.academic,
+      normalizedRequirements: { requiredSkills: [], keywords: [] },
       experience,
       projects,
       certifications,
@@ -175,8 +175,8 @@ function GeneratePageContent({ initialPage }: GenerateClientProps) {
   const [loadingLastCv, setLoadingLastCv] = useState(false);
   const [lastCvError, setLastCvError] = useState<string | null>(null);
 
-  // ── AI suggestion + CV content state ────────────────────────────────────────
-  // suggestion: the AI's relevance flags paired with the employee's real profile data (never
+  // ── Recommendation + CV content state ──────────────────────────────────────
+  // suggestion: deterministic relevance results paired with the employee's real profile data (never
   // shown to the user until they've reviewed/adjusted it via CvSuggestionSelector). tailoredCv is
   // only set once the user verifies and applies their selection there — at that point it's
   // already been saved and Step 3 (comparison preview + export) is shown.
@@ -271,8 +271,7 @@ function GeneratePageContent({ initialPage }: GenerateClientProps) {
   // ── Handlers ────────────────────────────────────────────────────────────────
 
   /**
-   * Asks the AI which of the employee's existing projects/experience/certifications are
-   * relevant to this opportunity (plus a customized Objective) — never a rewrite of the profile.
+   * Asks the rules engine which existing projects, experience, and work points are relevant.
    * The result is reviewed/adjusted by the user in CvSuggestionSelector before anything is
    * actually applied to a CV (handleSelectionApply below).
    */
@@ -289,11 +288,17 @@ function GeneratePageContent({ initialPage }: GenerateClientProps) {
     setWizardStep(2);
 
     try {
-      const result = await suggestCvContentAction(
-        selectedEmployee,
-        requiredSkills,
-        preferredExp
-      );
+      const response = await fetch('/api/cv-recommendations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          employeeId: selectedEmployee.rowId,
+          requiredSkills,
+          skillsDescription: preferredExp,
+        }),
+      });
+      const result = await response.json() as CvSuggestion & { error?: string };
+      if (!response.ok) throw new Error(result.error || 'Recommendation request failed.');
       setSuggestion(result);
       setSuggestionDraft({
         currentPosition: selectedEmployee.currentPosition || selectedEmployee.role,
@@ -305,26 +310,19 @@ function GeneratePageContent({ initialPage }: GenerateClientProps) {
           ...entry,
           period: formatExperiencePeriodAsYears(entry.period),
         })),
-        projects: result.projects.map((project) => ({
-          ...project,
-          descriptionPoints: project.brief.split(/\r?\n/).map((text, index) => ({
-            index,
-            text,
-            relevant: true,
-          })),
-        })),
+        projects: result.projects,
         certifications: result.certifications,
       });
     } catch (err) {
       setCustomizingError(
-        err instanceof Error ? err.message : 'AI suggestion failed. Please check setup.'
+        err instanceof Error ? err.message : 'Recommendation failed. Please check the requirements.'
       );
     } finally {
       setCustomizingLoading(false);
     }
   };
 
-  /** Restores the selected employee's last saved customized CV without making an AI request. */
+  /** Restores the selected employee's last saved customized CV without running recommendations. */
   const handleLoadLastCustomizedCv = async () => {
     if (!selectedEmployee || loadingLastCv) return;
 
@@ -823,7 +821,7 @@ function GeneratePageContent({ initialPage }: GenerateClientProps) {
               </div>
             )}
 
-            {/* Suggestion selector — shown once the AI has flagged relevant existing content,
+            {/* Suggestion selector — shown once the rules engine has ranked existing content,
                 before anything is applied to a CV */}
             {suggestion && suggestionDraft && !tailoredCv && !customizingLoading && !customizingError && (
               <CvSuggestionSelector
@@ -832,7 +830,7 @@ function GeneratePageContent({ initialPage }: GenerateClientProps) {
                 onDraftChange={setSuggestionDraft}
                 onApply={handleSelectionApply}
                 applying={saving}
-                source={restoredCvBase ? 'saved' : 'ai'}
+                source={restoredCvBase ? 'saved' : 'rules'}
                 pageLimitExceeded={previewOverflowMm > 0}
               />
             )}

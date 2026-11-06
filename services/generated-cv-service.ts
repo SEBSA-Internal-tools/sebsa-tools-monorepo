@@ -29,7 +29,8 @@ export async function saveGeneratedCv(
       supabase,
       existing.id,
       params.content,
-      params.userId
+      params.userId,
+      { provider: 'rules', model: 'weighted-keyword-v1' }
     );
     return { row, created: false };
   } else {
@@ -37,8 +38,8 @@ export async function saveGeneratedCv(
       profile_id: params.profileId,
       status: 'draft',
       content: params.content,
-      ai_provider: 'gemini',
-      ai_model: 'gemini-3-flash-preview',
+      ai_provider: 'rules',
+      ai_model: 'weighted-keyword-v1',
       created_by: params.userId,
       updated_by: params.userId,
     });
