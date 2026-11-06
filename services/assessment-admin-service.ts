@@ -1,4 +1,6 @@
 import type { SupabaseClient, User } from '@supabase/supabase-js';
+import { pageRange, type PaginatedResult } from '@/lib/pagination';
+import type { CycleStatus } from '@/types/assessment';
 import { z } from 'zod';
 import {
   type ManagedAttemptRow,
@@ -18,9 +20,11 @@ import {
   isQuestionUsedByAttempts,
   listAttemptRowsForCycles,
   listCycleRows,
+  listCycleRowsPage,
   listEmailDeliveryRows,
   listInvitationRowsForCycles,
   listQuestionRows,
+  listQuestionRowsPage,
   markInvitationsSent,
   resetEmailDeliveryForRetry,
   skipEmailDelivery,
@@ -113,6 +117,17 @@ export async function listInvitablePeople(admin: SupabaseClient): Promise<Person
   return (await listPeople(admin)).filter((p) => !p.deactivated);
 }
 
+export async function listInvitablePeoplePage(admin: SupabaseClient, page: number, pageSize: number, search = ''): Promise<PaginatedResult<Person>> {
+  const range = pageRange(page, pageSize);
+  const { data, error } = await admin.rpc('list_invitable_people_page', {
+    search_text: search.trim(), page_offset: range.from, page_limit: range.pageSize,
+  });
+  if (error) throw error;
+  const rows = (data ?? []) as any[];
+  return { items: rows.map((row) => ({ userId: row.user_id, email: row.email, name: row.full_name, role: row.role, deactivated: false })),
+    total: Number(rows[0]?.total_count ?? 0), page: range.page, pageSize: range.pageSize };
+}
+
 // ── Cycles ────────────────────────────────────────────────────────────────────────────────────
 
 export interface CycleSummary {
@@ -135,41 +150,35 @@ export interface CycleSummary {
 }
 
 export async function listCycleSummaries(supabase: SupabaseClient, actor: Actor): Promise<CycleSummary[]> {
+  return (await listCycleSummariesPage(supabase, actor, { page: 1, pageSize: 20 })).items;
+}
+
+export async function listCycleSummariesPage(supabase: SupabaseClient, actor: Actor, params: {
+  page: number; pageSize: number; search?: string; status?: 'all' | CycleStatus;
+  fromDate?: string; toDate?: string; order?: 'newest' | 'oldest';
+}) {
   assertCanManage(actor);
-  const cycles = await listCycleRows(supabase);
-  const ids = cycles.map((c) => c.id);
+  const result = await listCycleRowsPage(supabase, params);
+  const ids = result.rows.map((cycle) => cycle.id);
   const [invitations, attempts, deliveries] = await Promise.all([
-    listInvitationRowsForCycles(supabase, ids),
-    listAttemptRowsForCycles(supabase, ids),
-    listEmailDeliveryRows(supabase, ids),
+    listInvitationRowsForCycles(supabase, ids), listAttemptRowsForCycles(supabase, ids), listEmailDeliveryRows(supabase, ids),
   ]);
   const now = Date.now();
-
-  return cycles.map((c) => {
-    const invs = invitations.filter((i) => i.cycle_id === c.id);
-    const finals = attempts.filter((a) => a.cycle_id === c.id && a.is_final);
-    const passed = finals.filter((a) => a.passed).length;
-    return {
-      id: c.id,
-      label: c.label,
-      status: c.status,
-      openedAt: c.opened_at,
-      deactivatedAt: c.deactivated_at,
-      passingScore: c.passing_score,
-      recipients: invs.length,
-      emailsSent: invs.filter((i) => i.email_status === 'sent').length,
-      emailsFailed: invs.filter((i) => i.email_status === 'failed').length,
-      reminderEmailsFailed: deliveries.filter((delivery) =>
-        delivery.cycle_id === c.id && delivery.email_type === 'reminder' && delivery.status === 'failed'
-      ).length,
-      expiredInvitations: invs.filter((i) => i.status !== 'completed' && new Date(i.expires_at).getTime() < now).length,
-      started: invs.filter((i) => i.status === 'opened' || i.status === 'completed').length,
-      completed: finals.length,
-      passed,
-      failed: finals.length - passed,
-      passRate: finals.length ? Math.round((passed / finals.length) * 100) : 0,
-    };
+  const items: CycleSummary[] = result.rows.map((cycle) => {
+    const invs = invitations.filter((item) => item.cycle_id === cycle.id);
+    const finals = attempts.filter((item) => item.cycle_id === cycle.id && item.is_final);
+    const passed = finals.filter((item) => item.passed).length;
+    return { id: cycle.id, label: cycle.label, status: cycle.status, openedAt: cycle.opened_at,
+      deactivatedAt: cycle.deactivated_at, passingScore: cycle.passing_score, recipients: invs.length,
+      emailsSent: invs.filter((item) => item.email_status === 'sent').length,
+      emailsFailed: invs.filter((item) => item.email_status === 'failed').length,
+      reminderEmailsFailed: deliveries.filter((item) => item.cycle_id === cycle.id && item.email_type === 'reminder' && item.status === 'failed').length,
+      expiredInvitations: invs.filter((item) => item.status !== 'completed' && new Date(item.expires_at).getTime() < now).length,
+      started: invs.filter((item) => item.status === 'opened' || item.status === 'completed').length,
+      completed: finals.length, passed, failed: finals.length - passed,
+      passRate: finals.length ? Math.round((passed / finals.length) * 100) : 0 };
   });
+  return { items, total: result.total, page: params.page, pageSize: params.pageSize };
 }
 
 const cycleSchema = z.object({
@@ -357,6 +366,8 @@ export async function getCycleRecipients(
   cycleId: string
 ): Promise<TrackerRow[]> {
   assertCanManage(actor);
+  return (await getCycleRecipientsPage(admin, actor, cycleId, 1, 20)).items;
+  // Kept below as reference for the row-mapping rules used by the paginated SQL function.
   const [invitations, attempts, people, deliveries] = await Promise.all([
     listInvitationRowsForCycles(supabase, [cycleId]),
     listAttemptRowsForCycles(supabase, [cycleId]),
@@ -389,6 +400,28 @@ export async function getCycleRecipients(
   });
   rows.sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || a.name.localeCompare(b.name));
   return rows;
+}
+
+export async function getCycleRecipientsPage(
+  admin: SupabaseClient, actor: Actor, cycleId: string, page: number, pageSize: number,
+  search = '', status: 'All' | TrackerStatus = 'All'
+): Promise<PaginatedResult<TrackerRow>> {
+  assertCanManage(actor);
+  const range = pageRange(page, pageSize);
+  const { data, error } = await admin.rpc('list_assessment_recipients_page', {
+    cycle_key: cycleId, search_text: search.trim(), status_filter: status === 'All' ? null : status,
+    page_offset: range.from, page_limit: range.pageSize,
+  });
+  if (error) throw error;
+  const source = (data ?? []) as any[];
+  const items = source.map((row): TrackerRow => ({
+    userId: row.user_id, name: row.full_name, email: row.email, status: row.tracker_status,
+    invitationStatus: row.invitation_status, emailStatus: row.email_status, emailError: row.email_error,
+    sentAt: row.sent_at, expiresAt: row.expires_at, attemptCount: Number(row.attempt_count),
+    score: row.score, submittedAt: row.submitted_at, reminderStatus: row.reminder_status,
+    reminderError: row.reminder_error,
+  }));
+  return { items, total: Number(source[0]?.total_count ?? 0), page: range.page, pageSize: range.pageSize };
 }
 
 export async function getTracker(
@@ -657,8 +690,13 @@ function toRow(input: z.output<typeof questionSchema>): QuestionInputRow {
 }
 
 export async function listQuestions(supabase: SupabaseClient, actor: Actor): Promise<ManagedQuestion[]> {
+  return (await listQuestionsPage(supabase, actor, 1, 20)).items;
+}
+
+export async function listQuestionsPage(supabase: SupabaseClient, actor: Actor, page: number, pageSize: number, search = '', status: 'all' | 'active' | 'inactive' = 'all') {
   assertCanManage(actor);
-  return (await listQuestionRows(supabase)).map(toManaged);
+  const result = await listQuestionRowsPage(supabase, page, pageSize, search, status);
+  return { items: result.rows.map(toManaged), total: result.total, activeTotal: result.activeTotal, page, pageSize };
 }
 
 export async function createQuestion(supabase: SupabaseClient, actor: Actor, input: QuestionInput): Promise<ManagedQuestion> {

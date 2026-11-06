@@ -4,6 +4,7 @@ import React from 'react';
 import { Hash, Briefcase, Lightbulb, GraduationCap, Award, Plus, Trash2, ChevronDown, ChevronUp, Lock } from 'lucide-react';
 import type { CvExperienceEntry, CvAcademicEntry, CvProjectEntry, CvCertificationEntry } from '@/lib/cvTypes';
 import { toTitleCase } from '@/lib/text';
+import { useDragReorder, moveItem, DragHandle } from '@/app/components/useDragReorder';
 
 /**
  * Shared structured CV entry editors — collapsible add/remove sections for experience, special
@@ -233,6 +234,7 @@ export function ExperienceSection({
    *  it defaults to false. */
   positionLocked?: boolean;
 }) {
+  const drag = useDragReorder(experience.length, (from, to) => onChange(moveItem(experience, from, to)));
   const updateEntry = (idx: number, patch: Partial<CvExperienceEntry>) =>
     onChange(experience.map((e, i) => (i === idx ? { ...e, ...patch } : e)));
   const removeEntry = (idx: number) => onChange(experience.filter((_, i) => i !== idx));
@@ -246,9 +248,12 @@ export function ExperienceSection({
   return (
     <SectionCard label="Professional Experience" icon={Briefcase} count={experience.length} expanded={expanded} onToggle={onToggle}>
       {experience.map((exp, idx) => (
-        <div key={idx} className="border border-slate-200 rounded-xl p-4 space-y-3 bg-slate-50/30">
+        <div key={idx} {...drag.cardProps(idx)} className={`border rounded-xl p-4 space-y-3 bg-slate-50/30 transition-colors ${drag.stateClass(idx)}`}>
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Experience {idx + 1}</span>
+            <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
+              <DragHandle label="work experience" handleProps={drag.handleProps(idx)} />
+              Experience {idx + 1}
+            </span>
             <button type="button" onClick={() => removeEntry(idx)} className="text-rose-400 hover:text-rose-600 transition-colors cursor-pointer" aria-label="Remove experience entry">
               <Trash2 className="w-3.5 h-3.5" />
             </button>
@@ -327,12 +332,16 @@ export function ProjectsSection({
   descriptionAsPoints?: boolean;
   showSkills?: boolean;
 }) {
+  const drag = useDragReorder(projects.length, (from, to) => onChange(moveItem(projects, from, to)));
   return (
     <SectionCard label="Special Projects" icon={Lightbulb} count={projects.length} expanded={expanded} onToggle={onToggle}>
       {projects.map((proj, idx) => (
-        <div key={idx} className="border border-slate-200 rounded-xl p-4 space-y-3 bg-slate-50/30">
+        <div key={idx} {...drag.cardProps(idx)} className={`border rounded-xl p-4 space-y-3 bg-slate-50/30 transition-colors ${drag.stateClass(idx)}`}>
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Project {idx + 1}</span>
+            <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
+              <DragHandle label="project" handleProps={drag.handleProps(idx)} />
+              Project {idx + 1}
+            </span>
             <button type="button" onClick={() => onChange(projects.filter((_, i) => i !== idx))} className="text-rose-400 hover:text-rose-600 transition-colors cursor-pointer">
               <Trash2 className="w-3.5 h-3.5" />
             </button>
@@ -481,28 +490,33 @@ export function CertificationsSection({
   onToggle: () => void;
   onChange: (v: CvCertificationEntry[]) => void;
 }) {
+  const drag = useDragReorder(certifications.length, (from, to) => onChange(moveItem(certifications, from, to)));
+
   return (
     <SectionCard label="Certifications" icon={Award} count={certifications.length} expanded={expanded} onToggle={onToggle}>
       {certifications.map((cert, idx) => (
-        <div key={idx} className="border border-slate-200 rounded-xl p-4 space-y-3 bg-slate-50/30">
+        <div key={idx} {...drag.cardProps(idx)} className={`border rounded-xl p-4 space-y-3 bg-slate-50/30 transition-colors ${drag.stateClass(idx)}`}>
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Certification {idx + 1}</span>
+            <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
+              <DragHandle label={`certification ${idx + 1}`} handleProps={drag.handleProps(idx)} />
+              Certification {idx + 1}
+            </span>
             <button type="button" onClick={() => onChange(certifications.filter((_, i) => i !== idx))} className="text-rose-400 hover:text-rose-600 transition-colors cursor-pointer">
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           </div>
           <div className="space-y-1">
-            <label className="text-[10px] font-bold text-slate-500 uppercase block">Certification Name</label>
-            <input type="text" value={cert.name} onChange={(e) => onChange(certifications.map((c, i) => (i === idx ? { ...c, name: e.target.value } : c)))} placeholder="e.g. AWS Certified Solutions Architect" className={inputCls} />
+            <label className="text-[10px] font-bold text-slate-500 uppercase block">Certification Name *</label>
+            <input type="text" required value={cert.name} onChange={(e) => onChange(certifications.map((c, i) => (i === idx ? { ...c, name: e.target.value } : c)))} placeholder="e.g. AWS Certified Solutions Architect" className={inputCls} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-500 uppercase block">Issuing Organisation</label>
-              <input type="text" value={cert.issuer} onChange={(e) => onChange(certifications.map((c, i) => (i === idx ? { ...c, issuer: e.target.value } : c)))} placeholder="e.g. Amazon Web Services" className={inputCls} />
+              <label className="text-[10px] font-bold text-slate-500 uppercase block">Issuing Organisation *</label>
+              <input type="text" required value={cert.issuer} onChange={(e) => onChange(certifications.map((c, i) => (i === idx ? { ...c, issuer: e.target.value } : c)))} placeholder="e.g. Amazon Web Services" className={inputCls} />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-500 uppercase block">Year Obtained</label>
-              <input type="text" value={cert.year} onChange={(e) => onChange(certifications.map((c, i) => (i === idx ? { ...c, year: e.target.value } : c)))} placeholder="e.g. 2023" className={inputCls} />
+              <label className="text-[10px] font-bold text-slate-500 uppercase block">Year Obtained *</label>
+              <input type="text" required value={cert.year} onChange={(e) => onChange(certifications.map((c, i) => (i === idx ? { ...c, year: e.target.value } : c)))} placeholder="e.g. 2023" className={inputCls} />
             </div>
           </div>
         </div>

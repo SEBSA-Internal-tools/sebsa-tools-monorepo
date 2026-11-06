@@ -9,6 +9,52 @@ import { setAccountAccess } from '@/lib/auth/accountAccess';
 import { getAccountStatus } from '@/services/account-service';
 import type { AccountStatus } from '@/lib/accountStatus';
 import { recordAuditLog } from '@/services/audit-service';
+import { createClient } from '@/lib/supabase/server';
+import { normalizePagination, type PaginatedResult } from '@/lib/pagination';
+import type { Employee } from '@/types/domain';
+import { DEFAULT_AVATAR, getSignedAvatarUrl } from '@/lib/avatar';
+import { toUpperCaseText } from '@/lib/text';
+
+export interface EmployeeListFilters {
+  search?: string;
+  departmentId?: string;
+  position?: string;
+  accountStatus?: AccountStatus | 'all';
+}
+
+export async function listEmployeePositionsAction(): Promise<string[]> {
+  const user = await getCurrentUser();
+  if (!user || user.role === 'employee') throw new Error('Not authorized.');
+  const { data, error } = await createAdminClient().rpc('list_employee_positions');
+  if (error) throw error;
+  return ((data ?? []) as Array<{ position_name: string }>).map((row) => row.position_name);
+}
+
+export async function listEmployeesPageAction(page: number, pageSize: number, filters: EmployeeListFilters = {}): Promise<PaginatedResult<Employee>> {
+  const user = await getCurrentUser();
+  if (!user || user.role === 'employee') throw new Error('Not authorized to view the employee repository.');
+  const pagination = normalizePagination(page, pageSize);
+  const admin = createAdminClient();
+  const { data, error } = await admin.rpc('list_employee_profiles_page', {
+    search_text: filters.search?.trim() ?? '', department_key: filters.departmentId ?? null,
+    position_filter: filters.position ?? null,
+    account_filter: !filters.accountStatus || filters.accountStatus === 'all' ? null : filters.accountStatus,
+    page_offset: (pagination.page - 1) * pagination.pageSize, page_limit: pagination.pageSize,
+  });
+  if (error) throw error;
+  const rows = (data ?? []) as any[];
+  const items: Employee[] = await Promise.all(rows.map(async (row) => ({
+    rowId: row.profile_id, name: row.full_name, displayName: row.display_name, email: row.email,
+    role: toUpperCaseText(row.role_title ?? ''),
+    experienceYears: row.years_experience != null ? `${row.years_experience}+ Years Experience` : undefined,
+    department: row.department_name, skills: [],
+    lastUpdated: new Date(row.updated_at).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
+    avatar: await getSignedAvatarUrl(admin, row.avatar_url ?? DEFAULT_AVATAR),
+    isAccountLinked: row.account_user_id != null, accountUserId: row.account_user_id,
+    accountStatus: row.account_status as AccountStatus,
+  })));
+  return { items, total: Number(rows[0]?.total_count ?? 0), ...pagination };
+}
 
 export interface DeleteEmployeeResult {
   ok: boolean;

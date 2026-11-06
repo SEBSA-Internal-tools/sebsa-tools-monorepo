@@ -1,9 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { PageWrapper } from '../../components/PageWrapper';
-import { markNotificationReadAction } from '../notifications/actions';
+import { markNotificationReadAction, listNotificationsPageAction } from '../notifications/actions';
+import { listAuditLogsPageAction } from '../audit-actions';
+import { Pagination } from '@/app/components/Pagination';
+import type { PaginatedResult } from '@/lib/pagination';
 import type { AppNotification } from '@/services/notification-service';
 import type { AuditLogRecord } from '@/services/audit-service';
 import type { AuditChange } from '@/services/audit-service';
@@ -12,8 +15,8 @@ import { ArrowLeft, Bell, History } from 'lucide-react';
 type LogTab = 'activity' | 'notifications';
 
 interface ActivityLogClientProps {
-  initialNotifications: AppNotification[];
-  initialAuditLogs: AuditLogRecord[];
+  initialNotifications: PaginatedResult<AppNotification>;
+  initialAuditLogs: PaginatedResult<AuditLogRecord>;
   initialTab: LogTab;
 }
 
@@ -90,10 +93,26 @@ function describeActivity(row: AuditLogRecord): string {
 export default function ActivityLogClient({ initialNotifications, initialAuditLogs, initialTab }: ActivityLogClientProps) {
   const router = useRouter();
   const [tab, setTab] = useState<LogTab>(initialTab);
-  const [notifications, setNotifications] = useState(initialNotifications);
+  const [notifications, setNotifications] = useState(initialNotifications.items);
+  const [auditLogs, setAuditLogs] = useState(initialAuditLogs.items);
+  const [notificationTotal, setNotificationTotal] = useState(initialNotifications.total);
+  const [auditTotal, setAuditTotal] = useState(initialAuditLogs.total);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setLoading(true);
+    const request = tab === 'activity' ? listAuditLogsPageAction(page, pageSize) : listNotificationsPageAction(page, pageSize);
+    request.then((result) => {
+      if (tab === 'activity') { const pageResult = result as PaginatedResult<AuditLogRecord>; setAuditLogs(pageResult.items); setAuditTotal(pageResult.total); }
+      else { const pageResult = result as PaginatedResult<AppNotification>; setNotifications(pageResult.items); setNotificationTotal(pageResult.total); }
+    }).finally(() => setLoading(false));
+  }, [tab, page, pageSize]);
 
   const selectTab = (next: LogTab) => {
     setTab(next);
+    setPage(1);
     router.replace(`/activity?tab=${next}`, { scroll: false });
   };
 
@@ -130,13 +149,13 @@ export default function ActivityLogClient({ initialNotifications, initialAuditLo
           <table className="w-full min-w-[900px] border-collapse text-left">
             <thead className="bg-slate-50"><tr>{['Time', 'User', 'Action', 'Activity'].map((label) => <th key={label} className="px-4 py-3 text-[10px] font-black uppercase tracking-wider text-slate-500">{label}</th>)}</tr></thead>
             <tbody>
-              {initialAuditLogs.map((row) => <tr key={row.id} className="hover:bg-slate-50/60">
+              {auditLogs.map((row) => <tr key={row.id} className="hover:bg-slate-50/60">
                 <td className={`${cellCls} whitespace-nowrap`}>{new Date(row.createdAt).toLocaleString()}</td>
                 <td className={`${cellCls} font-bold text-slate-800`}>{row.actorName}</td>
                 <td className={cellCls}><span className="rounded-full bg-indigo-50 px-2 py-1 font-black text-indigo-700">{row.action}</span></td>
                 <td className={`${cellCls} max-w-xl leading-relaxed`}>{describeActivity(row)}</td>
               </tr>)}
-              {initialAuditLogs.length === 0 && <tr><td colSpan={4} className="p-10 text-center text-xs text-slate-400">No activity records available.</td></tr>}
+              {auditLogs.length === 0 && <tr><td colSpan={4} className="p-10 text-center text-xs text-slate-400">No activity records available.</td></tr>}
             </tbody>
           </table>
         ) : (
@@ -155,6 +174,8 @@ export default function ActivityLogClient({ initialNotifications, initialAuditLo
           </table>
         )}
       </div>
+      <Pagination page={page} pageSize={pageSize} total={tab === 'activity' ? auditTotal : notificationTotal} disabled={loading}
+        onPageChange={setPage} onPageSizeChange={(size) => { setPageSize(size); setPage(1); }} />
     </PageWrapper>
   );
 }

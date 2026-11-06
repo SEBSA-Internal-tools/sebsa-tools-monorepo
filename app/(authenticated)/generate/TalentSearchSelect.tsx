@@ -4,11 +4,14 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Search, ChevronDown } from 'lucide-react';
 import type { Employee } from '@/types/domain';
 import { getCvDisplayName } from '@/lib/templates/buildTailoredCvFromEmployee';
+import { listEmployeesPageAction } from '../repository/actions';
+import { Pagination } from '@/app/components/Pagination';
+import type { PaginatedResult } from '@/lib/pagination';
 
 interface TalentSearchSelectProps {
-  employees: Employee[];
+  initialPage: PaginatedResult<Employee>;
   selectedId: string;
-  onSelect: (id: string) => void;
+  onSelect: (id: string, employee: Employee) => void;
 }
 
 /** Wraps the first case-insensitive match of `query` inside `text` in a highlighted <mark> —
@@ -36,25 +39,30 @@ function highlightMatch(text: string, query: string): React.ReactNode {
  * matched substring highlighted, filtered live against name/role/department. Arrow keys move the
  * highlighted row, Enter picks it, Escape/outside-click closes without changing the selection.
  */
-export default function TalentSearchSelect({ employees, selectedId, onSelect }: TalentSearchSelectProps) {
+export default function TalentSearchSelect({ initialPage, selectedId, onSelect }: TalentSearchSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [highlightedIndex, setHighlightedIndex] = useState(0);
+  const [result, setResult] = useState(initialPage);
+  const [page, setPage] = useState(initialPage.page);
+  const [pageSize, setPageSize] = useState(initialPage.pageSize);
+  const [loading, setLoading] = useState(false);
+  const [selectedEmployeeState, setSelectedEmployeeState] = useState<Employee | undefined>(() => initialPage.items.find((employee) => employee.rowId === selectedId));
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const selectedEmployee = employees.find((emp) => emp.rowId === selectedId);
+  const selectedEmployee = result.items.find((emp) => emp.rowId === selectedId) ?? selectedEmployeeState;
   const label = (emp: Employee) => `${getCvDisplayName(emp)} (${emp.role})`;
 
-  const filtered = employees.filter((emp) => {
-    const q = query.trim().toLowerCase();
-    if (!q) return true;
-    return (
-      emp.name.toLowerCase().includes(q) ||
-      getCvDisplayName(emp).toLowerCase().includes(q) ||
-      emp.role.toLowerCase().includes(q) ||
-      emp.department.toLowerCase().includes(q)
-    );
-  });
+  const filtered = result.items;
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const timer = setTimeout(() => {
+      setLoading(true);
+      listEmployeesPageAction(page, pageSize, { search: query }).then(setResult).finally(() => setLoading(false));
+    }, query ? 250 : 0);
+    return () => clearTimeout(timer);
+  }, [isOpen, query, page, pageSize]);
 
   // Closing (click outside / Escape) never changes the selection — only Enter or a click on an
   // option does. The input just falls back to showing the current selection's label.
@@ -74,11 +82,13 @@ export default function TalentSearchSelect({ employees, selectedId, onSelect }: 
 
   const openWithFreshQuery = () => {
     setQuery('');
+    setPage(1);
     setIsOpen(true);
   };
 
   const commitSelection = (emp: Employee) => {
-    onSelect(emp.rowId);
+    setSelectedEmployeeState(emp);
+    onSelect(emp.rowId, emp);
     setQuery('');
     setIsOpen(false);
   };
@@ -119,6 +129,7 @@ export default function TalentSearchSelect({ employees, selectedId, onSelect }: 
           onFocus={openWithFreshQuery}
           onChange={(e) => {
             setQuery(e.target.value);
+            setPage(1);
             setIsOpen(true);
           }}
           onKeyDown={handleKeyDown}
@@ -153,6 +164,8 @@ export default function TalentSearchSelect({ employees, selectedId, onSelect }: 
               </button>
             ))
           )}
+          <Pagination page={page} pageSize={pageSize} total={result.total} disabled={loading}
+            onPageChange={setPage} onPageSizeChange={(size) => { setPageSize(size); setPage(1); }} />
         </div>
       )}
     </div>

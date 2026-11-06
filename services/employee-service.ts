@@ -6,6 +6,7 @@ import {
   deleteEmployeeRow,
   getEmployeeRowById,
   listEmployeeRows,
+  listEmployeeRowsPage,
   updateEmployeeRow,
 } from '@/repositories/employee-repository';
 import type {
@@ -17,6 +18,7 @@ import type {
 import type { CvAcademicEntry, CvExperienceEntry, CvProjectEntry, CvCertificationEntry } from '@/lib/cvTypes';
 import { getSignedAvatarUrl, DEFAULT_AVATAR } from '@/lib/avatar';
 import { toTitleCase, toUpperCaseText } from '@/lib/text';
+import type { PaginatedResult } from '@/lib/pagination';
 
 function formatDate(value: string | null | undefined): string {
   if (!value) return '';
@@ -69,14 +71,19 @@ function tryParseJson<T>(value: string | null | undefined): T | null {
 }
 
 export async function listEmployees(supabase: SupabaseClient): Promise<Employee[]> {
-  const rows = await listEmployeeRows(supabase);
-  const mapped = rows.map(mapListRow);
-  await Promise.all(
-    mapped.map(async (emp) => {
-      emp.avatar = await getSignedAvatarUrl(supabase, emp.avatar);
-    })
-  );
-  return mapped;
+  return (await listEmployeesPage(supabase, { page: 1, pageSize: 20 })).items;
+}
+
+export async function listEmployeesPage(
+  supabase: SupabaseClient,
+  params: Parameters<typeof listEmployeeRowsPage>[1]
+): Promise<PaginatedResult<Employee>> {
+  const { rows, total } = await listEmployeeRowsPage(supabase, params);
+  const items = rows.map(mapListRow);
+  await Promise.all(items.map(async (employee) => {
+    employee.avatar = await getSignedAvatarUrl(supabase, employee.avatar);
+  }));
+  return { items, total, page: params.page, pageSize: params.pageSize };
 }
 
 export async function getEmployeeById(
@@ -138,18 +145,22 @@ export async function getEmployeeById(
 
   // ── Certifications mapping ────────────────────────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const certs: string[] = ((row as any).certifications ?? []).map((c: any) =>
-    [c.name, c.issuer ? `(${c.issuer}${c.issued_date ? ` • ${new Date(c.issued_date).getFullYear()}` : ''})` : null]
-      .filter(Boolean)
-      .join(' ')
-  );
+  const certs: string[] = ((row as any).certifications ?? [])
+    .sort((a: any, b: any) => a.display_order - b.display_order)
+    .map((c: any) =>
+      [c.name, c.issuer ? `(${c.issuer}${c.issued_date ? ` • ${new Date(c.issued_date).getFullYear()}` : ''})` : null]
+        .filter(Boolean)
+        .join(' ')
+    );
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const cvCertifications: CvCertificationEntry[] = ((row as any).certifications ?? []).map((c: any) => ({
-    name: c.name,
-    issuer: c.issuer ?? '',
-    year: c.issued_date ? String(new Date(c.issued_date).getFullYear()) : '',
-  }));
+  const cvCertifications: CvCertificationEntry[] = ((row as any).certifications ?? [])
+    .sort((a: any, b: any) => a.display_order - b.display_order)
+    .map((c: any) => ({
+      name: c.name,
+      issuer: c.issuer ?? '',
+      year: c.issued_date ? String(new Date(c.issued_date).getFullYear()) : '',
+    }));
 
   // ── Academic mapping ──────────────────────────────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -157,6 +168,7 @@ export async function getEmployeeById(
   const cvAcademic: CvAcademicEntry[] = tryParseJson<CvAcademicEntry[]>(rawEducation) ?? [];
   // Legacy plain-text education field (non-JSON)
   const educationText = cvAcademic.length === 0 ? (rawEducation ?? undefined) : undefined;
+  const pendingChange = ((row as any).pending_change ?? undefined) as UpdateEmployeeInput | undefined;
 
   const emp = {
     ...mapListRow(row),
@@ -174,6 +186,12 @@ export async function getEmployeeById(
     summary: (row as any).summary ?? undefined,
     status: (row as any).status ?? undefined,
     hasPendingChange: (row as any).pending_change != null,
+    pendingChange,
+    pendingChangeSubmittedAt: (row as any).pending_change_submitted_at ?? null,
+    pendingChangeVersion: (row as any).pending_change_version ?? null,
+    pendingChangeAvatar: pendingChange?.avatarUrl
+      ? await getSignedAvatarUrl(supabase, pendingChange.avatarUrl)
+      : undefined,
   };
   emp.avatar = await getSignedAvatarUrl(supabase, emp.avatar);
   return emp;

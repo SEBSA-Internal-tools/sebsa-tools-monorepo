@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { NotificationType } from '@/lib/notifications';
+import { pageRange, type PaginatedResult } from '@/lib/pagination';
 
 export interface AppNotification {
   id: string;
@@ -37,6 +38,14 @@ export async function listNotifications(supabase: SupabaseClient, limit: number 
 
   if (error) throw error;
   return (data ?? []).map(mapRow);
+}
+
+export async function listNotificationsPage(supabase: SupabaseClient, page: number, pageSize: number): Promise<PaginatedResult<AppNotification>> {
+  const range = pageRange(page, pageSize);
+  const { data, error, count } = await supabase.from('notifications').select(SELECT, { count: 'exact' })
+    .order('created_at', { ascending: false }).range(range.from, range.to);
+  if (error) throw error;
+  return { items: (data ?? []).map(mapRow), total: count ?? 0, page: range.page, pageSize: range.pageSize };
 }
 
 export async function markNotificationRead(supabase: SupabaseClient, id: string): Promise<void> {

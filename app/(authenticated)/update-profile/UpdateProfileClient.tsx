@@ -8,11 +8,15 @@ import { useRouter } from 'next/navigation';
 import { PageWrapper } from '../../components/PageWrapper';
 import { uploadProfilePictureAction } from '../upload/actions';
 import { getEmployeeDetailsAction, updateEmployeeAction } from './actions';
+import { listEmployeesPageAction } from '../repository/actions';
+import { Pagination } from '@/app/components/Pagination';
 import { ProjectSkillsInput } from '@/app/components/CvEntrySections';
+import { useDragReorder, moveItem, DragHandle } from '@/app/components/useDragReorder';
 import { toTitleCase } from '@/lib/text';
 import { getProfilePictureValidationError } from '@/lib/profilePicture';
 import {
   emptyCvProfile,
+  getCertificationsValidationError,
   type CvProfile,
   type CvExperienceEntry,
   type CvAcademicEntry,
@@ -32,7 +36,7 @@ import {
   GraduationCap,
   Briefcase,
   Award,
-  Layers, GripVertical,
+  Layers,
   ImageIcon,
   UserCircle2,
   Search,
@@ -117,7 +121,7 @@ async function extractText(file: File): Promise<string> {
 // ─── Main Client Component ────────────────────────────────────────────────────
 
 interface UpdateProfileClientProps {
-  initialEmployees: Employee[];
+  initialPage: import('@/lib/pagination').PaginatedResult<Employee>;
   departments: { id: string; name: string }[];
   /** Pre-selects an employee when arriving from their profile page's edit-pencil icon, instead
    *  of requiring the Admin to re-pick them from the dropdown below. */
@@ -127,7 +131,7 @@ interface UpdateProfileClientProps {
 type CvUploadStatus = 'idle' | 'extracting' | 'analyzing' | 'done' | 'error';
 
 export default function UpdateProfileClient({
-  initialEmployees,
+  initialPage,
   departments,
   initialId,
 }: UpdateProfileClientProps) {
@@ -137,20 +141,26 @@ export default function UpdateProfileClient({
   const [selectedId, setSelectedId] = useState<string>(initialId ?? '');
   const [loadingProfile, setLoadingProfile] = useState<boolean>(false);
   const [activeProfile, setActiveProfile] = useState<Employee | null>(null);
+  const [employees, setEmployees] = useState(initialPage.items);
+  const [employeeTotal, setEmployeeTotal] = useState(initialPage.total);
+  const [employeePage, setEmployeePage] = useState(initialPage.page);
+  const [employeePageSize, setEmployeePageSize] = useState(initialPage.pageSize);
+  const [employeeListLoading, setEmployeeListLoading] = useState(false);
 
   // Search filter for the employee picker list (shown before an employee is selected)
   const [searchTerm, setSearchTerm] = useState('');
-  const filteredEmployees = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
-    if (!term) return initialEmployees;
-    return initialEmployees.filter(
-      (emp) =>
-        emp.name.toLowerCase().includes(term) ||
-        emp.email.toLowerCase().includes(term) ||
-        emp.role.toLowerCase().includes(term) ||
-        emp.department.toLowerCase().includes(term)
-    );
-  }, [initialEmployees, searchTerm]);
+  const filteredEmployees = employees;
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setEmployeeListLoading(true);
+      listEmployeesPageAction(employeePage, employeePageSize, { search: searchTerm }).then((result) => {
+        setEmployees(result.items);
+        setEmployeeTotal(result.total);
+      }).finally(() => setEmployeeListLoading(false));
+    }, searchTerm ? 250 : 0);
+    return () => clearTimeout(timer);
+  }, [employeePage, employeePageSize, searchTerm]);
 
   // Form editable states
   const [profile, setProfile] = useState<CvProfile>(emptyCvProfile());
@@ -383,22 +393,12 @@ export default function UpdateProfileClient({
   const addProject = () =>
     updateField('specialProjects', [...profile.specialProjects, { title: '', brief: '', skills: [] }]);
   // Drag-and-drop reordering (the order is saved as display_order, so it drives the CV too).
-  // Dragging starts only from the grip handle, so selecting text in the fields still works.
-  const [armedProject, setArmedProject] = useState<number | null>(null);
-  const [dragProject, setDragProject] = useState<number | null>(null);
-  const [overProject, setOverProject] = useState<number | null>(null);
-  const moveProject = (from: number, to: number) => {
-    if (from === to) return;
-    const next = [...profile.specialProjects];
-    const [moved] = next.splice(from, 1);
-    next.splice(to, 0, moved);
-    updateField('specialProjects', next);
-  };
-  const endProjectDrag = () => {
-    setArmedProject(null);
-    setDragProject(null);
-    setOverProject(null);
-  };
+  const projectDrag = useDragReorder(profile.specialProjects.length, (from, to) =>
+    updateField('specialProjects', moveItem(profile.specialProjects, from, to)));
+  const experienceDrag = useDragReorder(profile.experience.length, (from, to) =>
+    updateField('experience', moveItem(profile.experience, from, to)));
+  const certificationDrag = useDragReorder(profile.certifications.length, (from, to) =>
+    updateField('certifications', moveItem(profile.certifications, from, to)));
   const removeProject = (i: number) =>
     updateField('specialProjects', profile.specialProjects.filter((_, idx) => idx !== i));
   const updateProject = (i: number, field: 'title' | 'brief', value: string) =>
@@ -431,6 +431,13 @@ export default function UpdateProfileClient({
 
     setSaveError(null);
     setSuccessMessage(null);
+
+    const certificationError = getCertificationsValidationError(profile.certifications);
+    if (certificationError) {
+      setSaveError(certificationError);
+      return;
+    }
+
     setIsSaving(true);
 
     try {
@@ -567,7 +574,7 @@ export default function UpdateProfileClient({
               type="text"
               placeholder="Search by name, email, role, or department..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => { setSearchTerm(e.target.value); setEmployeePage(1); }}
               className="w-full bg-slate-50 border border-slate-200/80 rounded-xl py-3 pl-10 pr-4 text-xs font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-all text-slate-700 placeholder:text-slate-400"
             />
           </div>
@@ -614,6 +621,9 @@ export default function UpdateProfileClient({
               </div>
             )}
           </div>
+          <Pagination page={employeePage} pageSize={employeePageSize} total={employeeTotal} disabled={employeeListLoading}
+            onPageChange={setEmployeePage}
+            onPageSizeChange={(size) => { setEmployeePageSize(size); setEmployeePage(1); }} />
         </>
       )}
 
@@ -869,9 +879,14 @@ export default function UpdateProfileClient({
                 <SectionTitle icon={Briefcase}>Work Experience</SectionTitle>
                 <div className="space-y-5">
                   {profile.experience.map((exp, i) => (
-                    <div key={i} className="border border-slate-200 rounded-xl p-4 bg-slate-50/40 space-y-3">
+                    <div
+                      key={i}
+                      {...experienceDrag.cardProps(i)}
+                      className={`border rounded-xl p-4 bg-slate-50/40 space-y-3 transition-colors ${experienceDrag.stateClass(i)}`}
+                    >
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-indigo-500">
+                        <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-indigo-500">
+                          <DragHandle label={`work experience ${i + 1}`} handleProps={experienceDrag.handleProps(i)} />
                           Position {i + 1}
                         </span>
                         <button
@@ -1029,44 +1044,12 @@ export default function UpdateProfileClient({
                   {profile.specialProjects.map((proj, i) => (
                     <div
                       key={i}
-                      draggable={armedProject === i}
-                      onDragStart={(e) => {
-                        setDragProject(i);
-                        e.dataTransfer.effectAllowed = 'move';
-                        e.dataTransfer.setData('text/plain', String(i));
-                      }}
-                      onDragOver={(e) => {
-                        if (dragProject === null) return;
-                        e.preventDefault();
-                        e.dataTransfer.dropEffect = 'move';
-                        if (overProject !== i) setOverProject(i);
-                      }}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        if (dragProject !== null) moveProject(dragProject, i);
-                        endProjectDrag();
-                      }}
-                      onDragEnd={endProjectDrag}
-                      className={`border rounded-xl p-4 bg-slate-50/40 space-y-3 transition-colors ${
-                        dragProject === i
-                          ? 'opacity-50 border-sky-300'
-                          : overProject === i && dragProject !== null
-                            ? 'border-sky-500 ring-2 ring-sky-200'
-                            : 'border-slate-200'
-                      }`}
+                      {...projectDrag.cardProps(i)}
+                      className={`border rounded-xl p-4 bg-slate-50/40 space-y-3 transition-colors ${projectDrag.stateClass(i)}`}
                     >
                       <div className="flex items-center justify-between">
                         <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-sky-500">
-                          <span
-                            role="button"
-                            aria-label={`Drag to reorder project ${i + 1}`}
-                            title="Drag to reorder"
-                            onMouseDown={() => setArmedProject(i)}
-                            onMouseUp={() => setArmedProject(null)}
-                            className="cursor-grab active:cursor-grabbing text-slate-400 hover:text-sky-500 -ml-1 p-1"
-                          >
-                            <GripVertical className="w-4 h-4" />
-                          </span>
+                          <DragHandle label={`project ${i + 1}`} handleProps={projectDrag.handleProps(i)} />
                           Project {i + 1}
                         </span>
                         <button
@@ -1118,9 +1101,10 @@ export default function UpdateProfileClient({
                 <SectionTitle icon={Award}>Certifications</SectionTitle>
                 <div className="space-y-3">
                   {profile.certifications.map((cert, i) => (
-                    <div key={i} className="border border-slate-200 rounded-xl p-4 bg-slate-50/40 space-y-3">
+                    <div key={i} {...certificationDrag.cardProps(i)} className={`border rounded-xl p-4 bg-slate-50/40 space-y-3 transition-colors ${certificationDrag.stateClass(i)}`}>
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-amber-500">
+                        <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-amber-500">
+                          <DragHandle label={`certification ${i + 1}`} handleProps={certificationDrag.handleProps(i)} />
                           Cert {i + 1}
                         </span>
                         <button
@@ -1133,9 +1117,10 @@ export default function UpdateProfileClient({
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div className="sm:col-span-1">
-                          <FieldLabel>Certification Name</FieldLabel>
+                          <FieldLabel>Certification Name *</FieldLabel>
                           <input
                             type="text"
+                            required
                             placeholder="e.g. AWS Certified Solutions Architect"
                             value={cert.name}
                             onChange={(e) => updateCertification(i, 'name', e.target.value)}
@@ -1143,9 +1128,10 @@ export default function UpdateProfileClient({
                           />
                         </div>
                         <div>
-                          <FieldLabel>Issuer</FieldLabel>
+                          <FieldLabel>Issuer *</FieldLabel>
                           <input
                             type="text"
+                            required
                             placeholder="e.g. Amazon Web Services"
                             value={cert.issuer}
                             onChange={(e) => updateCertification(i, 'issuer', e.target.value)}
@@ -1153,9 +1139,10 @@ export default function UpdateProfileClient({
                           />
                         </div>
                         <div>
-                          <FieldLabel>Year</FieldLabel>
+                          <FieldLabel>Year *</FieldLabel>
                           <input
                             type="text"
+                            required
                             placeholder="e.g. 2023"
                             value={cert.year}
                             onChange={(e) => updateCertification(i, 'year', e.target.value)}

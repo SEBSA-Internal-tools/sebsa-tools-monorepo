@@ -135,7 +135,7 @@ export default function EmployeeProfileClient({ employee, viewerRole }: Employee
           <span />
         )}
 
-        {viewerRole === 'employee' && employee.status === 'published' && !employee.hasPendingChange && (
+        {viewerRole === 'employee' && employee.status === 'published' && (
           <button
             onClick={() => router.push('/my-profile')}
             className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wide transition-colors"
@@ -170,7 +170,8 @@ export default function EmployeeProfileClient({ employee, viewerRole }: Employee
         <div className="mb-6 flex items-center gap-2.5 px-4 py-3 bg-amber-50 border border-amber-200/60 rounded-xl text-amber-700">
           <Clock className="w-4 h-4 shrink-0" />
           <p className="text-xs font-semibold">
-            A proposed update to this profile is pending review.
+            A proposed update to this profile is pending review. You can keep editing and
+            resubmit; the reviewer will receive the latest version.
           </p>
         </div>
       )}

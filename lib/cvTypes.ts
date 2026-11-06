@@ -29,6 +29,21 @@ export interface CvCertificationEntry {
   year: string;
 }
 
+export function isCertificationComplete(certification: CvCertificationEntry): boolean {
+  return Boolean(
+    certification.name.trim()
+    && certification.issuer.trim()
+    && certification.year.trim()
+  );
+}
+
+export function getCertificationsValidationError(certifications: CvCertificationEntry[]): string | null {
+  const incompleteIndex = certifications.findIndex((certification) => !isCertificationComplete(certification));
+  return incompleteIndex === -1
+    ? null
+    : `Certification ${incompleteIndex + 1} must include a name, issuer, and year.`;
+}
+
 export interface CvProfile {
   name: string;
   currentPosition: string;

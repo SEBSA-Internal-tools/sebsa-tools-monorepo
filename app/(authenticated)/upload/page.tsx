@@ -14,8 +14,10 @@ import { getProfilePictureValidationError } from '@/lib/profilePicture';
 import { useRoleGate } from '@/lib/useRoleGate';
 import { isReviewerOrAbove } from '@/lib/roles';
 import { ProjectSkillsInput } from '@/app/components/CvEntrySections';
+import { useDragReorder, moveItem, DragHandle } from '@/app/components/useDragReorder';
 import {
   emptyCvProfile,
+  getCertificationsValidationError,
   type CvProfile,
   type CvExperienceEntry,
   type CvAcademicEntry,
@@ -190,6 +192,14 @@ export default function UploadPage() {
   const updateField = <K extends keyof CvProfile>(key: K, value: CvProfile[K]) =>
     setProfile((p) => ({ ...p, [key]: value }));
 
+  // Drag-and-drop reordering of work experience and special projects.
+  const experienceDrag = useDragReorder(profile.experience.length, (from, to) =>
+    updateField('experience', moveItem(profile.experience, from, to)));
+  const projectDrag = useDragReorder(profile.specialProjects.length, (from, to) =>
+    updateField('specialProjects', moveItem(profile.specialProjects, from, to)));
+  const certificationDrag = useDragReorder(profile.certifications.length, (from, to) =>
+    updateField('certifications', moveItem(profile.certifications, from, to)));
+
   // Experience
   const addExperience = () =>
     updateField('experience', [...profile.experience, { position: '', company: '', period: '', tasks: [''] }]);
@@ -287,6 +297,13 @@ export default function UploadPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitError(null);
+
+    const certificationError = getCertificationsValidationError(profile.certifications);
+    if (certificationError) {
+      setSubmitError(certificationError);
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -566,9 +583,10 @@ export default function UploadPage() {
               <SectionTitle icon={Briefcase}>Work Experience</SectionTitle>
               <div className="space-y-5">
                 {profile.experience.map((exp, i) => (
-                  <div key={i} className="border border-slate-200 rounded-xl p-4 bg-slate-50/40 space-y-3">
+                  <div key={i} {...experienceDrag.cardProps(i)} className={`border rounded-xl p-4 bg-slate-50/40 space-y-3 transition-colors ${experienceDrag.stateClass(i)}`}>
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-black uppercase tracking-widest text-indigo-500">
+                      <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-indigo-500">
+                        <DragHandle label={`work experience ${i + 1}`} handleProps={experienceDrag.handleProps(i)} />
                         Position {i + 1}
                       </span>
                       <button
@@ -724,9 +742,10 @@ export default function UploadPage() {
               <SectionTitle icon={Layers}>Special Projects</SectionTitle>
               <div className="space-y-3">
                 {profile.specialProjects.map((proj, i) => (
-                  <div key={i} className="border border-slate-200 rounded-xl p-4 bg-slate-50/40 space-y-3">
+                  <div key={i} {...projectDrag.cardProps(i)} className={`border rounded-xl p-4 bg-slate-50/40 space-y-3 transition-colors ${projectDrag.stateClass(i)}`}>
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-black uppercase tracking-widest text-sky-500">
+                      <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-sky-500">
+                        <DragHandle label={`project ${i + 1}`} handleProps={projectDrag.handleProps(i)} />
                         Project {i + 1}
                       </span>
                       <button
@@ -778,9 +797,10 @@ export default function UploadPage() {
               <SectionTitle icon={Award}>Certifications</SectionTitle>
               <div className="space-y-3">
                 {profile.certifications.map((cert, i) => (
-                  <div key={i} className="border border-slate-200 rounded-xl p-4 bg-slate-50/40 space-y-3">
+                  <div key={i} {...certificationDrag.cardProps(i)} className={`border rounded-xl p-4 bg-slate-50/40 space-y-3 transition-colors ${certificationDrag.stateClass(i)}`}>
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-black uppercase tracking-widest text-amber-500">
+                      <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-amber-500">
+                        <DragHandle label={`certification ${i + 1}`} handleProps={certificationDrag.handleProps(i)} />
                         Cert {i + 1}
                       </span>
                       <button
@@ -793,9 +813,10 @@ export default function UploadPage() {
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div className="sm:col-span-1">
-                        <FieldLabel>Certification Name</FieldLabel>
+                        <FieldLabel>Certification Name *</FieldLabel>
                         <input
                           type="text"
+                          required
                           placeholder="e.g. AWS Certified Solutions Architect"
                           value={cert.name}
                           onChange={(e) => updateCertification(i, 'name', e.target.value)}
@@ -803,9 +824,10 @@ export default function UploadPage() {
                         />
                       </div>
                       <div>
-                        <FieldLabel>Issuer</FieldLabel>
+                        <FieldLabel>Issuer *</FieldLabel>
                         <input
                           type="text"
+                          required
                           placeholder="e.g. Amazon Web Services"
                           value={cert.issuer}
                           onChange={(e) => updateCertification(i, 'issuer', e.target.value)}
@@ -813,9 +835,10 @@ export default function UploadPage() {
                         />
                       </div>
                       <div>
-                        <FieldLabel>Year</FieldLabel>
+                        <FieldLabel>Year *</FieldLabel>
                         <input
                           type="text"
+                          required
                           placeholder="e.g. 2023"
                           value={cert.year}
                           onChange={(e) => updateCertification(i, 'year', e.target.value)}

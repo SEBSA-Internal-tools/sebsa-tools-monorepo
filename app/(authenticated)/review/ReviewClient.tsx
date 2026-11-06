@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useTransition } from 'react';
+import React, { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { PageWrapper } from '../../components/PageWrapper';
 import CvPreviewTemplate from '../generate/CvPreviewTemplate';
@@ -14,12 +14,16 @@ import {
   rejectClaimAction,
   approveChangeAction,
   rejectChangeAction,
+  listPendingItemsPageAction,
+  getLatestPendingChangeAction,
   type PendingItem,
 } from './actions';
+import { Pagination } from '@/app/components/Pagination';
+import type { PaginatedResult } from '@/lib/pagination';
 import { ClipboardCheck, UserPlus, LinkIcon, PenLine, Check, X, Loader2, Eye } from 'lucide-react';
 
 interface ReviewClientProps {
-  initialItems: PendingItem[];
+  initialPage: PaginatedResult<PendingItem>;
 }
 
 const TYPE_META: Record<PendingItem['type'], { label: string; icon: React.ElementType; color: string }> = {
@@ -28,9 +32,13 @@ const TYPE_META: Record<PendingItem['type'], { label: string; icon: React.Elemen
   change: { label: 'Profile Edit', icon: PenLine, color: 'text-amber-600 bg-amber-50 border-amber-100' },
 };
 
-export default function ReviewClient({ initialItems }: ReviewClientProps) {
+export default function ReviewClient({ initialPage }: ReviewClientProps) {
   const router = useRouter();
-  const [items, setItems] = useState(initialItems);
+  const [items, setItems] = useState(initialPage.items);
+  const [total, setTotal] = useState(initialPage.total);
+  const [page, setPage] = useState(initialPage.page);
+  const [pageSize, setPageSize] = useState(initialPage.pageSize);
+  const [listLoading, setListLoading] = useState(false);
   const [processingKey, setProcessingKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -41,6 +49,15 @@ export default function ReviewClient({ initialItems }: ReviewClientProps) {
   const [previewCv, setPreviewCv] = useState<TailoredCv | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setListLoading(true);
+    listPendingItemsPageAction(page, pageSize).then((result) => {
+      setItems(result.items);
+      setTotal(result.total);
+    }).catch((err) => setError(err instanceof Error ? err.message : 'Failed to load approvals.'))
+      .finally(() => setListLoading(false));
+  }, [page, pageSize]);
 
   const keyFor = (item: PendingItem) => `${item.type}:${item.profileId}`;
 
@@ -56,12 +73,18 @@ export default function ReviewClient({ initialItems }: ReviewClientProps) {
     setPreviewLoading(true);
 
     try {
-      if (item.type === 'change' && item.proposedChange) {
+      let itemToPreview = item;
+      if (item.type === 'change') {
+        itemToPreview = await getLatestPendingChangeAction(item.profileId);
+        setPreviewItem(itemToPreview);
+        setItems((current) => current.map((entry) => keyFor(entry) === keyFor(itemToPreview) ? itemToPreview : entry));
+      }
+      if (itemToPreview.type === 'change' && itemToPreview.proposedChange) {
         // The proposal only carries a new avatarUrl if the employee actually replaced their
         // photo (see ProfileChangeSubmission's doc comment) — fetch the current profile so the
         // preview falls back to their existing photo instead of showing no image at all.
         const current = await getEmployeeDetailsAction(item.profileId);
-        setPreviewCv(buildTailoredCvFromInput(item.proposedChange, current?.avatar));
+        setPreviewCv(buildTailoredCvFromInput(itemToPreview.proposedChange, current?.avatar));
       } else {
         // new_profile — nothing proposed yet to diff against, just render the submitted profile.
         const employee = await getEmployeeDetailsAction(item.profileId);
@@ -91,13 +114,24 @@ export default function ReviewClient({ initialItems }: ReviewClientProps) {
         } else if (item.type === 'claim') {
           await (action === 'approve' ? approveClaimAction : rejectClaimAction)(item.profileId);
         } else {
-          await (action === 'approve' ? approveChangeAction : rejectChangeAction)(item.profileId);
+          await (action === 'approve' ? approveChangeAction : rejectChangeAction)(item.profileId, item.pendingVersion ?? null);
         }
-        setItems((prev) => prev.filter((i) => keyFor(i) !== key));
+        const result = await listPendingItemsPageAction(page, pageSize);
+        setItems(result.items);
+        setTotal(result.total);
         router.refresh();
       } catch (err) {
         console.error(`Failed to ${action} pending item:`, err);
         setError(err instanceof Error ? err.message : `Failed to ${action} this request.`);
+        // A version conflict means the employee resubmitted while this page was open. Refresh the
+        // queue immediately so the reviewer sees that latest snapshot instead of a stale card.
+        try {
+          const latest = await listPendingItemsPageAction(page, pageSize);
+          setItems(latest.items);
+          setTotal(latest.total);
+        } catch (refreshError) {
+          console.error('Failed to refresh pending approvals:', refreshError);
+        }
       } finally {
         setProcessingKey(null);
       }
@@ -208,6 +242,9 @@ export default function ReviewClient({ initialItems }: ReviewClientProps) {
 
       {/* Pending-item preview modal — renders a new profile or a proposed edit in the real CV
           template so a reviewer can see exactly what approving it would publish. */}
+      <Pagination page={page} pageSize={pageSize} total={total} disabled={listLoading || isPending}
+        onPageChange={setPage} onPageSizeChange={(size) => { setPageSize(size); setPage(1); }} />
+
       {previewItem && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 md:p-6">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden border border-slate-200">

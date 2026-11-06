@@ -15,7 +15,7 @@ const formatDateTime = (iso: string) =>
   new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
 export default function AssessmentsOverviewClient({ overview, firstName }: Props) {
-  const { activeCycle, currentAttempt, canRetry, pendingAssessment, completedAssessmentCount, certificates } = overview;
+  const { activeCycle, currentAttempt, canRetry, pendingAssessment, completedAssessmentCount, certificateCount } = overview;
   const invitation = activeCycle?.invitation ?? null;
 
   // Re-evaluated on the client so an invitation that lapses while the page is open flips state.
@@ -49,7 +49,7 @@ export default function AssessmentsOverviewClient({ overview, firstName }: Props
   const kpis = [
     { title: 'Pending assessments', value: actionable ? 1 : 0, icon: ClipboardList, gradient: 'from-purple-800 via-violet-900 to-slate-950', iconColor: 'text-purple-200', labelColor: 'text-violet-200' },
     { title: 'Completed assessments', value: completedAssessmentCount, icon: CheckCircle2, gradient: 'from-indigo-900 to-slate-950', iconColor: 'text-sky-300', labelColor: 'text-indigo-300' },
-    { title: 'Certificates earned', value: certificates.length, icon: Award, gradient: 'from-slate-800 to-slate-950', iconColor: 'text-amber-300', labelColor: 'text-slate-300' },
+    { title: 'Certificates earned', value: certificateCount, icon: Award, gradient: 'from-slate-800 to-slate-950', iconColor: 'text-amber-300', labelColor: 'text-slate-300' },
   ];
 
   return (

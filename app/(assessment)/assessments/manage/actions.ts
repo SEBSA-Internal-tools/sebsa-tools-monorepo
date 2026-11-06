@@ -15,12 +15,17 @@ import {
   createQuestion,
   deleteQuestion,
   getCycleRecipients,
+  getCycleRecipientsPage,
   resendFailedInvitations,
   resendInvitation,
   retryFailedAssessmentEmail,
   sendManualReminders,
   setCycleActive,
   updateQuestion,
+  listQuestionsPage,
+  listCycleSummariesPage,
+  listInvitablePeoplePage,
+  listInvitablePeople,
 } from '@/services/assessment-admin-service';
 
 export type ManageResult<T = null> = { status: 'ok'; data: T } | { status: 'error'; message: string };
@@ -45,8 +50,21 @@ async function run<T>(op: (ctx: { actor: Actor; supabase: Awaited<ReturnType<typ
   }
 }
 
-export async function createCycleAction(input: { label: string; passingScore: number; employeeIds: string[] }): Promise<ManageResult<CreateCycleResult>> {
-  return run(({ actor, supabase, admin }) => createCycleAndInvite(supabase, admin, actor, input));
+export async function createCycleAction(input: { label: string; passingScore: number; employeeIds?: string[]; selectAll?: boolean; excludedIds?: string[] }): Promise<ManageResult<CreateCycleResult>> {
+  return run(async ({ actor, supabase, admin }) => {
+    const employeeIds = input.selectAll
+      ? (await listInvitablePeople(admin)).map((person) => person.userId).filter((id) => !(input.excludedIds ?? []).includes(id))
+      : input.employeeIds ?? [];
+    return createCycleAndInvite(supabase, admin, actor, { label: input.label, passingScore: input.passingScore, employeeIds });
+  });
+}
+
+export async function listInvitablePeoplePageAction(page: number, pageSize: number, search = '') {
+  return run(({ admin }) => listInvitablePeoplePage(admin, page, pageSize, search));
+}
+
+export async function listCycleSummariesPageAction(params: { page: number; pageSize: number; search?: string; status?: 'all' | import('@/types/assessment').CycleStatus; fromDate?: string; toDate?: string; order?: 'newest' | 'oldest' }) {
+  return run(({ actor, supabase }) => listCycleSummariesPage(supabase, actor, params));
 }
 
 export async function sendRemindersAction(
@@ -80,6 +98,14 @@ export async function resendFailedAction(cycleId: string): Promise<ManageResult<
 
 export async function listCycleRecipientsAction(cycleId: string): Promise<ManageResult<TrackerRow[]>> {
   return run(({ actor, supabase, admin }) => getCycleRecipients(supabase, admin, actor, cycleId));
+}
+
+export async function listCycleRecipientsPageAction(cycleId: string, page: number, pageSize: number, search = '', status: 'All' | import('@/services/assessment-admin-service').TrackerStatus = 'All') {
+  return run(({ actor, admin }) => getCycleRecipientsPage(admin, actor, cycleId, page, pageSize, search, status));
+}
+
+export async function listQuestionsPageAction(page: number, pageSize: number, search = '', status: 'all' | 'active' | 'inactive' = 'all') {
+  return run(({ actor, supabase }) => listQuestionsPage(supabase, actor, page, pageSize, search, status));
 }
 
 export async function createQuestionAction(input: QuestionInput): Promise<ManageResult<ManagedQuestion>> {

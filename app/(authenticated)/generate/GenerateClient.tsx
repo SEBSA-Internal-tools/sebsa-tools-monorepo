@@ -20,6 +20,7 @@ import {
   saveGeneratedCvAction,
 } from './actions';
 import { exportToPdf } from '@/lib/cvExport';
+import { isCertificationComplete } from '@/lib/cvTypes';
 import { anonymizeTailoredCv, buildTailoredCvFromSelection, getCvDisplayName } from '@/lib/templates/buildTailoredCvFromEmployee';
 import {
   BrainCircuit,
@@ -37,7 +38,7 @@ import { recordCvDownloadAction } from '../audit-actions';
 import { formatExperiencePeriodAsYears } from '@/lib/experiencePeriod';
 
 interface GenerateClientProps {
-  employees: Employee[];
+  initialPage: import('@/lib/pagination').PaginatedResult<Employee>;
 }
 
 function withYearOnlyExperiencePeriods(selection: CvSuggestionSelection): CvSuggestionSelection {
@@ -130,7 +131,7 @@ function TemplateSelector({
   );
 }
 
-export default function GenerateClient({ employees }: GenerateClientProps) {
+export default function GenerateClient({ initialPage }: GenerateClientProps) {
   return (
     <Suspense
       fallback={
@@ -139,12 +140,14 @@ export default function GenerateClient({ employees }: GenerateClientProps) {
         </div>
       }
     >
-      <GeneratePageContent employees={employees} />
+      <GeneratePageContent initialPage={initialPage} />
     </Suspense>
   );
 }
 
-function GeneratePageContent({ employees }: GenerateClientProps) {
+function GeneratePageContent({ initialPage }: GenerateClientProps) {
+  const employees = initialPage.items;
+  const [selectedCandidateOverride, setSelectedCandidateOverride] = useState<Employee | null>(null);
   const searchParams = useSearchParams();
   const preselectedName = searchParams ? searchParams.get('name') : '';
 
@@ -194,8 +197,8 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
 
   // ── Derived ─────────────────────────────────────────────────────────────────
   const selectedEmployee = useMemo(
-    () => employees.find((emp) => emp.rowId === selectedCandidateId),
-    [employees, selectedCandidateId]
+    () => employees.find((emp) => emp.rowId === selectedCandidateId) ?? (selectedCandidateOverride?.rowId === selectedCandidateId ? selectedCandidateOverride : undefined),
+    [employees, selectedCandidateId, selectedCandidateOverride]
   );
 
   // Live preview of what "Continue"/"Apply to CV" would currently produce — recomputed on every
@@ -222,6 +225,7 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
     [selectedEmployee, suggestion, suggestionDraft, selectedTemplate, restoredCvBase]
   );
   const livePreviewCv = tailoredCv ?? draftPreviewCv;
+  const certificationsComplete = (tailoredCv?.certifications ?? []).every(isCertificationComplete);
 
   // ── Step 3 "before / after" comparison (Complete Profile CV vs Customized CV) ──────────────
   // originalProfileCv: unfiltered "before" view of the whole profile, display-only.
@@ -413,7 +417,10 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
     setWizardStep(suggestion ? 2 : 1);
   };
 
-  const handleGoToPreview = () => setWizardStep(3);
+  const handleGoToPreview = () => {
+    if (!certificationsComplete) return;
+    setWizardStep(3);
+  };
 
   const handleDownloadDocx = async () => {
     if (!tailoredCv) return;
@@ -448,7 +455,7 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
   };
 
   // ── Empty state ─────────────────────────────────────────────────────────────
-  if (employees.length === 0) {
+  if (initialPage.total === 0) {
     return (
       <PageWrapper className="p-8">
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-12 flex flex-col items-center text-center">
@@ -528,10 +535,11 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
                   Select Talent Profile
                 </label>
                 <TalentSearchSelect
-                  employees={employees}
+                  initialPage={initialPage}
                   selectedId={selectedCandidateId}
-                  onSelect={(id) => {
+                  onSelect={(id, employee) => {
                     setSelectedCandidateId(id);
+                    setSelectedCandidateOverride(employee);
                     setLastCvError(null);
                   }}
                 />
@@ -726,7 +734,7 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
                   <button
                     type="button"
                     onClick={handleGoToPreview}
-                    disabled={saving || !isHumanVerified || previewOverflowMm > 0}
+                    disabled={saving || !isHumanVerified || previewOverflowMm > 0 || !certificationsComplete}
                     className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-xl text-xs font-black uppercase tracking-wider transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-sm"
                   >
                     {saving ? (
@@ -748,7 +756,9 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
                   </button>
 
                   <p className="text-[10px] text-slate-400 text-center leading-relaxed">
-                    {previewOverflowMm > 0
+                    {!certificationsComplete
+                      ? 'Every certification must include its name, issuer, and year.'
+                      : previewOverflowMm > 0
                       ? 'Reduce the selected content to fit one page before applying.'
                       : 'Saves your customized CV and generates the template preview.'}
                   </p>
@@ -901,7 +911,7 @@ function GeneratePageContent({ employees }: GenerateClientProps) {
                 </p>
               </div>
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 shadow-inner flex justify-center">
-                <CvPreviewTemplate cv={originalProfileCv} id="original-cv-preview-root" />
+                <CvPreviewTemplate cv={originalProfileCv} id="original-cv-preview-root" editable={false} />
               </div>
             </section>}
 

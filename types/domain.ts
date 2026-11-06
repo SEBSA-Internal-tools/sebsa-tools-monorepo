@@ -59,6 +59,13 @@ export interface Employee extends EmployeeDetails {
   /** Only populated by getEmployeeById (detail view) — listEmployees always returns 'published'. */
   status?: 'draft' | 'published' | 'archived';
   hasPendingChange?: boolean;
+  /** Latest complete employee-submitted snapshot waiting for review. Live profile fields remain
+   * unchanged until approval. Only populated by the detail service. */
+  pendingChange?: UpdateEmployeeInput;
+  pendingChangeSubmittedAt?: string | null;
+  pendingChangeVersion?: string | null;
+  /** Display URL for a staged replacement photo; pendingChange.avatarUrl remains the stored path. */
+  pendingChangeAvatar?: string;
 
   // Legacy optional fields (populated from Supabase for existing employees)
   experience?: EmployeeExperience[];
