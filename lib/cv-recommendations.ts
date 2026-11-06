@@ -88,6 +88,7 @@ const STOP_WORDS = new Set([
 ]);
 
 const ALIASES: Record<string, string> = {
+  // Cloud
   'amazon web services': 'aws',
   'aws': 'aws',
   'microsoft azure': 'azure',
@@ -95,50 +96,271 @@ const ALIASES: Record<string, string> = {
   'google cloud platform': 'gcp',
   'google cloud': 'gcp',
   'gcp': 'gcp',
+
+  // Languages
   'javascript': 'javascript',
   'java script': 'javascript',
   'js': 'javascript',
+
   'typescript': 'typescript',
   'type script': 'typescript',
   'ts': 'typescript',
+
+  'c sharp': 'c#',
+  'c#': 'c#',
+
+  'cplusplus': 'c++',
+  'c plus plus': 'c++',
+  'c++': 'c++',
+
+  // Node
   'nodejs': 'node.js',
   'node js': 'node.js',
   'node': 'node.js',
   'node.js': 'node.js',
+
+  // React
   'reactjs': 'react',
   'react js': 'react',
   'react.js': 'react',
   'react': 'react',
+
+  // Next
   'nextjs': 'next.js',
   'next js': 'next.js',
   'next.js': 'next.js',
+
+  // .NET
   'dotnet': '.net',
   'dot net': '.net',
   '.net core': '.net',
   '.net': '.net',
-  'c sharp': 'c#',
-  'c#': 'c#',
-  'cplusplus': 'c++',
-  'c plus plus': 'c++',
-  'c++': 'c++',
+
+  // Databases
   'postgres': 'postgresql',
   'postgresql': 'postgresql',
+
   'ms sql': 'sql server',
   'mssql': 'sql server',
   'microsoft sql server': 'sql server',
   'sql server': 'sql server',
+
+  // DevOps
   'k8s': 'kubernetes',
   'kubernetes': 'kubernetes',
+
   'ci cd': 'ci/cd',
   'cicd': 'ci/cd',
   'ci/cd': 'ci/cd',
+
+  // APIs
   'rest api': 'rest',
   'restful': 'rest',
   'rest': 'rest',
+
+  // AI
   'machine learning': 'machine learning',
   'ml': 'machine learning',
+
   'artificial intelligence': 'ai',
   'ai': 'ai',
+
+  // IFS Core
+  'ifs': 'ifs',
+  'ifs applications': 'ifs',
+  'ifs app': 'ifs',
+  'ifs cloud': 'ifs cloud',
+  'erp': 'erp',
+  'enterprise resource planning': 'erp',
+
+  // Aurena
+  'ifs aurena': 'aurena',
+  'aurena': 'aurena',
+
+  // Supply Chain
+  'supply chain': 'supply chain',
+  'scm': 'supply chain',
+  'logistics': 'logistics',
+  'distribution': 'distribution',
+
+  // Manufacturing
+  'manufacturing': 'manufacturing',
+  'production planning': 'production planning',
+  'mrp': 'material requirements planning',
+  'material requirements planning': 'material requirements planning',
+  'mps': 'master scheduling',
+  'master scheduling': 'master scheduling',
+  'capacity planning': 'capacity planning',
+  'shop floor reporting': 'shop floor reporting',
+  'sfr': 'shop floor reporting',
+
+  // Procurement
+  'procurement': 'procurement',
+  'purchasing': 'procurement',
+  'purchase orders': 'purchase orders',
+
+  // Inventory
+  'inventory': 'inventory management',
+  'inventory management': 'inventory management',
+  'warehouse management': 'warehouse management',
+  'warehousing': 'warehouse management',
+
+  // Finance
+  'finance': 'finance',
+  'financials': 'finance',
+
+  'general ledger': 'general ledger',
+  'gl': 'general ledger',
+
+  'accounts payable': 'accounts payable',
+  'ap': 'accounts payable',
+
+  'accounts receivable': 'accounts receivable',
+  'ar': 'accounts receivable',
+
+  'fixed assets': 'fixed assets',
+  'fa': 'fixed assets',
+
+  'costing': 'costing',
+  'budgeting': 'budgeting',
+  'financial reporting': 'financial reporting',
+
+  // Asset Management
+  'eam': 'enterprise asset management',
+  'enterprise asset management': 'enterprise asset management',
+  'asset management': 'enterprise asset management',
+
+  // Maintenance
+  'maintenance management': 'maintenance management',
+  'preventive maintenance': 'preventive maintenance',
+  'cmms': 'maintenance management',
+
+  'work order': 'work order',
+  'work orders': 'work order',
+  'wo': 'work order',
+  'w/o': 'work order',
+
+  // Service Management
+  'fsm': 'field service management',
+  'field service': 'field service management',
+  'field service management': 'field service management',
+  'service management': 'service management',
+
+  // CRM & HR
+  'crm': 'customer relationship management',
+  'customer relationship management': 'customer relationship management',
+
+  'hr': 'human resources',
+  'human resources': 'human resources',
+
+  // Projects
+  'project management': 'project management',
+  'pm': 'project management',
+
+  'ppm': 'project portfolio management',
+  'project portfolio management': 'project portfolio management',
+
+  'pso': 'project supply orders',
+  'project supply order': 'project supply orders',
+  'project supply orders': 'project supply orders',
+
+  // WADACO
+  'wadaco': 'wadaco',
+  'ifs wadaco': 'wadaco',
+  'mobile workforce': 'wadaco',
+  'barcode scanning': 'wadaco',
+  'barcode': 'wadaco',
+  'rfid': 'rfid',
+
+  // Integration
+  'integration': 'integration',
+  'api integration': 'integration',
+  'api': 'api integration',
+
+  'odata': 'odata',
+
+  'web services': 'web services',
+  'soap': 'web services',
+
+  'middleware': 'middleware',
+  'esb': 'middleware',
+
+  'boomi': 'boomi',
+  'dell boomi': 'boomi',
+
+  'etl': 'data migration',
+  'iot': 'internet of things',
+
+  // Technical
+  'oracle': 'oracle',
+  'oracle database': 'oracle',
+
+  'sql': 'sql',
+
+  'plsql': 'pl/sql',
+  'pl/sql': 'pl/sql',
+
+  'customization': 'customization',
+  'customizations': 'customization',
+
+  'configuration': 'configuration',
+
+  'extension': 'extension',
+  'extensions': 'extension',
+
+  // IFS Development
+  'projection': 'projection',
+  'projections': 'projection',
+  'aurena projection': 'projection',
+
+  'custom field': 'custom field',
+  'custom fields': 'custom field',
+  'cf': 'custom field',
+
+  'event action': 'event action',
+  'event actions': 'event action',
+  'custom event': 'event action',
+  'ea': 'event action',
+
+  'custom menu': 'custom menu',
+
+  'quick report': 'quick report',
+  'quick reports': 'quick report',
+  'qr': 'quick report',
+
+  'business reporter': 'business reporter',
+  'br': 'business reporter',
+
+  'lobby': 'lobby',
+
+  // Security
+  'single sign-on': 'single sign-on',
+  'sso': 'single sign-on',
+  'permission sets': 'permission sets',
+
+  // Data & Migration
+  'migration': 'data migration',
+  'data migration': 'data migration',
+  'data management': 'data management',
+
+  // Support
+  'crim': 'crim',
+  'implementation': 'implementation',
+  'upgrade': 'upgrade',
+  'patching': 'patch management',
+  'patch management': 'patch management',
+
+  // Consulting
+  'technical consultant': 'technical consulting',
+  'technical consulting': 'technical consulting',
+
+  'functional consultant': 'functional consulting',
+  'functional consulting': 'functional consulting',
+
+  'business analyst': 'business analysis',
+  'biz analyst': 'business analysis',
+  'ba': 'business analysis',
+  'business analysis': 'business analysis'
 };
 
 function cleanText(value: string): string {
@@ -264,6 +486,12 @@ function relevant(evidence: Evidence): boolean {
   return evidence.matchedRequiredSkills.length > 0 || evidence.score >= 18;
 }
 
+/** Certifications are concise, so any direct requirement-term match is meaningful enough to
+ * select by default even when a long requirements description makes its percentage score low. */
+function certificationRelevant(evidence: Evidence): boolean {
+  return evidence.matchedRequiredSkills.length > 0 || evidence.matchedKeywords.length > 0;
+}
+
 /** Pure, deterministic recommendation engine. It only copies text from the supplied profile. */
 export function recommendCvContent(
   employee: Employee,
@@ -308,7 +536,7 @@ export function recommendCvContent(
       { text: certification.name, weight: 1 },
       { text: certification.issuer, weight: 0.5 },
     ], terms);
-    return { index, ...certification, relevant: relevant(evidence), ...evidence };
+    return { index, ...certification, relevant: certificationRelevant(evidence), ...evidence };
   }));
 
   return {

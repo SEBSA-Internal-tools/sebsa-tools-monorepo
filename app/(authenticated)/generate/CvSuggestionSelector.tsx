@@ -60,16 +60,16 @@ function EvidenceSummary({ item, compact = false }: {
   item: { score?: number; rank?: number; reason?: string; matchedRequiredSkills?: string[] };
   compact?: boolean;
 }) {
-  if (item.score === undefined) return null;
+  const matchedSkills = item.matchedRequiredSkills ?? [];
+  if (compact && matchedSkills.length === 0) return null;
+  if (!compact && !item.reason && matchedSkills.length === 0) return null;
   return (
     <div className={`rounded-lg border border-slate-200 bg-white/70 ${compact ? 'px-2 py-1' : 'px-3 py-2'} space-y-1`}>
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-[10px] font-black text-indigo-700">{item.score}% match</span>
-        {item.rank !== undefined && <span className="text-[9px] font-bold text-slate-400">Rank #{item.rank}</span>}
-        {item.matchedRequiredSkills?.map((skill) => (
+      {matchedSkills.length > 0 && <div className="flex flex-wrap items-center gap-1.5">
+        {matchedSkills.map((skill) => (
           <span key={skill} className="rounded bg-indigo-50 px-1.5 py-0.5 text-[9px] font-bold text-indigo-600">{skill}</span>
         ))}
-      </div>
+      </div>}
       {!compact && item.reason && <p className="text-[10px] leading-relaxed text-slate-500">{item.reason}</p>}
     </div>
   );
@@ -289,7 +289,7 @@ export default function CvSuggestionSelector({
           <p className="text-[10px] text-indigo-600 font-medium mt-0.5">
             {source === 'saved'
               ? 'Your previously saved content is loaded below. Select or deselect sections, entries, and description points, then apply the updated CV.'
-              : 'Recommendations are ranked by deterministic keyword and skill matching against the employee profile. Review the evidence, then select or deselect entries and individual work points.'}
+              : 'Recommendations use deterministic keyword and skill matching against the employee profile. Review the suggested selections, then select or deselect entries and individual work points.'}
           </p>
         </div>
       </div>
@@ -443,7 +443,7 @@ export default function CvSuggestionSelector({
                   <div className="flex flex-wrap gap-1">
                     {proj.skills.map((skill) => (
                       <span key={skill.index} className={`rounded px-1.5 py-0.5 text-[9px] font-bold ${skill.relevant ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                        {skill.text}{skill.score !== undefined ? ` · ${skill.score}%` : ''}
+                        {skill.text}
                       </span>
                     ))}
                   </div>
