@@ -5,6 +5,41 @@ $desktop: 1024px;
   display: block;
 }
 
+.assigned-tabs-nav {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-refresh {
+  margin-left: auto;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  color: var(--app-text-muted);
+  border-radius: 8px;
+  padding: 9px;
+  cursor: pointer;
+
+  &.spinning .material-symbols-outlined { animation: spin 1s linear infinite; }
+}
+
+.assigned-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-surface);
+  color: var(--app-text-muted);
+  padding: 9px 14px;
+  cursor: pointer;
+
+  &.active {
+    background: var(--app-accent);
+    border-color: var(--app-accent);
+    color: var(--app-accent-on);
+  }
+}
+
 .tab-toolbar {
   display: flex;
   align-items: center;
@@ -43,9 +78,9 @@ $desktop: 1024px;
 }
 
 .error-banner {
-  background-color: #fce8e8;
+  background-color: var(--status-error-bg);
   border: 1px solid #f5c6c6;
-  color: #991b1b;
+  color: var(--status-error-fg);
   border-radius: 8px;
   padding: 12px 16px;
   margin-bottom: 20px;
@@ -54,66 +89,163 @@ $desktop: 1024px;
 
 .filter-bar {
   display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  flex-wrap: nowrap;
+  position: relative;
+  z-index: 20;
   margin-bottom: 20px;
+  overflow: visible;
+
+  app-custom-select {
+    flex: 1 1 0;
+    min-width: 100px;
+    max-width: 240px;
+
+    .filter-select {
+      width: 100%;
+    }
+  }
+
+  .clear-filters-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 38px;
+    min-height: 38px;
+    padding: 0 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border-default, #e2e8f0);
+    background: transparent;
+    color: var(--text-secondary, #64748b);
+    font-family: var(--font-body, 'Inter', sans-serif);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: all 0.2s ease;
+
+    .material-symbols-outlined {
+      font-size: 16px;
+    }
+
+    &:hover {
+      border-color: var(--status-error-solid, #ef4444);
+      color: var(--status-error-fg, #dc2626);
+      background: var(--status-error-bg, rgba(239, 68, 68, 0.08));
+    }
+  }
 }
 
-.filter-select {
-  padding: 8px 12px;
-  border: 1px solid var(--app-border);
-  border-radius: 8px;
-  background: var(--app-surface-soft);
-  color: var(--app-text);
-  font-size: 0.85rem;
-  font-family: inherit;
-  min-width: 160px;
+:host ::ng-deep {
+  .filter-bar {
+    .custom-select-trigger {
+      height: 38px;
+      min-height: 38px;
+      padding: 6px 10px 6px 12px;
+      font-size: 0.82rem;
+      border-radius: 8px;
+      border: 1px solid var(--border-default, #e2e8f0);
+      background-color: var(--surface-card, #ffffff);
+      color: var(--text-heading, #0f172a);
+      transition: all 0.2s ease;
 
-  &:focus {
-    outline: none;
-    border-color: var(--app-accent);
-    background: var(--app-surface);
+      &:hover:not(:disabled) {
+        border-color: var(--border-strong, #cbd5e1);
+        background-color: var(--surface-muted, #f8fafc);
+      }
+
+      .trigger-label {
+        font-size: 0.82rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .select-chevron {
+        font-size: 18px;
+      }
+    }
   }
 }
 
 .results-card {
-  background: var(--app-surface);
-  border: 1px solid var(--app-border);
-  border-radius: 12px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02);
   overflow: hidden;
+}
+
+.table-container {
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: 480px;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: var(--surface-muted);
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+
+    &:hover {
+      background: #94a3b8;
+    }
+  }
 }
 
 .results-table {
   width: 100%;
+  min-width: 600px;
   border-collapse: collapse;
 
-  th,
-  td {
-    text-align: left;
-    padding: 12px 16px;
-    font-size: 0.85rem;
-    border-bottom: 1px solid var(--app-border);
+  thead {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--surface-muted);
+
+    th {
+      position: sticky;
+      top: 0;
+      background: var(--surface-muted);
+      z-index: 2;
+      padding: 10px 14px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-secondary);
+      border-bottom: 1px solid var(--border-default);
+      white-space: nowrap;
+    }
   }
 
-  th {
-    background: var(--app-surface-soft);
-    color: var(--app-text-muted);
-    font-weight: 600;
-  }
+  tbody tr {
+    border-bottom: 1px solid var(--border-subtle);
 
-  td {
-    color: var(--app-text);
-  }
-
-  tr:last-child td {
-    border-bottom: none;
+    td {
+      padding: 10px 14px;
+      color: var(--text-primary);
+      white-space: nowrap;
+    }
   }
 
   .clickable-row {
     cursor: pointer;
+    transition: background 0.15s ease;
 
     &:hover {
-      background: var(--app-hover);
+      background: var(--surface-muted);
     }
   }
 }
@@ -151,29 +283,17 @@ $desktop: 1024px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 0.65rem;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
-  white-space: nowrap;
+  letter-spacing: 0.05em;
 
-  &.critical,
-  &.high {
-    background: rgba(239, 68, 68, 0.15);
-    color: #991b1b;
-  }
-
-  &.medium {
-    background: rgba(245, 158, 11, 0.15);
-    color: #b45309;
-  }
-
-  &.low {
-    background: rgba(16, 185, 129, 0.15);
-    color: #047857;
-  }
+  background: color-mix(in srgb, var(--priority-color, #f59e0b) 14%, transparent);
+  color: var(--priority-color, #f59e0b);
+  border: 1px solid color-mix(in srgb, var(--priority-color, #f59e0b) 30%, transparent);
+  backdrop-filter: blur(4px);
 }
 
 .status-badge {
@@ -195,7 +315,7 @@ $desktop: 1024px;
 
   &.status-todo {
     background: rgba(148, 163, 184, 0.2);
-    color: #475569;
+    color: var(--text-primary);
   }
 
   &.status-inprogress {
@@ -211,10 +331,94 @@ $desktop: 1024px;
 
 @media (max-width: $tablet) {
   .filter-bar {
-    flex-direction: column;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    flex-wrap: nowrap;
+    overflow: visible;
+
+    app-custom-select {
+      flex: 1 1 0;
+      min-width: 0;
+      max-width: none;
+    }
+
+    .clear-filters-btn {
+      height: 36px;
+      min-height: 36px;
+      padding: 0 8px;
+      font-size: 0.75rem;
+
+      .clear-btn-text {
+        display: none;
+      }
+    }
   }
 
-  .filter-select {
-    width: 100%;
+  :host ::ng-deep {
+    .filter-bar {
+      .custom-select-trigger {
+        height: 36px;
+        min-height: 36px;
+        padding: 4px 6px;
+        font-size: 0.74rem;
+
+        .trigger-label {
+          font-size: 0.74rem;
+          line-height: 1.2;
+        }
+
+        .select-chevron {
+          font-size: 15px;
+        }
+      }
+
+      .custom-select-dropdown {
+        min-width: 140px;
+        max-width: 220px;
+        font-size: 0.8rem;
+      }
+
+      app-custom-select:last-child,
+      app-custom-select:nth-last-child(2) {
+        .custom-select-dropdown {
+          left: auto;
+          right: 0;
+        }
+      }
+    }
+  }
+}
+
+@media (max-width: 480px) {
+  .filter-bar {
+    gap: 4px;
+
+    .clear-filters-btn {
+      height: 34px;
+      min-height: 34px;
+      padding: 0 6px;
+    }
+  }
+
+  :host ::ng-deep {
+    .filter-bar {
+      .custom-select-trigger {
+        height: 34px;
+        min-height: 34px;
+        padding: 3px 4px;
+        font-size: 0.7rem;
+
+        .trigger-label {
+          font-size: 0.7rem;
+        }
+
+        .select-chevron {
+          font-size: 14px;
+        }
+      }
+    }
   }
 }

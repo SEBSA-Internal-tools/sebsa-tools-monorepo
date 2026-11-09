@@ -1,9 +1,12 @@
 import { CommonModule } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
-import { Router } from '@angular/router';
+import { DashboardInsightsComponent } from '../../../../core/components/dashboard-insights/dashboard-insights.component';
+import { workInsights } from '../../../../core/utils/work-insights';
+import { Router, RouterLink } from '@angular/router';
 import type { ProjectSummary } from '@sebsa-pm-tool/shared-models';
 import { CsoOverviewService } from '../../../../core/services/cso-overview.service';
+import { AuthService } from '../../../../core/services/auth.service';
 import { ProjectsService } from '../../../projects/services/projects.service';
 import {
   CreateProjectModalComponent,
@@ -13,7 +16,7 @@ import {
 @Component({
   standalone: true,
   selector: 'cso-dashboard-tab',
-  imports: [CommonModule, CreateProjectModalComponent],
+  imports: [CommonModule, CreateProjectModalComponent, DashboardInsightsComponent, RouterLink],
   templateUrl: './cso-dashboard-tab.component.html',
   styleUrl: './cso-dashboard-tab.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -22,8 +25,17 @@ export class CsoDashboardTabComponent implements OnInit {
   private readonly projectsService = inject(ProjectsService);
   private readonly csoOverviewService = inject(CsoOverviewService);
   private readonly router = inject(Router);
+  private readonly auth = inject(AuthService);
+
+  /** Mirrors the backend rule: only ADMIN / SUPER_ADMIN may create projects. */
+  protected readonly canCreateProject = computed(() => {
+    const role = this.auth.currentUser()?.systemRole;
+    return role === 'ADMIN' || role === 'SUPER_ADMIN';
+  });
 
   protected readonly csoTasks = this.csoOverviewService.tasks;
+  protected readonly caseError = this.csoOverviewService.errorMessage;
+  protected readonly insights = computed(() => workInsights(this.csoTasks().map(task => ({ id: task.id, title: task.title, status: task.rawStatus ?? (task.statusLabel === 'done' ? 'DONE' : 'IN_PROGRESS'), dueDate: task.dueDate, createdAt: task.createdAt, assigneeIds: task.assigneeIds }))));
   protected readonly isLoadingTasks = this.csoOverviewService.isLoading;
 
   protected readonly allProjects = signal<ProjectSummary[]>([]);
@@ -40,6 +52,8 @@ export class CsoDashboardTabComponent implements OnInit {
 
   protected isModalOpen = false;
   protected errorMessage = '';
+  readonly projectError = signal('');
+  readonly loadingProjects = signal(true);
 
   ngOnInit(): void {
     this.loadProjects();
@@ -47,8 +61,14 @@ export class CsoDashboardTabComponent implements OnInit {
   }
 
   private loadProjects(): void {
-    this.projectsService.getProjects().subscribe({ next: (p) => this.allProjects.set(p) });
+    this.projectError.set(''); this.loadingProjects.set(true);
+    this.projectsService.getProjects().subscribe({
+      next: p => { this.allProjects.set(p); this.loadingProjects.set(false); },
+      error: () => { this.projectError.set('CSO projects are unavailable. Please retry.'); this.loadingProjects.set(false); },
+    });
   }
+
+  reload(): void { this.loadProjects(); this.csoOverviewService.load({}); }
 
   openCreateModal(): void {
     this.isModalOpen = true;
@@ -71,7 +91,7 @@ export class CsoDashboardTabComponent implements OnInit {
         type: formData.type,
         customType: formData.customType,
         isCsoProject: formData.isCsoProject,
-        customerName: formData.customerName,
+        customerId: formData.customerId,
       })
       .subscribe({
         next: (project) => {

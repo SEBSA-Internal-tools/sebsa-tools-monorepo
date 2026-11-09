@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -10,32 +9,54 @@ import {
   Task,
   TaskDependenciesView,
   TaskDependencyTaskRef,
+  TaskStatusHistoryEntry,
   TaskSummary,
   TaskListSummary,
   UpdateTaskResponse,
 } from '@sebsa-pm-tool/shared-models';
-import { Prisma, TaskType } from '@prisma/client';
+import { ActivityAction, EntityType, Prisma, TaskCategory } from '@prisma/client';
 import { CreateTaskDto } from './dto/create-task.dto';
+import { CloneTaskDto } from './dto/clone-task.dto';
+import { mapForTargetProject } from '../common/clone-mapping';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { FilterTaskDto } from './dto/filter-task.dto';
 import { CreateTaskDependencyDto } from './dto/create-task-dependency.dto';
+import { ActivityLogsService } from '../activity-logs/activity-logs.service';
+import { NotificationService } from '../notifications/notification.service';
+import { changesOnlyAssignees } from '../common/assignee-only-change';
+import { ProjectAccessService } from '../common/project-access.service';
 
 const ADMIN_SYSTEM_ROLES: AuthUser['systemRole'][] = ['ADMIN', 'SUPER_ADMIN'];
 
 const taskSummarySelect = {
   id: true,
-  projectId: true,
+  caseId: true,
   title: true,
   description: true,
-  type: true,
-  priority: true,
-  workflowStageId: true,
-  sprintId: true,
+  status: true,
+  priorityId: true,
+  startDate: true,
   dueDate: true,
-  isCsoLabeled: true,
-  project: { select: { id: true, name: true } },
-  workflowStage: { select: { id: true, name: true } },
-  assignees: { include: { user: { select: { id: true, name: true, email: true } } } },
+  createdAt: true,
+  updatedAt: true,
+  jiraStatusLabel: true,
+  category: true,
+  taskTypeId: true,
+  complexityLevelId: true,
+  case: {
+    select: {
+      id: true,
+      title: true,
+      type: true,
+      projectId: true,
+      isCsoLabeled: true,
+      project: { select: { id: true, name: true } },
+    },
+  },
+  priority: { select: { id: true, name: true, color: true } },
+  taskType: { select: { id: true, label: true } },
+  complexityLevel: { select: { id: true, label: true, color: true } },
+  assignees: { select: { user: { select: { id: true, name: true, email: true } } } },
 } satisfies Prisma.TaskSelect;
 
 type TaskWithSummary = Prisma.TaskGetPayload<{ select: typeof taskSummarySelect }>;
@@ -43,55 +64,61 @@ type TaskWithSummary = Prisma.TaskGetPayload<{ select: typeof taskSummarySelect 
 const taskDetailInclude = {
   createdBy: { select: { id: true, name: true } },
   assignees: { include: { user: { select: { id: true, name: true, email: true } } } },
-  labels: { include: { label: { select: { id: true, name: true, color: true } } } },
+  labels: {
+    where: { label: { deletedAt: null } },
+    include: { label: { select: { id: true, name: true, color: true } } },
+  },
   subtasks: {
     where: { deletedAt: null },
-    select: { id: true, title: true, workflowStageId: true },
+    select: { id: true, title: true, status: true },
   },
-  project: { select: { id: true, name: true } },
-  workflowStage: { select: { id: true, name: true } },
+  case: { select: { id: true, title: true, type: true, projectId: true, isCsoLabeled: true } },
+  priority: { select: { id: true, name: true, color: true } },
+  taskType: { select: { id: true, label: true } },
+  complexityLevel: { select: { id: true, label: true, color: true } },
 } satisfies Prisma.TaskInclude;
 
 type TaskWithDetail = Prisma.TaskGetPayload<{ include: typeof taskDetailInclude }>;
 
 @Injectable()
 export class TaskService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly activityLogs: ActivityLogsService,
+    private readonly access: ProjectAccessService,
+    private readonly notificationService: NotificationService,
+  ) {}
 
   async create(dto: CreateTaskDto, user: AuthUser): Promise<Task> {
-    await this.assertCanCreate(dto.projectId, user);
+    const kase = await this.getCaseOrThrow(dto.caseId);
+    await this.access.assertCan(kase.projectId, user, 'canCreateTask');
 
-    // Resolve the workflow stage: if the caller omits it, fall back to the
-    // project's default Backlog stage (isDefault: true / order: 0).
-    const workflowStageId =
-      dto.workflowStageId ?? (await this.resolveBacklogStageId(dto.projectId));
+    const priorityId = dto.priorityId ?? (await this.resolveDefaultPriorityId(kase.projectId));
 
-    await this.assertWorkflowStageBelongsToProject(workflowStageId, dto.projectId);
-    await this.assertSprintBelongsToProject(dto.sprintId, dto.projectId);
-    await this.assertMilestoneBelongsToProject(dto.milestoneId, dto.projectId);
-    await this.assertParentTaskBelongsToProject(dto.parentTaskId, dto.projectId);
-    await this.assertAssigneesValid(dto.assigneeIds);
-    await this.assertLabelsValid(dto.labelIds, dto.projectId);
+    await this.access.assertCanSetAssignees(kase.projectId, user, dto.assigneeIds ?? []);
+    await this.assertAssigneesValid(dto.assigneeIds, kase.projectId);
+    await this.assertLabelsValid(dto.labelIds, kase.projectId);
     this.assertDatesValid(dto.startDate, dto.dueDate);
+    await this.assertComplexityLevelValid(dto.taskTypeId, dto.complexityLevelId);
+    this.assertCsoCategoryRequirement(kase.isCsoLabeled, dto.category);
 
     const created = await this.prisma.$transaction(async (tx) => {
       const task = await tx.task.create({
         data: {
           title: dto.title,
           description: dto.description,
-          type: dto.type,
-          priority: dto.priority,
+          status: dto.status,
           startDate: dto.startDate ? new Date(dto.startDate) : undefined,
           dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
           storyPoints: dto.storyPoints,
           reminderLeadMinutes: dto.reminderLeadMinutes,
-          isCsoLabeled: dto.isCsoLabeled ?? false,
-          project: { connect: { id: dto.projectId } },
-          workflowStage: { connect: { id: workflowStageId } },
+          jiraStatusLabel: dto.jiraStatusLabel,
+          category: dto.category,
+          case: { connect: { id: dto.caseId } },
+          priority: { connect: { id: priorityId } },
           createdBy: { connect: { id: user.id } },
-          ...(dto.parentTaskId && { parentTask: { connect: { id: dto.parentTaskId } } }),
-          ...(dto.sprintId && { sprint: { connect: { id: dto.sprintId } } }),
-          ...(dto.milestoneId && { milestone: { connect: { id: dto.milestoneId } } }),
+          ...(dto.taskTypeId && { taskType: { connect: { id: dto.taskTypeId } } }),
+          ...(dto.complexityLevelId && { complexityLevel: { connect: { id: dto.complexityLevelId } } }),
           ...(dto.assigneeIds?.length && {
             assignees: { createMany: { data: dto.assigneeIds.map((userId) => ({ userId })) } },
           }),
@@ -101,22 +128,108 @@ export class TaskService {
         },
       });
 
-      // "Task Status Workflow: transitions logged with actor and timestamp"
-      // (FSD §5.4) — the very first row has fromStageId: null, matching the
-      // schema's documented shape for a task's initial stage placement.
       await tx.taskStatusHistory.create({
         data: {
           taskId: task.id,
-          fromStageId: null,
-          toStageId: task.workflowStageId,
+          fromStatus: null,
+          toStatus: task.status,
           changedById: user.id,
         },
       });
 
+      await this.activityLogs.record(
+        {
+          projectId: kase.projectId,
+          entityType: EntityType.TASK,
+          entityId: task.id,
+          entityLabel: task.title,
+          action: ActivityAction.CREATED,
+          actorId: user.id,
+          description: `Created task "${task.title}"`,
+        },
+        tx,
+      );
+
       return task;
     });
 
+    if (dto.assigneeIds?.length) {
+      this.notificationService.notifyAssignees({
+        assigneeUserIds: dto.assigneeIds,
+        actorId: user.id,
+        actorName: user.name,
+        entityType: 'TASK',
+        entityId: created.id,
+        entityTitle: dto.title,
+      }).catch((err) => {
+        console.error('Failed to notify assignees on task creation:', err);
+      });
+    }
+
     return this.findOne(created.id, user);
+  }
+
+  /**
+   * Copy a task (typically one that was closed) as a fresh task: new id,
+   * status reset to To Do, title as given (defaults to the original's). It can
+   * go under the same case or any case (including in another project) the
+   * user can create tasks in. Goes through `create()` so permissions,
+   * validation, status history and the activity log behave exactly as for a
+   * hand-made task. `notes` lists anything that could not be carried over.
+   */
+  async clone(
+    id: string,
+    dto: CloneTaskDto,
+    user: AuthUser,
+  ): Promise<{ item: Task; notes: string[] }> {
+    const source = await this.prisma.task.findFirst({
+      where: { id, deletedAt: null },
+      include: {
+        case: { select: { projectId: true } },
+        assignees: { select: { userId: true } },
+        labels: { select: { labelId: true } },
+      },
+    });
+    if (!source) {
+      throw new NotFoundException('Task not found.');
+    }
+    await this.access.assertVisible(source.case.projectId, user);
+
+    const targetCaseId = dto.caseId ?? source.caseId;
+    const targetCase = await this.getCaseOrThrow(targetCaseId);
+
+    const mapped = await mapForTargetProject(
+      this.prisma,
+      source.case.projectId,
+      targetCase.projectId,
+      {
+        priorityId: source.priorityId,
+        assigneeIds: source.assignees.map((a) => a.userId),
+        labelIds: source.labels.map((l) => l.labelId),
+      },
+    );
+
+    const item = await this.create(
+      {
+        caseId: targetCaseId,
+        title: dto.title ?? source.title,
+        description: source.description ?? undefined,
+        status: 'TO_DO',
+        priorityId: mapped.priorityId,
+        startDate: source.startDate?.toISOString(),
+        dueDate: source.dueDate?.toISOString(),
+        storyPoints: source.storyPoints ?? undefined,
+        reminderLeadMinutes: source.reminderLeadMinutes ?? undefined,
+        category: dto.category ?? source.category ?? undefined,
+        taskTypeId: source.taskTypeId ?? undefined,
+        complexityLevelId: source.complexityLevelId ?? undefined,
+        assigneeIds: mapped.assigneeIds,
+        labelIds: mapped.labelIds,
+      },
+      user,
+    );
+
+    return { item, notes: mapped.notes };
   }
 
   async findAll(filter: FilterTaskDto, user: AuthUser): Promise<TaskSummary[]> {
@@ -140,9 +253,9 @@ export class TaskService {
         id: true,
         title: true,
         description: true,
-        type: true,
-        workflowStageId: true,
-        priority: true,
+        status: true,
+        priorityId: true,
+        priority: { select: { id: true, name: true, color: true } },
         dueDate: true,
         assignees: { include: { user: { select: { id: true, name: true, email: true } } } },
       },
@@ -153,8 +266,8 @@ export class TaskService {
       id: task.id,
       title: task.title,
       description: task.description,
-      type: task.type,
-      workflowStageId: task.workflowStageId,
+      status: task.status,
+      priorityId: task.priorityId,
       priority: task.priority,
       dueDate: task.dueDate ? task.dueDate.toISOString() : null,
       assignee: task.assignees[0]?.user || null,
@@ -181,36 +294,48 @@ export class TaskService {
     return tasks.map((task) => this.toTaskSummary(task));
   }
 
+  async getProjectTasks(projectId: string, user: AuthUser): Promise<TaskSummary[]> {
+    await this.access.assertVisible(projectId, user);
+
+    const tasks = await this.prisma.task.findMany({
+      where: {
+        deletedAt: null,
+        case: { projectId },
+      },
+      select: taskSummarySelect,
+      orderBy: [
+        { case: { title: 'asc' } },
+        { createdAt: 'desc' },
+      ],
+    });
+
+    return tasks.map((task) => this.toTaskSummary(task));
+  }
+
   async findOne(id: string, user: AuthUser): Promise<Task> {
     const task = await this.getTaskDetailOrThrow(id);
-    await this.assertVisible(task.projectId, user);
+    await this.access.assertVisible(task.case.projectId, user);
     return this.toTask(task);
   }
 
   async update(id: string, dto: UpdateTaskDto, user: AuthUser): Promise<UpdateTaskResponse> {
-    const existing = await this.getTaskOrThrow(id);
-    await this.assertCanEdit(existing.projectId, user);
+    const existing = await this.getTaskWithProjectOrThrow(id);
+    // Changing only the assignee list is gated by the assignment rules (which
+    // let any member claim work for themselves), not by the edit grant.
+    const assigneesOnly = changesOnlyAssignees(dto, existing);
+    if (!assigneesOnly) {
+      await this.access.assertCan(existing.case.projectId, user, 'canEditTask');
+    }
 
-    if (dto.parentTaskId && dto.parentTaskId === id) {
-      throw new BadRequestException('A task cannot be its own parent task.');
-    }
-    if (dto.workflowStageId) {
-      await this.assertWorkflowStageBelongsToProject(dto.workflowStageId, existing.projectId);
-    }
-    if (dto.sprintId) {
-      await this.assertSprintBelongsToProject(dto.sprintId, existing.projectId);
-    }
-    if (dto.milestoneId) {
-      await this.assertMilestoneBelongsToProject(dto.milestoneId, existing.projectId);
-    }
-    if (dto.parentTaskId) {
-      await this.assertParentTaskBelongsToProject(dto.parentTaskId, existing.projectId);
-    }
     if (dto.assigneeIds) {
-      await this.assertAssigneesValid(dto.assigneeIds);
+      const currentIds = await this.prisma.taskAssignee
+        .findMany({ where: { taskId: id }, select: { userId: true } })
+        .then((rows) => rows.map((r) => r.userId));
+      await this.access.assertCanSetAssignees(existing.case.projectId, user, dto.assigneeIds, currentIds, 'canEditTask');
+      await this.assertAssigneesValid(dto.assigneeIds, existing.case.projectId);
     }
     if (dto.labelIds) {
-      await this.assertLabelsValid(dto.labelIds, existing.projectId);
+      await this.assertLabelsValid(dto.labelIds, existing.case.projectId);
     }
     if (dto.startDate || dto.dueDate) {
       this.assertDatesValid(
@@ -219,16 +344,54 @@ export class TaskService {
       );
     }
 
+    const mergedTaskTypeId = dto.taskTypeId !== undefined ? dto.taskTypeId : existing.taskTypeId ?? undefined;
+    const mergedComplexityLevelId =
+      dto.complexityLevelId !== undefined ? dto.complexityLevelId : existing.complexityLevelId ?? undefined;
+    await this.assertComplexityLevelValid(mergedTaskTypeId, mergedComplexityLevelId);
+
+    const mergedCategory = dto.category !== undefined ? dto.category : existing.category;
+    this.assertCsoCategoryRequirement(existing.case.isCsoLabeled, mergedCategory);
+
     const { assigneeIds, labelIds, ...restDto } = dto;
-    const isStageChange = !!dto.workflowStageId && dto.workflowStageId !== existing.workflowStageId;
+    const isStatusChange = !!dto.status && dto.status !== existing.status;
+
+    // Retrieve previous assignees to only notify genuinely newly added users
+    const previousAssigneeIds = await this.prisma.taskAssignee
+      .findMany({
+        where: { taskId: id },
+        select: { userId: true },
+      })
+      .then((rows) => rows.map((r) => r.userId));
+
+    const isDueDateChange =
+      dto.dueDate !== undefined &&
+      (dto.dueDate === null
+        ? existing.dueDate !== null
+        : !existing.dueDate || new Date(dto.dueDate).getTime() !== existing.dueDate.getTime());
+
+    const isStartDateChange =
+      dto.startDate !== undefined &&
+      (dto.startDate === null
+        ? existing.startDate !== null
+        : !existing.startDate || new Date(dto.startDate).getTime() !== existing.startDate.getTime());
+
+    const changes = [
+      ...this.activityLogs.buildFieldChanges(existing, restDto),
+      ...(assigneeIds
+        ? this.activityLogs.buildAssigneeChange(
+            await this.getAssigneeNames(id),
+            await this.getUserNames(assigneeIds),
+          )
+        : []),
+    ];
 
     await this.prisma.$transaction(async (tx) => {
       await tx.task.update({
         where: { id },
         data: {
           ...restDto,
-          ...(dto.startDate && { startDate: new Date(dto.startDate) }),
-          ...(dto.dueDate && { dueDate: new Date(dto.dueDate) }),
+          ...(dto.startDate !== undefined && { startDate: dto.startDate ? new Date(dto.startDate) : null }),
+          ...(dto.dueDate !== undefined && { dueDate: dto.dueDate ? new Date(dto.dueDate) : null }),
           ...(assigneeIds && {
             assignees: { deleteMany: {}, createMany: { data: assigneeIds.map((userId) => ({ userId })) } },
           }),
@@ -238,30 +401,145 @@ export class TaskService {
         },
       });
 
-      if (isStageChange) {
+      if (dto.status && dto.status !== existing.status) {
         await tx.taskStatusHistory.create({
           data: {
             taskId: id,
-            fromStageId: existing.workflowStageId,
-            toStageId: dto.workflowStageId as string,
+            fromStatus: existing.status,
+            toStatus: dto.status,
             changedById: user.id,
           },
         });
       }
+
+      // TaskStatusHistory stays the authoritative status timeline; this adds
+      // the same move to the cross-entity feed, plus any non-status edits in
+      // the request, as a single entry.
+      if (changes.length > 0 || assigneeIds || labelIds) {
+        await this.activityLogs.record(
+          {
+            projectId: existing.case.projectId,
+            entityType: EntityType.TASK,
+            entityId: id,
+            entityLabel: dto.title ?? existing.title,
+            action: isStatusChange ? ActivityAction.STATUS_CHANGED : ActivityAction.UPDATED,
+            actorId: user.id,
+            description: isStatusChange
+              ? `Moved task "${existing.title}" from ${existing.status} to ${dto.status}`
+              : `Updated task "${existing.title}"`,
+            changes,
+          },
+          tx,
+        );
+      }
     });
 
-    const warnings = isStageChange
-      ? await this.checkDependencyWarnings(id, existing.projectId, dto.workflowStageId as string)
+    const warnings = isStatusChange
+      ? await this.checkDependencyWarnings(id, dto.status as string)
       : [];
+
+    // Notify ONLY newly added assignees, not users who were already assigned
+    if (dto.assigneeIds) {
+      const newlyAddedAssignees = dto.assigneeIds.filter((userId) => !previousAssigneeIds.includes(userId));
+      if (newlyAddedAssignees.length > 0) {
+        this.notificationService.notifyAssignees({
+          assigneeUserIds: newlyAddedAssignees,
+          actorId: user.id,
+          actorName: user.name,
+          entityType: 'TASK',
+          entityId: id,
+          entityTitle: dto.title ?? existing.title,
+        }).catch((err) => {
+          console.error('Failed to notify newly added assignees on task update:', err);
+        });
+      }
+    }
+
+    // Notify assigned users about due date changes with the exact dates
+    const currentAssignees = dto.assigneeIds ?? previousAssigneeIds;
+    if (isDueDateChange && currentAssignees.length > 0) {
+      this.notificationService.notifyDateChange({
+        recipientUserIds: currentAssignees,
+        actorId: user.id,
+        actorName: user.name,
+        entityType: 'TASK',
+        entityId: id,
+        entityTitle: dto.title ?? existing.title,
+        dateField: 'due date',
+        oldDate: existing.dueDate,
+        newDate: dto.dueDate ? new Date(dto.dueDate) : null,
+      }).catch((err) => {
+        console.error('Failed to notify due date change on task:', err);
+      });
+    }
+
+    if (isStartDateChange && currentAssignees.length > 0) {
+      this.notificationService.notifyDateChange({
+        recipientUserIds: currentAssignees,
+        actorId: user.id,
+        actorName: user.name,
+        entityType: 'TASK',
+        entityId: id,
+        entityTitle: dto.title ?? existing.title,
+        dateField: 'start date',
+        oldDate: existing.startDate,
+        newDate: dto.startDate ? new Date(dto.startDate) : null,
+      }).catch((err) => {
+        console.error('Failed to notify start date change on task:', err);
+      });
+    }
+
+    if (isStatusChange && dto.status) {
+      this.prisma.taskAssignee
+        .findMany({
+          where: { taskId: id },
+          select: { userId: true },
+        })
+        .then((taskAssignees) => {
+          const recipientIds = [
+            ...taskAssignees.map((a) => a.userId),
+            existing.createdById,
+          ].filter(Boolean);
+
+          return this.notificationService.notifyStatusChange({
+            recipientUserIds: Array.from(new Set(recipientIds)),
+            actorId: user.id,
+            actorName: user.name,
+            entityType: 'TASK',
+            entityId: id,
+            entityTitle: existing.title,
+            newStatus: dto.status as string,
+          });
+        })
+        .catch((err) => {
+          console.error('Failed to notify status change:', err);
+        });
+    }
 
     return { task: await this.findOne(id, user), warnings };
   }
 
   async delete(id: string, user: AuthUser): Promise<{ message: string }> {
-    const task = await this.getTaskOrThrow(id);
-    await this.assertCanDelete(task.projectId, user);
+    const task = await this.getTaskWithProjectOrThrow(id);
+    await this.access.assertCan(task.case.projectId, user, 'canDeleteTask');
 
-    await this.prisma.task.update({ where: { id }, data: { deletedAt: new Date() } });
+    await this.prisma.$transaction(async (tx) => {
+      await tx.task.update({ where: { id }, data: { deletedAt: new Date() } });
+
+      await this.activityLogs.record(
+        {
+          projectId: task.case.projectId,
+          entityType: EntityType.TASK,
+          entityId: id,
+          entityLabel: task.title,
+          action: ActivityAction.DELETED,
+          actorId: user.id,
+          description: `Deleted task "${task.title}"`,
+        },
+        tx,
+      );
+    });
+
     return { message: 'Task deleted successfully.' };
   }
 
@@ -270,28 +548,94 @@ export class TaskService {
   // ---------------------------------------------------------------------------
 
   async assignUsers(taskId: string, assigneeIds: string[], user: AuthUser): Promise<Task> {
-    const task = await this.getTaskOrThrow(taskId);
-    await this.assertCanEdit(task.projectId, user);
-    await this.assertAssigneesValid(assigneeIds);
+    const task = await this.getTaskWithProjectOrThrow(taskId);
+    await this.access.assertCanAssign(task.case.projectId, user, assigneeIds, 'canEditTask');
+    await this.assertAssigneesValid(assigneeIds, task.case.projectId);
 
-    await this.prisma.taskAssignee.createMany({
-      data: assigneeIds.map((userId) => ({ taskId, userId })),
-      skipDuplicates: true,
+    const existingAssignees = await this.prisma.taskAssignee
+      .findMany({ where: { taskId }, select: { userId: true } })
+      .then((rows) => rows.map((r) => r.userId));
+    const newlyAddedIds = assigneeIds.filter((id) => !existingAssignees.includes(id));
+
+    const addedNames = await this.getUserNames(assigneeIds);
+    const previousAssignees = await this.getAssigneeNames(taskId);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.taskAssignee.createMany({
+        data: assigneeIds.map((userId) => ({ taskId, userId })),
+        skipDuplicates: true,
+      });
+
+      await this.activityLogs.record(
+        {
+          projectId: task.case.projectId,
+          entityType: EntityType.TASK,
+          entityId: taskId,
+          entityLabel: task.title,
+          action: ActivityAction.ASSIGNED,
+          actorId: user.id,
+          description: `Assigned ${addedNames.join(', ')} to task "${task.title}"`,
+          changes: this.activityLogs.buildAssigneeChange(
+            previousAssignees,
+            // createMany skips duplicates, so the resulting set is the union.
+            Array.from(new Set([...previousAssignees, ...addedNames])),
+          ),
+        },
+        tx,
+      );
     });
+
+    if (newlyAddedIds.length > 0) {
+      this.notificationService.notifyAssignees({
+        assigneeUserIds: newlyAddedIds,
+        actorId: user.id,
+        actorName: user.name,
+        entityType: 'TASK',
+        entityId: taskId,
+        entityTitle: task.title,
+      }).catch(() => {});
+    }
+
     return this.findOne(taskId, user);
   }
 
   async unassignUser(taskId: string, userId: string, user: AuthUser): Promise<Task> {
-    const task = await this.getTaskOrThrow(taskId);
-    await this.assertCanEdit(task.projectId, user);
+    const task = await this.getTaskWithProjectOrThrow(taskId);
+    await this.access.assertCanAssign(task.case.projectId, user, [userId], 'canEditTask');
 
-    await this.prisma.taskAssignee.deleteMany({ where: { taskId, userId } });
+    const removed = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true },
+    });
+    const previousAssignees = await this.getAssigneeNames(taskId);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.taskAssignee.deleteMany({ where: { taskId, userId } });
+
+      await this.activityLogs.record(
+        {
+          projectId: task.case.projectId,
+          entityType: EntityType.TASK,
+          entityId: taskId,
+          entityLabel: task.title,
+          action: ActivityAction.UNASSIGNED,
+          actorId: user.id,
+          description: `Unassigned ${removed?.name ?? 'a user'} from task "${task.title}"`,
+          changes: this.activityLogs.buildAssigneeChange(
+            previousAssignees,
+            previousAssignees.filter((name) => name !== removed?.name),
+          ),
+        },
+        tx,
+      );
+    });
+
     return this.findOne(taskId, user);
   }
 
   async getAssignees(taskId: string, user: AuthUser) {
-    const task = await this.getTaskOrThrow(taskId);
-    await this.assertVisible(task.projectId, user);
+    const task = await this.getTaskWithProjectOrThrow(taskId);
+    await this.access.assertVisible(task.case.projectId, user);
 
     const assignees = await this.prisma.taskAssignee.findMany({
       where: { taskId },
@@ -306,9 +650,9 @@ export class TaskService {
   // ---------------------------------------------------------------------------
 
   async attachLabels(taskId: string, labelIds: string[], user: AuthUser): Promise<Task> {
-    const task = await this.getTaskOrThrow(taskId);
-    await this.assertCanEdit(task.projectId, user);
-    await this.assertLabelsValid(labelIds, task.projectId);
+    const task = await this.getTaskWithProjectOrThrow(taskId);
+    await this.access.assertCan(task.case.projectId, user, 'canEditTask');
+    await this.assertLabelsValid(labelIds, task.case.projectId);
 
     await this.prisma.taskLabel.createMany({
       data: labelIds.map((labelId) => ({ taskId, labelId })),
@@ -318,46 +662,15 @@ export class TaskService {
   }
 
   async detachLabel(taskId: string, labelId: string, user: AuthUser): Promise<Task> {
-    const task = await this.getTaskOrThrow(taskId);
-    await this.assertCanEdit(task.projectId, user);
+    const task = await this.getTaskWithProjectOrThrow(taskId);
+    await this.access.assertCan(task.case.projectId, user, 'canEditTask');
 
     await this.prisma.taskLabel.deleteMany({ where: { taskId, labelId } });
     return this.findOne(taskId, user);
   }
 
   // ---------------------------------------------------------------------------
-  // Subtasks
-  // ---------------------------------------------------------------------------
-
-  async getSubtasks(parentTaskId: string, user: AuthUser): Promise<TaskSummary[]> {
-    const parent = await this.getTaskOrThrow(parentTaskId);
-    await this.assertVisible(parent.projectId, user);
-
-    const subtasks = await this.prisma.task.findMany({
-      where: { parentTaskId, deletedAt: null },
-      select: taskSummarySelect,
-      orderBy: { createdAt: 'asc' },
-    });
-    return subtasks.map((task) => this.toTaskSummary(task));
-  }
-
-  async createSubtask(
-    parentTaskId: string,
-    dto: Omit<CreateTaskDto, 'projectId' | 'parentTaskId'>,
-    user: AuthUser,
-  ): Promise<Task> {
-    const parent = await this.getTaskOrThrow(parentTaskId);
-    const fullDto: CreateTaskDto = {
-      ...dto,
-      projectId: parent.projectId,
-      parentTaskId: parent.id,
-      type: dto.type ?? TaskType.SUBTASK,
-    };
-    return this.create(fullDto, user);
-  }
-
-  // ---------------------------------------------------------------------------
-  // Dependencies (FSD §5.5)
+  // Dependencies (FSD §5.5) — Task-level only, unchanged in shape.
   // ---------------------------------------------------------------------------
 
   async createDependency(
@@ -365,14 +678,14 @@ export class TaskService {
     dto: CreateTaskDependencyDto,
     user: AuthUser,
   ): Promise<void> {
-    const sourceTask = await this.getTaskOrThrow(taskId);
-    await this.assertCanEdit(sourceTask.projectId, user);
-    const targetTask = await this.getTaskOrThrow(dto.targetTaskId);
+    const sourceTask = await this.getTaskWithProjectOrThrow(taskId);
+    await this.access.assertCan(sourceTask.case.projectId, user, 'canEditTask');
+    const targetTask = await this.getTaskWithProjectOrThrow(dto.targetTaskId);
 
     if (targetTask.id === sourceTask.id) {
       throw new BadRequestException('A task cannot depend on itself.');
     }
-    if (targetTask.projectId !== sourceTask.projectId) {
+    if (targetTask.case.projectId !== sourceTask.case.projectId) {
       throw new BadRequestException('Dependencies must be within the same project.');
     }
 
@@ -393,8 +706,8 @@ export class TaskService {
   }
 
   async removeDependency(taskId: string, dependencyId: string, user: AuthUser): Promise<void> {
-    const task = await this.getTaskOrThrow(taskId);
-    await this.assertCanEdit(task.projectId, user);
+    const task = await this.getTaskWithProjectOrThrow(taskId);
+    await this.access.assertCan(task.case.projectId, user, 'canEditTask');
 
     const dependency = await this.prisma.taskDependency.findFirst({
       where: { id: dependencyId, sourceTaskId: taskId },
@@ -406,10 +719,10 @@ export class TaskService {
   }
 
   async getDependencies(taskId: string, user: AuthUser): Promise<TaskDependenciesView> {
-    const task = await this.getTaskOrThrow(taskId);
-    await this.assertVisible(task.projectId, user);
+    const task = await this.getTaskWithProjectOrThrow(taskId);
+    await this.access.assertVisible(task.case.projectId, user);
 
-    const taskRefSelect = { id: true, title: true, workflowStageId: true } as const;
+    const taskRefSelect = { id: true, title: true, status: true } as const;
 
     const [outgoing, incomingBlocks] = await Promise.all([
       this.prisma.taskDependency.findMany({
@@ -423,14 +736,55 @@ export class TaskService {
     ]);
 
     const byType = (type: Prisma.TaskDependencyWhereInput['type']): TaskDependencyTaskRef[] =>
-      outgoing.filter((d) => d.type === type).map((d) => d.targetTask);
+      outgoing
+        .filter((d) => d.type === type)
+        .map((d) => ({ ...d.targetTask, dependencyId: d.id }));
 
     return {
       blocks: byType('BLOCKS'),
       relatesTo: byType('RELATES_TO'),
       duplicateOf: byType('DUPLICATE_OF'),
-      blockedBy: incomingBlocks.map((d) => d.sourceTask),
+      blockedBy: incomingBlocks.map((d) => ({ ...d.sourceTask, dependencyId: d.id })),
     };
+  }
+
+  /** Ordered status-transition log for the Status/Flow Stepper — the initial
+   *  placement (fromStatus: null) plus every subsequent change, oldest first. */
+  async getStatusHistory(taskId: string, user: AuthUser): Promise<TaskStatusHistoryEntry[]> {
+    const task = await this.getTaskWithProjectOrThrow(taskId);
+    await this.access.assertVisible(task.case.projectId, user);
+
+    const history = await this.prisma.taskStatusHistory.findMany({
+      where: { taskId },
+      include: { changedBy: { select: { id: true, name: true } } },
+      orderBy: { changedAt: 'asc' },
+    });
+
+    return history.map((entry) => ({
+      id: entry.id,
+      fromStatus: entry.fromStatus,
+      toStatus: entry.toStatus,
+      changedAt: entry.changedAt.toISOString(),
+      changedBy: entry.changedBy,
+    }));
+  }
+
+  /** Warns (doesn't block — Should Have, not Must Have, per the FSD) when a
+   * task moves out of TO_DO while something that blocks it isn't DONE/
+   * CANCELLED yet. Replaces the old "leaving the project's first workflow
+   * stage" heuristic now that status is a fixed enum instead of a
+   * per-project-ordered WorkflowStage list. */
+  private async checkDependencyWarnings(taskId: string, newStatus: string): Promise<string[]> {
+    if (newStatus === 'TO_DO') return [];
+
+    const blockers = await this.prisma.taskDependency.findMany({
+      where: { targetTaskId: taskId, type: 'BLOCKS' },
+      include: { sourceTask: { select: { title: true, status: true } } },
+    });
+
+    return blockers
+      .filter((b) => !['DONE', 'CANCELLED'].includes(b.sourceTask.status))
+      .map((b) => `Task is blocked by "${b.sourceTask.title}" which is not yet done.`);
   }
 
   /** Adding sourceTaskId -> targetTaskId would cycle if targetTaskId can
@@ -455,42 +809,29 @@ export class TaskService {
     return false;
   }
 
-  /** No workflow stage is marked "done" in the schema (stages are fully
-   * custom per project), so this uses order as a heuristic: leaving the
-   * project's first (order: 0) stage is treated as "starting work," and
-   * warns if any BLOCKS-type incoming dependency isn't sitting in the
-   * project's last-order stage yet. A heuristic, not a precise rule — worth
-   * revisiting if a real "done" concept gets added to WorkflowStage. */
-  private async checkDependencyWarnings(
-    taskId: string,
-    projectId: string,
-    newStageId: string,
-  ): Promise<string[]> {
-    const initialStage = await this.prisma.workflowStage.findFirst({
-      where: { projectId, order: 0 },
-    });
-    if (initialStage && newStageId === initialStage.id) {
-      return [];
-    }
-
-    const finalStage = await this.prisma.workflowStage.findFirst({
-      where: { projectId },
-      orderBy: { order: 'desc' },
-    });
-
-    const blockers = await this.prisma.taskDependency.findMany({
-      where: { targetTaskId: taskId, type: 'BLOCKS' },
-      include: { sourceTask: { select: { title: true, workflowStageId: true } } },
-    });
-
-    return blockers
-      .filter((b) => !finalStage || b.sourceTask.workflowStageId !== finalStage.id)
-      .map((b) => `Task is blocked by "${b.sourceTask.title}" which is not yet done.`);
-  }
-
   // ---------------------------------------------------------------------------
   // Authorization
   // ---------------------------------------------------------------------------
+
+  /** Current assignee names on a task, for rendering an assignee change. */
+  private async getAssigneeNames(taskId: string): Promise<string[]> {
+    const rows = await this.prisma.taskAssignee.findMany({
+      where: { taskId },
+      select: { user: { select: { name: true } } },
+    });
+    return rows.map((row) => row.user.name);
+  }
+
+  /** Names for a set of user ids, for rendering an assignee change. */
+  private async getUserNames(userIds: string[]): Promise<string[]> {
+    if (userIds.length === 0) return [];
+
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: { name: true },
+    });
+    return users.map((u) => u.name);
+  }
 
   private async getMembershipWithGroup(projectId: string, userId: string) {
     return this.prisma.projectMember.findFirst({
@@ -499,49 +840,13 @@ export class TaskService {
     });
   }
 
-  private async assertVisible(projectId: string, user: AuthUser): Promise<void> {
-    if (ADMIN_SYSTEM_ROLES.includes(user.systemRole) || user.systemRole === 'EXECUTIVE') return;
 
-    const membership = await this.prisma.projectMember.findFirst({
-      where: { projectId, userId: user.id, deletedAt: null },
-      select: { id: true },
-    });
-    if (!membership) {
-      throw new ForbiddenException('You do not have access to this project.');
-    }
-  }
 
-  private async assertCanCreate(projectId: string, user: AuthUser): Promise<void> {
-    if (ADMIN_SYSTEM_ROLES.includes(user.systemRole)) return;
 
-    const membership = await this.getMembershipWithGroup(projectId, user.id);
-    if (!membership || !membership.role.privilegeGroup.canCreateTask) {
-      throw new ForbiddenException('You do not have permission to create tasks in this project.');
-    }
-  }
-
-  private async assertCanEdit(projectId: string, user: AuthUser): Promise<void> {
-    if (ADMIN_SYSTEM_ROLES.includes(user.systemRole)) return;
-
-    const membership = await this.getMembershipWithGroup(projectId, user.id);
-    if (!membership || membership.role.privilegeGroup.isReadOnly) {
-      throw new ForbiddenException('You do not have permission to edit tasks in this project.');
-    }
-  }
-
-  private async assertCanDelete(projectId: string, user: AuthUser): Promise<void> {
-    if (ADMIN_SYSTEM_ROLES.includes(user.systemRole)) return;
-
-    const membership = await this.getMembershipWithGroup(projectId, user.id);
-    if (!membership || !membership.role.privilegeGroup.canDeleteTask) {
-      throw new ForbiddenException('You do not have permission to delete tasks in this project.');
-    }
-  }
 
   /** Scopes findAll so it can never return tasks outside what the caller
-   * can see: an explicit projectId is visibility-checked, otherwise results
-   * are limited to the caller's own project memberships (system-privileged
-   * roles see everything, matching ProjectsService's bypass pattern). */
+   * can see: an explicit caseId/projectId is visibility-checked, otherwise
+   * results are limited to the caller's own project memberships. */
   private async buildScopedWhere(
     filter: FilterTaskDto,
     user: AuthUser,
@@ -550,14 +855,17 @@ export class TaskService {
       ADMIN_SYSTEM_ROLES.includes(user.systemRole) || user.systemRole === 'EXECUTIVE';
 
     if (filter.projectId) {
-      await this.assertVisible(filter.projectId, user);
+      await this.access.assertVisible(filter.projectId, user);
+    } else if (filter.caseId) {
+      const kase = await this.getCaseOrThrow(filter.caseId);
+      await this.access.assertVisible(kase.projectId, user);
     } else if (!isPrivileged) {
       const memberships = await this.prisma.projectMember.findMany({
         where: { userId: user.id, deletedAt: null },
         select: { projectId: true },
       });
       const projectIds = memberships.map((m) => m.projectId);
-      return { ...this.buildFilterWhere(filter), projectId: { in: projectIds } };
+      return { ...this.buildFilterWhere(filter), case: { projectId: { in: projectIds } } };
     }
 
     return this.buildFilterWhere(filter);
@@ -568,20 +876,17 @@ export class TaskService {
 
     where.deletedAt = null;
 
+    if (filter.caseId) {
+      where.caseId = filter.caseId;
+    }
     if (filter.projectId) {
-      where.projectId = filter.projectId;
+      where.case = { ...(where.case as object), projectId: filter.projectId };
     }
-    if (filter.workflowStageId) {
-      where.workflowStageId = filter.workflowStageId;
+    if (filter.customerId) {
+      where.case = { ...(where.case as object), project: { customerId: filter.customerId } };
     }
-    if (filter.parentTaskId) {
-      where.parentTaskId = filter.parentTaskId;
-    }
-    if (filter.sprintId) {
-      where.sprintId = filter.sprintId;
-    }
-    if (filter.milestoneId) {
-      where.milestoneId = filter.milestoneId;
+    if (filter.status) {
+      where.status = filter.status;
     }
     if (filter.createdById) {
       where.createdById = filter.createdById;
@@ -589,26 +894,49 @@ export class TaskService {
     if (filter.assigneeId) {
       where.assignees = { some: { userId: filter.assigneeId } };
     }
+    if (filter.unassigned) {
+      where.assignees = { none: {} };
+    }
     if (filter.labelId) {
       where.labels = { some: { labelId: filter.labelId } };
     }
-    if (filter.customerName) {
-      where.project = { customerName: { contains: filter.customerName, mode: 'insensitive' } };
+    const andConditions: Prisma.TaskWhereInput[] = [];
+
+    if (filter.category) {
+      // Current tasks carry their own queue category. Older CSO tasks were
+      // routed by their parent Case, so retain that route only when the task
+      // has no category of its own.
+      andConditions.push({
+        OR: [
+          { category: filter.category },
+          { category: null, case: { category: filter.category } },
+        ],
+      });
     }
+
     if (filter.isCsoLabeled !== undefined) {
-      where.isCsoLabeled = filter.isCsoLabeled;
+      if (filter.isCsoLabeled) {
+        andConditions.push({ OR: [{ case: { isCsoLabeled: true } }, { case: { project: { isCsoProject: true } } }] });
+      } else {
+        andConditions.push({ case: { isCsoLabeled: false, project: { isCsoProject: false } } });
+      }
     }
-    if (filter.priority) {
-      where.priority = filter.priority;
-    }
-    if (filter.type) {
-      where.type = filter.type;
-    }
+
     if (filter.search) {
-      where.OR = [
-        { title: { contains: filter.search, mode: 'insensitive' } },
-        { description: { contains: filter.search, mode: 'insensitive' } },
-      ];
+      andConditions.push({
+        OR: [
+          { title: { contains: filter.search, mode: 'insensitive' } },
+          { description: { contains: filter.search, mode: 'insensitive' } },
+        ],
+      });
+    }
+
+    if (andConditions.length > 0) {
+      where.AND = andConditions;
+    }
+
+    if (filter.priorityId) {
+      where.priorityId = filter.priorityId;
     }
     if (filter.dueBefore || filter.dueAfter) {
       where.dueDate = {};
@@ -623,91 +951,48 @@ export class TaskService {
   // Field-level validation
   // ---------------------------------------------------------------------------
 
-  private async assertWorkflowStageBelongsToProject(
-    workflowStageId: string | undefined,
-    projectId: string,
-  ): Promise<void> {
-    if (!workflowStageId) return; // already resolved upstream — nothing to validate
-    const stage = await this.prisma.workflowStage.findFirst({
-      where: { id: workflowStageId, projectId },
-      select: { id: true },
-    });
-    if (!stage) {
-      throw new BadRequestException('Workflow stage does not belong to the selected project.');
-    }
-  }
-
-  /**
-   * Finds the project's default Backlog stage — the one seeded automatically on
-   * project creation (isDefault: true, order: 0).  Throws a clear 400 if the
-   * project somehow has no default stage (data integrity issue).
-   */
-  private async resolveBacklogStageId(projectId: string): Promise<string> {
-    const stage = await this.prisma.workflowStage.findFirst({
-      where: { projectId, OR: [{ isDefault: true }, { order: 0 }] },
+  /** Fall back to the project's default priority (isDefault: true, or lowest order). */
+  private async resolveDefaultPriorityId(projectId: string): Promise<string> {
+    const priority = await this.prisma.projectPriority.findFirst({
+      where: { projectId, OR: [{ isDefault: true }] },
       orderBy: { order: 'asc' },
       select: { id: true },
     });
-    if (!stage) {
+    if (priority) return priority.id;
+
+    const anyPriority = await this.prisma.projectPriority.findFirst({
+      where: { projectId },
+      orderBy: { order: 'asc' },
+      select: { id: true },
+    });
+    if (!anyPriority) {
       throw new BadRequestException(
-        'This project has no default workflow stage. ' +
-          'Please add a workflow stage before creating tasks.',
+        'This project has no priorities configured. ' +
+          'Please add a priority before creating tasks.',
       );
     }
-    return stage.id;
+    return anyPriority.id;
   }
 
-  private async assertSprintBelongsToProject(
-    sprintId: string | undefined,
+  private async assertAssigneesValid(
+    assigneeIds: string[] | undefined,
     projectId: string,
   ): Promise<void> {
-    if (!sprintId) return;
-    const sprint = await this.prisma.sprint.findFirst({
-      where: { id: sprintId, projectId },
-      select: { id: true },
-    });
-    if (!sprint) {
-      throw new BadRequestException('Sprint does not belong to the selected project.');
-    }
-  }
-
-  private async assertMilestoneBelongsToProject(
-    milestoneId: string | undefined,
-    projectId: string,
-  ): Promise<void> {
-    if (!milestoneId) return;
-    const milestone = await this.prisma.milestone.findFirst({
-      where: { id: milestoneId, projectId, deletedAt: null },
-      select: { id: true },
-    });
-    if (!milestone) {
-      throw new BadRequestException('Milestone does not belong to the selected project.');
-    }
-  }
-
-  private async assertParentTaskBelongsToProject(
-    parentTaskId: string | undefined,
-    projectId: string,
-  ): Promise<void> {
-    if (!parentTaskId) return;
-    const task = await this.prisma.task.findFirst({
-      where: { id: parentTaskId, projectId, deletedAt: null },
-      select: { id: true },
-    });
-    if (!task) {
-      throw new BadRequestException('Parent task does not belong to the selected project.');
-    }
-  }
-
-  private async assertAssigneesValid(assigneeIds: string[] | undefined): Promise<void> {
     if (!assigneeIds || assigneeIds.length === 0) return;
 
     const uniqueIds = Array.from(new Set(assigneeIds));
-    const count = await this.prisma.user.count({
+    const activeCount = await this.prisma.user.count({
       where: { id: { in: uniqueIds }, isActive: true, deletedAt: null },
     });
-    if (count !== uniqueIds.length) {
+    if (activeCount !== uniqueIds.length) {
       throw new BadRequestException('One or more assigned users do not exist or are inactive.');
+    }
+
+    const memberCount = await this.prisma.projectMember.count({
+      where: { userId: { in: uniqueIds }, projectId, deletedAt: null },
+    });
+    if (memberCount !== uniqueIds.length) {
+      throw new BadRequestException('Assignees must be members of the project.');
     }
   }
 
@@ -719,7 +1004,7 @@ export class TaskService {
 
     const uniqueIds = Array.from(new Set(labelIds));
     const count = await this.prisma.label.count({
-      where: { id: { in: uniqueIds }, projectId },
+      where: { id: { in: uniqueIds }, projectId, deletedAt: null },
     });
     if (count !== uniqueIds.length) {
       throw new BadRequestException('One or more labels do not belong to the selected project.');
@@ -733,12 +1018,65 @@ export class TaskService {
     }
   }
 
+  /** A Task's category is independent of its Case's, but the same rule
+   * applies: required whenever the parent Case is CSO, since that's what
+   * routes it into a Functional/Technical queue. */
+  private assertCsoCategoryRequirement(
+    caseIsCsoLabeled: boolean,
+    category: TaskCategory | null | undefined,
+  ): void {
+    if (caseIsCsoLabeled && !category) {
+      throw new BadRequestException('A task on a CSO case must be tagged Functional or Technical.');
+    }
+  }
+
+  private async assertComplexityLevelValid(
+    taskTypeId: string | undefined,
+    complexityLevelId: string | undefined,
+  ): Promise<void> {
+    if (taskTypeId) {
+      const taskType = await this.prisma.configOption.findFirst({
+        where: { id: taskTypeId, kind: 'TASK_TYPE', isActive: true },
+      });
+      if (!taskType) {
+        throw new BadRequestException('Task type does not exist or is inactive.');
+      }
+    }
+    if (!complexityLevelId) return;
+
+    // Complexity levels are child rows of their task type, so the parent link
+    // is what proves the pairing is valid.
+    const level = await this.prisma.configOption.findFirst({
+      where: { id: complexityLevelId, kind: 'COMPLEXITY_LEVEL' },
+    });
+    if (!level) {
+      throw new BadRequestException('Complexity level does not exist.');
+    }
+    if (!taskTypeId || level.parentId !== taskTypeId) {
+      throw new BadRequestException('Complexity level does not belong to the selected task type.');
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Lookups & mapping
   // ---------------------------------------------------------------------------
 
-  private async getTaskOrThrow(id: string) {
-    const task = await this.prisma.task.findFirst({ where: { id, deletedAt: null } });
+  private async getCaseOrThrow(id: string) {
+    const kase = await this.prisma.case.findFirst({
+      where: { id, deletedAt: null },
+      select: { id: true, projectId: true, isCsoLabeled: true },
+    });
+    if (!kase) {
+      throw new NotFoundException('Case not found.');
+    }
+    return kase;
+  }
+
+  private async getTaskWithProjectOrThrow(id: string) {
+    const task = await this.prisma.task.findFirst({
+      where: { id, deletedAt: null },
+      include: { case: { select: { projectId: true, isCsoLabeled: true } } },
+    });
     if (!task) {
       throw new NotFoundException('Task not found.');
     }
@@ -759,51 +1097,61 @@ export class TaskService {
   private toTaskSummary(task: TaskWithSummary): TaskSummary {
     return {
       id: task.id,
-      projectId: task.projectId,
+      caseId: task.caseId,
       title: task.title,
       description: task.description,
-      type: task.type,
-      priority: task.priority,
-      workflowStageId: task.workflowStageId,
-      sprintId: task.sprintId,
-      dueDate: task.dueDate ? task.dueDate.toISOString() : null,
-      isCsoLabeled: task.isCsoLabeled,
-      project: task.project,
-      workflowStage: task.workflowStage,
-      assignees: task.assignees.map((a) => a.user),
-    };
-  }
-
-  private toTaskDetailSummary(task: TaskWithDetail): Omit<Task, 'subtasks'> {
-    return {
-      id: task.id,
-      projectId: task.projectId,
-      parentTaskId: task.parentTaskId,
-      title: task.title,
-      type: task.type,
-      priority: task.priority,
-      workflowStageId: task.workflowStageId,
-      sprintId: task.sprintId,
-      milestoneId: task.milestoneId,
+      status: task.status,
+      priorityId: task.priorityId,
       startDate: task.startDate ? task.startDate.toISOString() : null,
       dueDate: task.dueDate ? task.dueDate.toISOString() : null,
-      storyPoints: task.storyPoints,
-      createdBy: task.createdBy,
+      createdAt: task.createdAt ? task.createdAt.toISOString() : undefined,
+      updatedAt: task.updatedAt ? task.updatedAt.toISOString() : undefined,
+      jiraStatusLabel: task.jiraStatusLabel,
+      category: task.category,
+      taskTypeId: task.taskTypeId,
+      taskType: task.taskType && { id: task.taskType.id, name: task.taskType.label },
+      complexityLevelId: task.complexityLevelId,
+      complexityLevel: task.complexityLevel && {
+        id: task.complexityLevel.id,
+        name: task.complexityLevel.label,
+        color: task.complexityLevel.color,
+      },
+      case: task.case,
+      priority: task.priority,
       assignees: task.assignees.map((a) => a.user),
-      labels: task.labels.map((l) => l.label),
-      subtaskCount: task.subtasks.length,
-      isCsoLabeled: task.isCsoLabeled,
-      project: task.project,
-      workflowStage: task.workflowStage,
-      createdAt: task.createdAt.toISOString(),
-      updatedAt: task.updatedAt.toISOString(),
-      description: task.description,
     };
   }
 
   private toTask(task: TaskWithDetail): Task {
     return {
-      ...this.toTaskDetailSummary(task),
+      id: task.id,
+      caseId: task.caseId,
+      title: task.title,
+      description: task.description,
+      status: task.status,
+      priorityId: task.priorityId,
+      dueDate: task.dueDate ? task.dueDate.toISOString() : null,
+      jiraStatusLabel: task.jiraStatusLabel,
+      category: task.category,
+      taskTypeId: task.taskTypeId,
+      taskType: task.taskType && { id: task.taskType.id, name: task.taskType.label },
+      complexityLevelId: task.complexityLevelId,
+      complexityLevel: task.complexityLevel && {
+        id: task.complexityLevel.id,
+        name: task.complexityLevel.label,
+        color: task.complexityLevel.color,
+      },
+      case: task.case,
+      priority: task.priority,
+      startDate: task.startDate ? task.startDate.toISOString() : null,
+      storyPoints: task.storyPoints,
+      reminderLeadMinutes: task.reminderLeadMinutes,
+      createdBy: task.createdBy,
+      assignees: task.assignees.map((a) => a.user),
+      labels: task.labels.map((l) => l.label),
+      subtaskCount: task.subtasks.length,
+      createdAt: task.createdAt.toISOString(),
+      updatedAt: task.updatedAt.toISOString(),
       subtasks: task.subtasks,
     };
   }

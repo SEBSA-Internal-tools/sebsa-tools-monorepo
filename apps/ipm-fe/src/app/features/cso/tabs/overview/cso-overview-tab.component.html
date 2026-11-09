@@ -1,10 +1,17 @@
 <div class="cso-overview-tab">
   <div class="tab-toolbar">
-    <p class="tab-subtitle">Every CSO-flagged task across all projects, in one place.</p>
-    <button type="button" class="btn-primary" (click)="openTaskModal()">
-      <span class="material-symbols-outlined">add</span>
-      Create Task
-    </button>
+    <div class="assigned-tabs-nav" role="tablist" aria-label="CSO work types">
+      <button type="button" role="tab" class="assigned-tab-btn" [class.active]="activeOverviewTab() === 'cases'" [attr.aria-selected]="activeOverviewTab() === 'cases'" (click)="setOverviewTab('cases')"><span class="material-symbols-outlined tab-icon">folder_shared</span><span class="tab-label">Cases</span></button>
+      <button type="button" role="tab" class="assigned-tab-btn" [class.active]="activeOverviewTab() === 'tasks'" [attr.aria-selected]="activeOverviewTab() === 'tasks'" (click)="setOverviewTab('tasks')"><span class="material-symbols-outlined tab-icon">task_alt</span><span class="tab-label">Tasks</span></button>
+      <button type="button" role="tab" class="assigned-tab-btn" [class.active]="activeOverviewTab() === 'subtasks'" [attr.aria-selected]="activeOverviewTab() === 'subtasks'" (click)="setOverviewTab('subtasks')"><span class="material-symbols-outlined tab-icon">checklist</span><span class="tab-label">Subtask</span></button>
+    </div>
+    <button type="button" class="btn-refresh" [class.spinning]="isLoading() || workspaceLoading()" (click)="refresh()" title="Refresh CSO work" aria-label="Refresh CSO work"><span class="material-symbols-outlined">refresh</span></button>
+    @if (caseAccess.canCreateCso()) {
+      <button type="button" class="btn-primary" (click)="openTaskModal()">
+        <span class="material-symbols-outlined">add</span>
+        Create Case
+      </button>
+    }
   </div>
 
   @if (errorMessage) {
@@ -12,97 +19,146 @@
   }
 
   <div class="filter-bar">
-    <select [(ngModel)]="selectedProjectId" (change)="applyFilters()" class="filter-select">
-      <option value="">All Projects</option>
-      @for (project of csoProjects(); track project.id) {
-        <option [value]="project.id">{{ project.name }}</option>
-      }
-    </select>
+    <app-custom-select
+      [ngModel]="selectedProjectId()"
+      (ngModelChange)="selectedProjectId.set($event); applyFilters()"
+      [options]="csoProjects()"
+      defaultOptionLabel="All Projects"
+      defaultOptionValue=""
+      ariaLabel="Filter by Project"
+      customClass="filter-select"
+    ></app-custom-select>
 
-    <select [(ngModel)]="selectedCustomerName" (change)="applyFilters()" class="filter-select">
-      <option value="">All Customers</option>
-      @for (name of availableCustomerNames(); track name) {
-        <option [value]="name">{{ name }}</option>
-      }
-    </select>
+    <app-custom-select
+      [ngModel]="selectedCustomerId()"
+      (ngModelChange)="selectedCustomerId.set($event); applyFilters()"
+      [options]="availableCustomers()"
+      defaultOptionLabel="All Customers"
+      defaultOptionValue=""
+      ariaLabel="Filter by Customer"
+      customClass="filter-select"
+    ></app-custom-select>
 
-    <select [(ngModel)]="selectedPriority" (change)="applyFilters()" class="filter-select">
-      <option value="">All Priorities</option>
-      <option value="CRITICAL">Critical</option>
-      <option value="HIGH">High</option>
-      <option value="MEDIUM">Medium</option>
-      <option value="LOW">Low</option>
-    </select>
+    <app-custom-select
+      [ngModel]="selectedPriority()"
+      (ngModelChange)="selectedPriority.set($event)"
+      [options]="priorityFilterOptions()"
+      defaultOptionLabel="All Priorities"
+      defaultOptionValue=""
+      ariaLabel="Filter by Priority"
+      customClass="filter-select"
+    ></app-custom-select>
 
-    <select [(ngModel)]="selectedStatus" class="filter-select">
-      <option value="">All Statuses</option>
-      <option value="new">New</option>
-      <option value="todo">To Do</option>
-      <option value="inprogress">In Progress</option>
-      <option value="done">Done</option>
-    </select>
+    <app-custom-select
+      [ngModel]="selectedStatus()"
+      (ngModelChange)="selectedStatus.set($event)"
+      [options]="statusFilterOptions"
+      defaultOptionLabel="All Statuses"
+      defaultOptionValue=""
+      ariaLabel="Filter by Status"
+      customClass="filter-select"
+    ></app-custom-select>
 
-    <select [(ngModel)]="selectedAssigneeId" (change)="applyFilters()" class="filter-select">
-      <option value="">All Assignees</option>
-      @for (user of availableAssignees(); track user.id) {
-        <option [value]="user.id">{{ user.name }}</option>
-      }
-    </select>
-  </div>
+    <app-custom-select
+      [ngModel]="selectedAssigneeId()"
+      (ngModelChange)="selectedAssigneeId.set($event); applyFilters()"
+      [options]="availableAssignees()"
+      [selectedLabel]="selectedAssigneeName()"
+      defaultOptionLabel="All Assignees"
+      defaultOptionValue=""
+      ariaLabel="Filter by Assignee"
+      customClass="filter-select"
+    ></app-custom-select>
 
-  <div class="results-card">
-    @if (isLoading()) {
-      <div class="loading-state">
-        <span class="material-symbols-outlined spin">progress_activity</span>
-        Loading CSO tasks...
-      </div>
-    } @else if (filteredTasks().length === 0) {
-      <div class="empty-state">
-        <span class="material-symbols-outlined">inbox</span>
-        <p>No CSO-flagged tasks match these filters.</p>
-      </div>
-    } @else {
-      <table class="results-table">
-        <thead>
-          <tr>
-            <th>Task</th>
-            <th>Project</th>
-            <th>Customer</th>
-            <th>Priority</th>
-            <th>Status</th>
-            <th>Assignee</th>
-            <th>Due Date</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (task of filteredTasks(); track task.id) {
-            <tr class="clickable-row" (click)="onTaskClick(task.id)">
-              <td>{{ task.title }}</td>
-              <td>{{ task.projectName }}</td>
-              <td>{{ task.customerName || '—' }}</td>
-              <td>
-                <span class="priority-badge" [class]="priorityClass(task.priority)">
-                  {{ task.priority }}
-                </span>
-              </td>
-              <td>
-                <span class="status-badge" [class]="'status-' + task.statusLabel">
-                  {{ statusLabelText(task.statusLabel) }}
-                </span>
-              </td>
-              <td>{{ task.assignee || '—' }}</td>
-              <td>{{ task.dueDate ? (task.dueDate | date: 'mediumDate') : '—' }}</td>
-            </tr>
-          }
-        </tbody>
-      </table>
+    @if (hasActiveFilters()) {
+      <button
+        type="button"
+        class="clear-filters-btn"
+        (click)="clearFilters()"
+        title="Reset active filters"
+      >
+        <span class="material-symbols-outlined">filter_alt_off</span>
+        <span class="clear-btn-text">Clear</span>
+      </button>
     }
   </div>
 
-  <create-task-modal
+  <div class="results-card">
+    @if (activeOverviewTab() === 'cases' && isLoading()) {
+      <div class="loading-state">
+        <span class="material-symbols-outlined spin">progress_activity</span>
+        Loading CSO cases...
+      </div>
+    } @else if (activeOverviewTab() === 'tasks' && workspaceLoading()) {
+      <div class="loading-state"><span class="material-symbols-outlined spin">progress_activity</span>Loading CSO tasks...</div>
+    } @else if (activeOverviewTab() === 'subtasks' && workspaceLoading()) {
+      <div class="loading-state"><span class="material-symbols-outlined spin">progress_activity</span>Loading CSO subtasks...</div>
+    } @else if (activeOverviewTab() === 'cases' && filteredTasks().length === 0) {
+      <div class="empty-state">
+        <span class="material-symbols-outlined">inbox</span>
+        <p>No CSO cases match these filters.</p>
+      </div>
+    } @else if (activeOverviewTab() === 'tasks' && taskItems().length === 0) {
+      <div class="empty-state"><span class="material-symbols-outlined">inbox</span><p>No CSO tasks match these filters.</p></div>
+    } @else if (activeOverviewTab() === 'subtasks' && subtaskItems().length === 0) {
+      <div class="empty-state"><span class="material-symbols-outlined">inbox</span><p>No CSO subtasks match these filters.</p></div>
+    } @else if (activeOverviewTab() === 'cases') {
+      <div class="table-container">
+        <table class="results-table">
+          <thead>
+            <tr>
+              <th>Case</th>
+              <th>Project</th>
+              <th>Customer</th>
+              <th>Priority</th>
+              <th>Status</th>
+              <th>Assignee</th>
+              <th>Due Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (task of filteredTasks(); track task.id) {
+              <tr
+                class="clickable-row"
+                (click)="onCaseClick(task.id)"
+                (keydown.enter)="onCaseClick(task.id)"
+                tabindex="0"
+              >
+                <td>{{ task.title }}</td>
+                <td>{{ task.projectName }}</td>
+                <td>{{ task.customerName || '—' }}</td>
+                <td>
+                  <span class="priority-badge" [style.--priority-color]="task.priorityColor || '#f59e0b'">
+                    {{ task.priority }}
+                  </span>
+                </td>
+                <td>
+                  <span class="status-badge" [class]="'status-' + task.statusLabel">
+                    {{ statusLabelText(task.statusLabel) }}
+                  </span>
+                </td>
+                <td>{{ task.assignee || '—' }}</td>
+                <td>{{ task.dueDate ? (task.dueDate | date: 'mediumDate') : '—' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    } @else if (activeOverviewTab() === 'tasks') {
+      <div class="table-container"><table class="results-table"><thead><tr><th>Task</th><th>Case</th><th>Project</th><th>Status</th><th>Assignee</th><th>Due Date</th></tr></thead><tbody>
+        @for (task of taskItems(); track task.id) { <tr class="clickable-row" (click)="onTaskClick(task.id)" (keydown.enter)="onTaskClick(task.id)" tabindex="0"><td>{{ task.title }}</td><td>{{ task.case.title }}</td><td>{{ task.case.project?.name || '—' }}</td><td>{{ task.status }}</td><td>{{ assigneeNames(task.assignees) }}</td><td>{{ task.dueDate ? (task.dueDate | date: 'mediumDate') : '—' }}</td></tr> }
+      </tbody></table></div>
+    } @else {
+      <div class="table-container"><table class="results-table"><thead><tr><th>Subtask</th><th>Task</th><th>Case</th><th>Project</th><th>Status</th><th>Assignee</th></tr></thead><tbody>
+        @for (subtask of subtaskItems(); track subtask.id) { <tr class="clickable-row" (click)="onTaskClick(subtask.taskId)" (keydown.enter)="onTaskClick(subtask.taskId)" tabindex="0"><td>{{ subtask.title }}</td><td>{{ subtask.taskTitle }}</td><td>{{ subtask.caseTitle }}</td><td>{{ subtask.projectName || '—' }}</td><td>{{ subtask.status }}</td><td>{{ subtask.assignees.length ? subtask.assignees[0].name : '—' }}</td></tr> }
+      </tbody></table></div>
+    }
+  </div>
+
+  <app-create-case-modal
     [isOpen]="isTaskModalOpen"
     [forceCsoLabeled]="true"
     (closed)="closeTaskModal()"
     (submitted)="onCreateTask($event)"
-  ></create-task-modal>
+  ></app-create-case-modal>
 </div>

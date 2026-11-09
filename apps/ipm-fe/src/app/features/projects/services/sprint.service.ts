@@ -2,7 +2,6 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { Sprint, SprintSummary } from '@sebsa-pm-tool/shared-models';
-import { Task } from './projects.service';
 
 export interface CreateSprintRequest {
   name: string;

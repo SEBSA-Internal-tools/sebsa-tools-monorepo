@@ -1,0 +1,76 @@
+@if (isOpen) {
+  <div class="modal-overlay" (click)="onBackdropClick()"></div>
+
+  <div class="modal-container">
+    <!-- Modal Header -->
+    <div class="modal-header">
+      <h2>{{ isEditMode() ? 'Edit Customer' : 'New Customer' }}</h2>
+      <button type="button" class="close-btn" (click)="onCancel()" title="Close">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+
+    <!-- Modal Body -->
+    <div class="modal-body">
+      <!-- Customer Name Field -->
+      <div class="form-group">
+        <label for="customerName" class="form-label">
+          Customer Name <span class="required">*</span>
+        </label>
+        <input
+          id="customerName"
+          type="text"
+          [(ngModel)]="name"
+          placeholder="e.g. Acme Corp"
+          class="form-input"
+        />
+      </div>
+
+      <!-- Contact Email Field -->
+      <div class="form-group">
+        <label for="contactEmail" class="form-label">Contact Email</label>
+        <input
+          id="contactEmail"
+          type="email"
+          [(ngModel)]="contactEmail"
+          placeholder="e.g. contact@acmecorp.com"
+          class="form-input"
+        />
+      </div>
+
+      <!-- Contact Phone Field -->
+      <div class="form-group">
+        <label for="contactPhone" class="form-label">Contact Phone</label>
+        <input
+          id="contactPhone"
+          type="text"
+          [(ngModel)]="contactPhone"
+          placeholder="e.g. +1 555 123 4567"
+          class="form-input"
+        />
+      </div>
+
+      <!-- Notes Field -->
+      <div class="form-group">
+        <label for="notes" class="form-label">Notes</label>
+        <textarea
+          id="notes"
+          [(ngModel)]="notes"
+          placeholder="Any additional context about this customer..."
+          class="form-textarea"
+          rows="4"
+        ></textarea>
+      </div>
+    </div>
+
+    <!-- Modal Footer -->
+    <div class="modal-footer">
+      <button type="button" class="btn-cancel" (click)="onCancel()">
+        Cancel
+      </button>
+      <button type="button" class="btn-create" (click)="onSubmit()">
+        {{ isEditMode() ? 'Save Changes' : 'Create Customer' }}
+      </button>
+    </div>
+  </div>
+}

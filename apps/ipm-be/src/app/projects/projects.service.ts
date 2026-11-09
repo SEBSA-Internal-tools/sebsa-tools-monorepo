@@ -7,29 +7,33 @@ import {
 import { PrismaService } from '@sebsa-pm-tool/core';
 import {
   AuthUser,
+  CreateProjectPriorityRequest,
   Project,
   ProjectMemberSummary,
+  ProjectPermissions,
   ProjectRole,
   ProjectSummary,
+  UpdateProjectPriorityRequest,
 } from '@sebsa-pm-tool/shared-models';
-import { Prisma } from '@prisma/client';
+import { ActivityAction, EntityType, Prisma } from '@prisma/client';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { AddMemberDto } from './dto/add-member.dto';
 import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
-import { CreateWorkflowStageDto } from './dto/create-workflow-stage.dto';
 import {
   DEFAULT_PROJECT_ROLES,
   PROJECT_OWNER_ROLE_NAME,
 } from './constants';
+import { ActivityLogsService } from '../activity-logs/activity-logs.service';
+import { PROJECT_PERMISSIONS } from '../common/project-access.service';
 
 const ADMIN_SYSTEM_ROLES: AuthUser['systemRole'][] = ['ADMIN', 'SUPER_ADMIN'];
 
 const memberInclude = {
-  user: { select: { id: true, name: true, email: true } },
-  role: { select: { id: true, name: true, privilegeGroup: { select: { isReadOnly: true } } } },
+  user: { select: { id: true, name: true, email: true, avatarUrl: true } },
+  role: { select: { id: true, name: true, privilegeGroup: { select: { isReadOnly: true, canManageMembers: true } } } },
 } satisfies Prisma.ProjectMemberInclude;
 
 type MemberWithRelations = Prisma.ProjectMemberGetPayload<{ include: typeof memberInclude }>;
@@ -46,21 +50,28 @@ type ProjectWithMembership = Prisma.ProjectGetPayload<{
 
 const projectDetailInclude = {
   createdBy: { select: { id: true, name: true } },
-  workflowStages: {
-    select: { id: true, name: true, order: true },
+  customer: { select: { id: true, name: true } },
+  priorities: {
+    select: { id: true, name: true, order: true, color: true },
     orderBy: { order: 'asc' as const },
   },
-  _count: { select: { tasks: true, members: { where: { deletedAt: null } } } },
+  _count: {
+    select: { cases: { where: { deletedAt: null } }, members: { where: { deletedAt: null } } },
+  },
 } satisfies Prisma.ProjectInclude;
 
 type ProjectWithDetail = Prisma.ProjectGetPayload<{ include: typeof projectDetailInclude }>;
 
 @Injectable()
 export class ProjectsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly activityLogs: ActivityLogsService,
+  ) {}
 
   async create(dto: CreateProjectDto, creator: AuthUser): Promise<Project> {
     this.assertCanCreateProject(creator);
+    await this.assertCustomerExists(dto.customerId);
 
     const created = await this.prisma.$transaction(async (tx) => {
       const project = await tx.project.create({
@@ -74,21 +85,42 @@ export class ProjectsService {
           color: dto.color,
           createdById: creator.id,
           isCsoProject: dto.isCsoProject ?? false,
-          customerName: dto.isCsoProject ? dto.customerName : undefined,
+          customerId: dto.customerId,
         },
       });
 
-      // Every project is guaranteed to have at least one workflow stage so the
-      // Kanban board is never in an empty state. The "Backlog" stage (order: 0,
-      // isDefault: true) serves as the automatic landing column for all new tasks
-      // that are created without an explicit workflowStageId.
-      await tx.workflowStage.create({
-        data: {
-          projectId: project.id,
-          name: 'Backlog',
-          order: 0,
-          isDefault: true,
-        },
+      // Default Priority
+      await tx.projectPriority.createMany({
+        data: [
+          {
+            projectId: project.id,
+            name: 'Low',
+            order: 1,
+            isDefault: false,
+            color: '#10B981',
+          },
+          {
+            projectId: project.id,
+            name: 'Medium',
+            order: 2,
+            isDefault: true,
+            color: '#F59E0B',
+          },
+          {
+            projectId: project.id,
+            name: 'High',
+            order: 3,
+            isDefault: false,
+            color: '#EF4444',
+          },
+          {
+            projectId: project.id,
+            name: 'Critical',
+            order: 4,
+            isDefault: false,
+            color: '#991B1B',
+          },
+        ],
       });
 
       const defaultGroups = await tx.privilegeGroup.findMany({
@@ -122,6 +154,19 @@ export class ProjectsService {
         data: { projectId: project.id, userId: creator.id, roleId: ownerRole.id },
       });
 
+      await this.activityLogs.record(
+        {
+          projectId: project.id,
+          entityType: EntityType.PROJECT,
+          entityId: project.id,
+          entityLabel: project.name,
+          action: ActivityAction.CREATED,
+          actorId: creator.id,
+          description: `Created project "${project.name}"`,
+        },
+        tx,
+      );
+
       return project;
     });
 
@@ -140,7 +185,11 @@ export class ProjectsService {
       orderBy: { createdAt: 'desc' },
     });
 
-    return projects.map((project) => this.toProjectSummary(project));
+    const permissions = await this.resolvePermissions(
+      projects.map((p) => p.id),
+      user,
+    );
+    return projects.map((project) => this.toProjectSummary(project, permissions.get(project.id)!));
   }
 
   async findOne(id: string, user: AuthUser): Promise<Project> {
@@ -156,34 +205,55 @@ export class ProjectsService {
     const membership = await this.getActiveMembership(id, user.id);
     this.assertVisible(!!membership, user);
 
-    return this.toProject(project);
+    const permissions = await this.resolvePermissions([id], user);
+    return this.toProject(project, permissions.get(id)!);
   }
 
   async update(id: string, dto: UpdateProjectDto, user: AuthUser): Promise<Project> {
     const project = await this.loadProjectWithMembership(id);
     this.assertCanEdit(project, user);
 
-    const mergedIsCsoProject = dto.isCsoProject ?? project.isCsoProject;
-    const mergedCustomerName =
-      dto.customerName !== undefined ? dto.customerName : project.customerName;
-    if (mergedIsCsoProject && !mergedCustomerName) {
-      throw new BadRequestException('A CSO project must have a customer name.');
+    if (dto.customerId) {
+      await this.assertCustomerExists(dto.customerId);
     }
 
-    await this.prisma.project.update({
-      where: { id },
-      data: {
-        name: dto.name,
-        description: dto.description,
-        type: dto.type,
-        customType: dto.customType,
-        status: dto.status,
-        startDate: dto.startDate ? new Date(dto.startDate) : undefined,
-        targetEndDate: dto.targetEndDate ? new Date(dto.targetEndDate) : undefined,
-        color: dto.color,
-        isCsoProject: dto.isCsoProject,
-        customerName: dto.customerName,
-      },
+    const isStatusChange = !!dto.status && dto.status !== project.status;
+    const changes = this.activityLogs.buildFieldChanges(project, dto);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.project.update({
+        where: { id },
+        data: {
+          name: dto.name,
+          description: dto.description,
+          type: dto.type,
+          customType: dto.customType,
+          status: dto.status,
+          startDate: dto.startDate ? new Date(dto.startDate) : undefined,
+          targetEndDate: dto.targetEndDate ? new Date(dto.targetEndDate) : undefined,
+          color: dto.color,
+          isCsoProject: dto.isCsoProject,
+          customerId: dto.customerId,
+        },
+      });
+
+      if (changes.length > 0) {
+        await this.activityLogs.record(
+          {
+            projectId: id,
+            entityType: EntityType.PROJECT,
+            entityId: id,
+            entityLabel: dto.name ?? project.name,
+            action: isStatusChange ? ActivityAction.STATUS_CHANGED : ActivityAction.UPDATED,
+            actorId: user.id,
+            description: isStatusChange
+              ? `Moved project "${project.name}" from ${project.status} to ${dto.status}`
+              : `Updated project "${project.name}"`,
+            changes,
+          },
+          tx,
+        );
+      }
     });
 
     return this.findOne(id, user);
@@ -193,9 +263,41 @@ export class ProjectsService {
     const project = await this.loadProjectWithMembership(id);
     this.assertCanManageMembers(project, user);
 
-    await this.prisma.project.update({
-      where: { id },
-      data: { deletedAt: new Date() },
+    await this.prisma.$transaction(async (tx) => {
+      const deletedAt = new Date();
+      await tx.project.update({
+        where: { id },
+        data: { deletedAt },
+      });
+
+      // Cases, tasks and subtasks are filtered by their own deletedAt, so a
+      // deleted project has to take its work items with it; otherwise they
+      // linger in Assigned Work, search and the dashboards.
+      await tx.subtask.updateMany({
+        where: { deletedAt: null, task: { case: { projectId: id } } },
+        data: { deletedAt },
+      });
+      await tx.task.updateMany({
+        where: { deletedAt: null, case: { projectId: id } },
+        data: { deletedAt },
+      });
+      await tx.case.updateMany({
+        where: { deletedAt: null, projectId: id },
+        data: { deletedAt },
+      });
+
+      await this.activityLogs.record(
+        {
+          projectId: id,
+          entityType: EntityType.PROJECT,
+          entityId: id,
+          entityLabel: project.name,
+          action: ActivityAction.DELETED,
+          actorId: user.id,
+          description: `Deleted project "${project.name}"`,
+        },
+        tx,
+      );
     });
   }
 
@@ -253,6 +355,48 @@ export class ProjectsService {
     return this.toProjectRole(role);
   }
 
+  /** Removes a project role. Refused while anyone still holds it — reassigning
+   * those members is a decision for a human, not a silent side effect. The
+   * seeded defaults are kept so every project retains a usable set. */
+  async deleteRole(id: string, roleId: string, user: AuthUser): Promise<{ message: string }> {
+    const project = await this.loadProjectWithMembership(id);
+    this.assertCanManageMembers(project, user);
+    await this.assertRoleBelongsToProject(id, roleId);
+
+    const role = await this.prisma.role.findUnique({
+      where: { id: roleId },
+      select: { name: true, isSystemDefault: true },
+    });
+    if (!role) throw new NotFoundException('Role not found.');
+
+    if (role.isSystemDefault) {
+      throw new BadRequestException(`"${role.name}" is a default role and cannot be deleted.`);
+    }
+
+    const holders = await this.prisma.projectMember.count({
+      where: { roleId, deletedAt: null },
+    });
+    if (holders > 0) {
+      throw new BadRequestException(
+        `${holders} member(s) still have the "${role.name}" role. Move them to another role first.`,
+      );
+    }
+
+    await this.prisma.role.delete({ where: { id: roleId } });
+
+    await this.activityLogs.record({
+      projectId: id,
+      entityType: EntityType.PROJECT,
+      entityId: id,
+      entityLabel: project.name,
+      action: ActivityAction.ROLE_CHANGED,
+      actorId: user.id,
+      description: `Deleted the "${role.name}" role`,
+    });
+
+    return { message: `Role "${role.name}" deleted.` };
+  }
+
   async getMembers(id: string, user: AuthUser): Promise<ProjectMemberSummary[]> {
     const project = await this.loadProjectWithMembership(id);
     const membership = this.findMembership(project, user.id);
@@ -277,25 +421,45 @@ export class ProjectsService {
     await this.assertRoleBelongsToProject(id, dto.roleId);
     await this.assertUserExists(dto.userId);
 
+    const member = await this.upsertMembership(id, dto);
+
+    await this.activityLogs.record({
+      projectId: id,
+      entityType: EntityType.PROJECT_MEMBER,
+      entityId: member.id,
+      entityLabel: member.user.name,
+      action: ActivityAction.MEMBER_ADDED,
+      actorId: user.id,
+      description: `Added ${member.user.name} to "${project.name}" as ${member.role.name}`,
+    });
+
+    return this.toProjectMemberSummary(member);
+  }
+
+  /** Adds the membership, reviving a previously removed row rather than
+   * inserting a duplicate. Split out of addMember so its three success paths
+   * converge on one row for the caller to log. */
+  private async upsertMembership(
+    projectId: string,
+    dto: AddMemberDto,
+  ): Promise<MemberWithRelations> {
     const existing = await this.prisma.projectMember.findFirst({
-      where: { projectId: id, userId: dto.userId },
+      where: { projectId, userId: dto.userId },
     });
 
     if (existing) {
-      const reactivated = await this.prisma.projectMember.update({
+      return this.prisma.projectMember.update({
         where: { id: existing.id },
         data: { roleId: dto.roleId, deletedAt: null, joinedAt: new Date() },
         include: memberInclude,
       });
-      return this.toProjectMemberSummary(reactivated);
     }
 
     try {
-      const created = await this.prisma.projectMember.create({
-        data: { projectId: id, userId: dto.userId, roleId: dto.roleId },
+      return await this.prisma.projectMember.create({
+        data: { projectId, userId: dto.userId, roleId: dto.roleId },
         include: memberInclude,
       });
-      return this.toProjectMemberSummary(created);
     } catch (error) {
       // Race: another request inserted the same (projectId, userId) pair between our
       // findFirst and this create. The DB's hand-written partial unique index (see
@@ -303,14 +467,13 @@ export class ProjectsService {
       // which Prisma surfaces as P2002 even though the index isn't in the Prisma DMMF.
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         const raceRow = await this.prisma.projectMember.findFirstOrThrow({
-          where: { projectId: id, userId: dto.userId },
+          where: { projectId, userId: dto.userId },
         });
-        const reactivated = await this.prisma.projectMember.update({
+        return this.prisma.projectMember.update({
           where: { id: raceRow.id },
           data: { roleId: dto.roleId, deletedAt: null, joinedAt: new Date() },
           include: memberInclude,
         });
-        return this.toProjectMemberSummary(reactivated);
       }
       throw error;
     }
@@ -332,75 +495,140 @@ export class ProjectsService {
       data: { roleId: dto.roleId },
       include: memberInclude,
     });
+
+    await this.activityLogs.record({
+      projectId: id,
+      entityType: EntityType.PROJECT_MEMBER,
+      entityId: memberId,
+      entityLabel: updated.user.name,
+      action: ActivityAction.ROLE_CHANGED,
+      actorId: user.id,
+      description: `Changed ${updated.user.name}'s role on "${project.name}" to ${updated.role.name}`,
+    });
+
     return this.toProjectMemberSummary(updated);
   }
 
   async removeMember(id: string, memberId: string, user: AuthUser): Promise<void> {
     const project = await this.loadProjectWithMembership(id);
     this.assertCanManageMembers(project, user);
-    await this.getActiveMemberOrThrow(id, memberId);
+    const member = await this.getActiveMemberOrThrow(id, memberId);
 
-    await this.prisma.projectMember.update({
-      where: { id: memberId },
-      data: { deletedAt: new Date() },
+    await this.prisma.$transaction(async (tx) => {
+      await tx.projectMember.update({
+        where: { id: memberId },
+        data: { deletedAt: new Date() },
+      });
+
+      await this.activityLogs.record(
+        {
+          projectId: id,
+          entityType: EntityType.PROJECT_MEMBER,
+          entityId: memberId,
+          entityLabel: member.user.name,
+          action: ActivityAction.MEMBER_REMOVED,
+          actorId: user.id,
+          description: `Removed ${member.user.name} from "${project.name}"`,
+        },
+        tx,
+      );
     });
   }
 
-  async getWorkflowStages(
+  async getProjectPriorities(
     projectId: string,
     user: AuthUser,
-  ): Promise<{ id: string; name: string; order: number }[]> {
+  ): Promise<{ id: string; name: string; order: number; color: string | null; isDefault: boolean }[]> {
     const project = await this.loadProjectWithMembership(projectId);
     const membership = this.findMembership(project, user.id);
     this.assertVisible(!!membership, user);
 
-    const stages = await this.prisma.workflowStage.findMany({
+    return this.prisma.projectPriority.findMany({
       where: { projectId },
-      select: { id: true, name: true, order: true },
+      select: { id: true, name: true, order: true, color: true, isDefault: true },
       orderBy: { order: 'asc' },
     });
-    return stages;
   }
 
-  async createWorkflowStage(
+  async createProjectPriority(
     projectId: string,
-    dto: CreateWorkflowStageDto,
+    dto: CreateProjectPriorityRequest,
     user: AuthUser,
-  ): Promise<{ id: string; name: string; order: number }> {
+  ): Promise<{ id: string; name: string; order: number; color: string | null }> {
     const project = await this.loadProjectWithMembership(projectId);
     this.assertCanManageMembers(project, user);
 
-    // Auto-calculate order if not provided
     let order = dto.order;
     if (order === undefined || order === null) {
-      const maxOrder = await this.prisma.workflowStage.aggregate({
+      const maxOrder = await this.prisma.projectPriority.aggregate({
         where: { projectId },
         _max: { order: true },
       });
       order = (maxOrder._max.order ?? -1) + 1;
     }
 
-    // Validate unique stage name per project
-    const existing = await this.prisma.workflowStage.findFirst({
+    const existing = await this.prisma.projectPriority.findFirst({
       where: { projectId, name: dto.name },
     });
-    if (existing) {
-      throw new BadRequestException(
-        `A workflow stage with the name "${dto.name}" already exists in this project.`,
-      );
-    }
+    if (existing) throw new BadRequestException('Priority name already exists');
 
-    const stage = await this.prisma.workflowStage.create({
+    return this.prisma.projectPriority.create({
       data: {
         projectId,
         name: dto.name,
+        color: dto.color,
         order,
-        isDefault: false,
       },
-      select: { id: true, name: true, order: true },
+      select: { id: true, name: true, order: true, color: true },
     });
+  }
 
-    return stage;
+  async updateProjectPriority(
+    projectId: string,
+    priorityId: string,
+    dto: UpdateProjectPriorityRequest,
+    user: AuthUser,
+  ): Promise<{ id: string; name: string; order: number; color: string | null }> {
+    const project = await this.loadProjectWithMembership(projectId);
+    this.assertCanManageMembers(project, user);
+
+    const existing = await this.prisma.projectPriority.findFirst({
+      where: { id: priorityId, projectId },
+    });
+    if (!existing) throw new NotFoundException('Priority not found');
+
+    if (dto.name && dto.name !== existing.name) {
+      const nameTaken = await this.prisma.projectPriority.findFirst({
+        where: { projectId, name: dto.name },
+      });
+      if (nameTaken) throw new BadRequestException('Priority name already exists');
+    }
+
+    return this.prisma.projectPriority.update({
+      where: { id: priorityId },
+      data: { name: dto.name, color: dto.color, order: dto.order },
+      select: { id: true, name: true, order: true, color: true },
+    });
+  }
+
+  async deleteProjectPriority(
+    projectId: string,
+    priorityId: string,
+    user: AuthUser,
+  ): Promise<void> {
+    const project = await this.loadProjectWithMembership(projectId);
+    this.assertCanManageMembers(project, user);
+
+    const priority = await this.prisma.projectPriority.findFirst({
+      where: { id: priorityId, projectId },
+      include: { _count: { select: { tasks: true, cases: true } } },
+    });
+    if (!priority) throw new NotFoundException('Priority not found');
+    if (priority._count.tasks > 0 || priority._count.cases > 0) {
+      throw new BadRequestException('Cannot delete priority that is in use by cases or tasks');
+    }
+
+    await this.prisma.projectPriority.delete({ where: { id: priorityId } });
   }
 
   // ---------------------------------------------------------------------------
@@ -432,6 +660,7 @@ export class ProjectsService {
   private async getActiveMemberOrThrow(projectId: string, memberId: string) {
     const member = await this.prisma.projectMember.findFirst({
       where: { id: memberId, projectId, deletedAt: null },
+      include: memberInclude,
     });
     if (!member) {
       throw new NotFoundException('Membership not found.');
@@ -452,6 +681,15 @@ export class ProjectsService {
     });
     if (!user) {
       throw new BadRequestException('User not found or inactive.');
+    }
+  }
+
+  private async assertCustomerExists(customerId: string): Promise<void> {
+    const customer = await this.prisma.customer.findFirst({
+      where: { id: customerId, deletedAt: null },
+    });
+    if (!customer) {
+      throw new BadRequestException('Customer not found.');
     }
   }
 
@@ -477,8 +715,11 @@ export class ProjectsService {
 
   private assertCanEdit(project: ProjectWithMembership, user: AuthUser): void {
     if (ADMIN_SYSTEM_ROLES.includes(user.systemRole)) return;
+    // Editing project settings is a management action, like deleting: it needs
+    // the manage-members grant (and a read-only group never has it in effect).
     const membership = this.findMembership(project, user.id);
-    if (!membership || membership.role.privilegeGroup.isReadOnly) {
+    const group = membership?.role.privilegeGroup;
+    if (!membership || !group || group.isReadOnly || !group.canManageMembers) {
       throw new ForbiddenException('You do not have permission to edit this project.');
     }
   }
@@ -511,12 +752,10 @@ export class ProjectsService {
       throw new ForbiddenException('You do not have permission to assign privilege groups.');
     }
 
+    // Derived from PROJECT_PERMISSIONS rather than listed by hand, so adding a
+    // flag cannot silently open an escalation path here.
     const grantsMoreThanIHave =
-      (candidateGroup.canCreateTask && !myGroup.canCreateTask) ||
-      (candidateGroup.canDeleteTask && !myGroup.canDeleteTask) ||
-      (candidateGroup.canManageMembers && !myGroup.canManageMembers) ||
-      (candidateGroup.canConfigureIntegrations && !myGroup.canConfigureIntegrations) ||
-      (candidateGroup.canManageWorkflow && !myGroup.canManageWorkflow) ||
+      PROJECT_PERMISSIONS.some((p) => candidateGroup[p] && !myGroup[p]) ||
       (myGroup.isReadOnly && !candidateGroup.isReadOnly);
 
     if (grantsMoreThanIHave) {
@@ -550,7 +789,13 @@ export class ProjectsService {
         canDeleteTask: role.privilegeGroup.canDeleteTask,
         canManageMembers: role.privilegeGroup.canManageMembers,
         canConfigureIntegrations: role.privilegeGroup.canConfigureIntegrations,
-        canManageWorkflow: role.privilegeGroup.canManageWorkflow,
+        canManageSprints: role.privilegeGroup.canManageSprints,
+        canManageLabels: role.privilegeGroup.canManageLabels,
+        canCreateCase: role.privilegeGroup.canCreateCase,
+        canEditCase: role.privilegeGroup.canEditCase,
+        canDeleteCase: role.privilegeGroup.canDeleteCase,
+        canEditTask: role.privilegeGroup.canEditTask,
+        canComment: role.privilegeGroup.canComment,
         isReadOnly: role.privilegeGroup.isReadOnly,
         createdAt: role.privilegeGroup.createdAt.toISOString(),
         updatedAt: role.privilegeGroup.updatedAt.toISOString(),
@@ -558,7 +803,40 @@ export class ProjectsService {
     };
   }
 
-  private toProjectSummary(project: ProjectWithDetail): ProjectSummary {
+  /** Per-project grants for the requesting user. System admins hold every
+   * grant; everyone else gets their role's group, with isReadOnly as a master
+   * deny (same rule as ProjectAccessService.assertCan). */
+  private async resolvePermissions(
+    projectIds: string[],
+    user: AuthUser,
+  ): Promise<Map<string, ProjectPermissions>> {
+    const all = Object.fromEntries(PROJECT_PERMISSIONS.map((p) => [p, true])) as unknown as ProjectPermissions;
+    const none = Object.fromEntries(PROJECT_PERMISSIONS.map((p) => [p, false])) as unknown as ProjectPermissions;
+    const result = new Map<string, ProjectPermissions>();
+    if (ADMIN_SYSTEM_ROLES.includes(user.systemRole)) {
+      projectIds.forEach((id) => result.set(id, all));
+      return result;
+    }
+    const memberships = await this.prisma.projectMember.findMany({
+      where: { projectId: { in: projectIds }, userId: user.id, deletedAt: null },
+      include: { role: { include: { privilegeGroup: true } } },
+    });
+    const byProject = new Map(memberships.map((m) => [m.projectId, m.role.privilegeGroup]));
+    for (const id of projectIds) {
+      const group = byProject.get(id);
+      if (!group || group.isReadOnly) {
+        result.set(id, none);
+        continue;
+      }
+      result.set(
+        id,
+        Object.fromEntries(PROJECT_PERMISSIONS.map((p) => [p, !!group[p]])) as unknown as ProjectPermissions,
+      );
+    }
+    return result;
+  }
+
+  private toProjectSummary(project: ProjectWithDetail, permissions: ProjectPermissions): ProjectSummary {
     return {
       id: project.id,
       name: project.name,
@@ -571,18 +849,20 @@ export class ProjectsService {
       color: project.color,
       createdBy: project.createdBy,
       memberCount: project._count.members,
-      taskCount: project._count.tasks,
+      caseCount: project._count.cases,
       isCsoProject: project.isCsoProject,
-      customerName: project.customerName,
+      permissions,
+      customerId: project.customerId,
+      customer: project.customer,
       createdAt: project.createdAt.toISOString(),
       updatedAt: project.updatedAt.toISOString(),
     };
   }
 
-  private toProject(project: ProjectWithDetail): Project {
+  private toProject(project: ProjectWithDetail, permissions: ProjectPermissions): Project {
     return {
-      ...this.toProjectSummary(project),
-      workflowStages: project.workflowStages,
+      ...this.toProjectSummary(project, permissions),
+      priorities: project.priorities,
     };
   }
 

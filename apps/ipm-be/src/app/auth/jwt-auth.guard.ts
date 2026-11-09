@@ -56,6 +56,7 @@ export class JwtAuthGuard implements CanActivate {
       email: user.email,
       systemRole: user.systemRole as AuthUser['systemRole'],
       departmentId: user.departmentId,
+      avatarUrl: user.avatarUrl,
     };
 
     (request as Request & { user: AuthUser }).user = authUser;
@@ -64,8 +65,13 @@ export class JwtAuthGuard implements CanActivate {
 
   private extractToken(request: Request): string | undefined {
     const header = request.headers['authorization'];
-    if (!header) return undefined;
-    const [type, token] = header.split(' ');
-    return type === 'Bearer' ? token : undefined;
+    if (header) {
+      const [type, token] = header.split(' ');
+      if (type === 'Bearer' && token) return token;
+    }
+    if (request.query && typeof request.query['token'] === 'string') {
+      return request.query['token'];
+    }
+    return undefined;
   }
 }

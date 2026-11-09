@@ -1,82 +1,140 @@
-<main class="app-shell">
-  <aside class="sidebar" aria-label="Primary navigation">
+<a class="skip-link" href="#workspace-content">Skip to content</a>
+<main class="app-shell" [class.sidebar-collapsed]="isSidebarCollapsed">
+  <!-- Mobile Sidebar Backdrop Overlay -->
+  @if (isMobileSidebarOpen) {
+    <div
+      class="sidebar-backdrop"
+      aria-hidden="true"
+      (click)="closeMobileSidebar()"
+    ></div>
+  }
+
+  <!-- Left Navigation Sidebar -->
+  <aside
+    class="sidebar"
+    [class.mobile-open]="isMobileSidebarOpen"
+    [class.collapsed]="isSidebarCollapsed"
+    aria-label="Primary navigation"
+  >
     <section class="brand-block">
-      <div class="icon-premium-wrapper brand-logo-icon">
-        <span class="material-symbols-outlined">space_dashboard</span>
-      </div>
-      <div class="brand-copy">
-        <h1>SEBSA PMT</h1>
-        <p>Enterprise PM Tool</p>
-      </div>
+      <div class="sidebar-logo-mask" role="img" aria-label="SEBSA One"></div>
+      <button
+        type="button"
+        class="mobile-sidebar-close-btn"
+        aria-label="Close navigation menu"
+        (click)="closeMobileSidebar()"
+      >
+        <span class="material-symbols-outlined" aria-hidden="true">close</span>
+      </button>
+
+      <button
+        type="button"
+        class="sidebar-collapse-btn"
+        [attr.aria-label]="isSidebarCollapsed ? 'Expand navigation menu' : 'Collapse navigation menu'"
+        [attr.aria-expanded]="!isSidebarCollapsed"
+        [title]="isSidebarCollapsed ? 'Expand menu' : 'Collapse menu'"
+        (click)="toggleSidebarCollapsed()"
+      >
+        <span class="material-symbols-outlined" aria-hidden="true">
+          {{ isSidebarCollapsed ? 'chevron_right' : 'chevron_left' }}
+        </span>
+      </button>
     </section>
 
+    @if (caseAccess.canCreateAny()) {
     <button type="button" class="btn-primary new-task-button" aria-haspopup="dialog" [attr.aria-expanded]="isTaskModalOpen" (click)="openTaskModal()">
       <span class="material-symbols-outlined button-icon" aria-hidden="true">add</span>
-      <span>New Task</span>
+      <span class="button-label">New Case</span>
     </button>
+    }
 
+    <p class="workspace-caption">Workspace</p>
     <nav class="nav-list">
-      <a
-        *ngFor="let item of navigationItems"
-        class="nav-item"
-        [routerLink]="item.path"
-        routerLinkActive="active"
-        [routerLinkActiveOptions]="{ exact: true }"
-      >
-        <span class="nav-icon" aria-hidden="true">
-          <span class="material-symbols-outlined">{{ item.icon }}</span>
-        </span>
-        <span class="nav-label">{{ item.label }}</span>
-      </a>
+      @for (item of visibleNavigationItems; track item.path) {
+        <a
+          class="nav-item"
+          [routerLink]="item.path"
+          routerLinkActive="active" ariaCurrentWhenActive="page"
+          [routerLinkActiveOptions]="{ exact: false }"
+          [title]="isSidebarCollapsed ? item.label : ''"
+          (click)="closeMobileSidebar()"
+        >
+          <span class="nav-icon" aria-hidden="true">
+            <span class="material-symbols-outlined">{{ item.icon }}</span>
+          </span>
+          <span class="nav-label">{{ item.label }}</span>
+        </a>
+      }
 
-      <a
-        *ngIf="['ADMIN', 'SUPER_ADMIN'].includes(authService.currentUser()?.systemRole ?? '')"
-        class="nav-item"
-        routerLink="/admin/users"
-        routerLinkActive="active"
-      >
-        <span class="nav-icon" aria-hidden="true">
-          <span class="material-symbols-outlined">admin_panel_settings</span>
-        </span>
-        <span class="nav-label">Admin</span>
-      </a>
+      @for (group of visibleNavigationGroups; track group.label) {
+        <div class="nav-group">
+          <button
+            type="button"
+            class="nav-item nav-group-toggle"
+            [class.active]="isGroupActive(group)"
+            [attr.aria-expanded]="isGroupExpanded(group)"
+            [title]="isSidebarCollapsed ? group.label : ''"
+            (click)="toggleGroup(group)"
+          >
+            <span class="nav-icon" aria-hidden="true">
+              <span class="material-symbols-outlined">{{ group.icon }}</span>
+            </span>
+            <span class="nav-label">{{ group.label }}</span>
+            <span class="material-symbols-outlined nav-chevron" aria-hidden="true">
+              {{ isGroupExpanded(group) ? 'expand_less' : 'expand_more' }}
+            </span>
+          </button>
 
-      <a
-        *ngIf="authService.currentUser()?.systemRole === 'SUPER_ADMIN'"
-        class="nav-item"
-        routerLink="/admin/privilege-groups"
-        routerLinkActive="active"
-      >
-        <span class="nav-icon" aria-hidden="true">
-          <span class="material-symbols-outlined">shield_person</span>
-        </span>
-        <span class="nav-label">Privilege Groups</span>
-      </a>
+          @if (isGroupExpanded(group)) {
+            <div class="nav-submenu">
+              @for (child of group.children; track child.path) {
+                <a
+                  class="nav-item nav-subitem"
+                  [routerLink]="child.path"
+                  routerLinkActive="active" ariaCurrentWhenActive="page"
+                  (click)="closeMobileSidebar()"
+                >
+                  <span class="nav-icon" aria-hidden="true">
+                    <span class="material-symbols-outlined">{{ child.icon }}</span>
+                  </span>
+                  <span class="nav-label">{{ child.label }}</span>
+                </a>
+              }
+            </div>
+          }
+        </div>
+      }
     </nav>
 
     <div class="sidebar-footer">
-      <button type="button" class="nav-item settings-item">
+      <a class="nav-item settings-item" routerLink="/settings" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileSidebar()">
         <span class="nav-icon" aria-hidden="true">
           <span class="material-symbols-outlined">settings</span>
         </span>
         <span class="nav-label">Settings</span>
-      </button>
+      </a>
     </div>
   </aside>
 
+  <!-- Right Content Viewport with Fixed Top Header -->
   <div class="content-wrapper">
     <header class="top-navbar">
-      <div class="search-container">
-        <span class="material-symbols-outlined search-icon" aria-hidden="true">search</span>
-        <input
-          type="search"
-          placeholder="Search tasks, projects, or documents..."
-          class="search-input"
-          aria-label="Global search"
-        />
+      <!-- Left: mobile hamburger -->
+      <div class="navbar-left">
+        <button
+          type="button"
+          class="mobile-menu-btn"
+          aria-label="Open navigation menu"
+          [attr.aria-expanded]="isMobileSidebarOpen"
+          (click)="toggleMobileSidebar()"
+        >
+          <span class="material-symbols-outlined" aria-hidden="true">menu</span>
+        </button>
+        <nav class="workspace-context" aria-label="Current location"><a routerLink="/dashboard">SEBSA One</a><span aria-hidden="true">/</span><span>{{ currentSection }}</span></nav>
       </div>
-
+      <!-- Right: header actions -->
       <div class="navbar-actions">
+        <!-- Theme Toggle -->
         <button
           type="button"
           class="action-btn theme-toggle-btn"
@@ -86,47 +144,138 @@
           <span class="material-symbols-outlined" aria-hidden="true">{{ themeService.iconName }}</span>
         </button>
 
-        <button type="button" class="action-btn" aria-label="Help and Support">
-          <span class="material-symbols-outlined" aria-hidden="true">help</span>
+      <!-- Notification Bell with Dropdown -->
+      <div class="notification-menu-wrapper">
+        <button
+          type="button"
+          class="notification-bell-btn"
+          aria-haspopup="dialog"
+          [attr.aria-expanded]="isNotificationMenuOpen"
+          aria-label="Notifications"
+          (click)="toggleNotificationMenu()"
+        >
+          <span class="material-symbols-outlined" aria-hidden="true">notifications</span>
+          @if (notificationService.unreadCount() > 0) {
+            <span class="notification-badge">
+              {{ notificationService.unreadCount() > 99 ? '99+' : notificationService.unreadCount() }}
+            </span>
+          }
         </button>
 
-        <div class="profile-menu-wrapper">
-          <button
-            type="button"
-            class="user-profile-btn"
-            [attr.aria-expanded]="isProfileMenuOpen"
-            aria-label="User account menu"
-            (click)="toggleProfileMenu()"
-          >
-            <span class="material-symbols-outlined avatar-icon" aria-hidden="true">account_circle</span>
-            <span class="user-name">{{ authService.currentUser()?.name ?? 'Account' }}</span>
-            <span class="material-symbols-outlined dropdown-icon" aria-hidden="true">arrow_drop_down</span>
-          </button>
-
-          <div class="profile-menu" *ngIf="isProfileMenuOpen">
-            <div class="profile-menu-header">
-              <span class="profile-menu-name">{{ authService.currentUser()?.name }}</span>
-              <span class="profile-menu-email">{{ authService.currentUser()?.email }}</span>
+        <!-- Notification Dropdown Panel -->
+        @if (isNotificationMenuOpen) {
+          <div class="notification-menu" role="dialog" aria-label="Notifications">
+            <div class="notification-menu-header">
+              <div class="notification-menu-header-left">
+                <span class="notification-menu-title">Notifications</span>
+                @if (notificationService.unreadCount() > 0) {
+                  <span class="notification-menu-count">
+                    {{ notificationService.unreadCount() }} new
+                  </span>
+                }
+              </div>
+              @if (notificationService.unreadCount() > 0) {
+                <button
+                  type="button"
+                  class="notification-mark-all-btn"
+                  (click)="markAllNotificationsRead($event)"
+                >
+                  Mark all read
+                </button>
+              }
             </div>
-            <button type="button" class="profile-menu-item" (click)="logout()">
+
+            @if (notificationService.notifications().length > 0) {
+              <div class="notification-menu-list">
+                @for (item of notificationService.notifications(); track item.id) {
+                  <button
+                    type="button"
+                    class="notification-menu-item"
+                    [class.unread]="!item.isRead"
+                    (click)="handleNotificationClick(item)"
+                  >
+                    <span class="notification-item-icon material-symbols-outlined" aria-hidden="true">
+                      {{ getNotificationIcon(item.type) }}
+                    </span>
+                    <div class="notification-item-body">
+                      <span class="notification-item-title">{{ item.title }}</span>
+                      <span class="notification-item-detail">{{ item.message }}</span>
+                      <span class="notification-item-time">{{ formatRelativeTime(item.createdAt) }}</span>
+                    </div>
+                    @if (!item.isRead) {
+                      <span class="notification-item-dot" aria-hidden="true"></span>
+                    }
+                  </button>
+                }
+              </div>
+            } @else {
+              <div class="notification-menu-empty">
+                <span class="material-symbols-outlined" aria-hidden="true">notifications_off</span>
+                <span>You're all caught up</span>
+              </div>
+            }
+
+            <div class="notification-menu-footer">
+              <button type="button" class="notification-view-all-btn" (click)="goToAllNotifications()">
+                View all notifications
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+
+      <!-- User Profile Chip Pill -->
+      <div class="profile-menu-wrapper">
+        <button
+          type="button"
+          class="user-profile-chip"
+          [attr.aria-expanded]="isProfileMenuOpen"
+          aria-label="User account menu"
+          (click)="toggleProfileMenu()"
+        >
+          <app-user-avatar
+            [name]="authService.currentUser()?.name || 'User'"
+            [avatarUrl]="authService.currentUser()?.avatarUrl"
+            size="md"
+          ></app-user-avatar>
+          <div class="user-meta">
+            <span class="user-name">{{ authService.currentUser()?.name || 'Username' }}</span>
+          </div>
+          <span class="material-symbols-outlined dropdown-chevron" aria-hidden="true">expand_more</span>
+        </button>
+
+        <!-- User Profile Dropdown Menu -->
+        @if (isProfileMenuOpen) {
+          <div class="profile-menu">
+            <div class="profile-menu-header">
+              <span class="profile-menu-name">{{ authService.currentUser()?.name || 'Your account' }}</span>
+              <span class="profile-menu-email">{{ authService.currentUser()?.email || 'Account details unavailable' }}</span>
+            </div>
+            <a class="profile-menu-item" routerLink="/settings" (click)="isProfileMenuOpen = false">
+              <span class="material-symbols-outlined" aria-hidden="true">manage_accounts</span>
+              <span>Account Settings</span>
+            </a>
+            <button type="button" class="profile-menu-item logout" (click)="logout()">
               <span class="material-symbols-outlined" aria-hidden="true">logout</span>
               <span>Logout</span>
             </button>
           </div>
-        </div>
+        }
       </div>
-    </header>
+      </div>
+  </header>
 
-    <section class="page-content">
+    <section class="page-content" id="workspace-content" tabindex="-1" aria-label="Workspace content">
       <router-outlet></router-outlet>
     </section>
   </div>
 
-  <create-task-modal
+  <app-create-case-modal
     [isOpen]="isTaskModalOpen"
     (closed)="closeTaskModal()"
     (submitted)="handleTaskSaved($event)"
-  ></create-task-modal>
+  ></app-create-case-modal>
 
   <app-toast></app-toast>
+  <app-confirmation-dialog></app-confirmation-dialog>
 </main>

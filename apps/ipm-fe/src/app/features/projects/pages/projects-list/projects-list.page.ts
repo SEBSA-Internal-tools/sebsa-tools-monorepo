@@ -1,4 +1,5 @@
-import { Component, inject, signal, ChangeDetectionStrategy } from '@angular/core';
+import { Component, computed, inject, signal, ChangeDetectionStrategy } from '@angular/core';
+import { AuthService } from '../../../../core/services/auth.service';
 import { CommonModule } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ProjectsService, ProjectsHeroData } from '../../services/projects.service';
@@ -25,6 +26,13 @@ import type { ProjectSummary } from '@sebsa-pm-tool/shared-models';
 })
 export class ProjectsPageComponent {
   private projectsService = inject(ProjectsService);
+  private readonly auth = inject(AuthService);
+
+  /** Mirrors the backend rule: only ADMIN / SUPER_ADMIN may create projects. */
+  readonly canCreate = computed(() => {
+    const role = this.auth.currentUser()?.systemRole;
+    return role === 'ADMIN' || role === 'SUPER_ADMIN';
+  });
 
   readonly projects = signal<ProjectSummary[]>([]);
   readonly isLoading = signal(false);
@@ -73,7 +81,7 @@ export class ProjectsPageComponent {
         type: formData.type,
         customType: formData.customType,
         isCsoProject: formData.isCsoProject,
-        customerName: formData.customerName,
+        customerId: formData.customerId,
       })
       .subscribe({
         next: (project) => {

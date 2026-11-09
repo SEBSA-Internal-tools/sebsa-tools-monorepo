@@ -25,7 +25,10 @@ import { AddMemberDto } from './dto/add-member.dto';
 import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
-import { CreateWorkflowStageDto } from './dto/create-workflow-stage.dto';
+import {
+  CreateProjectPriorityRequest,
+  UpdateProjectPriorityRequest
+} from '@sebsa-pm-tool/shared-models';
 
 @ApiTags('projects')
 @ApiBearerAuth()
@@ -87,6 +90,15 @@ export class ProjectsController {
     return this.projectsService.updateRole(id, roleId, dto, user);
   }
 
+  @Delete(':id/roles/:roleId')
+  async deleteRole(
+    @Param('id') id: string,
+    @Param('roleId') roleId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.projectsService.deleteRole(id, roleId, user);
+  }
+
   @Get(':id/members')
   getMembers(
     @Param('id') id: string,
@@ -123,20 +135,39 @@ export class ProjectsController {
     return this.projectsService.removeMember(id, memberId, user);
   }
 
-  @Get(':id/workflow-stages')
-  getWorkflowStages(
+  @Get(':id/priorities')
+  getProjectPriorities(
     @Param('id') id: string,
     @CurrentUser() user: AuthUser,
-  ): Promise<{ id: string; name: string; order: number }[]> {
-    return this.projectsService.getWorkflowStages(id, user);
+  ): Promise<{ id: string; name: string; order: number; color: string | null }[]> {
+    return this.projectsService.getProjectPriorities(id, user);
   }
 
-  @Post(':id/workflow-stages')
-  createWorkflowStage(
+  @Post(':id/priorities')
+  createProjectPriority(
     @Param('id') projectId: string,
-    @Body() dto: CreateWorkflowStageDto,
+    @Body() dto: CreateProjectPriorityRequest,
     @CurrentUser() user: AuthUser,
-  ): Promise<{ id: string; name: string; order: number }> {
-    return this.projectsService.createWorkflowStage(projectId, dto, user);
+  ): Promise<{ id: string; name: string; order: number; color: string | null }> {
+    return this.projectsService.createProjectPriority(projectId, dto, user);
+  }
+
+  @Patch(':id/priorities/:priorityId')
+  updateProjectPriority(
+    @Param('id') projectId: string,
+    @Param('priorityId') priorityId: string,
+    @Body() dto: UpdateProjectPriorityRequest,
+    @CurrentUser() user: AuthUser,
+  ): Promise<{ id: string; name: string; order: number; color: string | null }> {
+    return this.projectsService.updateProjectPriority(projectId, priorityId, dto, user);
+  }
+
+  @Delete(':id/priorities/:priorityId')
+  deleteProjectPriority(
+    @Param('id') projectId: string,
+    @Param('priorityId') priorityId: string,
+    @CurrentUser() user: AuthUser,
+  ): Promise<void> {
+    return this.projectsService.deleteProjectPriority(projectId, priorityId, user);
   }
 }

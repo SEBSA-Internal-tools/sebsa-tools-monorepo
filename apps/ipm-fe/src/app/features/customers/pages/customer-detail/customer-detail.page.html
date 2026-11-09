@@ -1,0 +1,133 @@
+<section class="customer-detail-page">
+  <div class="header-actions">
+    <button type="button" class="btn btn-navy-outline" (click)="goBack()">
+      <span class="material-symbols-outlined">arrow_back</span>
+      Back
+    </button>
+    @if (customer()) {
+      <div class="header-actions-right">
+        <button type="button" class="btn btn-primary-outline" (click)="openEditModal()">
+          <span class="material-symbols-outlined">edit</span>
+          Edit
+        </button>
+        <button type="button" class="btn btn-danger-outline" (click)="deleteCustomer()">
+          <span class="material-symbols-outlined">delete</span>
+          Delete
+        </button>
+      </div>
+    }
+  </div>
+
+  @if (isLoading()) {
+    <div class="loading-state">
+      <span class="material-symbols-outlined spin">progress_activity</span>
+      <p>Loading customer…</p>
+    </div>
+  }
+
+  @if (errorMessage()) {
+    <div class="error-banner">{{ errorMessage() }}</div>
+  }
+
+  @if (!isLoading() && customer(); as customer) {
+    <div class="sebsa-card customer-header-card">
+      <div class="customer-avatar-large">{{ initials(customer.name) }}</div>
+      <div class="customer-header-info">
+        <h1>{{ customer.name }}</h1>
+        <div class="contact-chips">
+          @if (customer.contactEmail) {
+            <span class="contact-chip">
+              <span class="material-symbols-outlined">mail</span>
+              {{ customer.contactEmail }}
+            </span>
+          }
+          @if (customer.contactPhone) {
+            <span class="contact-chip">
+              <span class="material-symbols-outlined">call</span>
+              {{ customer.contactPhone }}
+            </span>
+          }
+          @if (!customer.contactEmail && !customer.contactPhone) {
+            <span class="contact-chip muted">No contact details on file</span>
+          }
+        </div>
+        @if (customer.notes) {
+          <p class="customer-notes">{{ customer.notes }}</p>
+        }
+      </div>
+      <div class="customer-project-count">
+        <span class="count-value">{{ customer.projectCount }}</span>
+        <span class="count-label">{{ customer.projectCount === 1 ? 'Project' : 'Projects' }}</span>
+      </div>
+    </div>
+
+    @if (!isLoadingProjects() && !projectsError()) { <app-dashboard-insights title="Customer delivery" scope="Loaded projects for this customer" [items]="insights()"></app-dashboard-insights> }
+
+    <div class="sebsa-card projects-section">
+      <div class="section-header">
+        <h2>Projects</h2>
+      </div>
+
+      @if (projectsError()) { <div class="error-banner" role="alert"><p>{{ projectsError() }}</p><button type="button" class="btn-primary" (click)="retryProjects()">Retry</button></div> } @else if (isLoadingProjects()) {
+        <div class="loading-state small">
+          <span class="material-symbols-outlined spin">progress_activity</span>
+          <p>Loading projects…</p>
+        </div>
+      } @else if (projects().length === 0) {
+        <div class="empty-state">
+          <span class="material-symbols-outlined empty-icon">folder_open</span>
+          <h3>No projects yet</h3>
+          <p>Projects created for {{ customer.name }} will show up here.</p>
+        </div>
+      } @else {
+        <div class="projects-table-container">
+          <div class="projects-table">
+            <div class="table-row table-header">
+              <div class="col-project">Project</div>
+              <div class="col-status">Status</div>
+              <div class="col-members">Members</div>
+              <div class="col-tasks">Cases</div>
+              <div class="col-updated">Last Updated</div>
+            </div>
+            @for (project of projects(); track project.id) {
+              <div
+                class="table-row"
+                role="button"
+                tabindex="0"
+                (click)="onProjectClick(project.id)"
+                (keydown.enter)="onProjectClick(project.id)"
+              >
+                <div class="col-project">
+                  <span class="material-symbols-outlined project-icon">{{ projectTypeIcon(project.type) }}</span>
+                  <span class="project-name">{{ project.name }}</span>
+                  @if (project.isCsoProject) {
+                    <span class="badge purple">CSO</span>
+                  }
+                </div>
+                <div class="col-status">
+                  <span class="badge" [class]="statusClass(project.status)">{{ statusLabel(project.status) }}</span>
+                </div>
+                <div class="col-members">
+                  <span class="material-symbols-outlined">group</span>
+                  {{ project.memberCount }}
+                </div>
+                <div class="col-tasks">
+                  <span class="material-symbols-outlined">task_alt</span>
+                  {{ project.caseCount }}
+                </div>
+                <div class="col-updated">{{ project.updatedAt | date: 'mediumDate' }}</div>
+              </div>
+            }
+          </div>
+        </div>
+      }
+    </div>
+  }
+
+  <create-customer-modal
+    [isOpen]="isEditModalOpen"
+    [editingCustomer]="customer()"
+    (closed)="closeEditModal()"
+    (submitted)="onEditCustomer($event)"
+  ></create-customer-modal>
+</section>

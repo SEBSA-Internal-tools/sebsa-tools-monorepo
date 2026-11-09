@@ -1,0 +1,14 @@
+:host { display: block; }
+.insight-section header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 20px; margin-bottom: 14px; }
+h2 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -.02em; color: var(--text-heading); }
+header p { margin: 0; color: var(--text-secondary); font-size: 11px; line-height: 1.6; }
+.insight-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.insight-card { display: flex; flex-direction: column; gap: 10px; padding: 20px; min-width: 0; background: var(--surface-card); border: 1px solid var(--border-default); border-radius: 12px; }
+.insight-label { font-size: 12px; color: var(--text-secondary); font-weight: 500; }
+.insight-value { font-size: 30px; font-weight: 600; letter-spacing: -.05em; color: var(--text-heading); font-variant-numeric: tabular-nums; }
+.insight-card p { margin: 0; color: var(--text-secondary); font-size: 11px; line-height: 1.7; }
+a { margin-top: auto; padding-top: 5px; font-size: 11px; color: var(--brand-primary); font-weight: 500; text-decoration: none; }
+a:hover { text-decoration: underline; }
+.exception .insight-value { color: var(--status-error-fg); }
+.attention .insight-value { color: var(--status-warning-fg); }
+@media(max-width: 480px) { .insight-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; } .insight-card { padding: 14px; } .insight-value { font-size: 26px; } }

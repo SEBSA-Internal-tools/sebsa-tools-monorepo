@@ -1,0 +1,194 @@
+<div
+  class="custom-datepicker-wrapper"
+  [class.open]="isOpen()"
+  [class.disabled]="disabled"
+  [class.align-right]="isRightAligned()"
+  [ngClass]="customClass"
+>
+  <!-- Input Trigger -->
+  <div
+    class="datepicker-trigger"
+    [class.has-value]="!!currentValue()"
+    [class.disabled]="disabled"
+    (click)="toggleOpen($event)"
+    tabindex="0"
+    role="button"
+    [attr.aria-expanded]="isOpen()"
+    [attr.aria-label]="ariaLabel"
+    (keydown.enter)="toggleOpen($event)"
+    (keydown.space)="toggleOpen($event); $event.preventDefault()"
+  >
+    <span class="trigger-icon material-symbols-outlined">calendar_today</span>
+
+    <span class="trigger-text" [class.placeholder]="!currentValue()">
+      {{ displayValue() || placeholder }}
+    </span>
+
+    @if (currentValue() && !disabled) {
+      <button
+        type="button"
+        class="trigger-clear-btn"
+        (click)="clearDate($event)"
+        aria-label="Clear date"
+        title="Clear date"
+      >
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    }
+
+    <span
+      class="material-symbols-outlined trigger-chevron"
+      [class.rotated]="isOpen()"
+    >
+      expand_more
+    </span>
+  </div>
+
+  <!-- Calendar Popup Dropdown -->
+  @if (isOpen()) {
+    <div
+      class="datepicker-popup"
+      [class.month-popup]="selectionMode === 'month'"
+      [style.left.px]="selectionMode === 'month' ? monthPopupPosition().left : null"
+      [style.top.px]="selectionMode === 'month' ? monthPopupPosition().top : null"
+      role="dialog"
+      aria-modal="true"
+    >
+      <!-- Calendar Header -->
+      <div class="calendar-header">
+        <button
+          type="button"
+          class="nav-btn prev-btn"
+          (click)="selectionMode === 'month' ? prevYear($event) : prevMonth($event)"
+          [attr.aria-label]="selectionMode === 'month' ? 'Previous year' : 'Previous month'"
+        >
+          <span class="material-symbols-outlined">chevron_left</span>
+        </button>
+
+        @if (selectionMode === 'month') {
+          <span class="month-year-btn">{{ viewYear() }}</span>
+        } @else {
+          <button
+            type="button"
+            class="month-year-btn"
+            (click)="toggleMonthYearPicker($event)"
+          >
+            <span>{{ currentMonthLabel() }}</span>
+            <span
+              class="material-symbols-outlined dropdown-indicator"
+              [class.rotated]="showMonthYearPicker()"
+            >
+              arrow_drop_down
+            </span>
+          </button>
+        }
+
+        <button
+          type="button"
+          class="nav-btn next-btn"
+          (click)="selectionMode === 'month' ? nextYear($event) : nextMonth($event)"
+          [attr.aria-label]="selectionMode === 'month' ? 'Next year' : 'Next month'"
+        >
+          <span class="material-symbols-outlined">chevron_right</span>
+        </button>
+      </div>
+
+      <!-- Month & Year Picker Overlay -->
+      @if (selectionMode === 'month' || showMonthYearPicker()) {
+        <div class="month-year-grid">
+          @if (selectionMode === 'date') {
+          <div class="year-selector-row">
+            <button
+              type="button"
+              class="year-nav-btn"
+              (click)="prevYear($event)"
+              aria-label="Previous year"
+            >
+              <span class="material-symbols-outlined">arrow_left</span>
+            </button>
+            <span class="current-year-display">{{ viewYear() }}</span>
+            <button
+              type="button"
+              class="year-nav-btn"
+              (click)="nextYear($event)"
+              aria-label="Next year"
+            >
+              <span class="material-symbols-outlined">arrow_right</span>
+            </button>
+          </div>
+          }
+
+          <div class="months-grid">
+            @for (mName of monthNames; track $index) {
+              <button
+                type="button"
+                class="month-cell"
+                [class.active]="selectionMode === 'month' ? currentValue() === (viewYear() + '-' + ($index + 1).toString().padStart(2, '0')) : viewMonth() === $index"
+                [disabled]="selectionMode === 'month' && isMonthDisabled(viewYear() + '-' + ($index + 1).toString().padStart(2, '0'))"
+                (click)="selectMonth($index, $event)"
+              >
+                {{ mName.slice(0, 3) }}
+              </button>
+            }
+          </div>
+        </div>
+      } @else {
+        <!-- Standard Days Calendar -->
+        <div class="calendar-grid-wrap">
+          <!-- Weekday Headers -->
+          <div class="weekdays-row">
+            @for (day of weekDays; track day) {
+              <div class="weekday-cell">{{ day }}</div>
+            }
+          </div>
+
+          <!-- Days Grid -->
+          <div class="days-grid">
+            @for (day of calendarDays(); track day.dateString) {
+              <button
+                type="button"
+                class="day-cell"
+                [class.other-month]="!day.isCurrentMonth"
+                [class.today]="day.isToday"
+                [class.selected]="day.isSelected"
+                [class.disabled-date]="day.isDisabled"
+                [disabled]="day.isDisabled"
+                [attr.aria-disabled]="day.isDisabled"
+                [attr.title]="day.isDisabled ? (isDueDateField() ? 'Past dates cannot be selected for due date' : 'Date is unavailable') : null"
+                (click)="selectDay(day, $event)"
+              >
+                {{ day.dayNumber }}
+              </button>
+            }
+          </div>
+        </div>
+      }
+
+      <!-- Calendar Footer Actions -->
+      <div class="calendar-footer">
+        <button
+          type="button"
+          class="footer-action-btn btn-clear"
+          (click)="clearDate($event)"
+        >
+          Clear
+        </button>
+
+        @if (isDueDateField()) {
+          <span class="due-date-notice" title="Only today and future dates are selectable for due date">
+            <span class="material-symbols-outlined notice-icon">event_available</span>
+            <span>Today & future only</span>
+          </span>
+        }
+
+        <button
+          type="button"
+          class="footer-action-btn btn-today"
+          (click)="setToday($event)"
+        >
+          {{ selectionMode === 'month' ? 'This month' : 'Today' }}
+        </button>
+      </div>
+    </div>
+  }
+</div>

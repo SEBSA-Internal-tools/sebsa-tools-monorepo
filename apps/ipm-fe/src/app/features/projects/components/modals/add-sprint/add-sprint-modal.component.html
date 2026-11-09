@@ -1,5 +1,11 @@
 @if (isOpen) {
-  <div class="modal-overlay" (click)="onBackdropClick()"></div>
+  <div
+    class="modal-overlay"
+    (click)="onBackdropClick()"
+    (keydown.escape)="onCancel()"
+    tabindex="-1"
+    aria-hidden="true"
+  ></div>
 
   <div class="modal-container">
     <!-- Modal Header -->
@@ -44,12 +50,11 @@
           <label for="startDate" class="form-label">
             Start Date <span class="required">*</span>
           </label>
-          <input
-            id="startDate"
-            type="date"
+          <app-custom-datepicker
             [(ngModel)]="startDate"
-            class="form-input"
-          />
+            placeholder="Select start date"
+            ariaLabel="Start date"
+          ></app-custom-datepicker>
         </div>
 
         <!-- End Date -->
@@ -57,12 +62,11 @@
           <label for="endDate" class="form-label">
             End Date <span class="required">*</span>
           </label>
-          <input
-            id="endDate"
-            type="date"
+          <app-custom-datepicker
             [(ngModel)]="endDate"
-            class="form-input"
-          />
+            placeholder="Select end date"
+            ariaLabel="End date"
+          ></app-custom-datepicker>
         </div>
       </div>
 

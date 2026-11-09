@@ -1,6 +1,11 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { CreateUserRequest, CreateUserResponse, UserAdminSummary } from '@sebsa-pm-tool/shared-models';
+import {
+  CreateUserRequest,
+  CreateUserResponse,
+  UpdateUserDepartmentRequest,
+  UserAdminSummary,
+} from '@sebsa-pm-tool/shared-models';
 import { Observable } from 'rxjs';
 
 @Injectable({ providedIn: 'root' })
@@ -29,5 +34,12 @@ export class UserAdminService {
 
   deactivate(id: string): Observable<UserAdminSummary> {
     return this.http.patch<UserAdminSummary>(`/api/users/${id}/deactivate`, {});
+  }
+
+  updateDepartment(
+    id: string,
+    dto: UpdateUserDepartmentRequest,
+  ): Observable<UserAdminSummary> {
+    return this.http.patch<UserAdminSummary>(`/api/users/${id}/department`, dto);
   }
 }

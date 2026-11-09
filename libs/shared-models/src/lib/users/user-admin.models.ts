@@ -12,6 +12,7 @@ export interface UserAdminSummary {
   /** Null = self-registered and awaiting admin approval; cannot log in yet. */
   approvedAt: string | null;
   createdAt: string;
+  avatarUrl?: string | null;
 }
 
 export interface CreateUserRequest {
@@ -19,6 +20,10 @@ export interface CreateUserRequest {
   email: string;
   departmentId: string;
   systemRole: SystemRole;
+}
+
+export interface UpdateUserDepartmentRequest {
+  departmentId: string;
 }
 
 export interface CreateUserResponse {

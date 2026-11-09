@@ -11,42 +11,25 @@ import {
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Priority, TaskType } from '@prisma/client';
+import { TaskCategory, TaskStatus } from '@prisma/client';
 
-export type TaskSortField =
-    | 'title'
-    | 'priority'
-    | 'type'
-    | 'createdAt'
-    | 'updatedAt'
-    | 'dueDate'
-    | 'storyPoints';
+export type TaskSortField = 'title' | 'priority' | 'createdAt' | 'updatedAt' | 'dueDate' | 'storyPoints';
 
 export class FilterTaskDto {
   @ApiPropertyOptional({ format: 'uuid' })
   @IsOptional()
   @IsUUID()
+  caseId?: string;
+
+  @ApiPropertyOptional({ format: 'uuid', description: 'Filters to tasks within this project (across all its cases).' })
+  @IsOptional()
+  @IsUUID()
   projectId?: string;
 
-  @ApiPropertyOptional({ format: 'uuid' })
+  @ApiPropertyOptional({ enum: TaskStatus })
   @IsOptional()
-  @IsUUID()
-  workflowStageId?: string;
-
-  @ApiPropertyOptional({ format: 'uuid' })
-  @IsOptional()
-  @IsUUID()
-  sprintId?: string;
-
-  @ApiPropertyOptional({ format: 'uuid' })
-  @IsOptional()
-  @IsUUID()
-  milestoneId?: string;
-
-  @ApiPropertyOptional({ format: 'uuid' })
-  @IsOptional()
-  @IsUUID()
-  parentTaskId?: string;
+  @IsEnum(TaskStatus)
+  status?: TaskStatus;
 
   @ApiPropertyOptional({ format: 'uuid' })
   @IsOptional()
@@ -63,27 +46,33 @@ export class FilterTaskDto {
   @IsUUID()
   labelId?: string;
 
-  @ApiPropertyOptional({
-    description: 'Case-insensitive substring match against the project customerName.',
-  })
+  @ApiPropertyOptional({ format: 'uuid', description: "Matches against the parent Case's project.customerId." })
   @IsOptional()
-  @IsString()
-  customerName?: string;
+  @IsUUID()
+  customerId?: string;
 
-  @ApiPropertyOptional({ description: 'Filters to CSO-labeled tasks when true.' })
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
+  priorityId?: string;
+
+  @ApiPropertyOptional({ enum: TaskCategory, description: 'Functional/Technical CSO queue.' })
+  @IsOptional()
+  @IsEnum(TaskCategory)
+  category?: TaskCategory;
+
+  @ApiPropertyOptional({ description: 'Filters to tasks whose parent Case is CSO-labeled when true.' })
   @IsOptional()
   @Transform(({ value }) => value === 'true')
   isCsoLabeled?: boolean;
 
-  @ApiPropertyOptional({ enum: TaskType })
+  @ApiPropertyOptional({
+    description:
+      'Filters to tasks with no assignee when true. Used by the CSO queue: a task drops out of the queue the moment someone is assigned to it.',
+  })
   @IsOptional()
-  @IsEnum(TaskType)
-  type?: TaskType;
-
-  @ApiPropertyOptional({ enum: Priority })
-  @IsOptional()
-  @IsEnum(Priority)
-  priority?: Priority;
+  @Transform(({ value }) => value === 'true')
+  unassigned?: boolean;
 
   @ApiPropertyOptional({ description: 'Matches against title or description.' })
   @IsOptional()
@@ -116,19 +105,11 @@ export class FilterTaskDto {
   limit = 20;
 
   @ApiPropertyOptional({
-    enum: ['title', 'priority', 'type', 'createdAt', 'updatedAt', 'dueDate', 'storyPoints'],
+    enum: ['title', 'priority', 'createdAt', 'updatedAt', 'dueDate', 'storyPoints'],
     default: 'createdAt',
   })
   @IsOptional()
-  @IsIn([
-    'title',
-    'priority',
-    'type',
-    'createdAt',
-    'updatedAt',
-    'dueDate',
-    'storyPoints',
-  ])
+  @IsIn(['title', 'priority', 'createdAt', 'updatedAt', 'dueDate', 'storyPoints'])
   sortBy: TaskSortField = 'createdAt';
 
   @ApiPropertyOptional({ enum: ['asc', 'desc'], default: 'desc' })

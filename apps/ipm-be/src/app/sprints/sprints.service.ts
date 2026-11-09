@@ -9,21 +9,25 @@ import { AuthUser, Sprint, SprintSummary } from '@sebsa-pm-tool/shared-models';
 import { Prisma } from '@prisma/client';
 import { CreateSprintDto } from './dto/create-sprint.dto';
 import { UpdateSprintDto } from './dto/update-sprint.dto';
+import { ProjectAccessService } from '../common/project-access.service';
 
 const ADMIN_SYSTEM_ROLES: AuthUser['systemRole'][] = ['ADMIN', 'SUPER_ADMIN'];
 
 const sprintDetailInclude = {
-  _count: { select: { tasks: true } },
+  _count: { select: { cases: { where: { deletedAt: null } } } },
 } satisfies Prisma.SprintInclude;
 
 type SprintWithDetail = Prisma.SprintGetPayload<{ include: typeof sprintDetailInclude }>;
 
 @Injectable()
 export class SprintsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly access: ProjectAccessService,
+  ) {}
 
   async create(projectId: string, dto: CreateSprintDto, user: AuthUser): Promise<Sprint> {
-    await this.assertCanManageSprints(projectId, user);
+    await this.access.assertCan(projectId, user, 'canManageSprints');
     this.assertValidDateRange(dto.startDate, dto.endDate);
 
     const created = await this.prisma.sprint.create({
@@ -44,7 +48,7 @@ export class SprintsService {
     await this.assertCanAccessProject(projectId, user);
 
     const sprints = await this.prisma.sprint.findMany({
-      where: { projectId },
+      where: { projectId, deletedAt: null },
       include: sprintDetailInclude,
       orderBy: { createdAt: 'desc' },
     });
@@ -56,7 +60,7 @@ export class SprintsService {
     await this.assertCanAccessProject(projectId, user);
 
     const sprint = await this.prisma.sprint.findFirst({
-      where: { id, projectId },
+      where: { id, projectId, deletedAt: null },
       include: sprintDetailInclude,
     });
 
@@ -73,10 +77,10 @@ export class SprintsService {
     dto: UpdateSprintDto,
     user: AuthUser,
   ): Promise<Sprint> {
-    await this.assertCanManageSprints(projectId, user);
+    await this.access.assertCan(projectId, user, 'canManageSprints');
 
     const existing = await this.prisma.sprint.findFirst({
-      where: { id, projectId },
+      where: { id, projectId, deletedAt: null },
     });
 
     if (!existing) {
@@ -107,27 +111,32 @@ export class SprintsService {
   }
 
   async remove(id: string, projectId: string, user: AuthUser): Promise<void> {
-    await this.assertCanManageSprints(projectId, user);
+    await this.access.assertCan(projectId, user, 'canManageSprints');
 
     const sprint = await this.prisma.sprint.findFirst({
-      where: { id, projectId },
+      where: { id, projectId, deletedAt: null },
     });
 
     if (!sprint) {
       throw new NotFoundException('Sprint not found.');
     }
 
-    const taskCount = await this.prisma.task.count({
-      where: { sprintId: id },
+    // Soft-deleted cases must not count, or a sprint whose cases were all
+    // deleted can never be removed.
+    const caseCount = await this.prisma.case.count({
+      where: { sprintId: id, deletedAt: null },
     });
 
-    if (taskCount > 0) {
+    if (caseCount > 0) {
       throw new BadRequestException(
-        'Cannot delete a sprint with associated tasks. Move or remove tasks first.',
+        'Cannot delete a sprint with associated cases. Move or remove cases first.',
       );
     }
 
-    await this.prisma.sprint.delete({ where: { id } });
+    await this.prisma.sprint.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -148,20 +157,6 @@ export class SprintsService {
     }
   }
 
-  private async assertCanManageSprints(projectId: string, user: AuthUser): Promise<void> {
-    if (ADMIN_SYSTEM_ROLES.includes(user.systemRole)) return;
-
-    const membership = await this.prisma.projectMember.findFirst({
-      where: { projectId, userId: user.id, deletedAt: null },
-      include: { role: { include: { privilegeGroup: true } } },
-    });
-
-    if (!membership || !membership.role.privilegeGroup.canManageWorkflow) {
-      throw new ForbiddenException(
-        'You do not have permission to manage sprints for this project.',
-      );
-    }
-  }
 
   private async assertOnlyOneActiveSprint(
     projectId: string,
@@ -171,6 +166,7 @@ export class SprintsService {
       where: {
         projectId,
         status: 'ACTIVE',
+        deletedAt: null,
         id: { not: sprintId },
       },
     });
@@ -200,7 +196,7 @@ export class SprintsService {
       startDate: sprint.startDate.toISOString(),
       endDate: sprint.endDate.toISOString(),
       status: sprint.status,
-      taskCount: sprint._count.tasks,
+      caseCount: sprint._count.cases,
       createdAt: sprint.createdAt.toISOString(),
       updatedAt: sprint.updatedAt.toISOString(),
     };

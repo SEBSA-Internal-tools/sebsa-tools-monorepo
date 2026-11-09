@@ -3,6 +3,8 @@ import { AppShellComponent } from './core/layouts/app-shell/app-shell.component'
 import { authGuard } from './core/guards/auth.guard';
 import { adminGuard } from './core/guards/admin.guard';
 import { superAdminGuard } from './core/guards/super-admin.guard';
+import { unsavedChangesGuard } from './core/guards/unsaved-changes.guard';
+import { staffGuard } from './core/guards/staff.guard';
 
 export const appRoutes: Route[] = [
 	{
@@ -23,7 +25,7 @@ export const appRoutes: Route[] = [
 			{
 				path: '',
 				pathMatch: 'full',
-				redirectTo: '/login',
+				redirectTo: '/dashboard',
 			},
 			{
 				path: 'dashboard',
@@ -37,13 +39,32 @@ export const appRoutes: Route[] = [
 			},
 			{
 				path: 'tasks/:id',
+        canDeactivate: [unsavedChangesGuard],
 				loadComponent: () =>
-					import('./features/task-detail/task-detail.page').then((m) => m.TaskDetailPageComponent),
+					import('./features/tasks/task-detail/task-detail.page').then((m) => m.TaskDetailPageComponent),
+			},
+			{
+				path: 'cases/:id',
+        canDeactivate: [unsavedChangesGuard],
+				loadComponent: () =>
+					import('./features/cases/case-detail/case-detail.page').then((m) => m.CaseDetailPageComponent),
 			},
 			{
 				path: 'projects',
 				loadComponent: () =>
 					import('./features/projects/pages/projects-list/projects-list.page').then((m) => m.ProjectsPageComponent),
+			},
+			{
+				path: 'customers',
+				canActivate: [staffGuard],
+				loadComponent: () =>
+					import('./features/customers/pages/customers-list/customers-list.page').then((m) => m.CustomersPageComponent),
+			},
+			{
+				path: 'customers/:id',
+				canActivate: [staffGuard],
+				loadComponent: () =>
+					import('./features/customers/pages/customer-detail/customer-detail.page').then((m) => m.CustomerDetailPageComponent),
 			},
 			{
 				path: 'projects/:id',
@@ -69,6 +90,33 @@ export const appRoutes: Route[] = [
 					import('./features/admin/users/admin-users.page').then((m) => m.AdminUsersPageComponent),
 			},
 			{
+				path: 'admin/departments',
+				canActivate: [adminGuard],
+				loadComponent: () =>
+					import('./features/admin/departments/departments.page').then(
+						(m) => m.DepartmentsPageComponent
+					),
+			},
+			{
+				path: 'activity/:entityType/:entityId',
+				loadComponent: () =>
+					import('./features/activity/activity-log.page').then((m) => m.ActivityLogPageComponent),
+			},
+			{
+				path: 'admin/configuration',
+				canActivate: [superAdminGuard],
+				loadComponent: () =>
+					import('./features/admin/configuration/configuration.page').then(
+						(m) => m.ConfigurationPageComponent
+					),
+			},
+			{
+				path: 'admin/audit-logs',
+				canActivate: [superAdminGuard],
+				loadComponent: () =>
+					import('./features/admin/audit-logs/audit-logs.page').then((m) => m.AuditLogsPageComponent),
+			},
+			{
 				path: 'admin/privilege-groups',
 				canActivate: [superAdminGuard],
 				loadComponent: () =>
@@ -81,6 +129,13 @@ export const appRoutes: Route[] = [
 				loadComponent: () =>
 					import('./features/cso/cso.page').then(
 						(m) => m.CsoPageComponent
+					),
+			},
+			{
+				path: 'settings',
+				loadComponent: () =>
+					import('./features/settings/settings.page').then(
+						(m) => m.SettingsPageComponent
 					),
 			},
 		],

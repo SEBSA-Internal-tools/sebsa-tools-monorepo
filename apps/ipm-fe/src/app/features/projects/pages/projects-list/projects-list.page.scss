@@ -1,4 +1,12 @@
+:host {
+  display: block;
+  min-height: 100%;
+  background-color: var(--surface-page);
+}
+
 .workspace-page {
+  min-height: 100%;
+  background-color: var(--surface-page);
   display: block;
   width: 100%;
   padding: 20px 16px;
@@ -15,23 +23,23 @@
 .projects-container {
   width: 100%;
   display: grid;
-  gap: 28px;
+  gap: var(--content-gap);
 
   @media (min-width: 768px) {
-    gap: 32px;
+    gap: var(--content-gap);
   }
 
   @media (min-width: 1024px) {
-    gap: 40px;
+    gap: var(--content-gap);
   }
 }
 
 .page-error {
   padding: 14px 18px;
   border-radius: 8px;
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.25);
-  color: #991b1b;
+  background: var(--status-error-bg);
+  border: 1px solid var(--status-error-fg);
+  color: var(--status-error-fg);
   font-size: 0.9rem;
 }
 

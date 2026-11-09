@@ -47,23 +47,57 @@ enum ProjectType {
   CUSTOM
 }
 
-/// "Task Type Definitions" table (authoritative 7-value list).
-enum TaskType {
+/// "Case Type Definitions" — the Epic/Story/Bug/Improvement/Test
+/// classification a Case carries. This used to be Task.type before Task and
+/// Subtask were split out underneath Case (Customer -> Project -> Case ->
+/// Task -> Subtask). GENERAL is used both by the Case-migration's
+/// auto-created placeholder containers (for tasks that had no Epic/Story/
+/// Bug/Improvement ancestor) and going forward for teams that don't want to
+/// categorize a Case as one of the other five.
+enum CaseType {
   EPIC
   STORY
-  TASK
   BUG
   IMPROVEMENT
   TEST
-  SUBTASK
+  GENERAL
 }
 
-/// Task Priority. Default: MEDIUM.
-enum Priority {
-  CRITICAL
-  HIGH
-  MEDIUM
-  LOW
+// Note: Case/Task priority is a dynamic model (ProjectPriority) per project.
+
+/// Fixed Case lifecycle — not customizable per project, same "well-known,
+/// shared list" pattern as ProjectStatus. Case is its own board-tracked
+/// entity, independent of Task's board/status.
+enum CaseStatus {
+  TO_DO
+  IN_PROGRESS
+  IN_REVIEW
+  BLOCKED
+  DONE
+  CANCELLED
+}
+
+/// Fixed Task lifecycle. Replaces the old per-project, admin-configurable
+/// WorkflowStage model (Task.workflowStageId) with a single well-known list
+/// shared by every project, matching ProjectStatus's existing "fixed, not
+/// customizable per project" approach. Can still be extended later via a
+/// schema migration (e.g. `ALTER TYPE "TaskStatus" ADD VALUE ...'` — same
+/// precedent as the SystemRole rename, see docs/database-architecture.md).
+enum TaskStatus {
+  TO_DO
+  IN_PROGRESS
+  IN_REVIEW
+  BLOCKED
+  DONE
+  CANCELLED
+}
+
+/// Fixed Subtask lifecycle — deliberately smaller than TaskStatus/CaseStatus
+/// since a Subtask is the leaf of the hierarchy.
+enum SubtaskStatus {
+  TO_DO
+  IN_PROGRESS
+  DONE
 }
 
 /// Sprint lifecycle. Only one sprint per project may be ACTIVE
@@ -89,7 +123,9 @@ enum DependencyType {
 /// must reference many unrelated tables — see docs/database-architecture.md.
 enum EntityType {
   PROJECT
+  CASE
   TASK
+  SUBTASK
   COMMENT
   SPRINT
   MILESTONE
@@ -126,6 +162,17 @@ enum NotificationType {
   SPRINT_EVENT
 }
 
+/// Functional/Technical classification tag. A Functional case (business
+/// analysis, requirements investigation) can later be converted to a
+/// Technical case (implementation) once investigated — see
+/// `CaseCategoryAssignment` for how the assignee at each stage is preserved
+/// rather than overwritten when that conversion happens. Lives on Case (not
+/// Task) since it moved up from Task alongside CSO labeling.
+enum TaskCategory {
+  FUNCTIONAL
+  TECHNICAL
+}
+
 /// Delivery channels a notification preference can target.
 enum NotificationChannel {
   IN_APP
@@ -151,6 +198,7 @@ enum IntegrationType {
   GOOGLE_DRIVE
   DROPBOX
   CI_CD
+  JIRA
 }
 
 // ---------------------------------------------------------------------------
@@ -182,6 +230,7 @@ model User {
   systemRole   SystemRole @default(REGULAR_USER)
   departmentId String
   isActive     Boolean    @default(true)
+  avatarUrl    String?
   /// Null = registered but not yet approved by an admin and cannot log in.
   /// Distinct from `isActive`, which governs an already-approved account
   /// being turned on/off later — the two states must not be conflated.
@@ -192,20 +241,27 @@ model User {
 
   department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
 
-  createdProjects       Project[]                @relation("ProjectCreatedBy")
-  projectMemberships    ProjectMember[]
-  createdTasks          Task[]                   @relation("TaskCreatedBy")
-  taskAssignments       TaskAssignee[]
-  taskWatches           TaskWatcher[]
-  comments              Comment[]
-  commentMentions       CommentMention[]
-  uploadedAttachments   Attachment[]
-  activityLogEntries    ActivityLog[]
-  notifications         Notification[]
-  notificationPrefs     NotificationPreference[]
-  savedFilters          SavedFilter[]
-  taskStatusTransitions TaskStatusHistory[]
-  apiTokens             ApiToken[]
+  createdProjects               Project[]                @relation("ProjectCreatedBy")
+  projectMemberships            ProjectMember[]
+  createdCases                  Case[]                   @relation("CaseCreatedBy")
+  caseAssignments               CaseAssignee[]
+  caseStatusTransitions         CaseStatusHistory[]
+  createdTasks                  Task[]                   @relation("TaskCreatedBy")
+  taskAssignments               TaskAssignee[]
+  taskWatches                   TaskWatcher[]
+  taskStatusTransitions         TaskStatusHistory[]
+  createdSubtasks               Subtask[]                @relation("SubtaskCreatedBy")
+  subtaskAssignments            SubtaskAssignee[]
+  comments                      Comment[]
+  commentMentions               CommentMention[]
+  uploadedAttachments           Attachment[]
+  activityLogEntries            ActivityLog[]
+  notifications                 Notification[]
+  notificationPrefs             NotificationPreference[]
+  savedFilters                  SavedFilter[]
+  categoryAssignmentsAsAssignee CaseCategoryAssignment[] @relation("CaseCategoryAssignmentAssignee")
+  categoryAssignmentsChangedBy  CaseCategoryAssignment[] @relation("CaseCategoryAssignmentChangedBy")
+  apiTokens                     ApiToken[]
 
   @@index([departmentId])
   @@map("users")
@@ -220,12 +276,25 @@ model PrivilegeGroup {
   id                       String   @id @default(uuid())
   name                     String   @unique
   description              String?
-  canCreateTask            Boolean  @default(false)
-  canDeleteTask            Boolean  @default(false)
-  canManageMembers         Boolean  @default(false)
-  canConfigureIntegrations Boolean  @default(false)
-  canManageWorkflow        Boolean  @default(false)
+  /// Master switch. When true every write check fails regardless of the
+  /// grants below, so a view-only group cannot be made writable by accident.
   isReadOnly               Boolean  @default(false)
+
+  canCreateCase            Boolean  @default(false)
+  canEditCase              Boolean  @default(false)
+  canDeleteCase            Boolean  @default(false)
+
+  /// Tasks and subtasks share these — a subtask is a unit of its task, not a
+  /// separately permissioned thing.
+  canCreateTask            Boolean  @default(false)
+  canEditTask              Boolean  @default(false)
+  canDeleteTask            Boolean  @default(false)
+
+  canComment               Boolean  @default(false)
+  canManageMembers         Boolean  @default(false)
+  canManageSprints         Boolean  @default(false)
+  canManageLabels          Boolean  @default(false)
+  canConfigureIntegrations Boolean  @default(false)
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
 
@@ -294,6 +363,26 @@ model ProjectMember {
 // Projects
 // ---------------------------------------------------------------------------
 
+/// A customer/client a project is delivered for. Every Project now belongs
+/// to exactly one Customer. Soft-deleted rather than hard-deleted so
+/// historical projects retain a valid reference; deletion is additionally
+/// blocked at the application layer while any non-deleted project still
+/// references it.
+model Customer {
+  id           String    @id @default(uuid())
+  name         String    @unique
+  contactEmail String?
+  contactPhone String?
+  notes        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  projects Project[]
+
+  @@map("customers")
+}
+
 /// The top-level engagement/initiative entity.
 model Project {
   id            String        @id @default(uuid())
@@ -310,60 +399,58 @@ model Project {
   updatedAt     DateTime      @updatedAt
   deletedAt     DateTime?
 
-  /// CSO groundwork (FSD §5.16) — a project can be flagged as a CSO Project.
-  /// customerName is a plain text field, not a Customer entity (deliberate
-  /// simplification per team decision — see docs/database-architecture.md).
-  /// Jira-connection fields are deliberately not modeled yet either.
+  /// CSO groundwork (FSD §5.16) — a project can additionally be flagged as a
+  /// CSO Project, independent of which customer it belongs to (every project
+  /// has a customer; isCsoProject controls whether it surfaces on the CSO
+  /// Overview page). Jira-connection fields are deliberately not modeled yet.
   isCsoProject Boolean @default(false)
-  customerName String?
+  customerId   String
 
-  createdBy User @relation("ProjectCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  createdBy User     @relation("ProjectCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  customer  Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
 
-  roles          Role[]
-  members        ProjectMember[]
-  workflowStages WorkflowStage[]
-  milestones     Milestone[]
-  sprints        Sprint[]
-  tasks          Task[]
-  labels         Label[]
-  integrations   Integration[]
-  webhooks       Webhook[]
+  roles        Role[]
+  members      ProjectMember[]
+  priorities   ProjectPriority[]
+  milestones   Milestone[]
+  sprints      Sprint[]
+  cases        Case[]
+  labels       Label[]
+  integrations Integration[]
+  webhooks     Webhook[]
 
   @@index([status])
   @@index([createdById])
+  @@index([customerId])
   @@map("projects")
 }
 
-/// "Custom Workflow Stages" — each project owns its own ordered list
-/// of task statuses (add/rename/reorder/remove), so Task.status is a FK here
-/// rather than a fixed enum. New projects are expected to be seeded with the
-/// "Default Task Workflow Statuses" (New, In Analysis, ... Cancelled)
-/// by application logic at project-creation time — no seed data is included
-/// in this migration per the infrastructure-only scope of this task.
-model WorkflowStage {
+/// "Custom Priorities" — each project owns its own ordered list of
+/// priorities, shared by Case and Task (add/rename/reorder/remove).
+model ProjectPriority {
   id        String   @id @default(uuid())
   projectId String
   name      String
+  color     String?
   order     Int
   isDefault Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  project           Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  tasks             Task[]
-  statusHistoryFrom TaskStatusHistory[] @relation("StatusHistoryFrom")
-  statusHistoryTo   TaskStatusHistory[] @relation("StatusHistoryTo")
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  cases   Case[]
+  tasks   Task[]
 
   @@unique([projectId, name])
   @@unique([projectId, order])
   @@index([projectId])
-  @@map("workflow_stages")
+  @@map("project_priorities")
 }
 
-/// Named checkpoint with a target date; progress is derived from
-/// its associated tasks. Modeled as one-to-many (Task.milestoneId) rather
-/// than many-to-many: a task advances exactly one checkpoint, matching how
-/// the milestone progress being "tracked as associated tasks complete".
+/// Named checkpoint with a target date; progress is derived from its
+/// associated cases. Modeled as one-to-many (Case.milestoneId) rather than
+/// many-to-many: a case advances exactly one checkpoint. Moved from Task to
+/// Case — sprint/milestone planning now happens at the Case level.
 model Milestone {
   id          String    @id @default(uuid())
   projectId   String
@@ -375,13 +462,15 @@ model Milestone {
   deletedAt   DateTime?
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  tasks   Task[]
+  cases   Case[]
 
   @@index([projectId])
   @@map("milestones")
 }
 
-/// Sprint & Backlog Management. Tasks with sprintId = null sit in the backlog.
+/// Sprint & Backlog Management. Cases with sprintId = null sit in the
+/// backlog. Moved from Task to Case — sprint planning now happens at the
+/// Case level.
 model Sprint {
   id        String       @id @default(uuid())
   projectId String
@@ -392,70 +481,228 @@ model Sprint {
   status    SprintStatus @default(PLANNED)
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
+  deletedAt DateTime?
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  tasks   Task[]
+  cases   Case[]
 
   // NOTE: a partial unique index enforcing "max one ACTIVE sprint per
-  // project" is added by hand in the initial migration.
+  // project" is added by hand in the initial migration; it ignores
+  // soft-deleted rows so a deleted active sprint does not hold the slot.
   @@index([projectId])
   @@index([projectId, status])
+  @@index([projectId, deletedAt])
   @@map("sprints")
 }
 
-/// Custom Labels/Tags, scoped per project.
+/// Custom Labels/Tags, scoped per project. Usable on both Case and Task.
 model Label {
   id        String   @id @default(uuid())
   projectId String
   name      String
   color     String?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
 
   project Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  cases   CaseLabel[]
   tasks   TaskLabel[]
 
-  @@unique([projectId, name])
+  // NOTE: name uniqueness is a partial unique index added by hand, so a
+  // deleted label's name can be reused. Look labels up with findFirst.
   @@index([projectId])
+  @@index([projectId, deletedAt])
   @@map("labels")
+}
+
+// ---------------------------------------------------------------------------
+// Cases
+// ---------------------------------------------------------------------------
+
+/// Epic/Story/Bug/Improvement/Test container — the level stakeholders asked
+/// for between Project and Task (Customer -> Project -> Case -> Task ->
+/// Subtask). Absorbs the classification and board-tracking (`type`, fixed
+/// `status`, sprint/milestone planning, CSO labeling, Functional/Technical
+/// category) that used to live directly on Task before this split.
+model Case {
+  id              String        @id @default(uuid())
+  projectId       String
+  title           String
+  description     String?
+  type            CaseType
+  status          CaseStatus    @default(TO_DO)
+  priorityId      String
+  sprintId        String?
+  milestoneId     String?
+  startDate       DateTime?
+  dueDate         DateTime?
+  storyPoints     Float?
+  /// CSO groundwork (FSD §5.16) — moved here from Task; a Case, in any
+  /// project, can be individually tagged CSO to surface it on the CSO
+  /// Overview page.
+  isCsoLabeled    Boolean       @default(false)
+  /// Functional/Technical tag — moved here from Task. Nullable for ordinary
+  /// cases; the application layer requires it to be set whenever
+  /// isCsoLabeled is true (same rule Task used to enforce).
+  category        TaskCategory?
+  /// Optional, free-text, manually-entered status label mirroring whatever a
+  /// customer's own Jira board calls this item. No live sync/integration —
+  /// purely a manual reference field.
+  /// Jira link (one-way, Jira -> here). Set only when someone explicitly
+  /// links this case to an issue; nothing is created from Jira automatically.
+  jiraIssueKey    String?   @unique
+  /// The Jira `updated` timestamp of the last change pulled in, so a repeated
+  /// webhook or an overlapping poll window is recognised as a duplicate.
+  jiraSyncedAt    DateTime?
+  /// The linked issue's status name, shown as its own label beside our status
+  /// because a Jira workflow rarely matches ours.
+  jiraStatusLabel String?
+  /// The linked issue's description, kept apart from `description` so a pull
+  /// never overwrites what someone wrote here.
+  jiraDescription String?
+  createdById     String
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  deletedAt       DateTime?
+
+  project   Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  priority  ProjectPriority @relation(fields: [priorityId], references: [id], onDelete: Restrict)
+  sprint    Sprint?         @relation(fields: [sprintId], references: [id], onDelete: SetNull)
+  milestone Milestone?      @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  createdBy User            @relation("CaseCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  tasks           Task[]
+  assignees       CaseAssignee[]
+  labels          CaseLabel[]
+  comments        Comment[]
+  attachments     Attachment[]
+  statusHistory   CaseStatusHistory[]
+  categoryHistory CaseCategoryAssignment[]
+
+  @@index([projectId])
+  @@index([priorityId])
+  @@index([sprintId])
+  @@index([milestoneId])
+  @@index([dueDate])
+  @@map("cases")
+}
+
+/// "Assigned to one or more project members" — M:N join, mirrors TaskAssignee.
+model CaseAssignee {
+  id         String   @id @default(uuid())
+  caseId     String
+  userId     String
+  assignedAt DateTime @default(now())
+
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([caseId, userId])
+  @@index([userId])
+  @@map("case_assignees")
+}
+
+/// M:N join between Case and Label.
+model CaseLabel {
+  caseId  String
+  labelId String
+
+  case  Case  @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  label Label @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([caseId, labelId])
+  @@index([labelId])
+  @@map("case_labels")
+}
+
+/// Every Case status transition is recorded so time-in-status can be
+/// computed by diffing consecutive changedAt values. Stores the fixed
+/// CaseStatus values directly — there is no per-project stage table to FK to
+/// anymore. Mirrors TaskStatusHistory.
+model CaseStatusHistory {
+  id          String      @id @default(uuid())
+  caseId      String
+  fromStatus  CaseStatus?
+  toStatus    CaseStatus
+  changedById String
+  changedAt   DateTime    @default(now())
+
+  case      Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  changedBy User @relation(fields: [changedById], references: [id], onDelete: Restrict)
+
+  @@index([caseId])
+  @@map("case_status_history")
+}
+
+/// Audit trail of Functional/Technical tag changes and who was assigned at
+/// each point. A new row is appended whenever a case's category or its
+/// (primary) assignee changes — this is what lets a PM/admin see that a case
+/// was investigated as "Functional Assigned - Alice" and later became
+/// "Technical Assigned - Bob" after conversion, instead of losing the
+/// earlier assignment once the tag or assignee is overwritten in place.
+/// (This is the old TaskCategoryAssignment, renamed and repointed at Case
+/// now that `category` lives there instead of on Task.)
+model CaseCategoryAssignment {
+  id          String       @id @default(uuid())
+  caseId      String
+  category    TaskCategory
+  assigneeId  String?
+  changedById String
+  changedAt   DateTime     @default(now())
+
+  case      Case  @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  assignee  User? @relation("CaseCategoryAssignmentAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  changedBy User  @relation("CaseCategoryAssignmentChangedBy", fields: [changedById], references: [id], onDelete: Restrict)
+
+  @@index([caseId])
+  @@map("case_category_assignments")
 }
 
 // ---------------------------------------------------------------------------
 // Tasks
 // ---------------------------------------------------------------------------
 
-/// The core work item. Subtasks are Task rows that reference a
-/// parentTaskId (self-relation) rather than a separate table.
+/// The work-item level underneath a Case (Customer -> Project -> Case ->
+/// Task -> Subtask). Every Task belongs to exactly one Case. Fixed `status`
+/// (see TaskStatus doc comment) replaced the old per-project WorkflowStage
+/// FK; sprint/milestone/CSO-labeling/category all moved up to Case.
 model Task {
-  id                  String    @id @default(uuid())
-  projectId           String
-  parentTaskId        String?
+  id                  String        @id @default(uuid())
+  caseId              String
   title               String
   description         String?
-  type                TaskType  @default(TASK)
-  priority            Priority  @default(MEDIUM)
-  workflowStageId     String
-  sprintId            String?
-  milestoneId         String?
+  status              TaskStatus    @default(TO_DO)
+  priorityId          String
   startDate           DateTime?
   dueDate             DateTime?
   storyPoints         Float?
   reminderLeadMinutes Int?
-  /// CSO groundwork (FSD §5.16) — any task, in any project, can be
-  /// individually tagged CSO to surface it on the CSO Overview page.
-  isCsoLabeled        Boolean   @default(false)
+  /// Functional/Technical tag, independent of the parent Case's own
+  /// category — a Task under a Functional case can still be a Technical
+  /// task. This is what routes a CSO task into the Functional or Technical
+  /// queue. Nullable for ordinary tasks; the application layer requires it
+  /// whenever the parent Case is CSO (same rule Case enforces for itself).
+  category            TaskCategory?
+  taskTypeId          String?
+  /// Must belong to `taskTypeId`'s own complexity scale — enforced at the
+  /// application layer since Prisma can't express a same-row cross-column FK.
+  complexityLevelId   String?
+  /// Free-text label a team can type in to mirror whatever their own Jira
+  /// board calls this item. Manual only — live Jira sync links to a Case,
+  /// not a Task (see Case.jiraIssueKey).
+  jiraStatusLabel     String?
   createdById         String
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
   deletedAt           DateTime?
 
-  project       Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  parentTask    Task?         @relation("TaskSubtasks", fields: [parentTaskId], references: [id], onDelete: Cascade)
-  subtasks      Task[]        @relation("TaskSubtasks")
-  workflowStage WorkflowStage @relation(fields: [workflowStageId], references: [id], onDelete: Restrict)
-  sprint        Sprint?       @relation(fields: [sprintId], references: [id], onDelete: SetNull)
-  milestone     Milestone?    @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
-  createdBy     User          @relation("TaskCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  case            Case                 @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  priority        ProjectPriority      @relation(fields: [priorityId], references: [id], onDelete: Restrict)
+  taskType        ConfigOption? @relation("TaskType", fields: [taskTypeId], references: [id], onDelete: SetNull)
+  complexityLevel ConfigOption? @relation("TaskComplexityLevel", fields: [complexityLevelId], references: [id], onDelete: SetNull)
+  createdBy       User                 @relation("TaskCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
 
+  subtasks      Subtask[]
   assignees     TaskAssignee[]
   watchers      TaskWatcher[]
   labels        TaskLabel[]
@@ -465,12 +712,11 @@ model Task {
   outgoingLinks TaskDependency[]    @relation("TaskDependencySource")
   incomingLinks TaskDependency[]    @relation("TaskDependencyTarget")
 
-  @@index([projectId])
-  @@index([parentTaskId])
-  @@index([workflowStageId])
-  @@index([sprintId])
-  @@index([milestoneId])
+  @@index([caseId])
+  @@index([priorityId])
   @@index([dueDate])
+  @@index([taskTypeId])
+  @@index([complexityLevelId])
   @@map("tasks")
 }
 
@@ -538,37 +784,90 @@ model TaskDependency {
   @@map("task_dependencies")
 }
 
-/// "Auto - Time Monitoring" — every workflow-stage transition is
-/// recorded so time-in-status can be computed by diffing consecutive
-/// changedAt values per task. Distinct from the general ActivityLog because
-/// it needs a strict fromStage/toStage shape for that computation, rather
-/// than a free-form description.
+/// "Auto - Time Monitoring" — every Task status transition is recorded so
+/// time-in-status can be computed by diffing consecutive changedAt values
+/// per task. Stores the fixed TaskStatus values directly — there is no
+/// per-project stage table to FK to anymore.
 model TaskStatusHistory {
-  id          String   @id @default(uuid())
+  id          String      @id @default(uuid())
   taskId      String
-  fromStageId String?
-  toStageId   String
+  fromStatus  TaskStatus?
+  toStatus    TaskStatus
   changedById String
-  changedAt   DateTime @default(now())
+  changedAt   DateTime    @default(now())
 
-  task      Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  fromStage WorkflowStage? @relation("StatusHistoryFrom", fields: [fromStageId], references: [id], onDelete: SetNull)
-  toStage   WorkflowStage  @relation("StatusHistoryTo", fields: [toStageId], references: [id], onDelete: Restrict)
-  changedBy User           @relation(fields: [changedById], references: [id], onDelete: Restrict)
+  task      Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  changedBy User @relation(fields: [changedById], references: [id], onDelete: Restrict)
 
   @@index([taskId])
-  @@index([toStageId])
   @@map("task_status_history")
+}
+
+// ---------------------------------------------------------------------------
+// Subtasks
+// ---------------------------------------------------------------------------
+
+/// The leaf of the hierarchy (Customer -> Project -> Case -> Task ->
+/// Subtask). Deliberately lean compared to Task/Case — no priority, sprint,
+/// milestone, CSO labeling, category, dependencies, comments, or
+/// attachments; those stay meaningful only at Case/Task granularity.
+model Subtask {
+  id              String        @id @default(uuid())
+  taskId          String
+  title           String
+  description     String?
+  status          SubtaskStatus @default(TO_DO)
+  dueDate         DateTime?
+  subtaskTypeId   String?
+  /// Optional, free-text, manually-entered status label mirroring whatever a
+  /// customer's own Jira board calls this item. No live sync/integration —
+  /// purely a manual reference field.
+  jiraStatusLabel String?
+  createdById     String
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  deletedAt       DateTime?
+
+  task        Task         @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  subtaskType ConfigOption? @relation("SubtaskType", fields: [subtaskTypeId], references: [id], onDelete: SetNull)
+  createdBy   User         @relation("SubtaskCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  assignees SubtaskAssignee[]
+
+  @@index([taskId])
+  @@index([dueDate])
+  @@index([subtaskTypeId])
+  @@map("subtasks")
+}
+
+/// "Assigned to one or more project members" — M:N join, mirrors TaskAssignee.
+model SubtaskAssignee {
+  id         String   @id @default(uuid())
+  subtaskId  String
+  userId     String
+  assignedAt DateTime @default(now())
+
+  subtask Subtask @relation(fields: [subtaskId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([subtaskId, userId])
+  @@index([userId])
+  @@map("subtask_assignees")
 }
 
 // ---------------------------------------------------------------------------
 // Collaboration
 // ---------------------------------------------------------------------------
 
-/// Threaded comments per task, via self-relation for replies.
+/// Threaded comments on a Case or a Task (not Subtask, for now), via
+/// self-relation for replies. Exactly one of taskId/caseId is set — enforced
+/// by a hand-added CHECK constraint (see docs/database-architecture.md
+/// "Constraints added by hand"), the same pattern Attachment already used
+/// for its task/comment split.
 model Comment {
   id              String    @id @default(uuid())
-  taskId          String
+  taskId          String?
+  caseId          String?
   authorId        String
   parentCommentId String?
   body            String
@@ -577,7 +876,8 @@ model Comment {
   updatedAt       DateTime  @updatedAt
   deletedAt       DateTime?
 
-  task          Task             @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  task          Task?            @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  case          Case?            @relation(fields: [caseId], references: [id], onDelete: Cascade)
   author        User             @relation(fields: [authorId], references: [id], onDelete: Restrict)
   parentComment Comment?         @relation("CommentReplies", fields: [parentCommentId], references: [id], onDelete: Cascade)
   replies       Comment[]        @relation("CommentReplies")
@@ -585,6 +885,7 @@ model Comment {
   attachments   Attachment[]
 
   @@index([taskId])
+  @@index([caseId])
   @@index([parentCommentId])
   @@map("comments")
 }
@@ -605,12 +906,13 @@ model CommentMention {
   @@map("comment_mentions")
 }
 
-/// A file attached to either a task or a comment (exactly
-/// one of taskId/commentId is set). The CHECK constraint enforcing that is
-/// added by hand in the initial migration since Prisma's schema DSL has no
-/// native CHECK-constraint syntax.
+/// A file attached to a Case, a Task, or a Comment (exactly one of
+/// caseId/taskId/commentId is set). The CHECK constraint enforcing that is
+/// added by hand in the migration since Prisma's schema DSL has no native
+/// CHECK-constraint syntax.
 model Attachment {
   id           String   @id @default(uuid())
+  caseId       String?
   taskId       String?
   commentId    String?
   fileName     String
@@ -618,12 +920,15 @@ model Attachment {
   fileSize     Int
   mimeType     String
   uploadedById String
-  createdAt    DateTime @default(now())
+  createdAt    DateTime  @default(now())
+  deletedAt    DateTime?
 
+  case       Case?    @relation(fields: [caseId], references: [id], onDelete: Cascade)
   task       Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
   comment    Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
   uploadedBy User     @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
 
+  @@index([caseId])
   @@index([taskId])
   @@index([commentId])
   @@map("attachments")
@@ -763,4 +1068,79 @@ model ApiToken {
 
   @@index([userId])
   @@map("api_tokens")
+}
+
+// ---------------------------------------------------------------------------
+// Global configuration
+// ---------------------------------------------------------------------------
+
+/// Which projects a configuration row applies to. CSO projects draw from their
+/// own list; every other project draws from GLOBAL.
+enum ConfigScope {
+  GLOBAL
+  CSO
+}
+
+/// The list a ConfigOption belongs to. One table rather than nine near-identical
+/// ones: every kind is managed the same way by the same screen and the same
+/// endpoints, and adding a tenth list later costs one enum value.
+enum ConfigKind {
+  PROJECT_TYPE
+  PROJECT_STATUS
+  CASE_TYPE
+  CASE_STATUS
+  TASK_STATUS
+  SUBTASK_STATUS
+  TASK_TYPE
+  SUBTASK_TYPE
+  COMPLEXITY_LEVEL
+  PRIORITY
+}
+
+/// A single entry in one of the configurable lists, editable by Super Admin.
+///
+/// `key` is the stable identifier application logic matches on and never
+/// changes once written; `label` is what admins rename. Seeded rows carry the
+/// original enum value as their key, so existing behaviour keeps working while
+/// the display side becomes configurable.
+model ConfigOption {
+  id    String      @id @default(uuid())
+  kind  ConfigKind
+  scope ConfigScope
+  key   String
+  label String
+
+  color String?
+  order Int
+
+  isActive  Boolean @default(true)
+  isDefault Boolean @default(false)
+
+  /// Semantic flags let logic ask "is this finished?" instead of hardcoding a
+  /// key, so an admin-created status can behave correctly without a code change.
+  isCompleted Boolean @default(false)
+  isCancelled Boolean @default(false)
+
+  /// Seeded rows are referenced by application logic, so they can be renamed,
+  /// recoloured, reordered and deactivated — but never deleted.
+  isSystem Boolean @default(false)
+
+  /// Set for entries that belong to another entry — a complexity level under
+  /// its task type. Null for top-level list entries.
+  parentId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  parent   ConfigOption?  @relation("ConfigOptionChildren", fields: [parentId], references: [id], onDelete: Cascade)
+  children ConfigOption[] @relation("ConfigOptionChildren")
+
+  typedTasks       Task[]    @relation("TaskType")
+  complexityTasks  Task[]    @relation("TaskComplexityLevel")
+  typedSubtasks    Subtask[] @relation("SubtaskType")
+
+  @@unique([kind, scope, key])
+  @@index([kind, scope, isActive])
+  @@index([parentId])
+  @@map("config_options")
 }

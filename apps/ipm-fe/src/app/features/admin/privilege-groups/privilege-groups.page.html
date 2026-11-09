@@ -1,53 +1,61 @@
 <div class="admin-users-container">
-  <div class="page-header">
-    <div class="header-info">
-      <h1>Privilege Groups</h1>
-      <p>Define reusable permission bundles that project roles can be assigned.</p>
+  <!-- Container 1: The Standard Header -->
+  <header class="sebsa-page-header">
+    <span class="sebsa-eyebrow">SECURITY</span>
+    <h1 class="sebsa-page-title">Privilege Groups</h1>
+    <p class="sebsa-page-desc">Define reusable permission bundles that project roles can be assigned.</p>
+  </header>
+
+  <!-- Container 2: The Content Area -->
+  <div class="sebsa-card">
+    <div class="content-header-row" style="display: flex; justify-content: flex-end; margin-bottom: 24px;">
+      <button type="button" class="btn-primary" (click)="openCreateModal()">
+        + Create Group
+      </button>
     </div>
-    <button type="button" class="btn-primary" (click)="openCreateModal()">
-      <span class="material-symbols-outlined">add</span>
-      Create Group
-    </button>
-  </div>
 
-  @if (errorMessage()) {
-    <div class="error-banner">{{ errorMessage() }}</div>
-  }
+    @if (errorMessage()) {
+      <div class="error-banner">{{ errorMessage() }}</div>
+    }
 
-  <section class="section">
-    <table class="users-table">
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Description</th>
-          <th>Permissions</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        @for (group of groups(); track group.id) {
+    <section class="section">
+      <div class="admin-table-scroll" role="region" aria-label="Privilege groups" tabindex="0"><table class="sebsa-table">
+        <thead>
           <tr>
-            <td>{{ group.name }}</td>
-            <td>{{ group.description || '—' }}</td>
-            <td>
-              <div class="permission-badges">
-                @if (group.canCreateTask) { <span class="badge badge-active">Create Task</span> }
-                @if (group.canDeleteTask) { <span class="badge badge-active">Delete Task</span> }
-                @if (group.canManageMembers) { <span class="badge badge-active">Manage Members</span> }
-                @if (group.canConfigureIntegrations) { <span class="badge badge-active">Configure Integrations</span> }
-                @if (group.canManageWorkflow) { <span class="badge badge-active">Manage Workflow</span> }
-                @if (group.isReadOnly) { <span class="badge badge-pending">Read Only</span> }
-              </div>
-            </td>
-            <td class="actions">
-              <button type="button" class="btn-text" (click)="openEditModal(group)">Edit</button>
-              <button type="button" class="btn-text btn-text-danger" (click)="remove(group)">Delete</button>
-            </td>
+            <th>Name</th>
+            <th>Description</th>
+            <th>Permissions</th>
+            <th></th>
           </tr>
-        }
-      </tbody>
-    </table>
-  </section>
+        </thead>
+        <tbody>
+          @for (group of groups(); track group.id) {
+            <tr>
+              <td>{{ group.name }}</td>
+              <td>{{ group.description || '—' }}</td>
+              <td>
+                <div class="permission-badges">
+                  @if (group.isReadOnly) {
+                    <span class="badge badge-pending">Read Only</span>
+                  } @else {
+                    @for (permission of grantedPermissions(group); track permission.key) {
+                      <span class="badge badge-active">{{ permission.label }}</span>
+                    } @empty {
+                      <span class="badge">No permissions</span>
+                    }
+                  }
+                </div>
+              </td>
+              <td class="actions">
+                <button type="button" class="btn-text" (click)="openEditModal(group)">Edit</button>
+                <button type="button" class="btn-text btn-text-danger" (click)="remove(group)">Delete</button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table></div>
+    </section>
+  </div>
 
   @if (isModalOpen()) {
     <div class="modal-overlay" (click)="closeModal()"></div>
@@ -68,34 +76,37 @@
           <input type="text" [(ngModel)]="form.description" class="form-input" placeholder="Optional" />
         </div>
         <div class="form-group">
-          <label class="form-label">Permissions</label>
-          <div class="checkbox-list">
-            <label class="checkbox-item">
-              <input type="checkbox" [(ngModel)]="form.canCreateTask" />
-              Create Task
-            </label>
-            <label class="checkbox-item">
-              <input type="checkbox" [(ngModel)]="form.canDeleteTask" />
-              Delete Task
-            </label>
-            <label class="checkbox-item">
-              <input type="checkbox" [(ngModel)]="form.canManageMembers" />
-              Manage Members
-            </label>
-            <label class="checkbox-item">
-              <input type="checkbox" [(ngModel)]="form.canConfigureIntegrations" />
-              Configure Integrations
-            </label>
-            <label class="checkbox-item">
-              <input type="checkbox" [(ngModel)]="form.canManageWorkflow" />
-              Manage Workflow
-            </label>
-            <label class="checkbox-item">
-              <input type="checkbox" [(ngModel)]="form.isReadOnly" />
-              Read Only
-            </label>
-          </div>
+          <label class="checkbox-item read-only-toggle">
+            <input type="checkbox" [(ngModel)]="form.isReadOnly" (ngModelChange)="onReadOnlyChange()" />
+            <span>
+              <strong>Read only</strong>
+              <small>Refuses every change, whatever is ticked below.</small>
+            </span>
+          </label>
         </div>
+
+        @for (section of sections; track section.title) {
+          <div class="form-group">
+            <label class="form-label">{{ section.title }}</label>
+            <div class="checkbox-list">
+              @for (permission of section.permissions; track permission.key) {
+                <label class="checkbox-item" [class.disabled]="form.isReadOnly">
+                  <input
+                    type="checkbox"
+                    [(ngModel)]="form[permission.key]"
+                    [disabled]="form.isReadOnly"
+                  />
+                  <span>
+                    {{ permission.label }}
+                    @if (permission.hint) {
+                      <small>{{ permission.hint }}</small>
+                    }
+                  </span>
+                </label>
+              }
+            </div>
+          </div>
+        }
       </div>
       <div class="modal-footer">
         <button type="button" class="btn-cancel" (click)="closeModal()">Cancel</button>

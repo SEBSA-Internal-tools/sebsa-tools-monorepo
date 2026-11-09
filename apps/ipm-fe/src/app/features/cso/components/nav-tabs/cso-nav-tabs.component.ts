@@ -1,7 +1,7 @@
 import { Component, Input, Output, EventEmitter, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
-type TabType = 'dashboard' | 'overview';
+type TabType = 'dashboard' | 'cso-board' | 'overview' | 'queue' | 'configuration';
 
 interface Tab {
   id: TabType;
@@ -36,18 +36,18 @@ interface Tab {
       align-items: center;
       justify-content: space-between;
       gap: 16px;
-      padding: 0;
-      background: var(--app-surface);
-      border-bottom: 1px solid var(--app-border);
+      padding: 0 12px;
+      border-bottom: var(--border-glass);
 
       @media (max-width: 768px) {
         gap: 8px;
+        padding: 0 8px;
       }
     }
 
     .tabs-list {
       display: flex;
-      gap: 0;
+      gap: 4px;
       overflow-x: auto;
       -webkit-overflow-scrolling: touch;
       flex: 1;
@@ -67,13 +67,14 @@ interface Tab {
       display: flex;
       align-items: center;
       gap: 8px;
-      padding: 16px 20px;
+      padding: 16px 18px;
       background: transparent;
       border: none;
-      border-bottom: 3px solid transparent;
-      color: var(--app-text-muted);
+      border-bottom: 2px solid transparent;
+      color: var(--text-muted);
+      font-family: 'Sora', sans-serif;
       font-weight: 500;
-      font-size: 0.9rem;
+      font-size: 0.88rem;
       cursor: pointer;
       transition: all 0.2s ease;
       white-space: nowrap;
@@ -84,14 +85,13 @@ interface Tab {
       }
 
       &:hover {
-        color: var(--app-text);
-        background: rgba(59, 130, 246, 0.08);
+        color: var(--text-primary);
+        background: var(--color-surface-glass-hover);
       }
 
       &.active {
-        color: #1d4ed8;
-        background: rgba(59, 130, 246, 0.12);
-        border-color: rgba(59, 130, 246, 0.24);
+        color: var(--color-brand-primary);
+        border-color: var(--color-brand-primary);
       }
     }
   `],
@@ -101,10 +101,20 @@ export class CsoNavTabsComponent {
   @Input() activeTab: TabType = 'dashboard';
   @Output() tabChange = new EventEmitter<TabType>();
 
-  tabs: Tab[] = [
+  /** The Configuration tab is only shown to users who may manage it. */
+  @Input() showConfiguration = false;
+
+  private readonly allTabs: Tab[] = [
     { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
+    { id: 'cso-board', label: 'CSO Board', icon: 'business' },
     { id: 'overview', label: 'Overview', icon: 'view_list' },
+    { id: 'queue', label: 'Queue', icon: 'inbox' },
+    { id: 'configuration', label: 'Configuration', icon: 'tune' },
   ];
+
+  get tabs(): Tab[] {
+    return this.allTabs.filter((t) => t.id !== 'configuration' || this.showConfiguration);
+  }
 
   onTabClick(tab: TabType): void {
     this.tabChange.emit(tab);

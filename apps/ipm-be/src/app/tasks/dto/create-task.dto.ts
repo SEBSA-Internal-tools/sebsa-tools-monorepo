@@ -1,8 +1,7 @@
-import { TaskType, Priority } from '@prisma/client';
+import { TaskCategory, TaskStatus } from '@prisma/client';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsArray,
-  IsBoolean,
   IsDateString,
   IsEnum,
   IsInt,
@@ -16,14 +15,9 @@ import {
 } from 'class-validator';
 
 export class CreateTaskDto {
-  @ApiProperty({ format: 'uuid' })
+  @ApiProperty({ format: 'uuid', description: 'The Case this Task belongs to.' })
   @IsUUID()
-  projectId!: string;
-
-  @ApiPropertyOptional({ format: 'uuid', description: 'Set to create this task as a subtask.' })
-  @IsOptional()
-  @IsUUID()
-  parentTaskId?: string;
+  caseId!: string;
 
   @ApiProperty({ minLength: 3, maxLength: 300 })
   @IsString()
@@ -37,35 +31,15 @@ export class CreateTaskDto {
   @MaxLength(5000)
   description?: string;
 
-  @ApiPropertyOptional({ enum: TaskType, default: TaskType.TASK })
+  @ApiPropertyOptional({ enum: TaskStatus, default: TaskStatus.TO_DO })
   @IsOptional()
-  @IsEnum(TaskType)
-  type?: TaskType;
-
-  @ApiPropertyOptional({ enum: Priority, default: Priority.MEDIUM })
-  @IsOptional()
-  @IsEnum(Priority)
-  priority?: Priority;
-
-  @ApiPropertyOptional({
-    format: 'uuid',
-    description:
-      'Must belong to the same project. When omitted the task is automatically ' +
-      'placed in the project\'s default Backlog stage (order: 0, isDefault: true).',
-  })
-  @IsOptional()
-  @IsUUID()
-  workflowStageId?: string;
+  @IsEnum(TaskStatus)
+  status?: TaskStatus;
 
   @ApiPropertyOptional({ format: 'uuid' })
   @IsOptional()
   @IsUUID()
-  sprintId?: string;
-
-  @ApiPropertyOptional({ format: 'uuid' })
-  @IsOptional()
-  @IsUUID()
-  milestoneId?: string;
+  priorityId?: string;
 
   @ApiPropertyOptional({ format: 'date-time' })
   @IsOptional()
@@ -103,10 +77,31 @@ export class CreateTaskDto {
   labelIds?: string[];
 
   @ApiPropertyOptional({
-    default: false,
-    description: 'Surfaces this task on the CSO Overview page.',
+    maxLength: 100,
+    description:
+      "Optional, free-text, manually-entered status label mirroring whatever a customer's own Jira board calls this item. No live sync.",
   })
   @IsOptional()
-  @IsBoolean()
-  isCsoLabeled?: boolean;
+  @IsString()
+  @MaxLength(100)
+  jiraStatusLabel?: string;
+
+  @ApiPropertyOptional({
+    enum: TaskCategory,
+    description:
+      'Functional/Technical tag — independent of the parent Case\'s own category. Required when the parent Case is CSO; routes the task into the Functional or Technical queue.',
+  })
+  @IsOptional()
+  @IsEnum(TaskCategory)
+  category?: TaskCategory;
+
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
+  taskTypeId?: string;
+
+  @ApiPropertyOptional({ format: 'uuid', description: 'Must belong to taskTypeId\'s own complexity scale.' })
+  @IsOptional()
+  @IsUUID()
+  complexityLevelId?: string;
 }

@@ -5,13 +5,14 @@ import { CreateUserResponse, Department, SystemRole, UserAdminSummary } from '@s
 import { AuthService } from '../../../core/services/auth.service';
 import { DepartmentsService } from '../../../core/services/departments.service';
 import { UserAdminService } from '../../../core/services/user-admin.service';
+import { CustomSelectComponent } from '../../../core/components/custom-select/custom-select.component';
 
 const ALL_SYSTEM_ROLE_OPTIONS: SystemRole[] = ['REGULAR_USER', 'EXECUTIVE', 'ADMIN', 'SUPER_ADMIN'];
 
 @Component({
   standalone: true,
   selector: 'app-admin-users-page',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, CustomSelectComponent],
   templateUrl: './admin-users.page.html',
   styleUrl: './admin-users.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -37,6 +38,7 @@ export class AdminUsersPageComponent implements OnInit {
 
   protected readonly isCreateModalOpen = signal(false);
   protected readonly createdUser = signal<CreateUserResponse | null>(null);
+  protected readonly departmentUser = signal<UserAdminSummary | null>(null);
 
   private notificationTimeout: ReturnType<typeof setTimeout> | null = null;
 
@@ -44,6 +46,7 @@ export class AdminUsersPageComponent implements OnInit {
   protected email = '';
   protected departmentId = '';
   protected systemRole: SystemRole = 'REGULAR_USER';
+  protected selectedDepartmentId = '';
 
   ngOnInit(): void {
     this.loadUsers();
@@ -97,6 +100,35 @@ export class AdminUsersPageComponent implements OnInit {
       },
       error: () => this.setNotification('error', 'Failed to deactivate user.'),
     });
+  }
+
+  openDepartmentModal(user: UserAdminSummary): void {
+    this.departmentUser.set(user);
+    this.selectedDepartmentId = user.departmentId;
+    this.clearNotification();
+  }
+
+  closeDepartmentModal(): void {
+    this.departmentUser.set(null);
+  }
+
+  updateDepartment(): void {
+    const user = this.departmentUser();
+    if (!user || !this.selectedDepartmentId) return;
+
+    this.userAdminService
+      .updateDepartment(user.id, { departmentId: this.selectedDepartmentId })
+      .subscribe({
+        next: () => {
+          this.closeDepartmentModal();
+          this.loadUsers();
+          this.setNotification('success', `Department updated for ${user.name}.`);
+        },
+        error: (error) => {
+          this.closeDepartmentModal();
+          this.setNotification('error', error.error?.message ?? 'Failed to update department.');
+        },
+      });
   }
 
   openCreateModal(): void {

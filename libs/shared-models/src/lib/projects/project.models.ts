@@ -16,11 +16,28 @@ export interface ProjectMemberSummary {
   userId: string;
   roleId: string;
   joinedAt: string;
-  user: Pick<UserSummary, 'id' | 'name' | 'email'>;
-  role: Pick<ProjectRole, 'id' | 'name'> & { privilegeGroup: Pick<PrivilegeGroup, 'isReadOnly'> };
+  user: Pick<UserSummary, 'id' | 'name' | 'email' | 'avatarUrl'>;
+  role: Pick<ProjectRole, 'id' | 'name'> & { privilegeGroup: Pick<PrivilegeGroup, 'isReadOnly' | 'canManageMembers'> };
 }
 
-/** List-view shape — lighter than Project, no nested roles/stages. */
+/** What the requesting user may do in a project. Mirrors the grants on
+ * PrivilegeGroup (system admins get all true). The UI uses it to hide actions
+ * the API would refuse; the API still enforces them. */
+export interface ProjectPermissions {
+  canCreateCase: boolean;
+  canEditCase: boolean;
+  canDeleteCase: boolean;
+  canCreateTask: boolean;
+  canEditTask: boolean;
+  canDeleteTask: boolean;
+  canComment: boolean;
+  canManageMembers: boolean;
+  canManageSprints: boolean;
+  canManageLabels: boolean;
+  canConfigureIntegrations: boolean;
+}
+
+/** List-view shape — lighter than Project, no nested roles. */
 export interface ProjectSummary {
   id: string;
   name: string;
@@ -33,16 +50,24 @@ export interface ProjectSummary {
   color: string | null;
   createdBy: Pick<UserSummary, 'id' | 'name'>;
   memberCount: number;
-  taskCount: number;
+  /** Count of Cases directly under the project (Case is the level Task used
+   * to be counted at before the Case hierarchy split). */
+  caseCount: number;
   isCsoProject: boolean;
-  customerName: string | null;
+  /** The requesting user's permissions in this project. */
+  permissions: ProjectPermissions;
+  customerId: string;
+  customer: { id: string; name: string };
   createdAt: string;
   updatedAt: string;
 }
 
-/** Detail-view shape — includes the project's workflow stages. */
+/** Detail-view shape — includes the project's priorities. Task status is now
+ * a fixed, global enum (see TaskStatus in task.models.ts) rather than a
+ * per-project customizable WorkflowStage list, so there's nothing
+ * project-specific left to include for it here. */
 export interface Project extends ProjectSummary {
-  workflowStages: { id: string; name: string; order: number }[];
+  priorities: { id: string; name: string; order: number; color: string | null }[];
 }
 
 export interface CreateProjectRequest {
@@ -54,7 +79,7 @@ export interface CreateProjectRequest {
   targetEndDate?: string;
   color?: string;
   isCsoProject?: boolean;
-  customerName?: string;
+  customerId: string;
 }
 
 export interface UpdateProjectRequest {
@@ -67,7 +92,7 @@ export interface UpdateProjectRequest {
   targetEndDate?: string;
   color?: string;
   isCsoProject?: boolean;
-  customerName?: string | null;
+  customerId?: string;
 }
 
 export interface AddProjectMemberRequest {
@@ -87,4 +112,16 @@ export interface CreateRoleRequest {
 export interface UpdateRoleRequest {
   name?: string;
   privilegeGroupId?: string;
+}
+
+export interface CreateProjectPriorityRequest {
+  name: string;
+  color?: string;
+  order?: number;
+}
+
+export interface UpdateProjectPriorityRequest {
+  name?: string;
+  color?: string;
+  order?: number;
 }

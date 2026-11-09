@@ -1,0 +1,498 @@
+<section class="comment-section">
+  @if (errorMessage()) {
+    <p class="comment-error">
+      <span class="material-symbols-outlined">error</span>
+      {{ errorMessage() }}
+    </p>
+  }
+
+  <!-- Composer -->
+  <div class="composer">
+    <input
+      #fileInput
+      id="comment-file-input"
+      type="file"
+      multiple
+      class="file-input"
+      (change)="onFileSelected($event)"
+      accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.gif,.txt,.csv"
+      [disabled]="isSaving() || isUploadingFiles()"
+    />
+
+    <div class="composer-field">
+      <textarea
+        #bodyInput
+        class="composer-input"
+        [(ngModel)]="newBody"
+        [maxlength]="maxLength"
+        rows="3"
+        placeholder="Write a comment… type @ to mention someone"
+        aria-label="Write a comment"
+        [attr.aria-expanded]="mentionContext() === 'new' && mentionMatches().length > 0"
+        aria-autocomplete="list"
+        (input)="onMentionInput('new', bodyInput)"
+        (click)="onMentionInput('new', bodyInput)"
+        (keydown)="onMentionKeydown($event, 'new', bodyInput)"
+        (blur)="closeMentions()"
+      ></textarea>
+
+      @if (mentionContext() === 'new' && mentionMatches().length > 0) {
+        <ul class="mention-menu" role="listbox" aria-label="Mention a team member">
+          @for (user of mentionMatches(); track user.id; let i = $index) {
+            <li
+              class="mention-option"
+              role="option"
+              [class.highlighted]="mentionHighlight() === i"
+              [attr.aria-selected]="mentionHighlight() === i"
+            >
+              <!-- mousedown, not click: blur would close the menu first -->
+              <button type="button" (mousedown)="$event.preventDefault(); selectMention(user, 'new', bodyInput)">
+                <span class="avatar small">{{ initials(user.name) }}</span>
+                <span>{{ user.name }}</span>
+              </button>
+            </li>
+          }
+        </ul>
+      }
+    </div>
+
+    @if (activeMentionNames().length > 0) {
+      <p class="mention-summary">
+        Notifies
+        @for (name of activeMentionNames(); track name) {
+          <span class="mention-chip static">&#64;{{ name }}</span>
+        }
+      </p>
+    }
+
+    <!-- Selected files display -->
+    @if (selectedFiles().length > 0) {
+      <div class="selected-files">
+        <p class="files-label">Attachments:</p>
+        <div class="files-list">
+          @for (file of selectedFiles(); track file.name; let i = $index) {
+            <div class="file-item">
+              <span class="material-symbols-outlined">attach_file</span>
+              <span class="file-name">{{ file.name }}</span>
+              <span class="file-size">({{ formatFileSize(file.size) }})</span>
+              <button
+                type="button"
+                class="btn-remove"
+                (click)="removeFile(i)"
+                [disabled]="isSaving() || isUploadingFiles()"
+                title="Remove"
+              >
+                <span class="material-symbols-outlined">close</span>
+              </button>
+            </div>
+          }
+        </div>
+      </div>
+    }
+
+    <div class="composer-actions">
+      <button
+        type="button"
+        class="btn-attach"
+        (click)="triggerFileInput()"
+        [disabled]="isSaving() || isUploadingFiles()"
+        title="Attach files"
+      >
+        <span class="material-symbols-outlined">attach_file</span>
+      </button>
+
+      <span class="char-count">{{ newBody.length }} / {{ maxLength }}</span>
+
+      <button
+        type="button"
+        class="sebsa-btn-primary"
+        [disabled]="(!newBody.trim() && selectedFiles().length === 0) || isSaving() || isUploadingFiles()"
+        (click)="post()"
+      >
+        @if (isUploadingFiles()) {
+          <span>Uploading…</span>
+        } @else {
+          <span>Comment</span>
+        }
+      </button>
+    </div>
+  </div>
+
+  <!-- Thread -->
+  @if (isLoading() && thread().length === 0) {
+    <p class="comment-status">Loading comments…</p>
+  }
+
+  <ol class="comment-list">
+    @for (comment of thread(); track trackById($index, comment)) {
+      <li class="comment-item">
+        <app-user-avatar class="avatar" [name]="comment.author.name" [avatarUrl]="comment.author.avatarUrl" size="sm" [title]="comment.author.name"></app-user-avatar>
+
+        <div class="comment-body">
+          <p class="comment-meta">
+            <span class="comment-author">{{ comment.author.name }}</span>
+            <span class="comment-dot">·</span>
+            <span [title]="absoluteTime(comment.createdAt)">{{ relativeTime(comment.createdAt) }}</span>
+            @if (comment.isEdited) {
+              <span class="comment-edited">(edited)</span>
+            }
+          </p>
+
+          @if (editingId() === comment.id) {
+            <div class="inline-editor">
+              <input type="file" multiple class="file-input" id="edit-files-{{comment.id}}" (change)="onFileSelected($event, 'edit')" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.gif,.txt,.csv" />
+              <div class="composer-field">
+                <textarea
+                  #editInput
+                  class="composer-input"
+                  [(ngModel)]="editBody"
+                  [maxlength]="maxLength"
+                  rows="3"
+                  placeholder="Edit comment… type @ to mention someone"
+                  aria-label="Edit comment"
+                  [attr.aria-expanded]="mentionContext() === 'edit' && mentionMatches().length > 0"
+                  aria-autocomplete="list"
+                  (input)="onMentionInput('edit', editInput)"
+                  (click)="onMentionInput('edit', editInput)"
+                  (keydown)="onMentionKeydown($event, 'edit', editInput)"
+                  (blur)="closeMentions()"
+                ></textarea>
+                @if (mentionContext() === 'edit' && mentionMatches().length > 0) {
+                  <ul class="mention-menu" role="listbox" aria-label="Mention a team member">
+                    @for (user of mentionMatches(); track user.id; let i = $index) {
+                      <li
+                        class="mention-option"
+                        role="option"
+                        [class.highlighted]="mentionHighlight() === i"
+                        [attr.aria-selected]="mentionHighlight() === i"
+                      >
+                        <button type="button" (mousedown)="$event.preventDefault(); selectMention(user, 'edit', editInput)">
+                          <span class="avatar small">{{ initials(user.name) }}</span>
+                          <span>{{ user.name }}</span>
+                        </button>
+                      </li>
+                    }
+                  </ul>
+                }
+              </div>
+              @if (comment.attachments && comment.attachments.length > 0) {
+                <div class="comment-attachment-chips">
+                  @for (attachment of comment.attachments; track attachment.id) {
+                    <button type="button" class="attachment-chip" (click)="downloadAttachment(attachment.filePath, attachment.fileName)"><span class="material-symbols-outlined">{{ getFileIcon(attachment.mimeType) }}</span><span class="attachment-chip-name">{{ attachment.fileName }}</span></button>
+                    @if (canDeleteAttachment(attachment)) { <button type="button" class="btn-link danger" (click)="deleteAttachment(attachment)">Delete file</button> }
+                  }
+                </div>
+              }
+              <div class="inline-actions"><button type="button" class="btn-link" (click)="triggerFileInput('edit-files-' + comment.id)">Attach files</button></div>
+              @if (editFiles().length > 0) {
+                <div class="selected-files"><div class="files-list">@for (file of editFiles(); track file.name; let i = $index) {<div class="file-item"><span class="material-symbols-outlined">attach_file</span><span class="file-name">{{ file.name }}</span><button type="button" class="btn-remove" (click)="removeFile(i, 'edit')" title="Remove"><span class="material-symbols-outlined">close</span></button></div>}</div></div>
+              }
+              <div class="inline-actions">
+                <button type="button" class="btn-link" (click)="saveEdit(comment.id)" [disabled]="isSaving()">Save</button>
+                <button type="button" class="btn-link muted" (click)="cancelEdit()">Cancel</button>
+              </div>
+            </div>
+          } @else {
+            @if (comment.body.trim()) {
+              <p class="comment-text">{{ comment.body }}</p>
+            }
+
+            @if (usesAllMention(comment)) {
+              <p class="comment-mentions">
+                <span class="mention-chip static">&#64;All</span>
+              </p>
+            } @else if (comment.mentions.length > 0) {
+              <p class="comment-mentions">
+                @for (mention of comment.mentions; track mention.id) {
+                  <span class="mention-chip static">&#64;{{ mention.name }}</span>
+                }
+              </p>
+            }
+
+            @if (comment.attachments && comment.attachments.length > 0) {
+              <div class="comment-attachment-chips">
+                @for (attachment of comment.attachments; track attachment.id) {
+                  <button
+                    type="button"
+                    class="attachment-chip"
+                    (click)="downloadAttachment(attachment.filePath, attachment.fileName)"
+                    [title]="attachment.fileName + ' (' + formatFileSize(attachment.fileSize) + ')'"
+                  >
+                    <span class="material-symbols-outlined">{{ getFileIcon(attachment.mimeType) }}</span>
+                    <span class="attachment-chip-name">{{ attachment.fileName }}</span>
+                  </button>
+                }
+              </div>
+            }
+
+            @if (replyingTo() !== comment.id) {
+            <div class="comment-actions">
+              <button type="button" class="btn-link" (click)="startReply(comment.id)">Reply</button>
+              @if (comment.canModify) {
+                <button type="button" class="btn-link" (click)="startEdit(comment)">Edit</button>
+                <button type="button" class="btn-link danger" (click)="remove(comment)">Delete</button>
+              }
+            </div>
+            }
+          }
+
+          <!-- Replies -->
+          @if (comment.replies.length > 0) {
+            <ol class="reply-list">
+              @for (reply of comment.replies; track trackById($index, reply)) {
+                <li class="comment-item reply">
+                  <app-user-avatar class="avatar small" [name]="reply.author.name" [avatarUrl]="reply.author.avatarUrl" size="sm" [title]="reply.author.name"></app-user-avatar>
+
+                  <div class="comment-body">
+                    <p class="comment-meta">
+                      <span class="comment-author">{{ reply.author.name }}</span>
+                      <span class="comment-dot">·</span>
+                      <span [title]="absoluteTime(reply.createdAt)">{{ relativeTime(reply.createdAt) }}</span>
+                      @if (reply.isEdited) {
+                        <span class="comment-edited">(edited)</span>
+                      }
+                    </p>
+
+                    @if (editingId() === reply.id) {
+                      <div class="inline-editor">
+                        <input type="file" multiple class="file-input" id="edit-files-{{reply.id}}" (change)="onFileSelected($event, 'edit')" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.gif,.txt,.csv" />
+                        <div class="composer-field">
+                          <textarea
+                            #replyEditInput
+                            class="composer-input"
+                            [(ngModel)]="editBody"
+                            [maxlength]="maxLength"
+                            rows="2"
+                            placeholder="Edit reply… type @ to mention someone"
+                            aria-label="Edit reply"
+                            [attr.aria-expanded]="mentionContext() === 'edit' && mentionMatches().length > 0"
+                            aria-autocomplete="list"
+                            (input)="onMentionInput('edit', replyEditInput)"
+                            (click)="onMentionInput('edit', replyEditInput)"
+                            (keydown)="onMentionKeydown($event, 'edit', replyEditInput)"
+                            (blur)="closeMentions()"
+                          ></textarea>
+                          @if (mentionContext() === 'edit' && mentionMatches().length > 0) {
+                            <ul class="mention-menu" role="listbox" aria-label="Mention a team member">
+                              @for (user of mentionMatches(); track user.id; let i = $index) {
+                                <li
+                                  class="mention-option"
+                                  role="option"
+                                  [class.highlighted]="mentionHighlight() === i"
+                                  [attr.aria-selected]="mentionHighlight() === i"
+                                >
+                                  <button type="button" (mousedown)="$event.preventDefault(); selectMention(user, 'edit', replyEditInput)">
+                                    <span class="avatar small">{{ initials(user.name) }}</span>
+                                    <span>{{ user.name }}</span>
+                                  </button>
+                                </li>
+                              }
+                            </ul>
+                          }
+                        </div>
+                        @if (reply.attachments && reply.attachments.length > 0) {
+                          <div class="comment-attachment-chips">
+                            @for (attachment of reply.attachments; track attachment.id) {
+                              <button type="button" class="attachment-chip" (click)="downloadAttachment(attachment.filePath, attachment.fileName)"><span class="material-symbols-outlined">{{ getFileIcon(attachment.mimeType) }}</span><span class="attachment-chip-name">{{ attachment.fileName }}</span></button>
+                              @if (canDeleteAttachment(attachment)) { <button type="button" class="btn-link danger" (click)="deleteAttachment(attachment)">Delete file</button> }
+                            }
+                          </div>
+                        }
+                        <div class="inline-actions"><button type="button" class="btn-link" (click)="triggerFileInput('edit-files-' + reply.id)">Attach files</button></div>
+                        @if (editFiles().length > 0) {
+                          <div class="selected-files"><div class="files-list">@for (file of editFiles(); track file.name; let i = $index) {<div class="file-item"><span class="material-symbols-outlined">attach_file</span><span class="file-name">{{ file.name }}</span><button type="button" class="btn-remove" (click)="removeFile(i, 'edit')" title="Remove"><span class="material-symbols-outlined">close</span></button></div>}</div></div>
+                        }
+                        <div class="inline-actions">
+                          <button type="button" class="btn-link" (click)="saveEdit(reply.id)" [disabled]="isSaving()">Save</button>
+                          <button type="button" class="btn-link muted" (click)="cancelEdit()">Cancel</button>
+                        </div>
+                      </div>
+                    } @else {
+                      @if (reply.body.trim()) {
+                        <p class="comment-text">{{ reply.body }}</p>
+                      }
+
+                      @if (usesAllMention(reply)) {
+                        <p class="comment-mentions">
+                          <span class="mention-chip static">&#64;All</span>
+                        </p>
+                      } @else if (reply.mentions.length > 0) {
+                        <p class="comment-mentions">
+                          @for (mention of reply.mentions; track mention.id) {
+                            <span class="mention-chip static">&#64;{{ mention.name }}</span>
+                          }
+                        </p>
+                      }
+
+                      @if (reply.attachments && reply.attachments.length > 0) {
+                        <div class="comment-attachment-chips">
+                          @for (attachment of reply.attachments; track attachment.id) {
+                            <button
+                              type="button"
+                              class="attachment-chip"
+                              (click)="downloadAttachment(attachment.filePath, attachment.fileName)"
+                              [title]="attachment.fileName + ' (' + formatFileSize(attachment.fileSize) + ')'"
+                            >
+                              <span class="material-symbols-outlined">{{ getFileIcon(attachment.mimeType) }}</span>
+                              <span class="attachment-chip-name">{{ attachment.fileName }}</span>
+                            </button>
+                          }
+                        </div>
+                      }
+
+                      @if (reply.canModify) {
+                        <div class="comment-actions">
+                          <button type="button" class="btn-link" (click)="startEdit(reply)">Edit</button>
+                          <button type="button" class="btn-link danger" (click)="remove(reply)">Delete</button>
+                        </div>
+                      }
+                    }
+                  </div>
+                </li>
+              }
+            </ol>
+          }
+
+          <!-- Reply composer -->
+          @if (replyingTo() === comment.id) {
+            <div class="reply-composer">
+              <input type="file" multiple class="file-input" id="reply-files-{{comment.id}}" (change)="onFileSelected($event, 'reply')" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.gif,.txt,.csv" />
+              <div class="composer-field">
+              <textarea
+                #replyInput
+                class="composer-input"
+                [(ngModel)]="replyBody"
+                [maxlength]="maxLength"
+                rows="2"
+                placeholder="Write a reply…"
+                aria-label="Write a reply"
+                [attr.aria-expanded]="mentionContext() === 'reply' && mentionMatches().length > 0"
+                aria-autocomplete="list"
+                (input)="onMentionInput('reply', replyInput)"
+                (click)="onMentionInput('reply', replyInput)"
+                (keydown)="onMentionKeydown($event, 'reply', replyInput)"
+                (blur)="closeMentions()"
+              ></textarea>
+                @if (mentionContext() === 'reply' && mentionMatches().length > 0) {
+                  <ul class="mention-menu" role="listbox" aria-label="Mention a team member">
+                    @for (user of mentionMatches(); track user.id; let i = $index) {
+                      <li
+                        class="mention-option"
+                        role="option"
+                        [class.highlighted]="mentionHighlight() === i"
+                        [attr.aria-selected]="mentionHighlight() === i"
+                      >
+                        <button type="button" (mousedown)="$event.preventDefault(); selectMention(user, 'reply', replyInput)">
+                          <span class="avatar small">{{ initials(user.name) }}</span>
+                          <span>{{ user.name }}</span>
+                        </button>
+                      </li>
+                    }
+                  </ul>
+                }
+              </div>
+              @if (activeMentionNames('reply').length > 0) {
+                <p class="mention-summary">
+                  Notifies
+                  @for (name of activeMentionNames('reply'); track name) {
+                    <span class="mention-chip static">&#64;{{ name }}</span>
+                  }
+                </p>
+              }
+              @if (comment.attachments && comment.attachments.length > 0) {
+                <div class="comment-attachment-chips">
+                  @for (attachment of comment.attachments; track attachment.id) {
+                    <button type="button" class="attachment-chip" (click)="downloadAttachment(attachment.filePath, attachment.fileName)"><span class="material-symbols-outlined">{{ getFileIcon(attachment.mimeType) }}</span><span class="attachment-chip-name">{{ attachment.fileName }}</span></button>
+                    @if (canDeleteAttachment(attachment)) { <button type="button" class="btn-link danger" (click)="deleteAttachment(attachment)">Delete file</button> }
+                  }
+                </div>
+              }
+              <div class="inline-actions"><button type="button" class="btn-link" (click)="triggerFileInput('reply-files-' + comment.id)">Attach files</button></div>
+              @if (replyFiles().length > 0) {
+                <div class="selected-files"><div class="files-list">@for (file of replyFiles(); track file.name; let i = $index) {<div class="file-item"><span class="material-symbols-outlined">attach_file</span><span class="file-name">{{ file.name }}</span><button type="button" class="btn-remove" (click)="removeFile(i, 'reply')" title="Remove"><span class="material-symbols-outlined">close</span></button></div>}</div></div>
+              }
+              <div class="inline-actions">
+                <button
+                  type="button"
+                  class="btn-link"
+                  [disabled]="(!replyBody.trim() && replyFiles().length === 0) || isSaving()"
+                  (click)="postReply(comment.id)"
+                >
+                  Reply
+                </button>
+                <button type="button" class="btn-link muted" (click)="cancelReply()">Cancel</button>
+              </div>
+            </div>
+          }
+        </div>
+      </li>
+    } @empty {
+      @if (!isLoading() && standaloneAttachments().length === 0) {
+        <li class="comment-empty">
+          <span class="material-symbols-outlined">forum</span>
+          <p>No comments yet. Start the discussion.</p>
+        </li>
+      }
+    }
+    @for (attachment of standaloneAttachments(); track attachment.id) {
+      <li class="comment-item">
+        <app-user-avatar class="avatar" [name]="attachment.uploadedBy.name" [avatarUrl]="attachment.uploadedBy.avatarUrl" size="sm" [title]="attachment.uploadedBy.name"></app-user-avatar>
+        <div class="comment-body">
+          <p class="comment-meta"><span class="comment-author">{{ attachment.uploadedBy.name }}</span><span class="comment-dot">·</span><span [title]="absoluteTime(attachment.createdAt)">{{ relativeTime(attachment.createdAt) }}</span></p>
+          <button type="button" class="attachment-chip" (click)="downloadAttachment(attachment.filePath, attachment.fileName)" [title]="attachment.fileName + ' (' + formatFileSize(attachment.fileSize) + ')'"><span class="material-symbols-outlined">{{ getFileIcon(attachment.mimeType) }}</span><span class="attachment-chip-name">{{ attachment.fileName }}</span></button>
+        </div>
+      </li>
+    }
+  </ol>
+</section>
+
+@if (pendingDeletion(); as deletion) {
+  <button
+    type="button"
+    class="modal-overlay"
+    aria-label="Close delete confirmation"
+    (click)="cancelDeletion()"
+  ></button>
+  <section
+    class="modal-container confirmation-dialog"
+    role="alertdialog"
+    aria-modal="true"
+    aria-labelledby="delete-confirmation-title"
+    aria-describedby="delete-confirmation-description"
+  >
+    <div class="modal-header">
+      <h2 id="delete-confirmation-title">{{ deletion.kind === 'comment' ? 'Delete comment' : 'Delete file' }}</h2>
+      <button type="button" class="close-btn" aria-label="Close" [disabled]="isDeleting()" (click)="cancelDeletion()">
+        <span class="material-symbols-outlined" aria-hidden="true">close</span>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="confirmation-icon" aria-hidden="true">
+        <span class="material-symbols-outlined">warning</span>
+      </div>
+      <p id="delete-confirmation-description">
+        @if (deletion.kind === 'comment') {
+          @if (attachmentCount(deletion.comment) > 0) {
+            This comment has {{ attachmentCount(deletion.comment) }} attached {{ attachmentCount(deletion.comment) === 1 ? 'file' : 'files' }}. Deleting the comment will also delete {{ attachmentCount(deletion.comment) === 1 ? 'it' : 'them' }}. This action cannot be undone.
+          } @else {
+            Delete this comment? This action cannot be undone.
+          }
+        } @else {
+          Delete <strong>{{ deletion.attachment.fileName }}</strong>? This action cannot be undone.
+        }
+      </p>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn-cancel" [disabled]="isDeleting()" (click)="cancelDeletion()">Cancel</button>
+      <button type="button" class="btn-delete" [disabled]="isDeleting()" (click)="confirmDeletion()">
+        @if (isDeleting()) {
+          Deleting...
+        } @else if (deletion.kind === 'comment' && attachmentCount(deletion.comment) > 0) {
+          Delete comment and files
+        } @else {
+          {{ deletion.kind === 'comment' ? 'Delete comment' : 'Delete file' }}
+        }
+      </button>
+    </div>
+  </section>
+}

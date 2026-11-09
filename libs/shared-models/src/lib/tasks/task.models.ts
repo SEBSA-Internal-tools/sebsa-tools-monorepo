@@ -1,8 +1,11 @@
 import { UserSummary } from '../users/user-summary.model';
+import { TaskCategory } from '../cases/case.models';
 
-export type TaskType = 'EPIC' | 'STORY' | 'TASK' | 'BUG' | 'IMPROVEMENT' | 'TEST' | 'SUBTASK';
-export type TaskPriority = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
 export type TaskDependencyType = 'BLOCKS' | 'RELATES_TO' | 'DUPLICATE_OF';
+
+/** Fixed Task lifecycle. Replaces the old per-project, admin-configurable
+ * WorkflowStage model with a single well-known list shared by every project. */
+export type TaskStatus = 'TO_DO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'BLOCKED' | 'DONE' | 'CANCELLED';
 
 export interface TaskLabelSummary {
   id: string;
@@ -11,24 +14,30 @@ export interface TaskLabelSummary {
 }
 
 /** List-view shape — returned by GET /tasks, /tasks/my-assigned, and
- * subtask lists. Fields only the detail fetch (GET /tasks/:id) populates
- * are optional here; `Task` below re-declares them as required. */
+ * within a Case's task list. Fields only the detail fetch (GET /tasks/:id)
+ * populates are optional here; `Task` below re-declares them as required. */
 export interface TaskSummary {
   id: string;
-  projectId: string;
-  parentTaskId?: string | null;
+  caseId: string;
   title: string;
-  type: TaskType;
-  priority: TaskPriority;
-  workflowStageId: string;
-  sprintId: string | null;
+  status: TaskStatus;
+  priorityId: string;
   dueDate: string | null;
   description: string | null;
-  isCsoLabeled: boolean;
-  project: { id: string; name: string };
-  workflowStage: { id: string; name: string };
+  jiraStatusLabel: string | null;
+  /** Functional/Technical tag, independent of the parent Case's own
+   *  category — this is what routes the task into the Functional or
+   *  Technical CSO queue. Null for tasks whose case isn't CSO. */
+  category: TaskCategory | null;
+  taskTypeId: string | null;
+  taskType: { id: string; name: string } | null;
+  complexityLevelId: string | null;
+  complexityLevel: { id: string; name: string; color: string | null } | null;
+  /** `isCsoLabeled` included here (unlike Case's other fields) so the FE can
+   *  gate the category/type/complexity pickers without a second lookup. */
+  case: { id: string; title: string; type: string; projectId: string; isCsoLabeled: boolean; project?: { id: string; name: string } };
+  priority: { id: string; name: string; color: string | null };
   assignees: Pick<UserSummary, 'id' | 'name' | 'email'>[];
-  milestoneId?: string | null;
   startDate?: string | null;
   storyPoints?: number | null;
   createdBy?: Pick<UserSummary, 'id' | 'name'>;
@@ -42,48 +51,45 @@ export interface TaskListSummary {
   id: string;
   title: string;
   description: string | null;
-  type: TaskType;
-  workflowStageId: string;
-  priority: TaskPriority;
+  status: TaskStatus;
+  priorityId: string;
+  priority: { id: string; name: string; color: string | null };
   dueDate: string | null;
   assignee: Pick<UserSummary, 'id' | 'name' | 'email'> | null;
 }
 
 /** Detail-view shape — includes the subtask list. */
 export interface Task extends TaskSummary {
-  parentTaskId: string | null;
-  milestoneId: string | null;
-  startDate: string | null;
-  storyPoints: number | null;
+  reminderLeadMinutes: number | null;
   createdBy: Pick<UserSummary, 'id' | 'name'>;
   labels: TaskLabelSummary[];
   subtaskCount: number;
   createdAt: string;
   updatedAt: string;
-  subtasks: Pick<TaskSummary, 'id' | 'title' | 'workflowStageId'>[];
+  subtasks: { id: string; title: string; status: string }[];
 }
 
 export interface CreateTaskRequest {
-  projectId: string;
-  parentTaskId?: string;
+  caseId: string;
   title: string;
   description?: string;
-  type?: TaskType;
-  priority?: TaskPriority;
-  /** Omit to fall back to the project's default Backlog stage. */
-  workflowStageId?: string;
-  sprintId?: string;
-  milestoneId?: string;
+  priorityId?: string;
+  status?: TaskStatus;
   startDate?: string;
   dueDate?: string;
   storyPoints?: number;
   reminderLeadMinutes?: number;
   assigneeIds?: string[];
   labelIds?: string[];
-  isCsoLabeled?: boolean;
+  jiraStatusLabel?: string;
+  /** Required when the parent Case is CSO. */
+  category?: TaskCategory;
+  taskTypeId?: string;
+  /** Must belong to `taskTypeId`'s own complexity scale. */
+  complexityLevelId?: string;
 }
 
-export type UpdateTaskRequest = Partial<Omit<CreateTaskRequest, 'projectId'>>;
+export type UpdateTaskRequest = Partial<Omit<CreateTaskRequest, 'caseId'>>;
 
 /** Update returns dependency-enforcement warnings alongside the task rather
  * than throwing — hard-blocking an unmet-dependency transition is only a
@@ -109,7 +115,12 @@ export interface CreateTaskDependencyRequest {
 export interface TaskDependencyTaskRef {
   id: string;
   title: string;
-  workflowStageId: string;
+  status: TaskStatus;
+  /** The TaskDependency row's own id — needed to call DELETE
+   *  /tasks/:id/dependencies/:dependencyId. Only removable from the
+   *  dependency's source task, so `blockedBy` entries carry it too but the
+   *  UI shouldn't offer a remove action there (this task is the target). */
+  dependencyId: string;
 }
 
 /** BLOCKED_BY is derived (reverse of another task's BLOCKS row targeting
@@ -120,4 +131,12 @@ export interface TaskDependenciesView {
   relatesTo: TaskDependencyTaskRef[];
   duplicateOf: TaskDependencyTaskRef[];
   blockedBy: TaskDependencyTaskRef[];
+}
+
+export interface TaskStatusHistoryEntry {
+  id: string;
+  fromStatus: TaskStatus | null;
+  toStatus: TaskStatus;
+  changedAt: string;
+  changedBy: { id: string; name: string };
 }

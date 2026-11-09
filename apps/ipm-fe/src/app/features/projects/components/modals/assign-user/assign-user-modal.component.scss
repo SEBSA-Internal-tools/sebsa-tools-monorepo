@@ -146,6 +146,43 @@
   }
 }
 
+.form-input {
+  padding: 10px 12px;
+  font-size: 0.9375rem;
+  font-family: inherit;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  background: var(--app-surface-soft);
+  color: var(--app-text);
+  transition: all 0.2s ease;
+
+  &:focus {
+    outline: none;
+    border-color: var(--brand-primary);
+    background: var(--app-surface);
+    box-shadow: 0 0 0 3px var(--app-accent-shadow);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  &::placeholder {
+    color: var(--app-text-subtle);
+  }
+}
+
+select.form-input {
+  width: 100%;
+  cursor: pointer;
+  appearance: none;
+  padding-right: 32px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+}
+
 .email-input-wrapper {
   display: flex;
   gap: 8px;
@@ -153,34 +190,11 @@
 
   .form-input {
     flex: 1;
-    padding: 10px 12px;
-    font-size: 0.9375rem;
-    border: 1px solid var(--app-border);
-    border-radius: 6px;
-    background: var(--app-surface-soft);
-    color: var(--app-text);
-    transition: all 0.2s ease;
-
-    &:focus {
-      outline: none;
-      border-color: #3b82f6;
-      background: var(--app-surface);
-      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-    }
-
-    &:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-
-    &::placeholder {
-      color: var(--app-text-subtle);
-    }
   }
 
   .btn-add-user {
     padding: 10px 16px;
-    background: #3b82f6;
+    background: var(--brand-action);
     border: none;
     border-radius: 6px;
     color: white;
@@ -204,9 +218,9 @@
     }
 
     &:hover:not(:disabled) {
-      background: #2563eb;
+      background: var(--brand-action-hover);
       transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+      box-shadow: 0 4px 12px var(--app-accent-shadow);
     }
 
     &:disabled {
@@ -306,7 +320,7 @@
 
   &:hover {
     background: var(--app-hover);
-    border-color: #3b82f6;
+    border-color: var(--brand-primary);
   }
 
   .user-avatar {
@@ -434,7 +448,7 @@
 
 .btn-assign {
   padding: 10px 20px;
-  background: #10b981;
+  background: var(--brand-action);
   border: none;
   border-radius: 6px;
   color: white;
@@ -452,9 +466,9 @@
   }
 
   &:hover:not(:disabled) {
-    background: #059669;
+    background: var(--brand-action-hover);
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    box-shadow: 0 4px 12px var(--app-accent-shadow);
   }
 
   &:disabled {
@@ -465,4 +479,68 @@
 
 .form-group.full-width {
   grid-column: 1 / -1;
+}
+
+.search-field {
+  position: relative;
+  flex: 1;
+
+  .form-input {
+    width: 100%;
+    box-sizing: border-box;
+  }
+}
+
+.suggestions {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--app-surface, #fff);
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.suggestion {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+
+  &.active {
+    background: var(--app-surface-soft);
+  }
+}
+
+.suggestion-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.suggestion-name {
+  font-size: 0.9rem;
+  color: var(--app-text);
+}
+
+.suggestion-email {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.suggestion-empty {
+  padding: 10px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
 }

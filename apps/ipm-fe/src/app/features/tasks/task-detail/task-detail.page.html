@@ -1,0 +1,529 @@
+<section class="task-detail-page">
+  <div class="header-actions">
+<button
+  type="button"
+  class="back-btn"
+  (click)="goBack()"
+>
+  <span class="material-symbols-outlined">arrow_back</span>
+  Back
+</button>
+@if (task()) {
+  <div class="header-actions-right"><span class="editor-state" [class.is-dirty]="isDirty()" role="status">{{ isSaving() ? 'Saving changes...' : isDirty() ? 'Unsaved changes' : 'All changes saved' }}</span>
+    @if (isDirty()) {
+      <button
+        type="button"
+        class="discard-btn"
+        (click)="discardChanges()"
+        [disabled]="isSaving() || isUpdatingStatus()"
+      >
+        Discard
+      </button>
+      <button
+        type="button"
+        class="save-btn"
+        (click)="saveChanges()"
+        [disabled]="isSaving() || isUpdatingStatus()"
+      >
+        <span class="material-symbols-outlined">{{ isSaving() ? 'hourglass_empty' : 'save' }}</span>
+        {{ isSaving() ? 'Saving…' : 'Save Changes' }}
+      </button>
+    }
+    @if (projectPermissions()?.canCreateTask) {
+    <button
+      type="button"
+      class="discard-btn"
+      (click)="openCopyDialog()" [disabled]="isSaving() || isUpdatingStatus() || isCloning()"
+      title="Copy this task, optionally under another case or project"
+    >
+      <span class="material-symbols-outlined">content_copy</span>
+      Copy
+    </button>
+    }
+    @if (projectPermissions()?.canDeleteTask) {
+    <button
+      type="button"
+      class="delete-btn"
+      (click)="deleteTask()" [disabled]="isSaving() || isUpdatingStatus()"
+    >
+      <span class="material-symbols-outlined">delete</span>
+      Delete
+    </button>
+    }
+  </div>
+}
+  </div>
+@if (isLoading()) { <div class="loading-state"> <span class="loader"></span> <p>Loading task details…</p> </div>
+}
+@if (errorMessage()) { <div class="error-state">
+  <span class="material-symbols-outlined error-icon">
+    error_outline
+  </span>
+  <p>{{ errorMessage() }}</p>
+  <button
+    type="button"
+    class="retry-btn"
+    (click)="goBack()"
+  >
+    Go Back
+  </button>
+</div>
+
+}
+@if (warnings().length > 0) {
+  <div class="warning-banner">
+    <span class="material-symbols-outlined">warning</span>
+    <div class="warning-list">
+      @for (warning of warnings(); track warning) {
+        <p>{{ warning }}</p>
+      }
+    </div>
+    <button type="button" class="dismiss-btn" (click)="dismissWarnings()" title="Dismiss">
+      <span class="material-symbols-outlined">close</span>
+    </button>
+  </div>
+}
+@if (!isLoading() && task(); as task) {
+<div class="task-detail-card">
+  <!-- Task Header -->
+  <div class="task-header">
+    <div class="task-header-top">
+      <select
+        class="priority-pill-select" aria-label="Task priority"
+        [(ngModel)]="draft.priorityId"
+        (ngModelChange)="markDirty()"
+        [style.background]="selectedPriorityColor() + '22'"
+        [style.color]="selectedPriorityColor()"
+      >
+        @if (fallbackPriorityOption(); as fallback) {
+          <option [value]="fallback.id">{{ fallback.name }}</option>
+        }
+        @for (prio of availablePriorities(); track prio.id) {
+          <option [value]="prio.id">{{ prio.name }}</option>
+        }
+      </select>
+
+      <select class="priority-pill-select" aria-label="Task type" [(ngModel)]="draft.taskTypeId" (ngModelChange)="onTaskTypeSelect($event)">
+        <option value="">No task type</option>
+        @for (type of availableTaskTypes(); track type.id) {
+          <option [value]="type.id">{{ type.name }}</option>
+        }
+      </select>
+
+      @if (draft.taskTypeId && availableComplexityLevels().length > 0) {
+        <select class="priority-pill-select" aria-label="Complexity" [(ngModel)]="draft.complexityLevelId" (ngModelChange)="markDirty()">
+          <option value="">No complexity</option>
+          @for (level of availableComplexityLevels(); track level.id) {
+            <option [value]="level.id">{{ level.name }}</option>
+          }
+        </select>
+      }
+
+      @if (task.case.isCsoLabeled) {
+        <span class="cso-pill active" title="CSO case — this task is routed by its category">CSO</span>
+        <select class="category-pill-select" [(ngModel)]="draft.category" (ngModelChange)="markDirty()" [class.technical]="draft.category === 'TECHNICAL'">
+          <option value="" disabled>Select…</option>
+          <option value="FUNCTIONAL">Functional</option>
+          <option value="TECHNICAL">Technical</option>
+        </select>
+      }
+    </div>
+    <input
+      type="text"
+      class="task-title-input" aria-label="Task title"
+      [(ngModel)]="draft.title"
+      (ngModelChange)="markDirty()"
+      placeholder="Task title"
+    />
+    <p class="breadcrumb-trail">
+      <a class="breadcrumb-link" [routerLink]="['/cases', task.caseId]">
+        <span class="material-symbols-outlined breadcrumb-case-icon">folder</span>
+        {{ task.case.title }}
+      </a>
+      <span class="breadcrumb-chevron">›</span>
+      <span class="breadcrumb-current">{{ task.title }}</span>
+    </p>
+    <p class="task-created-info">
+      Created by
+      <strong>{{ task.createdBy.name }}</strong>
+      on
+      {{ formatDate(task.createdAt) }}
+    </p>
+  </div>
+
+  <!-- Status Stepper -->
+  <div class="section-block stepper-block">
+    <h3 class="section-heading">
+      <span class="material-symbols-outlined">timeline</span>
+      Status
+    </h3>
+    <p class="status-save-note" role="status">{{ isUpdatingStatus() ? 'Updating status...' : 'Status changes save immediately. Other edits use Save changes.' }}</p>
+    <div class="stepper">
+      @for (status of statuses; track status.id) {
+        <button
+          type="button"
+          class="stepper-step" [disabled]="isUpdatingStatus() || isSaving()"
+          [class.active]="status.id === task.status" [attr.aria-pressed]="status.id === task.status"
+          [class.past]="isPastStatus(status)"
+          (click)="onStatusClick(status.id)"
+          [title]="enteredStatusAt(status.id) ? ('Since ' + formatDate(enteredStatusAt(status.id))) : status.name"
+        >
+          <span class="stepper-dot"></span>
+          <span class="stepper-label">{{ status.name }}</span>
+        </button>
+      }
+    </div>
+  </div>
+
+  <!-- Content Grid -->
+  <div class="task-body">
+    <!-- Left: Main Content -->
+    <div class="task-main">
+      <!-- Description -->
+      <div class="section-block">
+        <h3 class="section-heading">
+          <span class="material-symbols-outlined">
+            description
+          </span>
+          Description
+        </h3>
+        <textarea
+          class="description-input" aria-label="Task description"
+          [(ngModel)]="draft.description"
+          (ngModelChange)="markDirty()"
+          placeholder="No description provided. Click here to add one…"
+          rows="5"
+        ></textarea>
+      </div>
+
+      <!-- Subtasks -->
+      <div class="section-block">
+        <h3 class="section-heading">
+          <span class="material-symbols-outlined">
+            checklist
+          </span>
+          Subtasks
+          @if (subtasks().length > 0) {
+            <span class="count-badge">
+              {{ subtasks().length }}
+            </span>
+          }
+          <button type="button" class="add-inline-btn" (click)="openAddSubtaskModal()">
+            <span class="material-symbols-outlined">add</span>
+            Add Subtask
+          </button>
+        </h3>
+        @if (subtasks().length > 0) {
+          <div class="subtask-list">
+            @for (subtask of subtasks(); track subtask.id) {
+              <div class="subtask-item">
+                <span class="material-symbols-outlined subtask-icon">
+                  subdirectory_arrow_right
+                </span>
+                <span class="subtask-title">
+                  {{ subtask.title }}
+                </span>
+                @if (subtask.subtaskType) {
+                  <span class="status-chip">{{ subtask.subtaskType.name }}</span>
+                }
+                <span class="status-chip">{{ subtask.status }}</span>
+                @if (subtask.assignees.length > 0) {
+                  <span class="task-assignee-mini" [title]="subtask.assignees[0].name">
+                    {{ subtask.assignees[0].name.charAt(0) }}
+                  </span>
+                }
+                <div class="subtask-actions">
+                  <button
+                    type="button"
+                    class="subtask-action-btn"
+                    (click)="$event.stopPropagation(); openEditSubtaskModal(subtask)"
+                    title="Edit subtask"
+                    aria-label="Edit subtask"
+                  >
+                    <span class="material-symbols-outlined">edit</span>
+                  </button>
+                  @if (projectPermissions()?.canDeleteTask) {
+                  <button
+                    type="button"
+                    class="subtask-action-btn delete"
+                    (click)="$event.stopPropagation(); deleteSubtask(subtask)"
+                    title="Delete subtask"
+                    aria-label="Delete subtask"
+                  >
+                    <span class="material-symbols-outlined">delete</span>
+                  </button>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+        } @else {
+          <p class="empty-placeholder">No subtasks yet.</p>
+        }
+      </div>
+
+      <!-- Dependencies -->
+      <div class="section-block">
+        <h3 class="section-heading">
+          <span class="material-symbols-outlined">account_tree</span>
+          Dependencies
+        </h3>
+
+        @if (dependencies(); as deps) {
+          @if (deps.blockedBy.length > 0) {
+            <div class="dependency-group">
+              <p class="dependency-group-label blocked-by-label">Blocked By</p>
+              @for (ref of deps.blockedBy; track ref.dependencyId) {
+                <div class="dependency-item">
+                  <a class="dependency-link" [routerLink]="['/tasks', ref.id]">
+                    {{ ref.title }}
+                  </a>
+                </div>
+              }
+            </div>
+          }
+          @if (deps.blocks.length > 0) {
+          <div class="dependency-group">
+            <p class="dependency-group-label">Blocks</p>
+            @for (ref of deps.blocks; track ref.dependencyId) {
+              <div class="dependency-item">
+                <a class="dependency-link" [routerLink]="['/tasks', ref.id]">
+                  {{ ref.title }}
+                </a>
+                <button type="button" class="remove-dependency-btn" (click)="removeDependency(ref.dependencyId)" title="Remove dependency" aria-label="Remove dependency">
+                  <span class="material-symbols-outlined">close</span>
+                </button>
+              </div>
+            }
+          </div>
+          }
+          @if (deps.relatesTo.length > 0) {
+          <div class="dependency-group">
+            <p class="dependency-group-label">Relates To</p>
+            @for (ref of deps.relatesTo; track ref.dependencyId) {
+              <div class="dependency-item">
+                <a class="dependency-link" [routerLink]="['/tasks', ref.id]">
+                  {{ ref.title }}
+                </a>
+                <button type="button" class="remove-dependency-btn" (click)="removeDependency(ref.dependencyId)" title="Remove dependency" aria-label="Remove dependency">
+                  <span class="material-symbols-outlined">close</span>
+                </button>
+              </div>
+            }
+          </div>
+          }
+          @if (deps.duplicateOf.length > 0) {
+          <div class="dependency-group">
+            <p class="dependency-group-label">Duplicate Of</p>
+            @for (ref of deps.duplicateOf; track ref.dependencyId) {
+              <div class="dependency-item">
+                <a class="dependency-link" [routerLink]="['/tasks', ref.id]">
+                  {{ ref.title }}
+                </a>
+                <button type="button" class="remove-dependency-btn" (click)="removeDependency(ref.dependencyId)" title="Remove dependency" aria-label="Remove dependency">
+                  <span class="material-symbols-outlined">close</span>
+                </button>
+              </div>
+            }
+          </div>
+          }
+        }
+
+        <!-- Add Dependency form -->
+        <details class="dependency-disclosure"><summary>Add a dependency</summary>
+        <div class="add-dependency-form">
+          <app-custom-select
+            [(ngModel)]="newDependencyType"
+            [options]="dependencyTypeOptions"
+            customClass="dependency-type-custom-select"
+            ariaLabel="Dependency type"
+          ></app-custom-select>
+
+          @if (selectedDependencyTaskId) {
+            <div class="project-display">
+              <span class="project-name">{{ selectedDependencyTaskTitle() }}</span>
+              <button type="button" class="clear-btn" (click)="clearDependencyTask()" title="Clear selected task" aria-label="Clear selected task">
+                <span class="material-symbols-outlined">close</span>
+              </button>
+            </div>
+          } @else {
+            <input
+              type="text"
+              [(ngModel)]="dependencyTaskSearch"
+              placeholder="Search tasks in this case…"
+              class="form-input"
+            />
+            @if (dependencyTaskSearch && getFilteredDependencyTasks().length > 0) {
+              <div class="members-dropdown">
+                @for (candidate of getFilteredDependencyTasks(); track candidate.id) {
+                  <button type="button" class="member-option" (click)="selectDependencyTask(candidate.id)">
+                    <span>{{ candidate.title }}</span>
+                  </button>
+                }
+              </div>
+            }
+          }
+
+          <button type="button" class="btn-add-dependency" [disabled]="!selectedDependencyTaskId" (click)="addDependency()">
+            Add
+          </button>
+        </div>
+        </details>
+      </div>
+
+      <!-- Comments -->
+      <div class="section-block">
+        <h3 class="section-heading">
+          <span class="material-symbols-outlined">forum</span>
+          Comments
+        </h3>
+        <app-comment-section
+          targetType="TASK"
+          [targetId]="task.id"
+          [mentionableUsers]="projectMembers()"
+        ></app-comment-section>
+      </div>
+    </div>
+    <!-- Right: Metadata Sidebar -->
+    <div class="task-sidebar">
+
+      <!-- Dates -->
+      <div class="meta-card">
+        <h4 class="meta-heading">
+          <span class="material-symbols-outlined">
+            calendar_today
+          </span>
+          Dates
+        </h4>
+        <div class="meta-row meta-row-datepicker">
+          <span class="meta-label">
+            Due Date
+          </span>
+          <div class="meta-datepicker-wrap">
+            <app-custom-datepicker
+              [(ngModel)]="draft.dueDate"
+              (ngModelChange)="markDirty()"
+              [isDueDate]="true"
+              placeholder="Select due date"
+              ariaLabel="Due date"
+            ></app-custom-datepicker>
+          </div>
+        </div>
+        @if (task.reminderLeadMinutes) {
+          <div class="meta-row">
+            <span class="meta-label">Reminder</span>
+            <span class="meta-value">{{ task.reminderLeadMinutes }} min before due</span>
+          </div>
+        }
+        <div class="meta-row">
+          <span class="meta-label">
+            Updated
+          </span>
+          <span class="meta-value">
+            {{ formatDate(task.updatedAt) }}
+          </span>
+        </div>
+      </div>
+      <!-- Assignee -->
+      <div class="meta-card">
+        <h4 class="meta-heading">
+          <span class="material-symbols-outlined">
+            person
+          </span>
+          Assignee
+        </h4>
+        <app-custom-select
+          [(ngModel)]="draft.assigneeId"
+          (ngModelChange)="markDirty()"
+          [options]="availableAssignees()"
+          [selectedLabel]="currentAssigneeName()"
+          defaultOptionLabel="Unassigned"
+          defaultOptionValue=""
+          placeholder="Unassigned"
+          ariaLabel="Assignee"
+        ></app-custom-select>
+      </div>
+
+      <!-- Activity -->
+      <div class="meta-card">
+        <h4 class="meta-heading">
+          <span class="material-symbols-outlined">history</span>
+          Activity
+        </h4>
+        <app-activity-feed
+          entityType="TASK"
+          [entityId]="task.id"
+          [pageSize]="3"
+          [compact]="true"
+          [viewAllLink]="['/activity', 'tasks', task.id]"
+        ></app-activity-feed>
+      </div>
+
+      <!-- Attachments -->
+      <div class="meta-card">
+        <app-task-attachments targetType="TASK" [targetId]="task.id"></app-task-attachments>
+      </div>
+
+      <!-- Labels -->
+      @if (task.labels && task.labels.length > 0) {
+        <div class="meta-card">
+          <h4 class="meta-heading">
+            <span class="material-symbols-outlined">
+              label
+            </span>
+            Labels
+          </h4>
+          <div class="labels-wrap">
+            @for (label of task.labels; track label.id) {
+              <span
+                class="label-chip"
+                [style.background]="
+                  label.color
+                    ? label.color + '22'
+                    : 'var(--app-surface-soft)'
+                "
+                [style.color]="
+                  label.color || 'var(--app-text)'
+                "
+                [style.border-color]="
+                  label.color
+                    ? label.color + '44'
+                    : 'var(--app-border)'
+                "
+              >
+                {{ label.name }}
+              </span>
+            }
+          </div>
+        </div>
+      }
+    </div>
+  </div>
+</div>
+}
+@if (task(); as t) {
+  <app-create-subtask-modal
+    [isOpen]="isAddSubtaskModalOpen() || editingSubtask() !== null"
+    [projectId]="t.case.projectId"
+    [taskTitle]="t.title"
+    [subtask]="editingSubtask()"
+    (closed)="closeSubtaskModal()"
+    (submitted)="onSubmitSubtask($event)"
+  ></app-create-subtask-modal>
+}
+
+@if (task(); as current) {
+  <app-copy-dialog
+    [isOpen]="isCopyDialogOpen()"
+    kind="task"
+    [sourceTitle]="current.title"
+    [sourceProjectId]="current.case.projectId"
+    [sourceCaseId]="current.caseId"
+    [sourceCategory]="current.category"
+    [isBusy]="isCloning()"
+    [errorMessage]="copyError()"
+    (closed)="closeCopyDialog()"
+    (confirmed)="confirmCopy($event)"
+  ></app-copy-dialog>
+}
+</section>

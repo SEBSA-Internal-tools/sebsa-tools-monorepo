@@ -2,7 +2,7 @@
   display: grid;
   gap: 12px;
   padding: 14px;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
 
   @media (min-width: 768px) {
     gap: 14px;

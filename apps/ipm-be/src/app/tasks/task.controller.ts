@@ -14,6 +14,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { TaskService } from './task.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
+import { CloneTaskDto } from './dto/clone-task.dto';
 import { AuthUser } from '@sebsa-pm-tool/shared-models';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
@@ -27,7 +28,9 @@ import { CreateTaskDependencyDto } from './dto/create-task-dependency.dto';
 @UseGuards(JwtAuthGuard)
 @Controller('tasks')
 export class TaskController {
-  constructor(private readonly taskService: TaskService) {}
+  constructor(
+    private readonly taskService: TaskService,
+  ) {}
 
   @Post()
   async create(@CurrentUser() user: AuthUser, @Body() dto: CreateTaskDto) {
@@ -49,6 +52,14 @@ export class TaskController {
     return this.taskService.getTaskList(filter, user);
   }
 
+  @Get('project/:projectId')
+  async getProjectTasks(
+    @Param('projectId', ParseUUIDPipe) projectId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.taskService.getProjectTasks(projectId, user);
+  }
+
   @Get(':id')
   async findOne(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
     return this.taskService.findOne(id, user);
@@ -61,6 +72,15 @@ export class TaskController {
     @CurrentUser() user: AuthUser,
   ) {
     return this.taskService.update(id, dto, user);
+  }
+
+  @Post(':id/clone')
+  async clone(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CloneTaskDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.taskService.clone(id, dto, user);
   }
 
   @Delete(':id')
@@ -113,22 +133,6 @@ export class TaskController {
     return this.taskService.detachLabel(id, labelId, user);
   }
 
-  // --- Subtask Endpoints ---
-
-  @Get(':id/subtasks')
-  async getSubtasks(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
-    return this.taskService.getSubtasks(id, user);
-  }
-
-  @Post(':id/subtasks')
-  async createSubtask(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: CreateTaskDto,
-    @CurrentUser() user: AuthUser,
-  ) {
-    return this.taskService.createSubtask(id, dto, user);
-  }
-
   // --- Dependency Endpoints (FSD §5.5) ---
 
   @Get(':id/dependencies')
@@ -152,5 +156,12 @@ export class TaskController {
     @CurrentUser() user: AuthUser,
   ) {
     return this.taskService.removeDependency(id, dependencyId, user);
+  }
+
+  // --- Status History (feeds the Status/Flow Stepper) ---
+
+  @Get(':id/status-history')
+  async getStatusHistory(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+    return this.taskService.getStatusHistory(id, user);
   }
 }

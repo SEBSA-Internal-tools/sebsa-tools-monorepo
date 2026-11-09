@@ -1,0 +1,104 @@
+<div class="task-attachments">
+  <div class="attachments-header">
+    <h3 class="section-heading">
+      <span class="material-symbols-outlined">attach_file</span>
+      Attachments
+      @if (attachments().length > 0) {
+        <span class="count-badge">{{ attachments().length }}</span>
+      }
+    </h3>
+  </div>
+
+  @if (isLoading()) {
+    <div class="loading-state">
+      <span class="loader"></span>
+      <p>Loading attachments…</p>
+    </div>
+  } @else if (attachments().length > 0) {
+    <div class="attachments-list">
+      @for (attachment of attachments(); track attachment.id) {
+        <div class="attachment-item">
+          <div class="attachment-icon">
+            <span class="material-symbols-outlined">{{ getFileIcon(attachment.mimeType) }}</span>
+          </div>
+
+          <div class="attachment-info">
+            <div class="attachment-name">
+              <button
+                type="button"
+                class="file-link"
+                (click)="downloadFile(attachment)"
+                [title]="attachment.fileName"
+              >
+                {{ attachment.fileName }}
+              </button>
+            </div>
+            <div class="attachment-meta">
+              <span class="file-size">{{ formatFileSize(attachment.fileSize) }}</span>
+              <span class="meta-dot">·</span>
+              <span class="upload-date">{{ formatDate(attachment.createdAt) }}</span>
+              <span class="meta-dot">·</span>
+              <span class="uploaded-by">by {{ attachment.uploadedBy.name }}</span>
+            </div>
+          </div>
+
+          <div class="attachment-actions">
+            <button
+              type="button"
+              class="btn-download"
+              (click)="downloadFile(attachment)"
+              title="Download"
+            >
+              <span class="material-symbols-outlined">download</span>
+            </button>
+            <button
+              type="button"
+              class="btn-delete"
+              (click)="deleteAttachment(attachment.id, attachment.fileName)"
+              title="Delete"
+            >
+              <span class="material-symbols-outlined">delete</span>
+            </button>
+          </div>
+        </div>
+      }
+    </div>
+  } @else {
+    <p class="empty-state">No attachments yet.</p>
+  }
+</div>
+
+@if (pendingDelete(); as attachment) {
+  <button
+    type="button"
+    class="modal-overlay"
+    aria-label="Close delete attachment dialog"
+    (click)="cancelDelete()"
+  ></button>
+  <section
+    class="modal-container confirmation-dialog"
+    role="alertdialog"
+    aria-modal="true"
+    aria-labelledby="delete-attachment-title"
+    aria-describedby="delete-attachment-description"
+  >
+    <div class="modal-header">
+      <h2 id="delete-attachment-title">Delete file</h2>
+      <button type="button" class="close-btn" aria-label="Close" [disabled]="isDeleting()" (click)="cancelDelete()">
+        <span class="material-symbols-outlined" aria-hidden="true">close</span>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="confirmation-icon" aria-hidden="true">
+        <span class="material-symbols-outlined">warning</span>
+      </div>
+      <p id="delete-attachment-description">Delete <strong>{{ attachment.fileName }}</strong>? This action cannot be undone.</p>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn-cancel" [disabled]="isDeleting()" (click)="cancelDelete()">Cancel</button>
+      <button type="button" class="btn-delete" [disabled]="isDeleting()" (click)="confirmDelete()">
+        {{ isDeleting() ? 'Deleting...' : 'Delete file' }}
+      </button>
+    </div>
+  </section>
+}

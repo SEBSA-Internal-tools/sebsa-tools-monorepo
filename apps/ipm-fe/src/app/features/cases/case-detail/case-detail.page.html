@@ -1,0 +1,385 @@
+<section class="task-detail-page">
+  <div class="header-actions">
+    <button type="button" class="back-btn" (click)="goBack()">
+      <span class="material-symbols-outlined">arrow_back</span>
+      Back
+    </button>
+    @if (kase()) {
+      <div class="header-actions-right"><span class="editor-state" [class.is-dirty]="isDirty()" role="status">{{ isSaving() ? 'Saving changes...' : isDirty() ? 'Unsaved changes' : 'All changes saved' }}</span>
+        @if (isDirty()) {
+          <button type="button" class="discard-btn" (click)="discardChanges()" [disabled]="isSaving() || isUpdatingStatus()">
+            Discard
+          </button>
+          <button type="button" class="save-btn" (click)="saveChanges()" [disabled]="isSaving() || isUpdatingStatus()">
+            <span class="material-symbols-outlined">{{ isSaving() ? 'hourglass_empty' : 'save' }}</span>
+            {{ isSaving() ? 'Saving…' : 'Save Changes' }}
+          </button>
+        }
+        @if (projectPermissions()?.canCreateCase) {
+        <button type="button" class="discard-btn" (click)="openCopyDialog()" [disabled]="isSaving() || isUpdatingStatus() || isCloning()" title="Copy this case, optionally into another project">
+          <span class="material-symbols-outlined">content_copy</span>
+          Copy
+        </button>
+        }
+        @if (projectPermissions()?.canDeleteCase) {
+        <button type="button" class="delete-btn" (click)="deleteCase()" [disabled]="isSaving() || isUpdatingStatus()">
+          <span class="material-symbols-outlined">delete</span>
+          Delete
+        </button>
+        }
+      </div>
+    }
+  </div>
+
+  @if (isLoading()) {
+    <div class="loading-state"><span class="loader"></span><p>Loading case details…</p></div>
+  }
+  @if (errorMessage()) {
+    <div class="error-state">
+      <span class="material-symbols-outlined error-icon">error_outline</span>
+      <p>{{ errorMessage() }}</p>
+      <button type="button" class="retry-btn" (click)="goBack()">Go Back</button>
+    </div>
+  }
+
+  @if (!isLoading() && kase(); as kase) {
+    <div class="task-detail-card">
+      <!-- Header -->
+      <div class="task-header">
+        <div class="task-header-top">
+          <span class="type-badge">
+            <span class="material-symbols-outlined type-icon">{{ getTypeIcon(kase.type) }}</span>
+            {{ getTypeLabel(kase.type) }}
+          </span>
+          <select
+            class="priority-pill-select" aria-label="Case priority"
+            [(ngModel)]="draft.priorityId"
+            (ngModelChange)="markDirty()"
+            [style.background]="selectedPriorityColor() + '22'"
+            [style.color]="selectedPriorityColor()"
+          >
+            @if (fallbackPriorityOption(); as fallback) {
+              <option [value]="fallback.id">{{ fallback.name }}</option>
+            }
+            @for (prio of availablePriorities(); track prio.id) {
+              <option [value]="prio.id">{{ prio.name }}</option>
+            }
+          </select>
+          @if (kase.project.isCsoProject) {
+            <span class="cso-pill active" title="Every case in a CSO project is CSO-labeled automatically">CSO</span>
+            <select class="category-pill-select" [(ngModel)]="draft.category" (ngModelChange)="markDirty()" [class.technical]="draft.category === 'TECHNICAL'">
+              <option value="" disabled>Select…</option>
+              <option value="FUNCTIONAL">Functional</option>
+              <option value="TECHNICAL">Technical</option>
+            </select>
+          }
+        </div>
+        <input type="text" class="task-title-input" aria-label="Case title" [(ngModel)]="draft.title" (ngModelChange)="markDirty()" placeholder="Case title" />
+        <p class="breadcrumb-trail">
+          <a class="breadcrumb-link" [routerLink]="['/projects', kase.project.id]">{{ kase.project.name }}</a>
+          <span class="breadcrumb-chevron">›</span>
+          <span class="breadcrumb-current">{{ kase.title }}</span>
+        </p>
+        <p class="task-created-info">
+          Created by <strong>{{ kase.createdBy.name }}</strong> on {{ formatDate(kase.createdAt) }}
+        </p>
+      </div>
+
+      <!-- Status Stepper -->
+      <div class="section-block stepper-block">
+        <h3 class="section-heading">
+          <span class="material-symbols-outlined">timeline</span>
+          Status
+        </h3>
+        <div class="stepper">
+          @for (status of statuses; track status.id) {
+            <button
+              type="button"
+              class="stepper-step" [disabled]="isSaving() || isUpdatingStatus()"
+              [class.active]="status.id === kase.status"
+              [class.past]="isPastStatus(status)"
+              (click)="onStatusClick(status.id)"
+            >
+              <span class="stepper-dot"></span>
+              <span class="stepper-label">{{ status.name }}</span>
+            </button>
+          }
+        </div>
+      </div>
+
+      <!-- Content Grid -->
+      <div class="task-body">
+        <div class="task-main">
+          <!-- Description -->
+          <div class="section-block">
+            <h3 class="section-heading">
+              <span class="material-symbols-outlined">description</span>
+              Description
+            </h3>
+            <textarea
+              class="description-input" aria-label="Case description"
+              [(ngModel)]="draft.description"
+              (ngModelChange)="markDirty()"
+              placeholder="No description provided. Click here to add one…"
+              rows="5"
+            ></textarea>
+          </div>
+
+          @if (kase.jiraDescription) {
+            <div class="section-block">
+              <h3 class="section-heading">
+                <span class="material-symbols-outlined">sync_alt</span>
+                Description from Jira
+                <span class="jira-readonly-hint">{{ kase.jiraIssueKey }} · read-only</span>
+              </h3>
+              <p class="jira-description">{{ kase.jiraDescription }}</p>
+            </div>
+          }
+
+          <!-- Tasks -->
+          <div class="section-block">
+            <h3 class="section-heading">
+              <span class="material-symbols-outlined">checklist</span>
+              Tasks
+              @if (tasks().length > 0) {
+                <span class="count-badge">{{ tasks().length }}</span>
+              }
+              <button type="button" class="add-inline-btn" (click)="openAddTaskModal()">
+                <span class="material-symbols-outlined">add</span>
+                Add Task
+              </button>
+            </h3>
+            @if (tasks().length > 0) {
+              <div class="subtask-list">
+                @for (task of tasks(); track task.id) {
+                  <button type="button" class="subtask-item" (click)="navigateToTask(task.id)">
+                    <span class="material-symbols-outlined subtask-icon">task_alt</span>
+                    <span class="subtask-title">{{ task.title }}</span>
+                    <span class="status-chip">{{ task.status }}</span>
+                    @if (task.assignee) {
+                      <span class="task-assignee-mini" [title]="task.assignee">{{ getTaskInitials(task.assignee) }}</span>
+                    }
+                    <span class="material-symbols-outlined chevron-icon">chevron_right</span>
+                  </button>
+                }
+              </div>
+            } @else {
+              <p class="empty-placeholder">No tasks yet.</p>
+            }
+          </div>
+
+          <!-- Comments -->
+          <div class="section-block">
+            <h3 class="section-heading">
+              <span class="material-symbols-outlined">forum</span>
+              Comments
+            </h3>
+            <app-comment-section
+              targetType="CASE"
+              [targetId]="kase.id"
+              [mentionableUsers]="projectMembers()"
+            ></app-comment-section>
+          </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="task-sidebar">
+          <div class="meta-card">
+            <h4 class="meta-heading">
+              <span class="material-symbols-outlined">calendar_today</span>
+              Dates
+            </h4>
+            <div class="meta-row meta-row-datepicker">
+              <span class="meta-label">Start Date</span>
+              <div class="meta-datepicker-wrap">
+                <app-custom-datepicker
+                  [(ngModel)]="draft.startDate"
+                  (ngModelChange)="markDirty()"
+                  placeholder="Select start date"
+                  ariaLabel="Start date"
+                ></app-custom-datepicker>
+              </div>
+            </div>
+            <div class="meta-row meta-row-datepicker">
+              <span class="meta-label">Due Date</span>
+              <div class="meta-datepicker-wrap">
+                <app-custom-datepicker
+                  [(ngModel)]="draft.dueDate"
+                  (ngModelChange)="markDirty()"
+                  [isDueDate]="true"
+                  placeholder="Select due date"
+                  ariaLabel="Due date"
+                ></app-custom-datepicker>
+              </div>
+            </div>
+          </div>
+
+          <div class="meta-card">
+            <h4 class="meta-heading">
+              <span class="material-symbols-outlined">speed</span>
+              Effort
+            </h4>
+            <div class="meta-row">
+              <span class="meta-label">Story Points</span>
+              <input type="number" min="0" class="meta-value-input story-points-input" [(ngModel)]="draft.storyPoints" (ngModelChange)="markDirty()" placeholder="—" />
+            </div>
+          </div>
+
+          @if (kase.sprint) {
+            <div class="meta-card">
+              <h4 class="meta-heading">
+                <span class="material-symbols-outlined">directions_run</span>
+                Sprint
+              </h4>
+              <div class="meta-row"><span class="meta-value">{{ kase.sprint.name }}</span></div>
+            </div>
+          }
+
+          @if (kase.milestone) {
+            <div class="meta-card">
+              <h4 class="meta-heading">
+                <span class="material-symbols-outlined">flag</span>
+                Milestone
+              </h4>
+              <div class="meta-row"><span class="meta-value">{{ kase.milestone.name }}</span></div>
+            </div>
+          }
+
+          <div class="meta-card">
+            <h4 class="meta-heading">
+              <span class="material-symbols-outlined">person</span>
+              Assignee
+            </h4>
+            <app-custom-select
+              [(ngModel)]="draft.assigneeId"
+              (ngModelChange)="markDirty()"
+              [options]="availableAssignees()"
+              [selectedLabel]="currentAssigneeName()"
+              defaultOptionLabel="Unassigned"
+              defaultOptionValue=""
+              placeholder="Unassigned"
+              ariaLabel="Assignee"
+            ></app-custom-select>
+          </div>
+
+          <div class="meta-card">
+            <h4 class="meta-heading">
+              <span class="material-symbols-outlined">sync_alt</span>
+              Jira
+            </h4>
+
+            @if (isEditingJiraLink()) {
+              <div class="jira-editor">
+                <input
+                  type="text"
+                  class="jira-key-input"
+                  [(ngModel)]="jiraIssueKeyDraft"
+                  placeholder="e.g. AASL-42"
+                  aria-label="Jira issue key"
+                  (keyup.enter)="saveJiraLink()"
+                />
+                <div class="jira-actions">
+                  <button type="button" class="btn-link" [disabled]="!jiraIssueKeyDraft.trim() || isSavingJiraLink()" (click)="saveJiraLink()">
+                    Link
+                  </button>
+                  <button type="button" class="btn-link muted" (click)="cancelJiraLinkEdit()">Cancel</button>
+                </div>
+              </div>
+            } @else if (kase.jiraIssueKey) {
+              <div class="meta-row">
+                <span class="meta-label">Issue</span>
+                <span class="meta-value jira-key">{{ kase.jiraIssueKey }}</span>
+              </div>
+
+              @if (kase.jiraStatusLabel) {
+                <div class="meta-row">
+                  <span class="meta-label">Jira status</span>
+                  <span class="jira-status-chip">{{ kase.jiraStatusLabel }}</span>
+                </div>
+              }
+
+              @if (kase.jiraSyncedAt) {
+                <p class="jira-synced">Updated {{ formatSyncedAt(kase.jiraSyncedAt) }}</p>
+              }
+
+              <div class="jira-actions">
+                <button type="button" class="btn-link" (click)="startJiraLinkEdit()">Change</button>
+                <button type="button" class="btn-link danger" (click)="unlinkJira()">Unlink</button>
+              </div>
+            } @else {
+              <p class="jira-empty">Not linked to a Jira issue.</p>
+              <button type="button" class="btn-link" (click)="startJiraLinkEdit()">Link an issue</button>
+            }
+          </div>
+
+          <div class="meta-card">
+            <h4 class="meta-heading">
+              <span class="material-symbols-outlined">history</span>
+              Activity
+            </h4>
+            <app-activity-feed
+              entityType="CASE"
+              [entityId]="kase.id"
+              [pageSize]="3"
+              [compact]="true"
+              [viewAllLink]="['/activity', 'cases', kase.id]"
+            ></app-activity-feed>
+          </div>
+
+          <div class="meta-card">
+            <app-task-attachments targetType="CASE" [targetId]="kase.id"></app-task-attachments>
+          </div>
+
+          @if (kase.labels && kase.labels.length > 0) {
+            <div class="meta-card">
+              <h4 class="meta-heading">
+                <span class="material-symbols-outlined">label</span>
+                Labels
+              </h4>
+              <div class="labels-wrap">
+                @for (label of kase.labels; track label.id) {
+                  <span
+                    class="label-chip"
+                    [style.background]="label.color ? label.color + '22' : 'var(--app-surface-soft)'"
+                    [style.color]="label.color || 'var(--app-text)'"
+                    [style.border-color]="label.color ? label.color + '44' : 'var(--app-border)'"
+                  >
+                    {{ label.name }}
+                  </span>
+                }
+              </div>
+            </div>
+          }
+
+        </div>
+      </div>
+
+    </div>
+  }
+
+  @if (kase(); as k) {
+    <app-create-task-modal
+      [isOpen]="isAddTaskModalOpen()"
+      [projectId]="k.projectId"
+      [caseTitle]="k.title"
+      [isCsoCase]="k.isCsoLabeled"
+      (closed)="closeAddTaskModal()"
+      (submitted)="onCreateTask($event)"
+    ></app-create-task-modal>
+  }
+
+  @if (kase(); as current) {
+    <app-copy-dialog
+      [isOpen]="isCopyDialogOpen()"
+      kind="case"
+      [sourceTitle]="current.title"
+      [sourceProjectId]="current.projectId"
+      [sourceCategory]="current.category"
+      [taskCount]="tasks().length"
+      [isBusy]="isCloning()"
+      [errorMessage]="copyError()"
+      (closed)="closeCopyDialog()"
+      (confirmed)="confirmCopy($event)"
+    ></app-copy-dialog>
+  }
+</section>

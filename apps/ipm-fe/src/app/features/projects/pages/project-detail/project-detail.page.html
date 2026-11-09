@@ -14,6 +14,8 @@
     <!-- Navigation Tabs -->
     <project-nav-tabs
       [activeTab]="activeTab"
+      [canManage]="canManage()"
+      [canCreateCase]="project.permissions.canCreateCase"
       (tabChange)="onTabChange($event)"
       (addTaskClick)="onAddTaskClick()"
     ></project-nav-tabs>
@@ -34,30 +36,62 @@
           <project-overview [project]="project"></project-overview>
         }
         @case ('calendar') {
-          <div class="overview-placeholder">
-            <span class="material-symbols-outlined">calendar_month</span>
-            <h3>Project Calendar</h3>
-            <p>Calendar content coming soon</p>
+          <div class="project-calendar-tab-wrapper">
+            <!-- Project-Scoped Calendar KPI Summary Strip -->
+            <section class="project-calendar-kpi-grid" aria-label="Project Calendar Metrics">
+              @for (kpi of calendarKpis(); track kpi.label) {
+                <div class="project-kpi-card">
+                  <div class="kpi-icon-box" [ngClass]="'variant-' + kpi.colorVariant">
+                    <span class="material-symbols-outlined">{{ kpi.icon }}</span>
+                  </div>
+                  <div class="kpi-content">
+                    <span class="kpi-value">{{ kpi.value }}</span>
+                    <span class="kpi-label">{{ kpi.label }}</span>
+                  </div>
+                </div>
+              }
+            </section>
+
+            <!-- Embedded Unified Calendar Component -->
+            <app-calendar-view
+              [items]="projectCalendarItems()"
+              [loading]="isLoading()"
+              [currentUserId]="authService.currentUser()?.id"
+              [currentUserName]="authService.currentUser()?.name"
+              (createClick)="onCreateForDate($event)"
+              (itemClick)="onCaseClicked($event)"
+            ></app-calendar-view>
           </div>
         }
         @case ('sprint') {
           <project-sprint [projectId]="project.id"></project-sprint>
         }
         @case ('team') {
-          <project-team [projectId]="project.id"></project-team>
+          <project-team [projectId]="project.id" [canManage]="canManage()"></project-team>
+        }
+        @case ('integrations') {
+          <project-integrations [projectId]="project.id"></project-integrations>
+        }
+        @case ('activity') {
+          <app-activity-feed
+            entityType="PROJECT"
+            [entityId]="project.id"
+            [pageSize]="20"
+          ></app-activity-feed>
         }
       }
     </div>
   </div>
-  <!-- Create Task Modal -->
-  <create-task-modal
+  <!-- Create Case Modal -->
+  <app-create-case-modal
     [isOpen]="isTaskModalOpen"
     [projectId]="project.id"
     [projectName]="project.name"
     [isProjectCso]="project.isCsoProject"
+    [initialDueDate]="initialCaseDueDate()"
     (closed)="closeTaskModal()"
     (submitted)="onCreateTask($event)"
-  ></create-task-modal>
+  ></app-create-case-modal>
 
   <!-- Edit Project Modal -->
   <create-project-modal

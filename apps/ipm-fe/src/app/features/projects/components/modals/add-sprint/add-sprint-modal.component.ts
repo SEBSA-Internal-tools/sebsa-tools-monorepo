@@ -9,6 +9,8 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
+import { CustomDatepickerComponent } from '../../../../../core/components/custom-datepicker/custom-datepicker.component';
+
 export interface AddSprintFormData {
   name: string;
   startDate: string;
@@ -19,7 +21,7 @@ export interface AddSprintFormData {
 @Component({
   standalone: true,
   selector: 'add-sprint-modal',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, CustomDatepickerComponent],
   templateUrl: './add-sprint-modal.component.html',
   styleUrl: './add-sprint-modal.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

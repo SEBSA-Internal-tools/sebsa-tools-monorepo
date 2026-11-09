@@ -2,14 +2,17 @@ import { Component, Input, ChangeDetectionStrategy, inject, OnInit, ChangeDetect
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { TasksService, type TaskView, type WorkflowStage } from '../../../../../../core/services/tasks.service';
-import { ProjectsService } from '../../../../services/projects.service';
+import { CasesService, CASE_STATUSES, type CaseView } from '../../../../../../core/services/cases.service';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import {
+  CustomSelectComponent,
+  type SelectOptionItem,
+} from '../../../../../../core/components/custom-select/custom-select.component';
 
 @Component({
   standalone: true,
   selector: 'project-task-list',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, CustomSelectComponent],
   templateUrl: './project-task-list.component.html',
   styleUrl: './project-task-list.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -17,105 +20,80 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 export class ProjectTaskListComponent implements OnInit {
   @Input() projectId!: string;
 
-  private tasksService = inject(TasksService);
-  private projectsService = inject(ProjectsService);
+  private casesService = inject(CasesService);
   private router = inject(Router);
   private cdr = inject(ChangeDetectorRef);
   private destroyRef = inject(DestroyRef);
 
-  tasks: TaskView[] = [];
-  workflowStages: WorkflowStage[] = [];
+  cases: CaseView[] = [];
   sortBy: 'status' | 'priority' | 'date' = 'status';
+  readonly statusOrder = CASE_STATUSES.map((s) => s.id);
+  readonly sortOptions: SelectOptionItem[] = [
+    { value: 'status', label: 'Status' },
+    { value: 'priority', label: 'Priority' },
+    { value: 'date', label: 'Due Date' },
+  ];
 
   ngOnInit(): void {
-    this.loadWorkflowStages();
-    this.tasksService.tasks$
+    this.casesService.cases$
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.loadTasks());
+      .subscribe(() => this.loadCases());
+    this.loadCases();
   }
 
-  private loadWorkflowStages(): void {
+  loadCases(): void {
     if (!this.projectId) return;
-    this.projectsService.getWorkflowStages(this.projectId).subscribe({
-      next: (stages) => {
-        this.workflowStages = stages;
-        this.loadTasks();
-      },
-      error: (err) => {
-        console.error('Failed to load workflow stages:', err);
-      },
-    });
-  }
-
-  loadTasks(): void {
-    if (!this.projectId) return;
-    this.tasks = this.tasksService.getTasksByProject(this.projectId);
-    this.sortTasks();
+    this.cases = this.casesService.getCasesByProject(this.projectId);
+    this.sortCases();
     this.cdr.markForCheck();
   }
 
-  openTask(taskId: string): void {
-    this.router.navigate(['/tasks', taskId]);
+  openCase(caseId: string): void {
+    this.router.navigate(['/cases', caseId]);
   }
 
-  getStageName(task: TaskView): string {
-    if (!task || !task.workflowStageId) {
-      return 'NEW';
-    }
-    const stage = this.workflowStages.find((s) => s.id === task.workflowStageId);
-    if (!stage) {
-      return 'UNKNOWN';
-    }
-    if (stage.order === 0 || stage.name.toLowerCase() === 'backlog') {
-      return 'NEW';
-    }
-    return stage.name.toUpperCase();
+  getStatusLabel(kase: CaseView): string {
+    return CASE_STATUSES.find((s) => s.id === kase.status)?.name ?? kase.status;
   }
 
-  getStatusBadgeClass(task: TaskView): string {
-    const stageName = this.getStageName(task).toLowerCase();
-    if (stageName === 'new') return 'new';
-    if (stageName.includes('todo') || stageName.includes('to do')) return 'todo';
-    if (stageName.includes('progress') || stageName.includes('in progress')) return 'inprogress';
-    if (stageName.includes('done') || stageName.includes('complete')) return 'done';
-    return 'inprogress';
+  getStatusBadgeClass(kase: CaseView): string {
+    switch (kase.status) {
+      case 'TO_DO':
+        return 'new';
+      case 'IN_REVIEW':
+      case 'BLOCKED':
+      case 'IN_PROGRESS':
+        return 'inprogress';
+      case 'DONE':
+        return 'done';
+      case 'CANCELLED':
+        return 'todo';
+      default:
+        return 'todo';
+    }
   }
 
-  sortTasks(): void {
+  sortCases(): void {
     switch (this.sortBy) {
       case 'priority':
-        this.tasks.sort((a, b) => {
+        this.cases.sort((a, b) => {
           const priorityOrder = { High: 0, Medium: 1, Low: 2 };
           return (priorityOrder[a.priority as keyof typeof priorityOrder] ?? 999) -
                  (priorityOrder[b.priority as keyof typeof priorityOrder] ?? 999);
         });
         break;
       case 'date':
-        this.tasks.sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
+        this.cases.sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
         break;
       case 'status':
       default:
-        this.tasks.sort((a, b) => {
-          const orderA = this.workflowStages.find((s) => s.id === a.workflowStageId)?.order ?? 999;
-          const orderB = this.workflowStages.find((s) => s.id === b.workflowStageId)?.order ?? 999;
-          return orderA - orderB;
-        });
+        this.cases.sort((a, b) => this.statusOrder.indexOf(a.status) - this.statusOrder.indexOf(b.status));
     }
   }
 
   onSortChange(sort: typeof this.sortBy): void {
     this.sortBy = sort;
-    this.sortTasks();
-  }
-
-  getStatusLabel(statusLabel: string): string {
-    const labels: { [key: string]: string } = {
-      new: 'New',
-      todo: 'To Do',
-      inprogress: 'In Progress',
-      done: 'Done',
-    };
-    return labels[statusLabel] || statusLabel;
+    this.sortCases();
   }
 
   getPriorityClass(priority: string): string {

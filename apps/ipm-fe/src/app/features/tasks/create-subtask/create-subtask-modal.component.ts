@@ -1,0 +1,219 @@
+import {
+  Component,
+  Input,
+  Output,
+  EventEmitter,
+  ChangeDetectionStrategy,
+  OnChanges,
+  inject,
+  signal,
+  ViewChild,
+  ElementRef,
+  HostListener,
+} from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { ProjectsService } from '../../projects/services/projects.service';
+import { SubtaskTypesService } from '../../../core/services/subtask-types.service';
+import { CustomSelectComponent } from '../../../core/components/custom-select/custom-select.component';
+import { CustomDatepickerComponent } from '../../../core/components/custom-datepicker/custom-datepicker.component';
+import { UserAvatarComponent } from '../../../core/components/user-avatar/user-avatar.component';
+import type { Subtask, SubtaskStatus, SubtaskType } from '@sebsa-pm-tool/shared-models';
+
+type AssigneeCandidate = { id: string; name: string; email: string; avatarUrl?: string | null };
+
+export interface SubtaskFormData {
+  title: string;
+  description: string;
+  dueDate: string;
+  assigneeIds: string[];
+  subtaskTypeId?: string;
+  /** Only set in edit mode — new subtasks always start as TO_DO. */
+  status?: SubtaskStatus;
+}
+
+/** Lean by design — a Subtask has no priority/sprint/CSO/category, just
+ * title, description, due date, assignees, and an optional Subtask Type.
+ * `projectId` is only needed to scope the assignee picker to project
+ * members. Passing `subtask` switches the modal into edit mode, prefilled
+ * with that subtask's values. */
+@Component({
+  standalone: true,
+  selector: 'app-create-subtask-modal',
+  imports: [CommonModule, FormsModule, CustomSelectComponent, CustomDatepickerComponent, UserAvatarComponent],
+  templateUrl: './create-subtask-modal.component.html',
+  styleUrl: './create-subtask-modal.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class CreateSubtaskModalComponent implements OnChanges {
+  @Input() isOpen = false;
+  @Input({ required: true }) projectId = '';
+  @Input() taskTitle = '';
+  @Input() subtask: Subtask | null = null;
+  @Output() closed = new EventEmitter<void>();
+  @Output() submitted = new EventEmitter<SubtaskFormData>();
+
+  private readonly projectsService = inject(ProjectsService);
+  private readonly subtaskTypesService = inject(SubtaskTypesService);
+
+  @ViewChild('assigneeDropdownRef') assigneeDropdownRef?: ElementRef<HTMLElement>;
+
+  subtaskTitle = '';
+  description = '';
+  dueDate = '';
+  selectedAssigneeIds: string[] = [];
+  assigneeSearch = '';
+  selectedSubtaskTypeId = '';
+  status: SubtaskStatus = 'TO_DO';
+
+  readonly statusOptions: Array<{ value: SubtaskStatus; label: string }> = [
+    { value: 'TO_DO', label: 'To Do' },
+    { value: 'IN_PROGRESS', label: 'In Progress' },
+    { value: 'DONE', label: 'Done' },
+  ];
+
+  readonly availableAssignees = signal<AssigneeCandidate[]>([]);
+  readonly availableSubtaskTypes = signal<SubtaskType[]>([]);
+  readonly isLoadingUsers = signal(false);
+  readonly userError = signal('');
+  readonly isAssigneeDropdownOpen = signal(false);
+
+  ngOnChanges(): void {
+    if (this.isOpen && this.projectId) {
+      this.loadAssignees(this.projectId);
+      this.loadSubtaskTypes();
+      if (this.subtask) this.populateForm(this.subtask);
+    }
+  }
+
+  get isEditMode(): boolean {
+    return this.subtask !== null;
+  }
+
+  private populateForm(subtask: Subtask): void {
+    this.subtaskTitle = subtask.title;
+    this.description = subtask.description ?? '';
+    this.dueDate = subtask.dueDate ? subtask.dueDate.split('T')[0] : '';
+    this.selectedAssigneeIds = subtask.assignees.map((a) => a.id);
+    this.selectedSubtaskTypeId = subtask.subtaskTypeId ?? '';
+    this.status = subtask.status;
+  }
+
+  private loadSubtaskTypes(): void {
+    this.subtaskTypesService.list().subscribe({
+      next: (types) => this.availableSubtaskTypes.set(types.filter((t) => t.isActive)),
+      error: () => this.availableSubtaskTypes.set([]),
+    });
+  }
+
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent): void {
+    if (!this.isAssigneeDropdownOpen()) return;
+    const target = event.target as Node;
+    const isInsideDropdown = this.assigneeDropdownRef?.nativeElement?.contains(target);
+    if (!isInsideDropdown) {
+      this.isAssigneeDropdownOpen.set(false);
+      this.assigneeSearch = '';
+    }
+  }
+
+  private loadAssignees(projectId: string): void {
+    this.isLoadingUsers.set(true);
+    this.userError.set('');
+    this.selectedAssigneeIds = [];
+    this.projectsService.getAssignableMembers(projectId).subscribe({
+      next: (members) => {
+        this.availableAssignees.set(members.map((m) => m.user));
+        this.isLoadingUsers.set(false);
+      },
+      error: () => {
+        this.userError.set('Could not load project members.');
+        this.availableAssignees.set([]);
+        this.isLoadingUsers.set(false);
+      },
+    });
+  }
+
+  onCancel(): void {
+    this.resetForm();
+    this.closed.emit();
+  }
+
+  onSubmit(): void {
+    if (!this.subtaskTitle.trim()) {
+      alert('Please enter a subtask title');
+      return;
+    }
+
+    const formData: SubtaskFormData = {
+      title: this.subtaskTitle,
+      description: this.description,
+      dueDate: this.dueDate,
+      assigneeIds: this.selectedAssigneeIds,
+      subtaskTypeId: this.selectedSubtaskTypeId || undefined,
+      ...(this.isEditMode && { status: this.status }),
+    };
+
+    this.submitted.emit(formData);
+    this.resetForm();
+    this.closed.emit();
+  }
+
+  private resetForm(): void {
+    this.subtaskTitle = '';
+    this.description = '';
+    this.dueDate = '';
+    this.selectedAssigneeIds = [];
+    this.assigneeSearch = '';
+    this.selectedSubtaskTypeId = '';
+    this.status = 'TO_DO';
+    this.isAssigneeDropdownOpen.set(false);
+  }
+
+  onBackdropClick(): void {
+    this.onCancel();
+  }
+
+  toggleAssigneeDropdown(event?: Event): void {
+    event?.stopPropagation();
+    this.isAssigneeDropdownOpen.update((isOpen) => !isOpen);
+  }
+
+  openAssigneeDropdown(): void {
+    this.isAssigneeDropdownOpen.set(true);
+  }
+
+  onAssigneeSearch(): void {
+    if (!this.isAssigneeDropdownOpen()) this.isAssigneeDropdownOpen.set(true);
+  }
+
+  getFilteredAssignees(): AssigneeCandidate[] {
+    const term = this.assigneeSearch.trim().toLowerCase();
+    if (!term) return this.availableAssignees();
+    return this.availableAssignees().filter(
+      (user) => user.name.toLowerCase().includes(term) || user.email?.toLowerCase().includes(term),
+    );
+  }
+
+  isAssigneeSelected(userId: string): boolean {
+    return this.selectedAssigneeIds.includes(userId);
+  }
+
+  toggleAssignee(userId: string): void {
+    if (this.isAssigneeSelected(userId)) {
+      this.selectedAssigneeIds = this.selectedAssigneeIds.filter((id) => id !== userId);
+    } else {
+      this.selectedAssigneeIds = [...this.selectedAssigneeIds, userId];
+    }
+  }
+
+  removeAssignee(userId: string, event: Event): void {
+    event.stopPropagation();
+    this.selectedAssigneeIds = this.selectedAssigneeIds.filter((id) => id !== userId);
+  }
+
+  selectedAssignees(): AssigneeCandidate[] {
+    return this.availableAssignees().filter((user) => this.selectedAssigneeIds.includes(user.id));
+  }
+
+}

@@ -10,6 +10,7 @@ import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '@sebsa-pm-tool/core';
 import { AuthUser, LoginResponse, RegisterResponse } from '@sebsa-pm-tool/shared-models';
 import * as bcrypt from 'bcryptjs';
+import { hashPassword, needsRehash } from './password';
 import { LoginDto } from './login.dto';
 import { RegisterDto } from './register.dto';
 
@@ -42,6 +43,8 @@ export class AuthService {
         'Your account has been deactivated. Contact your System Administrator.',
       );
     }
+
+    await this.upgradeHashIfStale(user.id, user.passwordHash, password);
 
     return this.toAuthUser(user);
   }
@@ -78,7 +81,7 @@ export class AuthService {
       throw new BadRequestException('Invalid department.');
     }
 
-    const passwordHash = await bcrypt.hash(dto.password, 10);
+    const passwordHash = await hashPassword(dto.password);
     await this.prisma.user.create({
       data: {
         name: dto.name,
@@ -96,12 +99,32 @@ export class AuthService {
     };
   }
 
+  /** Re-hashes at the current cost factor once the password is known good.
+   * Failure is swallowed: a login must not break because an upgrade did. */
+  private async upgradeHashIfStale(
+    userId: string,
+    passwordHash: string,
+    plainText: string,
+  ): Promise<void> {
+    if (!needsRehash(passwordHash)) return;
+
+    try {
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: { passwordHash: await hashPassword(plainText) },
+      });
+    } catch {
+      // Intentionally ignored.
+    }
+  }
+
   private toAuthUser(user: {
     id: string;
     name: string;
     email: string;
     systemRole: string;
     departmentId: string;
+    avatarUrl?: string | null;
   }): AuthUser {
     return {
       id: user.id,
@@ -109,6 +132,7 @@ export class AuthService {
       email: user.email,
       systemRole: user.systemRole as AuthUser['systemRole'],
       departmentId: user.departmentId,
+      avatarUrl: user.avatarUrl,
     };
   }
 }

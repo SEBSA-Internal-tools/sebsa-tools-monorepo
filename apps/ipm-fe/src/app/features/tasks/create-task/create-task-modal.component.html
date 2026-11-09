@@ -1,0 +1,246 @@
+@if (isOpen) {
+  <div
+    class="modal-overlay"
+    (click)="onBackdropClick()"
+    (keydown.escape)="onCancel()"
+    tabindex="-1"
+    aria-hidden="true"
+  ></div>
+
+  <div class="modal-container">
+    <!-- Modal Header -->
+    <div class="modal-header">
+      <div class="header-content">
+        <p class="header-label">CREATE NEW TASK</p>
+        <h2>What needs to be done?</h2>
+      </div>
+      <button type="button" class="close-btn" (click)="onCancel()" title="Close" aria-label="Close dialog">
+        <span class="material-symbols-outlined" aria-hidden="true">close</span>
+      </button>
+    </div>
+
+    <!-- Modal Body -->
+    <div class="modal-body">
+      <div class="form-grid">
+        <!-- Case -->
+        <div class="form-group full-width">
+          <div class="form-label">Case</div>
+          <div class="project-display">
+            <span class="project-name">{{ caseTitle }}</span>
+          </div>
+        </div>
+
+        <!-- Task Title -->
+        <div class="form-group full-width">
+          <label for="taskTitle" class="form-label">
+            Task Title <span class="required">*</span>
+          </label>
+          <input
+            id="taskTitle"
+            type="text"
+            [(ngModel)]="taskTitle"
+            placeholder="Describe the task..."
+            class="form-input"
+          />
+        </div>
+
+        <!-- Priority -->
+        <div class="form-group">
+          <div class="form-label-row">
+            <div class="form-label">Priority</div>
+            @if (availablePriorities().length > 0) {
+              <button type="button" class="add-priority-link" (click)="openAddPriorityModal()" title="Add new priority">
+                <span class="material-symbols-outlined">add</span>
+                <span>Add</span>
+              </button>
+            }
+          </div>
+          <div class="priority-group" [class.empty-group]="availablePriorities().length === 0">
+            @for (prio of availablePriorities(); track prio.id) {
+              <button
+                type="button"
+                class="priority-btn"
+                [class.active]="priorityId === prio.id"
+                (click)="selectPriority(prio)"
+              >
+                <span class="priority-dot" [style.background-color]="prio.color || '#94a3b8'"></span>
+                <span>{{ prio.name }}</span>
+              </button>
+            }
+            @if (availablePriorities().length === 0) {
+              <div class="no-priorities-box">
+                <span class="no-priorities-text">No priorities configured yet</span>
+                <button type="button" class="btn-create-priority-inline" (click)="openAddPriorityModal()">
+                  <span class="material-symbols-outlined">add_circle</span>
+                  Create Priority
+                </button>
+              </div>
+            }
+          </div>
+        </div>
+
+        <!-- Assignee -->
+        <div class="form-group">
+          <label for="assignee" class="form-label">Assignee</label>
+          @if (isLoadingUsers()) {
+            <div class="field-loading">
+              <span class="material-symbols-outlined spin">progress_activity</span>
+              Loading users...
+            </div>
+          } @else if (userError()) {
+            <div class="field-error">
+              <span class="material-symbols-outlined">error</span>
+              {{ userError() }}
+            </div>
+          } @else {
+            <div class="assignee-dropdown" #assigneeDropdownRef>
+              <div class="assignee-input" [class.open]="isAssigneeDropdownOpen()">
+                <div class="selected-assignees">
+                  @for (user of selectedAssignees(); track user.id) {
+                    <span class="selected-assignee-chip">
+                      <app-user-avatar class="chip-avatar" [name]="user.name" [avatarUrl]="user.avatarUrl" size="sm"></app-user-avatar>
+                      <span class="chip-name">{{ user.name }}</span>
+                      <button type="button" class="remove-assignee" (click)="removeAssignee(user.id, $event)" [attr.aria-label]="'Remove ' + user.name">
+                        <span class="material-symbols-outlined">close</span>
+                      </button>
+                    </span>
+                  }
+                  <input
+                    id="assignee"
+                    type="text"
+                    class="assignee-search-input"
+                    placeholder="Search users..."
+                    [(ngModel)]="assigneeSearch"
+                    (focus)="openAssigneeDropdown()"
+                    (input)="onAssigneeSearch()"
+                    autocomplete="off"
+                  />
+                </div>
+                <button type="button" class="dropdown-toggle" [attr.aria-expanded]="isAssigneeDropdownOpen()" aria-label="Toggle assignee list" (click)="toggleAssigneeDropdown($event)">
+                  <span class="material-symbols-outlined">{{ isAssigneeDropdownOpen() ? 'expand_less' : 'expand_more' }}</span>
+                </button>
+              </div>
+              @if (isAssigneeDropdownOpen()) {
+                <div class="assignee-menu">
+                  <div class="assignee-options">
+                    @if (getFilteredAssignees().length === 0) {
+                      <div class="no-assignees">
+                        <span class="material-symbols-outlined">person_search</span>
+                        <span>No users found</span>
+                      </div>
+                    } @else {
+                      @for (user of getFilteredAssignees(); track user.id) {
+                        <button type="button" class="assignee-option" [class.selected]="isAssigneeSelected(user.id)" (click)="toggleAssignee(user.id)">
+                          <app-user-avatar class="assignee-avatar" [name]="user.name" [avatarUrl]="user.avatarUrl" size="sm"></app-user-avatar>
+                          <span class="assignee-info">
+                            <span class="assignee-name">{{ user.name }}</span>
+                            @if (user.email) {
+                              <span class="assignee-email">{{ user.email }}</span>
+                            }
+                          </span>
+                          <span class="assignee-checkbox" [class.checked]="isAssigneeSelected(user.id)">
+                            @if (isAssigneeSelected(user.id)) {
+                              <span class="material-symbols-outlined">check</span>
+                            }
+                          </span>
+                        </button>
+                      }
+                    }
+                  </div>
+                  @if (selectedAssigneeIds.length > 0) {
+                    <div class="assignee-footer">
+                      <span>{{ selectedAssigneeIds.length }} {{ selectedAssigneeIds.length === 1 ? 'user' : 'users' }} selected</span>
+                      <button type="button" class="clear-assignees" (click)="clearAssignees($event)">Clear all</button>
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          }
+        </div>
+
+        <!-- Due Date -->
+        <div class="form-group">
+          <label for="dueDate" class="form-label">Due Date</label>
+          <app-custom-datepicker
+            [(ngModel)]="dueDate"
+            [isDueDate]="true"
+            placeholder="Select due date"
+            ariaLabel="Due date"
+          ></app-custom-datepicker>
+        </div>
+
+        <!-- Task Type -->
+        <div class="form-group">
+          <label for="taskType" class="form-label">Task Type</label>
+          <app-custom-select
+            [(ngModel)]="selectedTaskTypeId"
+            (ngModelChange)="onTaskTypeSelect($event)"
+            [options]="availableTaskTypes()"
+            defaultOptionLabel="None"
+            defaultOptionValue=""
+            ariaLabel="Select task type"
+          ></app-custom-select>
+        </div>
+
+        <!-- Complexity (depends on the selected Task Type's own scale) -->
+        @if (selectedTaskTypeId) {
+          <div class="form-group">
+            <label for="complexity" class="form-label">Complexity</label>
+            <app-custom-select
+              [(ngModel)]="selectedComplexityLevelId"
+              [options]="availableComplexityLevels()"
+              defaultOptionLabel="None"
+              defaultOptionValue=""
+              ariaLabel="Select complexity"
+            ></app-custom-select>
+          </div>
+        }
+      </div>
+
+      <!-- Description -->
+      <div class="form-group full-width">
+        <label for="description" class="form-label">Description</label>
+        <textarea
+          id="description"
+          [(ngModel)]="description"
+          placeholder="Add details, acceptance criteria, or technical notes..."
+          class="form-textarea"
+          rows="6"
+        ></textarea>
+      </div>
+
+      <!-- Functional/Technical tag (only for CSO cases — routes this task into the queue) -->
+      @if (isCsoCase) {
+        <div class="form-group full-width">
+          <div class="form-label" id="task-category-label">
+            Category
+            <span class="required">*</span>
+          </div>
+          <div class="category-group" role="group" aria-labelledby="task-category-label">
+            <button type="button" class="category-btn functional" [class.active]="selectedCategory === 'FUNCTIONAL'" (click)="selectedCategory = 'FUNCTIONAL'">
+              <span class="material-symbols-outlined">psychology</span>
+              Functional
+            </button>
+            <button type="button" class="category-btn technical" [class.active]="selectedCategory === 'TECHNICAL'" (click)="selectedCategory = 'TECHNICAL'">
+              <span class="material-symbols-outlined">terminal</span>
+              Technical
+            </button>
+          </div>
+        </div>
+      }
+    </div>
+
+    <!-- Modal Footer -->
+    <div class="modal-footer">
+      <button type="button" class="btn-cancel" (click)="onCancel()">Cancel</button>
+      <button type="button" class="btn-create" (click)="onSubmit()">Create task</button>
+    </div>
+  </div>
+
+  <priority-modal
+    [isOpen]="isPriorityModalOpen()"
+    (close)="closePriorityModal()"
+    (submit)="onPrioritySubmit($event)"
+  />
+}

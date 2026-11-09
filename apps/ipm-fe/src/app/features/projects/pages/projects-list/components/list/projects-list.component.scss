@@ -4,7 +4,7 @@
 
 .section {
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   display: grid;
   gap: 20px;
   padding: 24px;
@@ -31,8 +31,17 @@
 // Header Section & Deep Purple/Violet Gradient Eyebrow Super-Header
 // =============================================================================
 
-.section-header,
-.table-controls,
+.section-header {
+  position: relative;
+  z-index: 1;
+}
+
+.table-controls {
+  position: relative;
+  z-index: 30;
+  overflow: visible;
+}
+
 .projects-list-container {
   position: relative;
   z-index: 1;
@@ -56,7 +65,7 @@
 
   h2 {
     margin: 0;
-    font-family: 'Sora', sans-serif;
+    font-family: var(--font-body);
     color: var(--text-primary);
     font-size: 1.3rem;
     font-weight: 600;
@@ -75,16 +84,12 @@
 
 .eyebrow {
   display: block;
-  font-family: 'Sora', sans-serif;
+  font-family: var(--font-body);
   font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  background: linear-gradient(135deg, #a855f7 0%, #7000ff 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  text-shadow: 0 4px 15px rgba(112, 0, 255, 0.25);
+  color: var(--brand-primary);
   margin-bottom: 6px;
 }
 
@@ -127,11 +132,56 @@
   align-items: center;
   gap: 16px;
   flex-shrink: 0;
+  position: relative;
+  z-index: 30;
+  overflow: visible;
+
+  app-custom-select {
+    width: 180px;
+    min-width: 150px;
+    flex: 0 0 auto;
+    position: relative;
+
+    &.dropdown-open {
+      z-index: 100;
+    }
+  }
 
   @media (max-width: 960px) {
     width: 100%;
-    justify-content: space-between;
+    justify-content: flex-start;
     flex-wrap: wrap;
+    gap: 12px;
+
+    app-custom-select {
+      flex: 1 1 160px;
+      min-width: 140px;
+      max-width: none;
+    }
+  }
+
+  @media (max-width: 640px) {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    width: 100%;
+
+    app-custom-select {
+      flex: 0 0 auto;
+      width: 100%;
+      min-width: 100%;
+      max-width: 100%;
+      height: auto;
+    }
+
+    .btn-primary {
+      flex: 0 0 auto;
+      width: 100%;
+      min-width: 100%;
+      height: 42px;
+      justify-content: center;
+    }
   }
 
   .btn-primary {
@@ -170,10 +220,14 @@
     padding: 10px 0;
     background: transparent;
     border: none;
-    font-family: 'Sora', sans-serif;
+    font-family: var(--font-body);
     color: var(--text-primary);
     font-size: 0.875rem;
     outline: none;
+
+    @media (max-width: 640px) {
+      font-size: 1rem;
+    }
 
     &::placeholder {
       color: var(--text-muted);
@@ -210,21 +264,71 @@
 // Filter Dropdowns
 // =============================================================================
 
-.status-filter,
-.customer-filter {
-  padding: 8px 14px;
-  background: var(--color-surface-glass);
-  border: var(--border-glass);
-  border-radius: 8px;
-  color: var(--text-secondary);
-  font-family: 'Sora', sans-serif;
-  font-weight: 500;
-  font-size: 0.84rem;
-  cursor: pointer;
+:host ::ng-deep {
+  .status-filter,
+  .customer-filter {
+    .custom-select-trigger {
+      height: 40px;
+      min-height: 40px;
+      padding: 8px 12px;
+      background: var(--color-surface-glass);
+      border: var(--border-glass);
+      border-radius: 8px;
+      color: var(--text-primary);
+      font-family: var(--font-body);
+      font-weight: 500;
+      font-size: 0.85rem;
+      transition: all 0.2s ease;
 
-  &:focus {
-    outline: none;
-    border: var(--border-glass-active);
+      &:hover:not(:disabled) {
+        border-color: var(--border-glass-active);
+        color: var(--text-primary);
+        background: var(--color-surface-glass-hover, rgba(255, 255, 255, 0.08));
+      }
+
+      &:focus,
+      &:focus-visible {
+        outline: none;
+        border-color: var(--border-glass-active);
+        box-shadow: var(--shadow-glow-focus);
+      }
+
+      @media (max-width: 640px) {
+        font-size: 0.84rem;
+        padding: 8px 12px;
+      }
+    }
+
+    &.open .custom-select-trigger {
+      border-color: var(--border-glass-active);
+      box-shadow: var(--shadow-glow-focus);
+    }
+
+    .custom-select-dropdown {
+      z-index: 1200;
+      background: var(--surface-card, #ffffff);
+      border: var(--border-glass);
+      border-radius: var(--radius-control);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+    }
+
+    .dropdown-option-item {
+      font-family: var(--font-body);
+      font-size: 0.84rem;
+      color: var(--text-primary);
+
+      &:hover,
+      &:focus-visible {
+        background-color: var(--color-surface-glass-hover, rgba(255, 255, 255, 0.08));
+        color: var(--brand-primary);
+      }
+
+      &.selected {
+        background-color: var(--brand-primary-100);
+        color: var(--brand-primary);
+        font-weight: 600;
+      }
+    }
   }
 }
 
@@ -234,15 +338,16 @@
 
 .projects-list-container {
   overflow-x: auto;
-  border-radius: 12px;
-  border: var(--border-glass);
-  background: var(--color-surface-glass);
+  -webkit-overflow-scrolling: touch;
+  border-radius: 16px;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-card);
 }
 
 .projects-list {
   display: flex;
   flex-direction: column;
-  min-width: 100%;
+  min-width: 720px;
 }
 
 .list-header {
@@ -250,10 +355,10 @@
   grid-template-columns: 2fr 1.2fr 0.8fr 1fr 1.2fr 0.7fr;
   gap: 16px;
   padding: 16px 20px;
-  background: rgba(255, 255, 255, 0.02);
-  border-bottom: var(--border-glass);
-  font-family: 'Sora', sans-serif;
-  font-weight: 600;
+  background: var(--surface-card);
+  border-bottom: 2px solid var(--border-default);
+  font-family: 'Inter', sans-serif;
+  font-weight: 700;
   font-size: 0.75rem;
   color: var(--text-secondary);
   text-transform: uppercase;
@@ -275,9 +380,13 @@
   gap: 16px;
   padding: 16px 20px;
   align-items: center;
-  border-bottom: var(--border-glass);
-  background: transparent;
-  transition: all 0.2s ease;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface-card);
+  color: var(--text-primary);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.875rem;
+  font-weight: 400;
+  transition: all 0.15s ease;
   cursor: pointer;
   outline: none;
 
@@ -288,7 +397,7 @@
   }
 
   &:hover {
-    background: var(--color-surface-glass-hover);
+    background: var(--surface-muted);
   }
 
   &:focus {
@@ -308,7 +417,7 @@
     display: flex;
     align-items: center;
     min-width: 0;
-    font-family: 'Sora', sans-serif;
+    font-family: var(--font-body);
     font-size: 0.875rem;
     color: var(--text-primary);
 
@@ -468,7 +577,7 @@
 
   h3 {
     margin: 0;
-    font-family: 'Sora', sans-serif;
+    font-family: var(--font-body);
     color: var(--text-primary);
     font-size: 1.1rem;
     font-weight: 600;
@@ -480,3 +589,12 @@
     font-size: 0.9rem;
   }
 }
+
+.results-summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 32px; color: var(--text-secondary); font-size: 12px; }
+.reset-filters { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid var(--border-default); border-radius: 6px; background: var(--surface-card); color: var(--text-heading); font: inherit; cursor: pointer; }
+.reset-filters:hover { background: var(--surface-muted); }
+.reset-filters .material-symbols-outlined { font-size: 16px; }
+
+.list-item { cursor: default; }
+a.project-name { color: var(--text-heading); text-decoration: none; }
+a.project-name:hover { color: var(--brand-primary); text-decoration: underline; }

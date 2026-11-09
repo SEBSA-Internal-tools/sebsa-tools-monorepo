@@ -6,6 +6,7 @@ import {
   IsEnum,
   IsOptional,
   IsString,
+  IsUUID,
   MinLength,
   ValidateIf,
 } from 'class-validator';
@@ -51,12 +52,7 @@ export class CreateProjectDto {
   @IsBoolean()
   isCsoProject?: boolean;
 
-  @ApiPropertyOptional({
-    minLength: 1,
-    description: 'Required when isCsoProject is true.',
-  })
-  @ValidateIf((dto: CreateProjectDto) => dto.isCsoProject === true)
-  @IsString()
-  @MinLength(1)
-  customerName?: string;
+  @ApiProperty({ format: 'uuid', description: 'Every project belongs to exactly one customer.' })
+  @IsUUID()
+  customerId!: string;
 }
