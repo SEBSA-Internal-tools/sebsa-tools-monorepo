@@ -13,10 +13,13 @@ import {
 } from '@sebsa-pm-tool/shared-models';
 import { ActivityAction, EntityType, Prisma, SprintStatus, TaskCategory } from '@prisma/client';
 import { CreateCaseDto } from './dto/create-case.dto';
+import { CloneCaseDto } from './dto/clone-case.dto';
+import { mapForTargetProject } from '../common/clone-mapping';
 import { UpdateCaseDto } from './dto/update-case.dto';
 import { FilterCaseDto } from './dto/filter-case.dto';
 import { ActivityLogsService } from '../activity-logs/activity-logs.service';
 import { NotificationService } from '../notifications/notification.service';
+import { changesOnlyAssignees } from '../common/assignee-only-change';
 import { ProjectAccessService } from '../common/project-access.service';
 
 const ADMIN_SYSTEM_ROLES: AuthUser['systemRole'][] = ['ADMIN', 'SUPER_ADMIN'];
@@ -80,6 +83,7 @@ export class CaseService {
 
     await this.assertSprintBelongsToProject(dto.sprintId, dto.projectId);
     await this.assertMilestoneBelongsToProject(dto.milestoneId, dto.projectId);
+    await this.access.assertCanSetAssignees(dto.projectId, user, dto.assigneeIds ?? []);
     await this.assertAssigneesValid(dto.assigneeIds, dto.projectId);
     await this.assertLabelsValid(dto.labelIds, dto.projectId);
     this.assertDatesValid(dto.startDate, dto.dueDate);
@@ -171,6 +175,146 @@ export class CaseService {
     return this.findOne(created.id, user);
   }
 
+  /**
+   * Copy a case (typically a closed one) as a fresh case: new id, status reset
+   * to To Do, title as given (defaults to the original's). It can go to the
+   * same project or another one the user can create cases in. Sprint is never
+   * carried over, and the milestone only within the same project. Goes through
+   * `create()` so permissions, validation, status history and the activity log
+   * behave as for a hand-made case. With `includeTasks`, the case's tasks are
+   * copied too, reset to To Do. `notes` lists anything that could not be
+   * carried over.
+   */
+  async clone(
+    id: string,
+    dto: CloneCaseDto,
+    user: AuthUser,
+  ): Promise<{ item: Case; notes: string[] }> {
+    const source = await this.prisma.case.findFirst({
+      where: { id, deletedAt: null },
+      include: {
+        assignees: { select: { userId: true } },
+        labels: { select: { labelId: true } },
+        tasks: {
+          where: { deletedAt: null },
+          orderBy: { createdAt: 'asc' },
+          include: {
+            assignees: { select: { userId: true } },
+            labels: { select: { labelId: true } },
+          },
+        },
+      },
+    });
+    if (!source) {
+      throw new NotFoundException('Case not found.');
+    }
+    await this.access.assertVisible(source.projectId, user);
+
+    const targetProjectId = dto.projectId ?? source.projectId;
+    const sameProject = targetProjectId === source.projectId;
+    const category = dto.category ?? source.category ?? undefined;
+
+    const mapped = await mapForTargetProject(this.prisma, source.projectId, targetProjectId, {
+      priorityId: source.priorityId,
+      assigneeIds: source.assignees.map((a) => a.userId),
+      labelIds: source.labels.map((l) => l.labelId),
+    });
+    const notes = [...mapped.notes];
+    if (source.sprintId) notes.push('Sprint was not copied.');
+    if (source.milestoneId && !sameProject) notes.push('Milestone was not copied (different project).');
+
+    const copy = await this.create(
+      {
+        projectId: targetProjectId,
+        title: dto.title ?? source.title,
+        description: source.description ?? undefined,
+        type: source.type,
+        status: 'TO_DO',
+        priorityId: mapped.priorityId,
+        milestoneId: sameProject ? (source.milestoneId ?? undefined) : undefined,
+        startDate: source.startDate?.toISOString(),
+        dueDate: source.dueDate?.toISOString(),
+        storyPoints: source.storyPoints ?? undefined,
+        category,
+        assigneeIds: mapped.assigneeIds,
+        labelIds: mapped.labelIds,
+      },
+      user,
+    );
+
+    if (dto.includeTasks && source.tasks.length > 0) {
+      await this.access.assertCan(targetProjectId, user, 'canCreateTask');
+      const targetIsCso = await this.getProjectIsCso(targetProjectId);
+      const defaultPriorityId = await this.resolveDefaultPriorityId(targetProjectId);
+
+      const taskRows = [];
+      for (const t of source.tasks) {
+        const taskMapped = await mapForTargetProject(this.prisma, source.projectId, targetProjectId, {
+          priorityId: t.priorityId,
+          assigneeIds: t.assignees.map((a) => a.userId),
+          labelIds: t.labels.map((l) => l.labelId),
+        });
+        taskRows.push({ task: t, mapped: taskMapped });
+      }
+      const droppedTaskRefs = taskRows.filter((r) => r.mapped.notes.length > 0).length;
+      if (droppedTaskRefs > 0) {
+        notes.push(
+          `${droppedTaskRefs} copied task${droppedTaskRefs === 1 ? '' : 's'} lost a priority, assignee or label that does not exist in the target project.`,
+        );
+      }
+
+      await this.prisma.$transaction(async (tx) => {
+        for (const { task: t, mapped: m } of taskRows) {
+          const created = await tx.task.create({
+            data: {
+              title: t.title,
+              description: t.description,
+              status: 'TO_DO',
+              startDate: t.startDate,
+              dueDate: t.dueDate,
+              storyPoints: t.storyPoints,
+              reminderLeadMinutes: t.reminderLeadMinutes,
+              // A task on a CSO case must carry a category; fall back to the
+              // case's own.
+              category: t.category ?? (targetIsCso ? category : undefined) ?? null,
+              case: { connect: { id: copy.id } },
+              priority: { connect: { id: m.priorityId ?? defaultPriorityId } },
+              createdBy: { connect: { id: user.id } },
+              ...(t.taskTypeId && { taskType: { connect: { id: t.taskTypeId } } }),
+              ...(t.complexityLevelId && {
+                complexityLevel: { connect: { id: t.complexityLevelId } },
+              }),
+              ...(m.assigneeIds.length && {
+                assignees: { createMany: { data: m.assigneeIds.map((userId) => ({ userId })) } },
+              }),
+              ...(m.labelIds.length && {
+                labels: { createMany: { data: m.labelIds.map((labelId) => ({ labelId })) } },
+              }),
+            },
+          });
+          await tx.taskStatusHistory.create({
+            data: { taskId: created.id, fromStatus: null, toStatus: 'TO_DO', changedById: user.id },
+          });
+          await this.activityLogs.record(
+            {
+              projectId: targetProjectId,
+              entityType: EntityType.TASK,
+              entityId: created.id,
+              entityLabel: created.title,
+              action: ActivityAction.CREATED,
+              actorId: user.id,
+              description: `Created task "${created.title}" (copied from case "${source.title}")`,
+            },
+            tx,
+          );
+        }
+      });
+      return { item: await this.findOne(copy.id, user), notes };
+    }
+
+    return { item: copy, notes };
+  }
+
   async findAll(filter: FilterCaseDto, user: AuthUser): Promise<CaseSummary[]> {
     const where = await this.buildScopedWhere(filter, user);
 
@@ -209,7 +353,12 @@ export class CaseService {
 
   async update(id: string, dto: UpdateCaseDto, user: AuthUser): Promise<Case> {
     const existing = await this.getCaseOrThrow(id);
-    await this.access.assertCan(existing.projectId, user, 'canEditCase');
+    // Changing only the assignee list is gated by the assignment rules (which
+    // let any member claim work for themselves), not by the edit grant.
+    const assigneesOnly = changesOnlyAssignees(dto, existing);
+    if (!assigneesOnly) {
+      await this.access.assertCan(existing.projectId, user, 'canEditCase');
+    }
 
     if (dto.sprintId) {
       await this.assertSprintBelongsToProject(dto.sprintId, existing.projectId);
@@ -218,6 +367,10 @@ export class CaseService {
       await this.assertMilestoneBelongsToProject(dto.milestoneId, existing.projectId);
     }
     if (dto.assigneeIds) {
+      const currentIds = await this.prisma.caseAssignee
+        .findMany({ where: { caseId: id }, select: { userId: true } })
+        .then((rows) => rows.map((r) => r.userId));
+      await this.access.assertCanSetAssignees(existing.projectId, user, dto.assigneeIds, currentIds, 'canEditCase');
       await this.assertAssigneesValid(dto.assigneeIds, existing.projectId);
     }
     if (dto.labelIds) {
@@ -512,7 +665,7 @@ export class CaseService {
 
   async assignUsers(caseId: string, assigneeIds: string[], user: AuthUser): Promise<Case> {
     const kase = await this.getCaseOrThrow(caseId);
-    await this.access.assertCan(kase.projectId, user, 'canEditCase');
+    await this.access.assertCanAssign(kase.projectId, user, assigneeIds, 'canEditCase');
     await this.assertAssigneesValid(assigneeIds, kase.projectId);
 
     const existingAssignees = await this.prisma.caseAssignee
@@ -566,7 +719,7 @@ export class CaseService {
 
   async unassignUser(caseId: string, userId: string, user: AuthUser): Promise<Case> {
     const kase = await this.getCaseOrThrow(caseId);
-    await this.access.assertCan(kase.projectId, user, 'canEditCase');
+    await this.access.assertCanAssign(kase.projectId, user, [userId], 'canEditCase');
 
     const removed = await this.prisma.user.findUnique({
       where: { id: userId },

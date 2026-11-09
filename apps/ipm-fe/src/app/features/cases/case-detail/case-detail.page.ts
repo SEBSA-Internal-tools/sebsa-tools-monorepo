@@ -9,6 +9,7 @@ import type {
   Case,
   CaseStatus,
   CreateTaskRequest,
+  ProjectPermissions,
   TaskCategory,
   UpdateCaseRequest,
 } from '@sebsa-pm-tool/shared-models';
@@ -22,6 +23,7 @@ import { TaskAttachmentsComponent } from '../../../core/components/task-attachme
 import { CustomSelectComponent } from '../../../core/components/custom-select/custom-select.component';
 import { CustomDatepickerComponent } from '../../../core/components/custom-datepicker/custom-datepicker.component';
 import { ToastService } from '../../../core/services/toast.service';
+import { CopyDialogComponent, type CopyRequest } from '../../../core/components/copy-dialog/copy-dialog.component';
 import { ConfirmationService } from '../../../core/services/confirmation.service';
 
 interface CaseEditDraft {
@@ -48,6 +50,7 @@ interface CaseEditDraft {
     TaskAttachmentsComponent,
     CustomSelectComponent,
     CustomDatepickerComponent,
+    CopyDialogComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './case-detail.page.html',
@@ -68,6 +71,9 @@ export class CaseDetailPageComponent implements OnInit {
   isLoading = signal(false);
   isSaving = signal(false);
   isUpdatingStatus = signal(false);
+  isCloning = signal(false);
+  isCopyDialogOpen = signal(false);
+  copyError = signal('');
   errorMessage = signal('');
   isAddTaskModalOpen = signal(false);
 
@@ -175,6 +181,7 @@ export class CaseDetailPageComponent implements OnInit {
         this.populateDraft(kase);
         this.isLoading.set(false);
         this.tasksService.loadTasksByCase(caseId);
+        this.loadProjectPermissions(kase.projectId);
         this.loadPriorities(kase.projectId);
         this.loadAssignees(kase.projectId);
         this.cdr.markForCheck();
@@ -185,6 +192,17 @@ export class CaseDetailPageComponent implements OnInit {
         this.isLoading.set(false);
         this.cdr.markForCheck();
       },
+    });
+  }
+
+  /** What the current user may do in this case's project; actions they
+   * cannot perform (copy, delete) stay hidden until this resolves. */
+  readonly projectPermissions = signal<ProjectPermissions | null>(null);
+
+  private loadProjectPermissions(projectId: string): void {
+    this.projectsService.getProject(projectId).subscribe({
+      next: (project) => this.projectPermissions.set(project.permissions),
+      error: () => this.projectPermissions.set(null),
     });
   }
 
@@ -202,7 +220,7 @@ export class CaseDetailPageComponent implements OnInit {
   }
 
   private loadAssignees(projectId: string): void {
-    this.projectsService.getMembers(projectId).subscribe({
+    this.projectsService.getAssignableMembers(projectId).subscribe({
       next: (members) => {
         const userList: Array<{ id: string; name: string }> = members.map((m) => ({ id: m.user.id, name: m.user.name }));
         this.projectMembers.set([...userList]);
@@ -236,6 +254,13 @@ export class CaseDetailPageComponent implements OnInit {
     this.location.back();
   }
 
+  /** Snapshot of every draft field except the assignee, taken when the draft
+   * is populated. If it is unchanged at save time, only the assignee moved. */
+  private baselineKey = '';
+  private nonAssigneeKey(): string {
+    return JSON.stringify({ ...this.draft, assigneeId: null });
+  }
+
   private populateDraft(kase: Case): void {
     this.draft = {
       title: kase.title,
@@ -247,6 +272,7 @@ export class CaseDetailPageComponent implements OnInit {
       category: kase.category ?? '',
       assigneeId: kase.assignees[0]?.id ?? '',
     };
+    this.baselineKey = this.nonAssigneeKey();
     if (kase.assignees && kase.assignees.length > 0) {
       const current = this.availableAssignees();
       const merged = [...current];
@@ -313,7 +339,12 @@ export class CaseDetailPageComponent implements OnInit {
     this.isSaving.set(true);
     this.errorMessage.set('');
 
-    const dto: UpdateCaseRequest = {
+    // Only the assignee changed: send just that, so claiming a case (e.g. from
+    // the queue) does not need the edit-case permission.
+    const onlyAssigneeChanged = this.nonAssigneeKey() === this.baselineKey;
+    const dto: UpdateCaseRequest = onlyAssigneeChanged
+      ? { assigneeIds: this.draft.assigneeId ? [this.draft.assigneeId] : [] }
+      : {
       title: this.draft.title,
       description: this.draft.description || undefined,
       priorityId: this.draft.priorityId || undefined,
@@ -344,6 +375,46 @@ export class CaseDetailPageComponent implements OnInit {
         this.isSaving.set(false);
       },
     });
+  }
+
+  openCopyDialog(): void {
+    this.copyError.set('');
+    this.isCopyDialogOpen.set(true);
+  }
+
+  closeCopyDialog(): void {
+    if (this.isCloning()) return;
+    this.isCopyDialogOpen.set(false);
+  }
+
+  /** Creates the copy the user confirmed in the dialog and opens it. */
+  confirmCopy(request: CopyRequest): void {
+    const current = this.kase();
+    if (!current || this.isCloning()) return;
+
+    this.isCloning.set(true);
+    this.copyError.set('');
+    this.casesService
+      .cloneCase(current.id, {
+        title: request.title,
+        projectId: request.projectId,
+        includeTasks: request.includeTasks,
+        category: request.category,
+      })
+      .subscribe({
+        next: ({ item, notes }) => {
+          this.isCloning.set(false);
+          this.isCopyDialogOpen.set(false);
+          this.isDirty.set(false);
+          this.toast.success(`Copied as "${item.title}".`);
+          if (notes.length) this.toast.warning(notes.join(' '), 10000);
+          this.router.navigate(['/cases', item.id]);
+        },
+        error: (err) => {
+          this.copyError.set(err?.error?.message || 'Failed to copy case.');
+          this.isCloning.set(false);
+        },
+      });
   }
 
   async deleteCase(): Promise<void> {

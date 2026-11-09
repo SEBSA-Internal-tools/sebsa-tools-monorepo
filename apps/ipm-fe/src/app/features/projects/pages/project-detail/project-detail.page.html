@@ -14,6 +14,8 @@
     <!-- Navigation Tabs -->
     <project-nav-tabs
       [activeTab]="activeTab"
+      [canManage]="canManage()"
+      [canCreateCase]="project.permissions.canCreateCase"
       (tabChange)="onTabChange($event)"
       (addTaskClick)="onAddTaskClick()"
     ></project-nav-tabs>
@@ -65,7 +67,7 @@
           <project-sprint [projectId]="project.id"></project-sprint>
         }
         @case ('team') {
-          <project-team [projectId]="project.id"></project-team>
+          <project-team [projectId]="project.id" [canManage]="canManage()"></project-team>
         }
         @case ('integrations') {
           <project-integrations [projectId]="project.id"></project-integrations>

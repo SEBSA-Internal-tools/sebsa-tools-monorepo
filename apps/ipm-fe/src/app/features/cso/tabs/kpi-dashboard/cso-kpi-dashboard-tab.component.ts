@@ -352,6 +352,7 @@ export class CsoKpiDashboardTabComponent implements OnInit {
 
   // ─── Actions ──────────────────────────────────────────────────────────────
   setActiveTab(tab: DashboardTab): void {
+    if (tab === 'management' && !this.isManagementAllowed()) return;
     this.activeTab.set(tab);
   }
 

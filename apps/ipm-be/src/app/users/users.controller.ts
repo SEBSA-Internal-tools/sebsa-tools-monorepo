@@ -57,7 +57,7 @@ export class UsersController {
     }),
   )
   @ApiConsumes('multipart/form-data')
-  @ApiOperation({ summary: 'Upload a profile picture, stored in Vercel Blob' })
+  @ApiOperation({ summary: 'Upload a profile picture, stored on local disk' })
   uploadAvatar(
     @CurrentUser() user: AuthUser,
     @UploadedFile() file: Multer.File,

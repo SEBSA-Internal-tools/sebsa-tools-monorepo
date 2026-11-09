@@ -24,6 +24,7 @@ import {
   CsoTaskView,
 } from '../../../../core/services/cso-overview.service';
 import { ProjectsService } from '../../../projects/services/projects.service';
+import { CaseCreationAccessService } from '../../../../core/services/case-creation-access.service';
 import { UserAdminService } from '../../../../core/services/user-admin.service';
 import { CasesService } from '../../../../core/services/cases.service';
 import {
@@ -56,6 +57,7 @@ interface CsoSubtaskView extends Subtask {
 })
 export class CsoOverviewTabComponent implements OnInit {
   private readonly csoOverviewService = inject(CsoOverviewService);
+  protected readonly caseAccess = inject(CaseCreationAccessService);
   private readonly projectsService = inject(ProjectsService);
   private readonly userAdminService = inject(UserAdminService);
   private readonly casesService = inject(CasesService);
@@ -154,6 +156,7 @@ export class CsoOverviewTabComponent implements OnInit {
   });
 
   ngOnInit(): void {
+    this.caseAccess.ensureLoaded();
     this.projectsService.getProjects().subscribe({
       next: (p) => {
         this.availableProjects.set(p);

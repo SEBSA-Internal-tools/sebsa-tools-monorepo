@@ -40,6 +40,7 @@ export class SubtaskService {
   async create(taskId: string, dto: CreateSubtaskDto, user: AuthUser): Promise<Subtask> {
     const task = await this.getTaskOrThrow(taskId);
     await this.access.assertCan(task.case.projectId, user, 'canCreateTask');
+    await this.access.assertCanSetAssignees(task.case.projectId, user, dto.assigneeIds ?? []);
     await this.assertAssigneesValid(dto.assigneeIds, task.case.projectId);
     await this.assertSubtaskTypeValid(dto.subtaskTypeId);
 
@@ -102,6 +103,12 @@ export class SubtaskService {
     await this.access.assertCan(existing.task.case.projectId, user, 'canEditTask');
 
     if (dto.assigneeIds) {
+      await this.access.assertCanSetAssignees(
+        existing.task.case.projectId,
+        user,
+        dto.assigneeIds,
+        existing.assignees.map((a) => a.user.id),
+      );
       await this.assertAssigneesValid(dto.assigneeIds, existing.task.case.projectId);
     }
     if (dto.subtaskTypeId !== undefined) {
@@ -232,7 +239,7 @@ export class SubtaskService {
 
   async assignUsers(id: string, assigneeIds: string[], user: AuthUser): Promise<Subtask> {
     const existing = await this.getSubtaskDetailOrThrow(id);
-    await this.access.assertCan(existing.task.case.projectId, user, 'canEditTask');
+    await this.access.assertCanAssign(existing.task.case.projectId, user, assigneeIds, 'canEditTask');
     await this.assertAssigneesValid(assigneeIds, existing.task.case.projectId);
 
     const existingAssigneeIds = existing.assignees.map((a) => a.user.id);
@@ -282,7 +289,7 @@ export class SubtaskService {
 
   async unassignUser(id: string, userId: string, user: AuthUser): Promise<Subtask> {
     const existing = await this.getSubtaskDetailOrThrow(id);
-    await this.access.assertCan(existing.task.case.projectId, user, 'canEditTask');
+    await this.access.assertCanAssign(existing.task.case.projectId, user, [userId], 'canEditTask');
 
     const removedName = existing.assignees.find((a) => a.user.id === userId)?.user.name;
     const previousAssignees = existing.assignees.map((a) => a.user.name);

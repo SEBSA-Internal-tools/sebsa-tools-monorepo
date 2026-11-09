@@ -14,6 +14,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CaseService } from './case.service';
 import { CreateCaseDto } from './dto/create-case.dto';
 import { UpdateCaseDto } from './dto/update-case.dto';
+import { CloneCaseDto } from './dto/clone-case.dto';
 import { AuthUser } from '@sebsa-pm-tool/shared-models';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
@@ -55,6 +56,15 @@ export class CaseController {
     @CurrentUser() user: AuthUser,
   ) {
     return this.caseService.update(id, dto, user);
+  }
+
+  @Post(':id/clone')
+  async clone(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CloneCaseDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.caseService.clone(id, dto, user);
   }
 
   @Delete(':id')

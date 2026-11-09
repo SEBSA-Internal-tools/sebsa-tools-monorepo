@@ -31,6 +31,8 @@ import type { PrivilegeGroup, ProjectMemberSummary, ProjectRole } from '@sebsa-p
 export class ProjectTeamComponent implements OnInit {
   private readonly confirmation = inject(ConfirmationService);
   @Input() projectId!: string;
+  /** False = read-only: no add, remove, or role changes. */
+  @Input() canManage = false;
 
   private readonly projectsService = inject(ProjectsService);
   private readonly privilegeGroupsService = inject(PrivilegeGroupsService);

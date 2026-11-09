@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { AuthService } from '../../core/services/auth.service';
 import { CsoKpiDashboardTabComponent } from './tabs/kpi-dashboard/cso-kpi-dashboard-tab.component';
 import { CsoDashboardTabComponent } from './tabs/dashboard/cso-dashboard-tab.component';
 import { CsoOverviewTabComponent } from './tabs/overview/cso-overview-tab.component';
@@ -29,7 +30,15 @@ export class CsoPageComponent {
   /** Sub-tab within the Queue tab. */
   protected activeQueueTab: 'functional' | 'technical' = 'functional';
 
+  private readonly auth = inject(AuthService);
+
+  /** Mirrors who can manage the lists (see ConfigurationPanelComponent.canEdit). */
+  protected get canViewConfiguration(): boolean {
+    return this.auth.currentUser()?.systemRole === 'SUPER_ADMIN';
+  }
+
   onTabChange(tab: typeof this.activeTab): void {
+    if (tab === 'configuration' && !this.canViewConfiguration) return;
     this.activeTab = tab;
   }
 

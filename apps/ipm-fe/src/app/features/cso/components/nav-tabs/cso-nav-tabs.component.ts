@@ -101,13 +101,20 @@ export class CsoNavTabsComponent {
   @Input() activeTab: TabType = 'dashboard';
   @Output() tabChange = new EventEmitter<TabType>();
 
-  tabs: Tab[] = [
+  /** The Configuration tab is only shown to users who may manage it. */
+  @Input() showConfiguration = false;
+
+  private readonly allTabs: Tab[] = [
     { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
     { id: 'cso-board', label: 'CSO Board', icon: 'business' },
     { id: 'overview', label: 'Overview', icon: 'view_list' },
     { id: 'queue', label: 'Queue', icon: 'inbox' },
     { id: 'configuration', label: 'Configuration', icon: 'tune' },
   ];
+
+  get tabs(): Tab[] {
+    return this.allTabs.filter((t) => t.id !== 'configuration' || this.showConfiguration);
+  }
 
   onTabClick(tab: TabType): void {
     this.tabChange.emit(tab);

@@ -13,13 +13,15 @@
         }
       </div>
 
-      <button
-        type="button"
-        class="btn-add-task"
-        (click)="onAddTaskClick()"
-        title="Create new case"
-      >
-        <span class="material-symbols-outlined">add</span>
-        <span class="btn-label">New case</span>
-      </button>
+      @if (canCreateCase) {
+        <button
+          type="button"
+          class="btn-add-task"
+          (click)="onAddTaskClick()"
+          title="Create new case"
+        >
+          <span class="material-symbols-outlined">add</span>
+          <span class="btn-label">New case</span>
+        </button>
+      }
     </nav>

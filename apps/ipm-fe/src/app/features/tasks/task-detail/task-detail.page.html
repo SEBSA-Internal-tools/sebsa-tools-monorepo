@@ -29,6 +29,18 @@
         {{ isSaving() ? 'Saving…' : 'Save Changes' }}
       </button>
     }
+    @if (projectPermissions()?.canCreateTask) {
+    <button
+      type="button"
+      class="discard-btn"
+      (click)="openCopyDialog()" [disabled]="isSaving() || isUpdatingStatus() || isCloning()"
+      title="Copy this task, optionally under another case or project"
+    >
+      <span class="material-symbols-outlined">content_copy</span>
+      Copy
+    </button>
+    }
+    @if (projectPermissions()?.canDeleteTask) {
     <button
       type="button"
       class="delete-btn"
@@ -37,6 +49,7 @@
       <span class="material-symbols-outlined">delete</span>
       Delete
     </button>
+    }
   </div>
 }
   </div>
@@ -229,6 +242,7 @@
                   >
                     <span class="material-symbols-outlined">edit</span>
                   </button>
+                  @if (projectPermissions()?.canDeleteTask) {
                   <button
                     type="button"
                     class="subtask-action-btn delete"
@@ -238,6 +252,7 @@
                   >
                     <span class="material-symbols-outlined">delete</span>
                   </button>
+                  }
                 </div>
               </div>
             }
@@ -495,5 +510,20 @@
     (closed)="closeSubtaskModal()"
     (submitted)="onSubmitSubtask($event)"
   ></app-create-subtask-modal>
+}
+
+@if (task(); as current) {
+  <app-copy-dialog
+    [isOpen]="isCopyDialogOpen()"
+    kind="task"
+    [sourceTitle]="current.title"
+    [sourceProjectId]="current.case.projectId"
+    [sourceCaseId]="current.caseId"
+    [sourceCategory]="current.category"
+    [isBusy]="isCloning()"
+    [errorMessage]="copyError()"
+    (closed)="closeCopyDialog()"
+    (confirmed)="confirmCopy($event)"
+  ></app-copy-dialog>
 }
 </section>

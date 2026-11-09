@@ -27,7 +27,7 @@ import {
   CreateProjectModalComponent,
   type ProjectFormData,
 } from '../../components/modals/create-project/create-project-modal.component';
-import type { CreateCaseRequest, Project } from '@sebsa-pm-tool/shared-models';
+import type { CreateCaseRequest, Project, ProjectMemberSummary } from '@sebsa-pm-tool/shared-models';
 
 @Component({
   standalone: true,
@@ -61,6 +61,17 @@ export class ProjectDetailPageComponent implements OnInit {
   private toastService = inject(ToastService);
 
   readonly project = signal<Project | null>(null);
+  readonly members = signal<ProjectMemberSummary[]>([]);
+  /** System admins, or a project role whose group can manage members. Gates
+   * the Activity/Integrations tabs and editing on the Team tab. */
+  readonly canManage = computed(() => {
+    const me = this.authService.currentUser();
+    if (!me) return false;
+    if (me.systemRole === 'ADMIN' || me.systemRole === 'SUPER_ADMIN') return true;
+    return this.members().some(
+      (m) => m.userId === me.id && m.role.privilegeGroup.canManageMembers,
+    );
+  });
   readonly isLoading = signal(false);
   readonly errorMessage = signal('');
   readonly initialCaseDueDate = signal<string>('');
@@ -153,6 +164,10 @@ export class ProjectDetailPageComponent implements OnInit {
     this.projectsService.getProject(projectId).subscribe({
       next: (project) => {
         this.project.set(project);
+        this.projectsService.getMembers(project.id).subscribe({
+          next: (members) => this.members.set(members),
+          error: () => this.members.set([]),
+        });
         this.casesService.loadCases(project.id);
         this.tasksService.loadTasksByProject(project.id);
         this.isLoading.set(false);
@@ -165,6 +180,7 @@ export class ProjectDetailPageComponent implements OnInit {
   }
 
   onTabChange(tab: typeof this.activeTab): void {
+    if ((tab === 'activity' || tab === 'integrations') && !this.canManage()) return;
     this.activeTab = tab;
     const p = this.project();
     if (p) {
@@ -195,6 +211,7 @@ export class ProjectDetailPageComponent implements OnInit {
   }
 
   onCreateForDate(date: Date): void {
+    if (!this.project()?.permissions.canCreateCase) return;
     const y = date.getFullYear();
     const m = String(date.getMonth() + 1).padStart(2, '0');
     const d = String(date.getDate()).padStart(2, '0');

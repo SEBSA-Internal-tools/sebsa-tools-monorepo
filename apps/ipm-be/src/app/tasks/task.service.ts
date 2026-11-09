@@ -16,11 +16,14 @@ import {
 } from '@sebsa-pm-tool/shared-models';
 import { ActivityAction, EntityType, Prisma, TaskCategory } from '@prisma/client';
 import { CreateTaskDto } from './dto/create-task.dto';
+import { CloneTaskDto } from './dto/clone-task.dto';
+import { mapForTargetProject } from '../common/clone-mapping';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { FilterTaskDto } from './dto/filter-task.dto';
 import { CreateTaskDependencyDto } from './dto/create-task-dependency.dto';
 import { ActivityLogsService } from '../activity-logs/activity-logs.service';
 import { NotificationService } from '../notifications/notification.service';
+import { changesOnlyAssignees } from '../common/assignee-only-change';
 import { ProjectAccessService } from '../common/project-access.service';
 
 const ADMIN_SYSTEM_ROLES: AuthUser['systemRole'][] = ['ADMIN', 'SUPER_ADMIN'];
@@ -92,6 +95,7 @@ export class TaskService {
 
     const priorityId = dto.priorityId ?? (await this.resolveDefaultPriorityId(kase.projectId));
 
+    await this.access.assertCanSetAssignees(kase.projectId, user, dto.assigneeIds ?? []);
     await this.assertAssigneesValid(dto.assigneeIds, kase.projectId);
     await this.assertLabelsValid(dto.labelIds, kase.projectId);
     this.assertDatesValid(dto.startDate, dto.dueDate);
@@ -163,6 +167,69 @@ export class TaskService {
     }
 
     return this.findOne(created.id, user);
+  }
+
+  /**
+   * Copy a task (typically one that was closed) as a fresh task: new id,
+   * status reset to To Do, title as given (defaults to the original's). It can
+   * go under the same case or any case (including in another project) the
+   * user can create tasks in. Goes through `create()` so permissions,
+   * validation, status history and the activity log behave exactly as for a
+   * hand-made task. `notes` lists anything that could not be carried over.
+   */
+  async clone(
+    id: string,
+    dto: CloneTaskDto,
+    user: AuthUser,
+  ): Promise<{ item: Task; notes: string[] }> {
+    const source = await this.prisma.task.findFirst({
+      where: { id, deletedAt: null },
+      include: {
+        case: { select: { projectId: true } },
+        assignees: { select: { userId: true } },
+        labels: { select: { labelId: true } },
+      },
+    });
+    if (!source) {
+      throw new NotFoundException('Task not found.');
+    }
+    await this.access.assertVisible(source.case.projectId, user);
+
+    const targetCaseId = dto.caseId ?? source.caseId;
+    const targetCase = await this.getCaseOrThrow(targetCaseId);
+
+    const mapped = await mapForTargetProject(
+      this.prisma,
+      source.case.projectId,
+      targetCase.projectId,
+      {
+        priorityId: source.priorityId,
+        assigneeIds: source.assignees.map((a) => a.userId),
+        labelIds: source.labels.map((l) => l.labelId),
+      },
+    );
+
+    const item = await this.create(
+      {
+        caseId: targetCaseId,
+        title: dto.title ?? source.title,
+        description: source.description ?? undefined,
+        status: 'TO_DO',
+        priorityId: mapped.priorityId,
+        startDate: source.startDate?.toISOString(),
+        dueDate: source.dueDate?.toISOString(),
+        storyPoints: source.storyPoints ?? undefined,
+        reminderLeadMinutes: source.reminderLeadMinutes ?? undefined,
+        category: dto.category ?? source.category ?? undefined,
+        taskTypeId: source.taskTypeId ?? undefined,
+        complexityLevelId: source.complexityLevelId ?? undefined,
+        assigneeIds: mapped.assigneeIds,
+        labelIds: mapped.labelIds,
+      },
+      user,
+    );
+
+    return { item, notes: mapped.notes };
   }
 
   async findAll(filter: FilterTaskDto, user: AuthUser): Promise<TaskSummary[]> {
@@ -253,9 +320,18 @@ export class TaskService {
 
   async update(id: string, dto: UpdateTaskDto, user: AuthUser): Promise<UpdateTaskResponse> {
     const existing = await this.getTaskWithProjectOrThrow(id);
-    await this.access.assertCan(existing.case.projectId, user, 'canEditTask');
+    // Changing only the assignee list is gated by the assignment rules (which
+    // let any member claim work for themselves), not by the edit grant.
+    const assigneesOnly = changesOnlyAssignees(dto, existing);
+    if (!assigneesOnly) {
+      await this.access.assertCan(existing.case.projectId, user, 'canEditTask');
+    }
 
     if (dto.assigneeIds) {
+      const currentIds = await this.prisma.taskAssignee
+        .findMany({ where: { taskId: id }, select: { userId: true } })
+        .then((rows) => rows.map((r) => r.userId));
+      await this.access.assertCanSetAssignees(existing.case.projectId, user, dto.assigneeIds, currentIds, 'canEditTask');
       await this.assertAssigneesValid(dto.assigneeIds, existing.case.projectId);
     }
     if (dto.labelIds) {
@@ -473,7 +549,7 @@ export class TaskService {
 
   async assignUsers(taskId: string, assigneeIds: string[], user: AuthUser): Promise<Task> {
     const task = await this.getTaskWithProjectOrThrow(taskId);
-    await this.access.assertCan(task.case.projectId, user, 'canEditTask');
+    await this.access.assertCanAssign(task.case.projectId, user, assigneeIds, 'canEditTask');
     await this.assertAssigneesValid(assigneeIds, task.case.projectId);
 
     const existingAssignees = await this.prisma.taskAssignee
@@ -525,7 +601,7 @@ export class TaskService {
 
   async unassignUser(taskId: string, userId: string, user: AuthUser): Promise<Task> {
     const task = await this.getTaskWithProjectOrThrow(taskId);
-    await this.access.assertCan(task.case.projectId, user, 'canEditTask');
+    await this.access.assertCanAssign(task.case.projectId, user, [userId], 'canEditTask');
 
     const removed = await this.prisma.user.findUnique({
       where: { id: userId },

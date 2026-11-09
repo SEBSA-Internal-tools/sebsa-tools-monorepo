@@ -149,6 +149,11 @@ export class CasesService {
     );
   }
 
+  /** Adds the given users as assignees. Members may only add themselves. */
+  assignUsers(caseId: string, assigneeIds: string[]): Observable<unknown> {
+    return this.http.post(`/api/cases/${caseId}/assignees`, { assigneeIds });
+  }
+
   updateCaseStatus(caseId: string, status: CaseStatus): Observable<CaseView> {
     return this.updateCase(caseId, { status });
   }
@@ -184,6 +189,15 @@ export class CasesService {
 
   getStatusHistory(caseId: string): Observable<CaseStatusHistoryEntry[]> {
     return this.http.get<CaseStatusHistoryEntry[]>(`/api/cases/${caseId}/status-history`);
+  }
+
+  /** Copies a case (new id, status reset to To Do) into the same or another
+   * project. `notes` lists anything that could not be carried over. */
+  cloneCase(
+    caseId: string,
+    options: { title?: string; projectId?: string; includeTasks?: boolean; category?: TaskCategory } = {},
+  ): Observable<{ item: BackendCase; notes: string[] }> {
+    return this.http.post<{ item: BackendCase; notes: string[] }>(`/api/cases/${caseId}/clone`, options);
   }
 
   deleteCase(caseId: string): Observable<{ message: string }> {

@@ -51,6 +51,8 @@ const STATUS_LABELS: Record<ProjectStatus, string> = {
 export class ProjectsListComponent {
   private readonly confirmation = inject(ConfirmationService);
   @Input() projects: ProjectSummary[] | null = null;
+  /** Only users allowed to create projects see the create buttons. */
+  @Input() canCreate = false;
   @Output() newProjectClick = new EventEmitter<void>();
   @Output() searchChange = new EventEmitter<string>();
   @Output() deleteProject = new EventEmitter<string>();

@@ -10,6 +10,7 @@ import {
   CreateProjectPriorityRequest,
   Project,
   ProjectMemberSummary,
+  ProjectPermissions,
   ProjectRole,
   ProjectSummary,
   UpdateProjectPriorityRequest,
@@ -32,7 +33,7 @@ const ADMIN_SYSTEM_ROLES: AuthUser['systemRole'][] = ['ADMIN', 'SUPER_ADMIN'];
 
 const memberInclude = {
   user: { select: { id: true, name: true, email: true, avatarUrl: true } },
-  role: { select: { id: true, name: true, privilegeGroup: { select: { isReadOnly: true } } } },
+  role: { select: { id: true, name: true, privilegeGroup: { select: { isReadOnly: true, canManageMembers: true } } } },
 } satisfies Prisma.ProjectMemberInclude;
 
 type MemberWithRelations = Prisma.ProjectMemberGetPayload<{ include: typeof memberInclude }>;
@@ -184,7 +185,11 @@ export class ProjectsService {
       orderBy: { createdAt: 'desc' },
     });
 
-    return projects.map((project) => this.toProjectSummary(project));
+    const permissions = await this.resolvePermissions(
+      projects.map((p) => p.id),
+      user,
+    );
+    return projects.map((project) => this.toProjectSummary(project, permissions.get(project.id)!));
   }
 
   async findOne(id: string, user: AuthUser): Promise<Project> {
@@ -200,7 +205,8 @@ export class ProjectsService {
     const membership = await this.getActiveMembership(id, user.id);
     this.assertVisible(!!membership, user);
 
-    return this.toProject(project);
+    const permissions = await this.resolvePermissions([id], user);
+    return this.toProject(project, permissions.get(id)!);
   }
 
   async update(id: string, dto: UpdateProjectDto, user: AuthUser): Promise<Project> {
@@ -258,9 +264,26 @@ export class ProjectsService {
     this.assertCanManageMembers(project, user);
 
     await this.prisma.$transaction(async (tx) => {
+      const deletedAt = new Date();
       await tx.project.update({
         where: { id },
-        data: { deletedAt: new Date() },
+        data: { deletedAt },
+      });
+
+      // Cases, tasks and subtasks are filtered by their own deletedAt, so a
+      // deleted project has to take its work items with it; otherwise they
+      // linger in Assigned Work, search and the dashboards.
+      await tx.subtask.updateMany({
+        where: { deletedAt: null, task: { case: { projectId: id } } },
+        data: { deletedAt },
+      });
+      await tx.task.updateMany({
+        where: { deletedAt: null, case: { projectId: id } },
+        data: { deletedAt },
+      });
+      await tx.case.updateMany({
+        where: { deletedAt: null, projectId: id },
+        data: { deletedAt },
       });
 
       await this.activityLogs.record(
@@ -692,8 +715,11 @@ export class ProjectsService {
 
   private assertCanEdit(project: ProjectWithMembership, user: AuthUser): void {
     if (ADMIN_SYSTEM_ROLES.includes(user.systemRole)) return;
+    // Editing project settings is a management action, like deleting: it needs
+    // the manage-members grant (and a read-only group never has it in effect).
     const membership = this.findMembership(project, user.id);
-    if (!membership || membership.role.privilegeGroup.isReadOnly) {
+    const group = membership?.role.privilegeGroup;
+    if (!membership || !group || group.isReadOnly || !group.canManageMembers) {
       throw new ForbiddenException('You do not have permission to edit this project.');
     }
   }
@@ -777,7 +803,40 @@ export class ProjectsService {
     };
   }
 
-  private toProjectSummary(project: ProjectWithDetail): ProjectSummary {
+  /** Per-project grants for the requesting user. System admins hold every
+   * grant; everyone else gets their role's group, with isReadOnly as a master
+   * deny (same rule as ProjectAccessService.assertCan). */
+  private async resolvePermissions(
+    projectIds: string[],
+    user: AuthUser,
+  ): Promise<Map<string, ProjectPermissions>> {
+    const all = Object.fromEntries(PROJECT_PERMISSIONS.map((p) => [p, true])) as unknown as ProjectPermissions;
+    const none = Object.fromEntries(PROJECT_PERMISSIONS.map((p) => [p, false])) as unknown as ProjectPermissions;
+    const result = new Map<string, ProjectPermissions>();
+    if (ADMIN_SYSTEM_ROLES.includes(user.systemRole)) {
+      projectIds.forEach((id) => result.set(id, all));
+      return result;
+    }
+    const memberships = await this.prisma.projectMember.findMany({
+      where: { projectId: { in: projectIds }, userId: user.id, deletedAt: null },
+      include: { role: { include: { privilegeGroup: true } } },
+    });
+    const byProject = new Map(memberships.map((m) => [m.projectId, m.role.privilegeGroup]));
+    for (const id of projectIds) {
+      const group = byProject.get(id);
+      if (!group || group.isReadOnly) {
+        result.set(id, none);
+        continue;
+      }
+      result.set(
+        id,
+        Object.fromEntries(PROJECT_PERMISSIONS.map((p) => [p, !!group[p]])) as unknown as ProjectPermissions,
+      );
+    }
+    return result;
+  }
+
+  private toProjectSummary(project: ProjectWithDetail, permissions: ProjectPermissions): ProjectSummary {
     return {
       id: project.id,
       name: project.name,
@@ -792,6 +851,7 @@ export class ProjectsService {
       memberCount: project._count.members,
       caseCount: project._count.cases,
       isCsoProject: project.isCsoProject,
+      permissions,
       customerId: project.customerId,
       customer: project.customer,
       createdAt: project.createdAt.toISOString(),
@@ -799,9 +859,9 @@ export class ProjectsService {
     };
   }
 
-  private toProject(project: ProjectWithDetail): Project {
+  private toProject(project: ProjectWithDetail, permissions: ProjectPermissions): Project {
     return {
-      ...this.toProjectSummary(project),
+      ...this.toProjectSummary(project, permissions),
       priorities: project.priorities,
     };
   }

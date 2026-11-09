@@ -1,0 +1,12 @@
+# Angular build served by nginx, which also proxies /api to the backend.
+FROM node:22-bookworm-slim AS build
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY . .
+RUN npx nx build ipm-fe --skip-nx-cache
+
+FROM nginx:1.27-alpine
+COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/dist/apps/ipm-fe/browser /usr/share/nginx/html
+EXPOSE 80

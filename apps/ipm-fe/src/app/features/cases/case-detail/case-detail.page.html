@@ -15,10 +15,18 @@
             {{ isSaving() ? 'Saving…' : 'Save Changes' }}
           </button>
         }
+        @if (projectPermissions()?.canCreateCase) {
+        <button type="button" class="discard-btn" (click)="openCopyDialog()" [disabled]="isSaving() || isUpdatingStatus() || isCloning()" title="Copy this case, optionally into another project">
+          <span class="material-symbols-outlined">content_copy</span>
+          Copy
+        </button>
+        }
+        @if (projectPermissions()?.canDeleteCase) {
         <button type="button" class="delete-btn" (click)="deleteCase()" [disabled]="isSaving() || isUpdatingStatus()">
           <span class="material-symbols-outlined">delete</span>
           Delete
         </button>
+        }
       </div>
     }
   </div>
@@ -358,5 +366,20 @@
       (closed)="closeAddTaskModal()"
       (submitted)="onCreateTask($event)"
     ></app-create-task-modal>
+  }
+
+  @if (kase(); as current) {
+    <app-copy-dialog
+      [isOpen]="isCopyDialogOpen()"
+      kind="case"
+      [sourceTitle]="current.title"
+      [sourceProjectId]="current.projectId"
+      [sourceCategory]="current.category"
+      [taskCount]="tasks().length"
+      [isBusy]="isCloning()"
+      [errorMessage]="copyError()"
+      (closed)="closeCopyDialog()"
+      (confirmed)="confirmCopy($event)"
+    ></app-copy-dialog>
   }
 </section>

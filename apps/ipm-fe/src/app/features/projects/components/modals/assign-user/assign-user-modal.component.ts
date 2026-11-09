@@ -5,9 +5,12 @@ import {
   EventEmitter,
   OnChanges,
   ChangeDetectionStrategy,
+  DestroyRef,
   inject,
   signal,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Subject, debounceTime, distinctUntilChanged, of, switchMap, catchError } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { UsersService } from '../../../../../core/services/users.service';
@@ -34,6 +37,7 @@ export interface AssignUserFormData {
 export class AssignUserModalComponent implements OnChanges {
   private readonly usersService = inject(UsersService);
   private readonly projectsService = inject(ProjectsService);
+  private readonly destroyRef = inject(DestroyRef);
 
   @Input() isOpen = false;
   @Input() projectId = '';
@@ -49,8 +53,87 @@ export class AssignUserModalComponent implements OnChanges {
   readonly availableRoles = signal<ProjectRole[]>([]);
   selectedRoleId = '';
 
+  // --- Type-ahead user search ------------------------------------------------
+  private readonly searchTerms = new Subject<string>();
+  private readonly searchResults = signal<AssignedUser[]>([]);
+  private readonly existingMemberIds = signal<Set<string>>(new Set());
+  readonly isSearching = signal(false);
+  readonly showSuggestions = signal(false);
+  readonly activeSuggestion = signal(-1);
+
+  /** Search hits minus people already picked or already on the project. */
+  suggestions(): AssignedUser[] {
+    const picked = new Set(this.selectedUsers().map((u) => u.id));
+    const members = this.existingMemberIds();
+    return this.searchResults().filter((u) => !picked.has(u.id) && !members.has(u.id));
+  }
+
+  constructor() {
+    this.searchTerms
+      .pipe(
+        debounceTime(250),
+        distinctUntilChanged(),
+        switchMap((term) => {
+          if (term.length < 2) return of<AssignedUser[]>([]);
+          this.isSearching.set(true);
+          return this.usersService.search(term).pipe(catchError(() => of<AssignedUser[]>([])));
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((results) => {
+        this.searchResults.set(results);
+        this.isSearching.set(false);
+        this.activeSuggestion.set(results.length ? 0 : -1);
+      });
+  }
+
+  onQueryChange(value: string): void {
+    this.emailInput = value;
+    this.clearMessages();
+    const term = value.trim();
+    this.showSuggestions.set(term.length >= 2);
+    if (term.length < 2) this.searchResults.set([]);
+    this.searchTerms.next(term);
+  }
+
+  onSearchKeydown(event: KeyboardEvent): void {
+    const list = this.suggestions();
+    if (event.key === 'ArrowDown' && list.length) {
+      event.preventDefault();
+      this.activeSuggestion.set((this.activeSuggestion() + 1) % list.length);
+    } else if (event.key === 'ArrowUp' && list.length) {
+      event.preventDefault();
+      this.activeSuggestion.set((this.activeSuggestion() - 1 + list.length) % list.length);
+    } else if (event.key === 'Escape' && this.showSuggestions()) {
+      event.stopPropagation();
+      this.showSuggestions.set(false);
+    } else if (event.key === 'Enter') {
+      const picked = list[this.activeSuggestion()];
+      if (this.showSuggestions() && picked) {
+        event.preventDefault();
+        this.onPickSuggestion(picked);
+      } else {
+        this.onAddUser();
+      }
+    }
+  }
+
+  onPickSuggestion(user: AssignedUser): void {
+    if (this.selectedUsers().some((u) => u.id === user.id)) return;
+    this.selectedUsers.update((users) => [...users, user]);
+    this.emailInput = '';
+    this.searchResults.set([]);
+    this.showSuggestions.set(false);
+    this.clearMessages();
+    this.successMessage.set(`${user.name} has been added to the list`);
+  }
+
   ngOnChanges(): void {
     if (this.isOpen && this.projectId) {
+      this.projectsService.getMembers(this.projectId).subscribe({
+        next: (members) => this.existingMemberIds.set(new Set(members.map((m) => m.userId))),
+        error: () => this.existingMemberIds.set(new Set()),
+      });
       this.projectsService.getRoles(this.projectId).subscribe({
         next: (roles) => {
           this.availableRoles.set(roles);
@@ -133,6 +216,8 @@ export class AssignUserModalComponent implements OnChanges {
 
   private resetForm(): void {
     this.emailInput = '';
+    this.searchResults.set([]);
+    this.showSuggestions.set(false);
     this.selectedUsers.set([]);
     this.clearMessages();
   }

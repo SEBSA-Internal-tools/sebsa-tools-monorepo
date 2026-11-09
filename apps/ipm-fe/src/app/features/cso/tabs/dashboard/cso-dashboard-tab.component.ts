@@ -6,6 +6,7 @@ import { workInsights } from '../../../../core/utils/work-insights';
 import { Router, RouterLink } from '@angular/router';
 import type { ProjectSummary } from '@sebsa-pm-tool/shared-models';
 import { CsoOverviewService } from '../../../../core/services/cso-overview.service';
+import { AuthService } from '../../../../core/services/auth.service';
 import { ProjectsService } from '../../../projects/services/projects.service';
 import {
   CreateProjectModalComponent,
@@ -24,6 +25,13 @@ export class CsoDashboardTabComponent implements OnInit {
   private readonly projectsService = inject(ProjectsService);
   private readonly csoOverviewService = inject(CsoOverviewService);
   private readonly router = inject(Router);
+  private readonly auth = inject(AuthService);
+
+  /** Mirrors the backend rule: only ADMIN / SUPER_ADMIN may create projects. */
+  protected readonly canCreateProject = computed(() => {
+    const role = this.auth.currentUser()?.systemRole;
+    return role === 'ADMIN' || role === 'SUPER_ADMIN';
+  });
 
   protected readonly csoTasks = this.csoOverviewService.tasks;
   protected readonly caseError = this.csoOverviewService.errorMessage;

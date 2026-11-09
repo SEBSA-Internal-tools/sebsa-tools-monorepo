@@ -17,7 +17,24 @@ export interface ProjectMemberSummary {
   roleId: string;
   joinedAt: string;
   user: Pick<UserSummary, 'id' | 'name' | 'email' | 'avatarUrl'>;
-  role: Pick<ProjectRole, 'id' | 'name'> & { privilegeGroup: Pick<PrivilegeGroup, 'isReadOnly'> };
+  role: Pick<ProjectRole, 'id' | 'name'> & { privilegeGroup: Pick<PrivilegeGroup, 'isReadOnly' | 'canManageMembers'> };
+}
+
+/** What the requesting user may do in a project. Mirrors the grants on
+ * PrivilegeGroup (system admins get all true). The UI uses it to hide actions
+ * the API would refuse; the API still enforces them. */
+export interface ProjectPermissions {
+  canCreateCase: boolean;
+  canEditCase: boolean;
+  canDeleteCase: boolean;
+  canCreateTask: boolean;
+  canEditTask: boolean;
+  canDeleteTask: boolean;
+  canComment: boolean;
+  canManageMembers: boolean;
+  canManageSprints: boolean;
+  canManageLabels: boolean;
+  canConfigureIntegrations: boolean;
 }
 
 /** List-view shape — lighter than Project, no nested roles. */
@@ -37,6 +54,8 @@ export interface ProjectSummary {
    * to be counted at before the Case hierarchy split). */
   caseCount: number;
   isCsoProject: boolean;
+  /** The requesting user's permissions in this project. */
+  permissions: ProjectPermissions;
   customerId: string;
   customer: { id: string; name: string };
   createdAt: string;
