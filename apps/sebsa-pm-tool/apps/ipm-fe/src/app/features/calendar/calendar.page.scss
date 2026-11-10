@@ -1,0 +1,289 @@
+:host {
+    display: block;
+    width: 100%;
+    background-color: var(--surface-page);
+}
+
+.page-container {
+    padding: var(--page-gutter);
+    background-color: var(--surface-page);
+    width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    min-height: calc(100vh - 64px);
+}
+
+.header-content-wrap {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 16px;
+ }
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.project-filter-select {
+    background-color: var(--surface-card);
+    border: 1px solid var(--border-default);
+    color: var(--text-primary);
+    border-radius: var(--radius-control);
+    padding: 9px 14px;
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 500;
+    outline: none;
+    cursor: pointer;
+    box-shadow: var(--shadow-card);
+    transition: all 0.15s ease;
+
+    &:focus {
+      border-color: var(--brand-primary);
+      box-shadow: var(--shadow-glow-focus);
+    }
+}
+
+.btn-header-primary {
+    background-color: var(--brand-action);
+    color: #ffffff;
+    border: none;
+    border-radius: var(--radius-control);
+    padding: 10px 18px;
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 4px 14px rgba(112, 0, 255, 0.25);
+    transition: all 0.15s ease;
+
+    &:hover {
+      background-color: var(--brand-action-hover);
+      transform: translateY(-1px);
+      box-shadow: 0 6px 18px rgba(112, 0, 255, 0.35);
+    }
+
+.material-symbols-outlined {
+      font-size: 18px;
+    }
+}
+
+.btn-refresh {
+    background-color: var(--surface-card);
+    border: 1px solid var(--border-default);
+    color: var(--text-secondary);
+    border-radius: var(--radius-control);
+    padding: 9px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+
+    &:hover {
+      color: var(--brand-primary);
+      border-color: var(--brand-primary);
+      background-color: var(--surface-muted);
+    }
+
+.material-symbols-outlined {
+    font-size: 18px;
+}
+
+    &.spinning .material-symbols-outlined {
+      animation: spin 1s linear infinite;
+    }
+}
+
+    // Error Alert Banner
+.calendar-error-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background-color: var(--status-error-bg);
+    border: 1px solid rgba(220, 38, 38, 0.3);
+    color: var(--status-error-fg);
+    border-radius: 12px;
+    padding: 12px 18px;
+    font-size: 13px;
+
+    .error-left {
+       display: flex;
+       align-items: center;
+       gap: 8px;
+       font-weight: 500;
+    }
+
+.btn-retry-banner {
+    background: transparent;
+    border: 1px solid var(--status-error-fg);
+    color: var(--status-error-fg);
+    padding: 4px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+
+    &:hover {
+        background-color: rgba(220, 38, 38, 0.1);
+    }
+  }
+}
+
+    // KPI Summary Cards
+.kpi-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+}
+
+.kpi-card {
+    background-color: var(--surface-card);
+    border: 1px solid var(--border-default);
+    border-radius: 16px;
+    padding: 18px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    box-shadow: var(--shadow-card);
+    transition: all 0.2s ease;
+
+    &:hover {
+      transform: none;
+      box-shadow: var(--shadow-elevated);
+      border-color: var(--border-strong);
+    }
+
+.kpi-icon-box {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+
+.material-symbols-outlined {
+        font-size: 24px;
+}
+
+    &.variant-primary {
+        background-color: var(--brand-primary-100);
+        color: var(--brand-primary);
+        }
+        &.variant-warning {
+        background-color: var(--status-warning-bg);
+        color: var(--status-warning-fg);
+        }
+        &.variant-purple {
+          background-color: var(--status-purple-bg);
+          color: var(--status-purple-fg);
+        }
+        &.variant-success {
+          background-color: var(--status-success-bg);
+          color: var(--status-success-fg);
+        }
+        &.variant-error {
+          background-color: var(--status-error-bg);
+          color: var(--status-error-fg);
+        }
+      }
+
+.kpi-content {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+
+.kpi-value {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text-heading);
+    letter-spacing: -0.02em;
+}
+
+.kpi-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+        }
+    }
+}
+
+@keyframes spin {
+    100% { transform: rotate(360deg); }
+}
+
+@media (max-width: 768px) {
+    .page-container {
+       padding: 20px 16px;
+       gap: 18px;
+    }
+}
+
+@media (max-width: 640px) {
+    .page-container {
+       padding: 16px 12px;
+       gap: 16px;
+    }
+
+    .header-actions {
+       width: 100%;
+       flex-direction: column;
+       align-items: stretch;
+       gap: 10px;
+
+       .project-filter-select,
+       .btn-header-primary {
+          width: 100%;
+          justify-content: center;
+          font-size: 14px;
+          padding: 12px 16px;
+       }
+
+       .btn-refresh {
+          align-self: flex-end;
+       }
+    }
+
+    .kpi-cards-grid {
+       grid-template-columns: 1fr 1fr;
+       gap: 10px;
+    }
+
+    .kpi-card {
+       padding: 12px 14px;
+       gap: 10px;
+       border-radius: 12px;
+
+       .kpi-icon-box {
+          width: 38px;
+          height: 38px;
+          border-radius: 8px;
+
+          .material-symbols-outlined {
+             font-size: 20px;
+          }
+       }
+
+       .kpi-value {
+          font-size: 18px;
+       }
+    }
+}
+
+@media (max-width: 420px) {
+    .kpi-cards-grid {
+       grid-template-columns: 1fr;
+    }
+}
+.project-kpi-card { box-shadow: none; border-radius: 12px; }

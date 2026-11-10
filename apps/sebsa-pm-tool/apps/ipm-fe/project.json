@@ -1,0 +1,87 @@
+{
+  "name": "ipm-fe",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "prefix": "app",
+  "sourceRoot": "apps/ipm-fe/src",
+  "tags": [],
+  "targets": {
+    "build": {
+      "executor": "@angular/build:application",
+      "outputs": ["{options.outputPath}"],
+      "defaultConfiguration": "production",
+      "options": {
+        "outputPath": "dist/apps/ipm-fe",
+        "browser": "apps/ipm-fe/src/main.ts",
+        "tsConfig": "apps/ipm-fe/tsconfig.app.json",
+        "inlineStyleLanguage": "scss",
+        "assets": [
+          {
+            "glob": "**/*",
+            "input": "apps/ipm-fe/public"
+          }
+        ],
+        "styles": ["apps/ipm-fe/src/styles.scss"]
+      },
+      "configurations": {
+        "production": {
+          "budgets": [
+            {
+              "type": "initial",
+              "maximumWarning": "500kb",
+              "maximumError": "1mb"
+            },
+            {
+              "type": "anyComponentStyle",
+              "maximumWarning": "40kb",
+              "maximumError": "60kb"
+            }
+          ],
+          "outputHashing": "all"
+        },
+        "development": {
+          "optimization": false,
+          "extractLicenses": false,
+          "sourceMap": true
+        }
+      }
+    },
+    "serve": {
+      "continuous": true,
+      "executor": "@angular/build:dev-server",
+      "defaultConfiguration": "development",
+      "configurations": {
+        "production": {
+          "buildTarget": "ipm-fe:build:production"
+        },
+        "development": {
+          "buildTarget": "ipm-fe:build:development"
+        }
+      },
+      "options": {
+        "proxyConfig": "apps/ipm-fe/proxy.conf.json"
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint"
+    },
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/{projectRoot}"],
+      "options": {
+        "jestConfig": "apps/ipm-fe/jest.config.cts",
+        "tsConfig": "apps/ipm-fe/tsconfig.spec.json"
+      }
+    },
+    "serve-static": {
+      "continuous": true,
+      "executor": "@nx/web:file-server",
+      "options": {
+        "buildTarget": "ipm-fe:build",
+        "port": 4200,
+        "staticFilePath": "dist/apps/ipm-fe/browser",
+        "spa": true
+      }
+    }
+  }
+}

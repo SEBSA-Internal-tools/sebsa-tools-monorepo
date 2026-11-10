@@ -1,0 +1,54 @@
+<div class="toast-container" aria-live="polite" aria-relevant="additions">
+  @for (notification of notifications(); track notification.id) {
+    <div class="toast" [class]="'toast-' + notification.type">
+      <div class="toast-content">
+        <span class="toast-icon material-symbols-outlined">
+          @if (notification.icon) {
+            {{ notification.icon }}
+          } @else {
+            @switch (notification.type) {
+              @case ('success') {
+                check_circle
+              }
+              @case ('error') {
+                cancel
+              }
+              @case ('warning') {
+                warning
+              }
+              @default {
+                info
+              }
+            }
+          }
+        </span>
+        <div class="toast-text-wrapper">
+          @if (notification.title) {
+            <span class="toast-title">{{ notification.title }}</span>
+          }
+          <span class="toast-message">{{ notification.message }}</span>
+        </div>
+      </div>
+
+      @if (notification.actionLabel) {
+        <button
+          type="button"
+          class="toast-action-btn"
+          (click)="handleAction(notification)"
+        >
+          <span>{{ notification.actionLabel }}</span>
+          <span class="material-symbols-outlined action-arrow">arrow_forward</span>
+        </button>
+      }
+
+      <button
+        type="button"
+        class="toast-close"
+        (click)="closeNotification(notification.id)"
+        aria-label="Close notification"
+      >
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+  }
+</div>

@@ -1,0 +1,52 @@
+import { CommonModule } from '@angular/common';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { AuthService } from '../../core/services/auth.service';
+import { CsoKpiDashboardTabComponent } from './tabs/kpi-dashboard/cso-kpi-dashboard-tab.component';
+import { CsoDashboardTabComponent } from './tabs/dashboard/cso-dashboard-tab.component';
+import { CsoOverviewTabComponent } from './tabs/overview/cso-overview-tab.component';
+import { CsoQueueTabComponent } from './tabs/queue/cso-queue-tab.component';
+import { CsoNavTabsComponent } from './components/nav-tabs/cso-nav-tabs.component';
+import { ConfigurationPanelComponent } from '../../core/components/configuration-panel/configuration-panel.component';
+
+@Component({
+  standalone: true,
+  selector: 'app-cso-page',
+  imports: [
+    CommonModule,
+    CsoNavTabsComponent,
+    CsoKpiDashboardTabComponent,
+    CsoDashboardTabComponent,
+    CsoOverviewTabComponent,
+    CsoQueueTabComponent,
+    ConfigurationPanelComponent,
+  ],
+  templateUrl: './cso.page.html',
+  styleUrl: './cso.page.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class CsoPageComponent {
+  protected activeTab: 'dashboard' | 'cso-board' | 'overview' | 'queue' | 'configuration' =
+    'dashboard';
+  /** Sub-tab within the Queue tab. */
+  protected activeQueueTab: 'functional' | 'technical' = 'functional';
+
+  private readonly auth = inject(AuthService);
+
+  /** Mirrors who can manage the lists (see ConfigurationPanelComponent.canEdit). */
+  protected get canViewConfiguration(): boolean {
+    return this.auth.currentUser()?.systemRole === 'SUPER_ADMIN';
+  }
+
+  onTabChange(tab: typeof this.activeTab): void {
+    if (tab === 'configuration' && !this.canViewConfiguration) return;
+    this.activeTab = tab;
+  }
+
+  onQueueTabChange(tab: typeof this.activeQueueTab): void {
+    this.activeQueueTab = tab;
+  }
+
+  protected get activeQueueCategory(): 'FUNCTIONAL' | 'TECHNICAL' {
+    return this.activeQueueTab === 'technical' ? 'TECHNICAL' : 'FUNCTIONAL';
+  }
+}

@@ -1,0 +1,51 @@
+:host {
+  display: block;
+  min-height: 100%;
+  background-color: var(--surface-page);
+}
+
+.workspace-page {
+  min-height: 100%;
+  background-color: var(--surface-page);
+  display: block;
+  width: 100%;
+  padding: 20px 16px;
+
+  @media (min-width: 768px) {
+    padding: 28px 24px;
+  }
+
+  @media (min-width: 1024px) {
+    padding: 32px;
+  }
+}
+
+.projects-container {
+  width: 100%;
+  display: grid;
+  gap: var(--content-gap);
+
+  @media (min-width: 768px) {
+    gap: var(--content-gap);
+  }
+
+  @media (min-width: 1024px) {
+    gap: var(--content-gap);
+  }
+}
+
+.page-error {
+  padding: 14px 18px;
+  border-radius: 8px;
+  background: var(--status-error-bg);
+  border: 1px solid var(--status-error-fg);
+  color: var(--status-error-fg);
+  font-size: 0.9rem;
+}
+
+.page-loading {
+  padding: 40px;
+  text-align: center;
+  color: var(--app-text-muted);
+  font-size: 0.95rem;
+}

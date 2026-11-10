@@ -1,0 +1,117 @@
+<div class="admin-users-container">
+  <!-- Container 1: The Standard Header -->
+  <header class="sebsa-page-header">
+    <span class="sebsa-eyebrow">SECURITY</span>
+    <h1 class="sebsa-page-title">Privilege Groups</h1>
+    <p class="sebsa-page-desc">Define reusable permission bundles that project roles can be assigned.</p>
+  </header>
+
+  <!-- Container 2: The Content Area -->
+  <div class="sebsa-card">
+    <div class="content-header-row" style="display: flex; justify-content: flex-end; margin-bottom: 24px;">
+      <button type="button" class="btn-primary" (click)="openCreateModal()">
+        + Create Group
+      </button>
+    </div>
+
+    @if (errorMessage()) {
+      <div class="error-banner">{{ errorMessage() }}</div>
+    }
+
+    <section class="section">
+      <div class="admin-table-scroll" role="region" aria-label="Privilege groups" tabindex="0"><table class="sebsa-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Description</th>
+            <th>Permissions</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (group of groups(); track group.id) {
+            <tr>
+              <td>{{ group.name }}</td>
+              <td>{{ group.description || '—' }}</td>
+              <td>
+                <div class="permission-badges">
+                  @if (group.isReadOnly) {
+                    <span class="badge badge-pending">Read Only</span>
+                  } @else {
+                    @for (permission of grantedPermissions(group); track permission.key) {
+                      <span class="badge badge-active">{{ permission.label }}</span>
+                    } @empty {
+                      <span class="badge">No permissions</span>
+                    }
+                  }
+                </div>
+              </td>
+              <td class="actions">
+                <button type="button" class="btn-text" (click)="openEditModal(group)">Edit</button>
+                <button type="button" class="btn-text btn-text-danger" (click)="remove(group)">Delete</button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table></div>
+    </section>
+  </div>
+
+  @if (isModalOpen()) {
+    <div class="modal-overlay" (click)="closeModal()"></div>
+    <div class="modal-container">
+      <div class="modal-header">
+        <h2>{{ editingId() ? 'Edit Privilege Group' : 'Create Privilege Group' }}</h2>
+        <button type="button" class="close-btn" (click)="closeModal()">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Name</label>
+          <input type="text" [(ngModel)]="form.name" class="form-input" placeholder="e.g. Manager Access" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Description</label>
+          <input type="text" [(ngModel)]="form.description" class="form-input" placeholder="Optional" />
+        </div>
+        <div class="form-group">
+          <label class="checkbox-item read-only-toggle">
+            <input type="checkbox" [(ngModel)]="form.isReadOnly" (ngModelChange)="onReadOnlyChange()" />
+            <span>
+              <strong>Read only</strong>
+              <small>Refuses every change, whatever is ticked below.</small>
+            </span>
+          </label>
+        </div>
+
+        @for (section of sections; track section.title) {
+          <div class="form-group">
+            <label class="form-label">{{ section.title }}</label>
+            <div class="checkbox-list">
+              @for (permission of section.permissions; track permission.key) {
+                <label class="checkbox-item" [class.disabled]="form.isReadOnly">
+                  <input
+                    type="checkbox"
+                    [(ngModel)]="form[permission.key]"
+                    [disabled]="form.isReadOnly"
+                  />
+                  <span>
+                    {{ permission.label }}
+                    @if (permission.hint) {
+                      <small>{{ permission.hint }}</small>
+                    }
+                  </span>
+                </label>
+              }
+            </div>
+          </div>
+        }
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-cancel" (click)="closeModal()">Cancel</button>
+        <button type="button" class="btn-create" (click)="submit()">Save</button>
+      </div>
+    </div>
+  }
+</div>

@@ -1,0 +1,166 @@
+@if (isOpen) {
+  <div
+    class="modal-overlay"
+    (click)="onBackdropClick()"
+    (keydown.escape)="onCancel()"
+    tabindex="-1"
+    aria-hidden="true"
+  ></div>
+
+  <div class="modal-container">
+    <div class="modal-header">
+      <div class="header-content">
+        <p class="header-label">{{ isEditMode ? 'EDIT SUBTASK' : 'CREATE NEW SUBTASK' }}</p>
+        <h2>{{ isEditMode ? 'Update subtask details' : 'What needs to be done?' }}</h2>
+      </div>
+      <button type="button" class="close-btn" (click)="onCancel()" title="Close" aria-label="Close dialog">
+        <span class="material-symbols-outlined" aria-hidden="true">close</span>
+      </button>
+    </div>
+
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group full-width">
+          <div class="form-label">Task</div>
+          <div class="project-display">
+            <span class="project-name">{{ taskTitle }}</span>
+          </div>
+        </div>
+
+        <div class="form-group full-width">
+          <label for="subtaskTitle" class="form-label">
+            Subtask Title <span class="required">*</span>
+          </label>
+          <input
+            id="subtaskTitle"
+            type="text"
+            [(ngModel)]="subtaskTitle"
+            placeholder="Describe the subtask..."
+            class="form-input"
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="assignee" class="form-label">Assignee</label>
+          @if (isLoadingUsers()) {
+            <div class="field-loading">
+              <span class="material-symbols-outlined spin">progress_activity</span>
+              Loading users...
+            </div>
+          } @else if (userError()) {
+            <div class="field-error">
+              <span class="material-symbols-outlined">error</span>
+              {{ userError() }}
+            </div>
+          } @else {
+            <div class="assignee-dropdown" #assigneeDropdownRef>
+              <div class="assignee-input" [class.open]="isAssigneeDropdownOpen()">
+                <div class="selected-assignees">
+                  @for (user of selectedAssignees(); track user.id) {
+                    <span class="selected-assignee-chip">
+                      <app-user-avatar class="chip-avatar" [name]="user.name" [avatarUrl]="user.avatarUrl" size="sm"></app-user-avatar>
+                      <span class="chip-name">{{ user.name }}</span>
+                      <button type="button" class="remove-assignee" (click)="removeAssignee(user.id, $event)" [attr.aria-label]="'Remove ' + user.name">
+                        <span class="material-symbols-outlined">close</span>
+                      </button>
+                    </span>
+                  }
+                  <input
+                    id="assignee"
+                    type="text"
+                    class="assignee-search-input"
+                    placeholder="Search users..."
+                    [(ngModel)]="assigneeSearch"
+                    (focus)="openAssigneeDropdown()"
+                    (input)="onAssigneeSearch()"
+                    autocomplete="off"
+                  />
+                </div>
+                <button type="button" class="dropdown-toggle" [attr.aria-expanded]="isAssigneeDropdownOpen()" aria-label="Toggle assignee list" (click)="toggleAssigneeDropdown($event)">
+                  <span class="material-symbols-outlined">{{ isAssigneeDropdownOpen() ? 'expand_less' : 'expand_more' }}</span>
+                </button>
+              </div>
+              @if (isAssigneeDropdownOpen()) {
+                <div class="assignee-menu">
+                  <div class="assignee-options">
+                    @if (getFilteredAssignees().length === 0) {
+                      <div class="no-assignees">
+                        <span class="material-symbols-outlined">person_search</span>
+                        <span>No users found</span>
+                      </div>
+                    } @else {
+                      @for (user of getFilteredAssignees(); track user.id) {
+                        <button type="button" class="assignee-option" [class.selected]="isAssigneeSelected(user.id)" (click)="toggleAssignee(user.id)">
+                          <app-user-avatar class="assignee-avatar" [name]="user.name" [avatarUrl]="user.avatarUrl" size="sm"></app-user-avatar>
+                          <span class="assignee-info">
+                            <span class="assignee-name">{{ user.name }}</span>
+                            @if (user.email) {
+                              <span class="assignee-email">{{ user.email }}</span>
+                            }
+                          </span>
+                          <span class="assignee-checkbox" [class.checked]="isAssigneeSelected(user.id)">
+                            @if (isAssigneeSelected(user.id)) {
+                              <span class="material-symbols-outlined">check</span>
+                            }
+                          </span>
+                        </button>
+                      }
+                    }
+                  </div>
+                </div>
+              }
+            </div>
+          }
+        </div>
+
+        <div class="form-group">
+          <label for="dueDate" class="form-label">Due Date</label>
+          <app-custom-datepicker
+            [(ngModel)]="dueDate"
+            [isDueDate]="true"
+            placeholder="Select due date"
+            ariaLabel="Due date"
+          ></app-custom-datepicker>
+        </div>
+
+        <div class="form-group">
+          <label for="subtaskType" class="form-label">Subtask Type</label>
+          <app-custom-select
+            [(ngModel)]="selectedSubtaskTypeId"
+            [options]="availableSubtaskTypes()"
+            defaultOptionLabel="None"
+            defaultOptionValue=""
+            ariaLabel="Select subtask type"
+          ></app-custom-select>
+        </div>
+
+        @if (isEditMode) {
+          <div class="form-group">
+            <label for="subtaskStatus" class="form-label">Status</label>
+            <app-custom-select
+              [(ngModel)]="status"
+              [options]="statusOptions"
+              ariaLabel="Select subtask status"
+            ></app-custom-select>
+          </div>
+        }
+      </div>
+
+      <div class="form-group full-width">
+        <label for="description" class="form-label">Description</label>
+        <textarea
+          id="description"
+          [(ngModel)]="description"
+          placeholder="Add details..."
+          class="form-textarea"
+          rows="4"
+        ></textarea>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button type="button" class="btn-cancel" (click)="onCancel()">Cancel</button>
+      <button type="button" class="btn-create" (click)="onSubmit()">{{ isEditMode ? 'Save changes' : 'Create subtask' }}</button>
+    </div>
+  </div>
+}

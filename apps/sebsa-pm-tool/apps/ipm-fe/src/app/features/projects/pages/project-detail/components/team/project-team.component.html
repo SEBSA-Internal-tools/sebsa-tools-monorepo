@@ -1,0 +1,188 @@
+<div class="team-container">
+  <div class="team-header">
+    <div class="header-info">
+      <h3>Project Team</h3>
+      <p class="member-count">{{ teamMembers().length }} members</p>
+    </div>
+    
+    <div class="header-actions">
+      @if (canManage) {
+        <button
+          type="button"
+          class="btn-add-member"
+          (click)="onOpenModal()"
+          title="Add team member"
+        >
+          <span class="material-symbols-outlined">person_add</span>
+          Add Member
+        </button>
+      }
+
+      <div class="view-toggle">
+        <button type="button" class="view-btn" [class.active]="viewMode() === 'card'" (click)="toggleViewMode('card')" title="Card View">
+          <span class="material-symbols-outlined">grid_view</span>
+        </button>
+        <button type="button" class="view-btn" [class.active]="viewMode() === 'list'" (click)="toggleViewMode('list')" title="List View">
+          <span class="material-symbols-outlined">view_list</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  @if (errorMessage()) {
+    <div class="team-error">{{ errorMessage() }}</div>
+  }
+
+  @if (viewMode() === 'card') {
+    <div class="team-grid">
+      @for (member of teamMembers(); track member.id) {
+        <div class="team-card">
+          <!-- Card Header -->
+          <div class="card-header">
+            <app-user-avatar class="member-avatar" [name]="member.user.name" [avatarUrl]="member.user.avatarUrl" size="lg"></app-user-avatar>
+            @if (canManage) {
+              <button
+                type="button"
+                class="btn-remove-member"
+                (click)="onRemoveMember(member.id)"
+                title="Remove from project"
+              >
+                <span class="material-symbols-outlined">person_remove</span>
+              </button>
+            }
+          </div>
+
+          <!-- Member Info -->
+          <div class="member-info">
+            <h4>{{ member.user.name }}</h4>
+            <p class="role">{{ member.role.name }}</p>
+            <p class="email">{{ member.user.email }}</p>
+          </div>
+
+          <!-- Join Date -->
+          <div class="join-date">
+            <span class="material-symbols-outlined">calendar_today</span>
+            <span>Joined {{ member.joinedAt | date: 'mediumDate' }}</span>
+          </div>
+        </div>
+      }
+    </div>
+  } @else {
+    <div class="table-container">
+      <table class="sebsa-table">
+        <thead>
+          <tr>
+            <th>Member</th>
+            <th>Role</th>
+            <th>Email</th>
+            <th>Joined Date</th>
+            @if (canManage) { <th>Actions</th> }
+          </tr>
+        </thead>
+        <tbody>
+          @for (member of teamMembers(); track member.id) {
+            <tr>
+              <td>
+                <div class="member-cell">
+                  <app-user-avatar class="list-member-avatar" [name]="member.user.name" [avatarUrl]="member.user.avatarUrl" size="sm"></app-user-avatar>
+                  <span>{{ member.user.name }}</span>
+                </div>
+              </td>
+              <td><span class="role-badge">{{ member.role.name }}</span></td>
+              <td>{{ member.user.email }}</td>
+              <td>{{ member.joinedAt | date: 'mediumDate' }}</td>
+              @if (canManage) {
+                <td>
+                  <button
+                    type="button"
+                    class="btn-remove-member"
+                    (click)="onRemoveMember(member.id)"
+                    title="Remove from project"
+                  >
+                    <span class="material-symbols-outlined">person_remove</span>
+                  </button>
+                </td>
+              }
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+
+  <!-- Assign User Modal -->
+  @if (canManage) {
+  <assign-user-modal
+    [isOpen]="isModalOpen()"
+    [projectId]="projectId"
+    (close)="onCloseModal()"
+    (submit)="onAssignUsers($event)"
+  ></assign-user-modal>
+  }
+
+  <!-- Manage Roles (managers only) -->
+  @if (canManage) {
+  <div class="roles-section">
+    <div class="team-header">
+      <div class="header-info">
+        <h3>Manage Roles</h3>
+        <p class="member-count">Assign a privilege group to each role, or create a custom one.</p>
+      </div>
+    </div>
+
+    @if (rolesErrorMessage()) {
+      <div class="team-error">{{ rolesErrorMessage() }}</div>
+    }
+
+    <table class="roles-table">
+      <thead>
+        <tr>
+          <th>Role</th>
+          <th>Privilege Group</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (role of roles(); track role.id) {
+          <tr>
+            <td>{{ role.name }}</td>
+            <td>
+              <app-custom-select
+                [ngModel]="role.privilegeGroup.id"
+                (ngModelChange)="reassignRole(role, $event)"
+                [options]="privilegeGroups()"
+                placeholder="Select privilege group"
+                ariaLabel="Privilege Group"
+              ></app-custom-select>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+
+    <div class="create-role-row">
+      <input
+        type="text"
+        class="role-name-input"
+        placeholder="New role name"
+        [(ngModel)]="newRoleName"
+      />
+      <app-custom-select
+        [(ngModel)]="newRoleGroupId"
+        [options]="privilegeGroups()"
+        placeholder="Select a privilege group..."
+        ariaLabel="Privilege group"
+        customClass="create-role-select"
+      ></app-custom-select>
+      <button
+        type="button"
+        class="btn-create-role"
+        [disabled]="isCreatingRole()"
+        (click)="createRole()"
+      >
+        <span class="material-symbols-outlined">add</span>
+        {{ isCreatingRole() ? 'Creating...' : 'Create Custom Role' }}
+      </button>
+    </div>
+  </div>
+  }
+</div>

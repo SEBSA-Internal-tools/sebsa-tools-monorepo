@@ -1,0 +1,99 @@
+<main class="auth-layout">
+  <section class="brand-panel" aria-labelledby="brand-heading">
+    <header class="brand-header">
+      <span class="brand-mark" role="img" aria-label="SEBSA"></span>
+      <span class="brand-label">Account request</span>
+    </header>
+
+    <div class="brand-story">
+      <span class="brand-eyebrow">Get started</span>
+      <h1 id="brand-heading">Join your team <br />in one place<span class="headline-dot">.</span></h1>
+      <p>Request access with your work email.<br class="desktop-break" /> Once approved, your team's work is ready for you.</p>
+
+      <ol class="onboard-flow" aria-label="How joining works">
+        <li class="onboard-step is-current">
+          <span class="node-icon material-symbols-outlined" aria-hidden="true">person_add</span>
+          <span><small>Step one</small><strong>Send your request</strong></span>
+          <span class="step-pill">You are here</span>
+        </li>
+        <li class="onboard-step">
+          <span class="node-icon material-symbols-outlined" aria-hidden="true">verified_user</span>
+          <span><small>Step two</small><strong>Admin approves access</strong></span>
+          <span class="step-index" aria-hidden="true">02</span>
+        </li>
+        <li class="onboard-step">
+          <span class="node-icon material-symbols-outlined" aria-hidden="true">groups</span>
+          <span><small>Step three</small><strong>Start collaborating</strong></span>
+          <span class="step-index" aria-hidden="true">03</span>
+        </li>
+      </ol>
+      <span class="onboard-caption">Every account is reviewed to keep the workspace secure.</span>
+    </div>
+
+    <footer class="brand-footer"><span class="material-symbols-outlined" aria-hidden="true">shield_person</span> Trusted access for SEBSA teams.</footer>
+  </section>
+
+  <section class="sign-in-panel" aria-labelledby="sign-up-heading">
+    <div class="sign-in-content">
+      @if (!isRegistered()) {
+        <div class="form-heading">
+          <span class="form-emblem material-symbols-outlined" aria-hidden="true">person_add</span>
+          <p class="form-eyebrow">Join SEBSA One</p>
+          <h2 id="sign-up-heading">Create your account</h2>
+          <p class="form-description">Tell us a little about you. An administrator will review your request.</p>
+        </div>
+
+        @if (hasError()) {
+          <div class="auth-alert" role="alert" id="signup-error"><span class="material-symbols-outlined" aria-hidden="true">error</span><p>{{ errorMessage() }}</p></div>
+        }
+
+        <form (submit)="register(); $event.preventDefault()" [attr.aria-busy]="isSubmitting()">
+          <div class="form-field">
+            <label for="signup-name">Full name</label>
+            <input id="signup-name" type="text" name="name" [(ngModel)]="name" autocomplete="name" placeholder="Jane Doe" required />
+          </div>
+          <div class="form-field">
+            <label for="signup-email">Work email</label>
+            <input id="signup-email" type="email" name="email" [(ngModel)]="email" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" placeholder="you@sebsaworld.com" [attr.aria-describedby]="hasError() ? 'signup-error' : null" required />
+          </div>
+          <div class="form-field">
+            <label>Department</label>
+            <app-custom-select
+              name="departmentId"
+              [(ngModel)]="departmentId"
+              [options]="departments()"
+              placeholder="Select a department"
+              ariaLabel="Department"
+              customClass="auth-select"
+            ></app-custom-select>
+          </div>
+          <div class="form-field">
+            <label for="signup-password">Password</label>
+            <div class="password-field">
+              <input id="signup-password" [type]="showPassword() ? 'text' : 'password'" name="password" [(ngModel)]="password" autocomplete="new-password" placeholder="Create a password" required />
+              <button type="button" class="password-toggle" (click)="togglePasswordVisibility()" [attr.aria-label]="showPassword() ? 'Hide password' : 'Show password'" [attr.aria-pressed]="showPassword()"><span class="material-symbols-outlined" aria-hidden="true">{{ showPassword() ? 'visibility_off' : 'visibility' }}</span></button>
+            </div>
+          </div>
+          <button type="submit" class="sign-in-button" [disabled]="isSubmitting()">
+            @if (isSubmitting()) { <span class="spinner" aria-hidden="true"></span><span>Sending request...</span> } @else { <span>Request access</span><span class="material-symbols-outlined" aria-hidden="true">send</span> }
+          </button>
+          <p class="sign-in-status" role="status">{{ isSubmitting() ? 'Sending your request. Please wait.' : '' }}</p>
+        </form>
+
+        <p class="signup-prompt">Already a member? <a routerLink="/login">Sign in instead<span class="material-symbols-outlined" aria-hidden="true">north_east</span></a></p>
+      } @else {
+        <div class="form-heading" role="status">
+          <span class="form-emblem success-emblem material-symbols-outlined" aria-hidden="true">mark_email_read</span>
+          <p class="form-eyebrow">Request sent</p>
+          <h2 id="sign-up-heading">You're almost in</h2>
+          <p class="form-description">{{ successMessage() }}</p>
+        </div>
+
+        <a routerLink="/login" class="sign-in-button"><span>Go to sign in</span><span class="material-symbols-outlined" aria-hidden="true">arrow_forward</span></a>
+      }
+
+      <div class="access-note"><span class="material-symbols-outlined" aria-hidden="true">schedule</span><p>Requests are reviewed by your system administrator.<br />You can sign in as soon as you're approved.</p></div>
+    </div>
+    <footer class="auth-footer">&copy; {{ currentYear }} SEBSA (Pvt) Ltd.</footer>
+  </section>
+</main>

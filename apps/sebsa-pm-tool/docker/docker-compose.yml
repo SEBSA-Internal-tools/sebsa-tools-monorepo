@@ -1,0 +1,67 @@
+# SEBSA PM Tool — Local Development Infrastructure
+#
+# Brings up PostgreSQL (application database) and pgAdmin (DB admin UI).
+# All configuration is sourced from environment variables — see docker/.env.example.
+#
+# Usage:
+#   cd docker
+#   cp .env.example .env      # first time only, then fill in real values
+#   docker compose up -d
+#
+# Services are reachable from the host via the ports below, and from each
+# other (on the sebsa-pm-network bridge network) via their service name,
+# e.g. the NestJS app running on the host connects to Postgres at
+# localhost:${DATABASE_PORT}, while a containerized app would use
+# postgres:5432.
+
+name: sebsa-pm-tool
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: sebsa-pm-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DATABASE_USER}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+      POSTGRES_DB: ${DATABASE_NAME}
+    ports:
+      - '${DATABASE_PORT}:5432'
+    volumes:
+      - sebsa-pm-postgres-data:/var/lib/postgresql/data
+    networks:
+      - sebsa-pm-network
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${DATABASE_USER} -d ${DATABASE_NAME}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: sebsa-pm-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - '${PGADMIN_PORT}:80'
+    volumes:
+      - sebsa-pm-pgadmin-data:/var/lib/pgadmin
+    networks:
+      - sebsa-pm-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+networks:
+  sebsa-pm-network:
+    name: sebsa-pm-network
+    driver: bridge
+
+volumes:
+  sebsa-pm-postgres-data:
+    name: sebsa-pm-postgres-data
+  sebsa-pm-pgadmin-data:
+    name: sebsa-pm-pgadmin-data

@@ -1,0 +1,165 @@
+@if (isOpen) {
+  <div
+    class="modal-overlay"
+    (click)="onBackdropClick()"
+    (keydown.escape)="onCancel()"
+    tabindex="-1"
+    aria-hidden="true"
+  ></div>
+
+  <div class="modal-container">
+    <!-- Modal Header -->
+    <div class="modal-header">
+      <h2>{{ isEditMode() ? 'Edit Project' : 'Create New Project' }}</h2>
+      <button type="button" class="close-btn" (click)="onCancel()" title="Close">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+
+    <!-- Modal Body -->
+    <div class="modal-body">
+      <!-- Project Name Field -->
+      <div class="form-group">
+        <label for="projectName" class="form-label">
+          Project Name <span class="required">*</span>
+        </label>
+        <input
+          id="projectName"
+          type="text"
+          [(ngModel)]="projectName"
+          placeholder="e.g. Q3 Financial Audit Implementation"
+          class="form-input"
+        />
+      </div>
+
+      <!-- Project Type Field -->
+      <div class="form-group">
+        <label for="projectType" class="form-label">
+          Project Type <span class="required">*</span>
+        </label>
+        <app-custom-select
+          [(ngModel)]="type"
+          [options]="typeOptions"
+          placeholder="Select a type..."
+          ariaLabel="Select project type"
+        ></app-custom-select>
+      </div>
+
+      <!-- Status Field (edit only — a new project always starts Planning) -->
+      @if (isEditMode()) {
+        <div class="form-group">
+          <label for="projectStatus" class="form-label">Status</label>
+          <app-custom-select
+            [(ngModel)]="status"
+            [options]="statusOptions"
+            ariaLabel="Select project status"
+          ></app-custom-select>
+        </div>
+      }
+
+      <!-- Custom Type Name Field -->
+      @if (type === 'CUSTOM') {
+        <div class="form-group">
+          <label for="customType" class="form-label">
+            Custom Type Name <span class="required">*</span>
+          </label>
+          <input
+            id="customType"
+            type="text"
+            [(ngModel)]="customType"
+            placeholder="e.g. Managed Service"
+            class="form-input"
+          />
+        </div>
+      }
+
+      <!-- Description Field -->
+      <div class="form-group">
+        <label for="description" class="form-label">Description</label>
+        <textarea
+          id="description"
+          [(ngModel)]="description"
+          placeholder="Briefly describe the project goals and scope..."
+          class="form-textarea"
+          rows="4"
+        ></textarea>
+      </div>
+
+      <div class="form-group">
+        <label for="customerId" class="form-label">
+          Customer <span class="required">*</span>
+        </label>
+        <app-custom-select
+          [(ngModel)]="customerId"
+          [options]="availableCustomers()"
+          placeholder="Select a customer..."
+          ariaLabel="Select customer"
+        ></app-custom-select>
+      </div>
+
+      <!-- Assign Team Members Field (create only — existing projects manage members from the Team tab) -->
+      @if (!isEditMode()) {
+        <div class="form-group">
+          <label class="form-label">Assign Team Members</label>
+
+          <!-- Member Search Input -->
+          <div class="search-members">
+            <span class="material-symbols-outlined search-icon">person_add</span>
+            <input
+              type="text"
+              [(ngModel)]="teamMemberSearch"
+              placeholder="Search users..."
+              class="search-input"
+            />
+          </div>
+
+          <!-- Selected Members -->
+          @if (selectedMembers.length > 0) {
+            <div class="selected-members">
+              @for (member of selectedMembers; track member.id) {
+                <div class="member-tag">
+                  <app-user-avatar class="member-avatar" [name]="member.name" [avatarUrl]="member.avatarUrl" size="sm"></app-user-avatar>
+                  <span class="member-name">{{ member.name }}</span>
+                  <button
+                    type="button"
+                    class="remove-member"
+                    (click)="removeMember(member.id)"
+                    title="Remove member"
+                  >
+                    <span class="material-symbols-outlined">close</span>
+                  </button>
+                </div>
+              }
+            </div>
+          }
+
+          <!-- Filtered Members Dropdown -->
+          @if (getFilteredMembers().length > 0) {
+            <div class="members-dropdown">
+              @for (member of getFilteredMembers(); track member.id) {
+                <button
+                  type="button"
+                  class="member-option"
+                  (click)="selectMember(member)"
+                >
+                  <app-user-avatar class="member-avatar" [name]="member.name" [avatarUrl]="member.avatarUrl" size="sm"></app-user-avatar>
+                  <span>{{ member.name }}</span>
+                </button>
+              }
+            </div>
+          }
+        </div>
+      }
+    </div>
+
+    <!-- Modal Footer -->
+    <div class="modal-footer">
+      <button type="button" class="btn-cancel" (click)="onCancel()">
+        Cancel
+      </button>
+      <button type="button" class="btn-create" (click)="onSubmit()">
+        {{ isEditMode() ? 'Save Changes' : 'Create Project' }}
+      </button>
+    </div>
+  </div>
+}

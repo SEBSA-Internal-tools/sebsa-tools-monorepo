@@ -1,0 +1,94 @@
+// =============================================================================
+// Dashboard Page Container Styles
+// =============================================================================
+
+.dashboard-page {
+  padding: 16px 20px 32px;
+  background-color: var(--surface-page, #f3f4f8);
+  min-height: 100%;
+  width: 100%;
+  box-sizing: border-box;
+
+  @media (max-width: 768px) {
+    padding: 12px 12px 24px;
+  }
+
+  @media (max-width: 480px) {
+    padding: 10px 10px 20px;
+  }
+}
+
+.dashboard-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 1560px;
+  margin: 0 auto;
+  width: 100%;
+
+  @media (max-width: 768px) {
+    gap: 14px;
+  }
+
+  @media (max-width: 480px) {
+    gap: 12px;
+  }
+}
+
+.dashboard-error-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 18px;
+  background: var(--status-error-bg, #fef2f2);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: 14px;
+  color: var(--status-error-fg, #dc2626);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  animation: fadeIn 0.25s ease;
+
+  .error-content {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    .error-icon {
+      font-size: 1.25rem;
+      color: var(--status-error-solid, #ef4444);
+    }
+  }
+
+  .btn-retry {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 8px;
+    background: var(--surface-card);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: var(--status-error-fg, #dc2626);
+    font-family: var(--font-body);
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+
+    .material-symbols-outlined {
+      font-size: 1rem;
+    }
+
+    &:hover {
+      background: #fef2f2;
+      border-color: var(--status-error-solid, #ef4444);
+    }
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.snapshot-note { margin: -6px 0 0; color: var(--text-secondary); font-size: 11px; line-height: 1.6; }

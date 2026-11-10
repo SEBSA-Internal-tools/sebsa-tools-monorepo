@@ -1,0 +1,88 @@
+@use 'sass:color';
+
+:host {
+    display: block;
+    min-height: 100vh;
+    color: #475467;
+    background:
+        radial-gradient(circle at top left, rgba(241, 245, 249, 0.95), transparent 38%),
+        linear-gradient(180deg, #ffffff 0%, #f7f7f9 100%);
+}
+
+.app-shell,
+.sidebar {
+    box-sizing: border-box;
+}
+
+.app-shell {
+    min-height: 100vh;
+    height: 100vh; /* Lock height to enable scrolling in main content */
+    display: grid;
+    grid-template-columns: 238px 1fr;
+    overflow: hidden;
+}
+
+/* --- SIDEBAR STYLES --- */
+.sidebar {
+    display: flex;
+    flex-direction: column;
+    padding: 18px 16px 22px;
+    background: linear-gradient(180deg, #ffffff 0%, #fbfbfc 100%);
+    :host {
+        display: block;
+        min-height: 100vh;
+    }
+    margin: 14px 0 0;
+    font-size: 0.98rem;
+    line-height: 1.65;
+    color: #667085;
+}
+
+/* --- RESPONSIVE QUERIES --- */
+@media (max-width: 900px) {
+    .app-shell {
+        grid-template-columns: 1fr;
+        height: auto;
+        overflow: visible;
+    }
+
+    .sidebar {
+        height: auto;
+        border-right: none;
+        border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+    }
+    
+    .search-container {
+        max-width: 250px; /* Shrink search on smaller screens */
+    }
+
+    .page-content {
+        padding: 24px;
+    }
+}
+
+@media (max-width: 640px) {
+    .sidebar {
+        padding: 16px;
+    }
+
+    .top-navbar {
+        padding: 0 16px;
+    }
+
+    .search-container {
+        display: none; /* Hide search bar on mobile */
+    }
+
+    .page-content {
+        padding: 16px;
+    }
+
+    .content-card {
+        padding: 22px;
+    }
+    
+    .user-name {
+        display: none; /* Only show avatar on mobile */
+    }
+}

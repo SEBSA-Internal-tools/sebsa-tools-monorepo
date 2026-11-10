@@ -1,0 +1,104 @@
+<article class="workspace-card section">
+  <!-- Table Controls Bar (Single-Row Flex Layout) -->
+  <div class="table-controls">
+    <!-- Left: Search Box -->
+    <div class="controls-left">
+      <div class="search-box">
+        <span class="material-symbols-outlined search-icon">search</span>
+        <input
+          type="text"
+          [(ngModel)]="searchQuery"
+          placeholder="Search customers..."
+          class="search-input"
+        />
+        <button
+          type="button"
+          *ngIf="searchQuery"
+          (click)="searchQuery = ''"
+          class="clear-btn"
+        >
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Right: New Customer CTA -->
+    <div class="controls-right">
+      <button type="button" class="btn-primary" (click)="onNewCustomer()">
+        <span class="material-symbols-outlined">add</span>
+        New customer
+      </button>
+    </div>
+  </div>
+
+  <!-- Customers List View -->
+  <div class="customers-list-container">
+    @if (filteredCustomers().length > 0) {
+      <div class="customers-list">
+        <!-- Table Header -->
+        <div class="list-header">
+          <div class="col-customer">Customer</div>
+          <div class="col-email">Contact Email</div>
+          <div class="col-phone">Phone</div>
+          <div class="col-projects">Projects</div>
+          <div class="col-updated">Last Updated</div>
+          <div class="col-actions">Actions</div>
+        </div>
+
+        <!-- Customer Items -->
+        @for (customer of filteredCustomers(); track customer.id) {
+          <div
+            class="list-item"
+            role="button"
+            tabindex="0"
+            (click)="onRowClick(customer, $event)"
+            (keydown.enter)="onRowClick(customer, $event)"
+          >
+            <div class="col-customer">
+              <div class="customer-cell">
+                <div class="customer-avatar">{{ initials(customer.name) }}</div>
+                <span class="customer-name">{{ customer.name }}</span>
+              </div>
+            </div>
+
+            <div class="col-email">{{ customer.contactEmail || '—' }}</div>
+
+            <div class="col-phone">{{ customer.contactPhone || '—' }}</div>
+
+            <div class="col-projects">
+              <span class="material-symbols-outlined">folder</span>
+              {{ customer.projectCount }}
+            </div>
+
+            <div class="col-updated">{{ customer.updatedAt | date: 'mediumDate' }}</div>
+
+            <div class="col-actions">
+              <button
+                type="button"
+                class="btn-edit"
+                (click)="onEditCustomer(customer, $event)"
+                title="Edit customer"
+              >
+                <span class="material-symbols-outlined">edit</span>
+              </button>
+              <button
+                type="button"
+                class="btn-delete"
+                (click)="onDeleteCustomer(customer.id, $event)"
+                title="Delete customer"
+              >
+                <span class="material-symbols-outlined">delete</span>
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+    } @else {
+      <div class="empty-state">
+        <span class="material-symbols-outlined empty-icon">domain</span>
+        <h3>No customers found</h3>
+        <p>Try adjusting your search, or add a new customer to get started.</p>
+      </div>
+    }
+  </div>
+</article>

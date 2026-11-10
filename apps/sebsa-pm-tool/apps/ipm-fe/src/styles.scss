@@ -1,0 +1,835 @@
+// =============================================================================
+// SEBSA PM Tool — Comprehensive Design System Foundations
+// Archetype: Clean SaaS Dashboard (Lavender-Gray Canvas, 24px White Cards, Purple Accent)
+// =============================================================================
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap');
+
+// =============================================================================
+// 1. Root Theme Variables
+// =============================================================================
+
+:root {
+  color-scheme: light;
+  --page-gutter: 28px;
+  --content-gap: 20px;
+  --radius-panel: 12px;
+  --radius-control: 8px;
+  --radius-dialog: 16px;
+  --app-primary: var(--brand-primary);
+  --app-text-secondary: var(--text-secondary);
+  --surface-soft: var(--surface-muted);
+  --surface-hover: var(--surface-muted);
+  --shadow-sm: var(--shadow-card);
+
+  // --- Semantic Brand Palette ---
+  --brand-primary:        #8427e2;   // Brand/Primary 600 (Main buttons, active states, links)
+  --brand-primary-hover:  #7020c4;   // Primary hover
+  --brand-primary-100:    #f2e8fc;   // Light primary tint
+  --brand-primary-50:     #faf7fd;   // Softest primary tint
+  --brand-action:         #8427e2;
+  --brand-action-hover:   #7020c4;
+  --brand-plum:           #360065;
+  --brand-lilac:          #cd92ff;
+  --brand-navy:           #281b36;   // Brand/Navy 900 (Solid navy surfaces only)
+  --brand-violet:         #8427e2;   // Brand/Violet 600 Accent
+  --brand-purple-heart:   #5b168d;
+  --brand-midnight-blue:  #160b27;
+  --brand-surface:        #ffffff;
+
+  // --- Surface & Canvas Tokens ---
+  --surface-page:         #f8f7fa;   // Light lavender-gray canvas
+  --surface-card:         #ffffff;   // White card background
+  --surface-muted:        #f7f5fa;   // Soft input/header background
+
+  // --- Typography & Content Colors ---
+  --text-heading:         #281b36;   // Dark Navy (Poppins headings & title text)
+  --text-primary:         #453c50;   // Dark Slate Gray (Main body text)
+  --text-secondary:       #70657d;   // Muted Slate Gray
+  --text-muted:           #697586;   // Light gray for hints & placeholders
+  --text-link:            #8427e2;   // Purple link color
+
+  // --- Borders & Dividers ---
+  --border-default:       #e6e0eb;   // Light gray border
+  --border-subtle:        #f2eef5;   // Soft divider
+
+  // --- Status & State Color Tokens (Two-Tone System) ---
+  --status-success-bg:    #ecfdf5;   // Soft mint green background
+  --status-success-fg:    #059669;   // Dark green text
+  --status-success-solid: #10b981;   // Saturated solid green
+
+  --status-warning-bg:    #fffbeb;   // Light amber background
+  --status-warning-fg:    #d97706;   // Dark amber text
+  --status-warning-solid: #f59e0b;   // Saturated solid amber
+
+  --status-error-bg:      #fef2f2;   // Light red background
+  --status-error-fg:      #dc2626;   // Dark red text
+  --status-error-solid:   #ef4444;   // Saturated solid red
+
+  --status-info-bg:       #eff6ff;   // Soft blue background
+  --status-info-fg:       #2563eb;   // Dark blue text
+  --status-info-solid:    #3b82f6;   // Saturated solid blue
+
+  --status-purple-bg:     #f2e8fc;   // Light purple background
+  --status-purple-fg:     #8427e2;   // Dark purple text
+  --status-purple-solid:  #8427e2;   // Saturated solid purple
+
+  --status-pink-bg:       #fce7f3;   // Soft pink background
+  --status-pink-fg:       #db2777;   // Dark pink text
+  --status-pink-solid:    #ec4899;   // Saturated solid pink
+
+  --status-neutral-bg:    #f2eef5;   // Slate gray tint
+  --status-neutral-fg:    #70657d;   // Dark slate text
+  --status-neutral-solid: #70657d;   // Solid slate gray
+
+  // --- Fonts & Typography ---
+  --font-heading:         'Inter', 'Segoe UI', sans-serif;
+  --font-body:            'Inter', sans-serif;
+  --font-mono:            'Roboto Mono', monospace;
+
+  // --- Shadows & Elevations ---
+  --shadow-card:          0 1px 3px rgba(15, 23, 42, 0.035);
+  --shadow-elevated:      0 8px 30px rgba(15, 23, 42, 0.08);
+  --shadow-glow-focus:    0 0 0 3px rgba(132, 39, 226, 0.15);
+  --shadow-glow-purple:   0 4px 14px 0 rgba(132, 39, 226, 0.25);
+
+  // --- Self-fix: used by this very stylesheet (.sebsa-card:hover) but never
+  // defined anywhere — without this, hovering any card resolves to an
+  // invalid custom property and silently drops the border-color change.
+  --border-strong:        #d8cfe0;
+
+  // ---------------------------------------------------------------------------
+  // Legacy Compatibility Mapping — many components across the app (built
+  // before this token system existed) still reference the older variable
+  // names below. That original `:root` block was removed when this system
+  // replaced it, which broke every one of those components (transparent
+  // modal/card backgrounds, invisible borders, etc. wherever a `var(--x)`
+  // with no fallback resolved to nothing). Re-pointing the old names at the
+  // new tokens fixes all of them without having to touch each file
+  // individually. Safe to delete a mapping once its last consumer is
+  // migrated to the new token names directly.
+  // ---------------------------------------------------------------------------
+  --app-background:       var(--surface-page);
+  --app-surface:          var(--surface-card);
+  --app-surface-soft:     var(--surface-muted);
+  --app-surface-elevated: var(--surface-card);
+  --app-border:           var(--border-default);
+  --app-text:             var(--text-primary);
+  --app-text-muted:       var(--text-secondary);
+  --app-text-subtle:      var(--text-muted);
+  --app-hover:            var(--surface-muted);
+  --app-accent:           var(--brand-primary);
+  --app-accent-strong:    var(--brand-primary-hover);
+  --app-accent-soft:      var(--brand-primary-100);
+  --app-accent-shadow:    rgba(132, 39, 226, 0.2);
+  --app-accent-on:        #ffffff;
+
+  --color-brand-primary:       var(--brand-primary);
+  --color-surface-bright:      var(--surface-card);
+  --color-surface-dim:         var(--surface-card);
+  --color-surface-glass:       var(--surface-muted);
+  --color-surface-glass-hover: #eef1f6;
+  --color-surface-glass-active: var(--surface-card);
+
+  --border-glass:         1px solid var(--border-default);
+  --border-glass-hover:   1px solid var(--brand-primary-100);
+  --border-glass-active:  1px solid var(--brand-primary);
+
+  --backdrop-blur:        blur(8px);
+  --backdrop-blur-heavy:  blur(16px);
+
+  --shadow-subtle:        var(--shadow-card);
+
+  --surface-panel:        #f2eef5;   // Muted ash panel (page headers, search inputs)
+
+  --text-brand:           var(--brand-primary);
+
+  --status-success:       var(--status-success-solid);
+  --status-warning:       var(--status-warning-solid);
+  --status-error:         var(--status-error-solid);
+  --status-info:          var(--status-info-solid);
+}
+
+// =============================================================================
+// 1b. Dark Theme Token Overrides
+// Applied when ThemeService sets [data-theme="dark"] on <html>. Every
+// component that reads colors through the var(--...) tokens above (rather
+// than a hardcoded hex) repaints automatically once these are overridden —
+// nothing else needs to change per-component.
+// =============================================================================
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --brand-primary:        #bb85f3;
+  --brand-primary-hover:  #ceabf8;
+  --brand-primary-100:    #382049;
+  --brand-primary-50:     #291936;
+  --brand-surface:        #281b36;
+
+  --surface-page:         #100d16;
+  --surface-card:         #1b1623;
+  --surface-muted:        #241d2e;
+
+  --text-heading:         #f2eef5;
+  --text-primary:         #d8cfe0;
+  --text-secondary:       #94a3b8;
+  --text-muted:           #95a1b5;
+  --text-link:            #cd92ff;
+
+  --border-default:       #3a3048;
+  --border-subtle:        #2d2536;
+  --border-strong:        #51435e;
+
+  --status-success-bg:    rgba(16, 185, 129, 0.15);
+  --status-success-fg:    #34d399;
+
+  --status-warning-bg:    rgba(245, 158, 11, 0.15);
+  --status-warning-fg:    #fbbf24;
+
+  --status-error-bg:      rgba(239, 68, 68, 0.15);
+  --status-error-fg:      #f87171;
+
+  --status-info-bg:       rgba(59, 130, 246, 0.15);
+  --status-info-fg:       #60a5fa;
+
+  --status-purple-bg:     rgba(157, 92, 255, 0.15);
+  --status-purple-fg:     #c4b5fd;
+
+  --status-pink-bg:       rgba(236, 72, 153, 0.15);
+  --status-pink-fg:       #f472b6;
+
+  --status-neutral-bg:    rgba(148, 163, 184, 0.15);
+  --status-neutral-fg:    #d8cfe0;
+
+  --shadow-card:          0 4px 20px rgba(0, 0, 0, 0.35);
+  --shadow-elevated:      0 8px 30px rgba(0, 0, 0, 0.45);
+  --shadow-glow-focus:    0 0 0 3px rgba(157, 92, 255, 0.25);
+  --shadow-glow-purple:   0 4px 14px 0 rgba(157, 92, 255, 0.3);
+
+  --color-surface-glass-hover: #30263d;
+
+  --surface-panel:        #241d2e;
+}
+
+// =============================================================================
+// 2. Global Resets & Typography Base
+// =============================================================================
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  max-height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  font-family: var(--font-body);
+  color: var(--text-primary);
+  background-color: var(--surface-page);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  color: var(--text-heading);
+}
+
+code, pre, .font-mono, .task-id, .crim-id {
+  font-family: var(--font-mono);
+}
+
+// =============================================================================
+// 3. Global Page Layout & Hero Header Blueprint
+// =============================================================================
+
+.workspace-page,
+.page-container {
+  background-color: var(--surface-page);
+}
+
+.tasks-page-container, .cso-container, .admin-users-container {
+  background-color: var(--surface-page);
+}
+
+.sebsa-page-header {
+  background-color: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  padding: 24px 28px;
+  margin-bottom: 24px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+
+  @media (max-width: 768px) {
+    padding: 24px 18px;
+    border-radius: 16px;
+    margin-bottom: 16px;
+  }
+}
+
+.sebsa-eyebrow {
+  color: var(--brand-primary);
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.sebsa-page-title {
+  color: var(--text-heading);
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+  font-size: 1.65rem;
+  font-weight: 600;
+  margin: 0 0 12px 0;
+}
+
+.sebsa-page-desc {
+  max-width: 600px;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  width: 100%;
+  min-width: 0;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  margin: 0;
+}
+
+// =============================================================================
+// 4. Card Foundations (.sebsa-card)
+// =============================================================================
+
+.sebsa-card,
+.glass-card,
+.workspace-card {
+  background: var(--surface-card);
+  border-radius: 12px;
+  box-shadow: var(--shadow-card);
+  padding: 28px;
+  border: 1px solid var(--border-default);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+
+  &:hover {
+    box-shadow: var(--shadow-elevated);
+    border-color: var(--border-strong);
+  }
+}
+
+// =============================================================================
+// 5. BUTTON SYSTEM (3 Variants per Color Family + Disabled State)
+// =============================================================================
+
+.btn {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.875rem;
+  letter-spacing: -0.01em;
+  padding: 10px 20px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  outline: none;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+  white-space: nowrap;
+
+  .material-symbols-outlined {
+    font-size: 1.15rem;
+  }
+
+  &:disabled,
+  &.disabled {
+    opacity: 0.5;
+    cursor: not-allowed !important;
+    box-shadow: none !important;
+    transform: none !important;
+  }
+}
+
+/* 5.1 Primary (Purple) Color Family — Enforce Solid Deep Purple */
+.btn-primary,
+.btn-primary-solid,
+.sebsa-btn-primary {
+  background-color: var(--brand-action) !important;
+  color: var(--app-accent-on) !important;
+  font-weight: 600 !important;
+  border: none !important;
+  border-radius: 8px !important;
+  padding: 10px 20px !important;
+  box-shadow: none !important;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+
+  .material-symbols-outlined,
+  span {
+    color: var(--app-accent-on) !important;
+  }
+
+  &:hover:not(:disabled) {
+    background-color: var(--brand-action-hover) !important;
+    color: var(--app-accent-on) !important;
+    border-color: var(--brand-primary-hover) !important;
+    box-shadow: none !important;
+    transform: none !important;
+  }
+}
+
+.btn-primary-soft {
+  @extend .btn;
+  color: var(--brand-primary);
+  background: var(--brand-primary-100);
+  border: 1px solid transparent;
+
+  &:hover:not(:disabled) {
+    background: #e9d5ff;
+    color: var(--brand-primary-hover);
+  }
+}
+
+.btn-primary-outline {
+  @extend .btn;
+  color: var(--brand-primary);
+  background: #ffffff;
+  border: 1px solid var(--border-default);
+
+  &:hover:not(:disabled) {
+    background: var(--brand-primary-50);
+    border-color: var(--brand-primary);
+  }
+}
+
+/* 5.2 Secondary (Navy) Color Family */
+.btn-navy-solid {
+  @extend .btn;
+  color: #ffffff;
+  background: var(--brand-navy);
+  border: 1px solid var(--brand-navy);
+
+  &:hover:not(:disabled) {
+    background: #1e293b;
+    border-color: #1e293b;
+  }
+}
+
+.btn-navy-soft {
+  @extend .btn;
+  color: var(--brand-navy);
+  background: #f2eef5;
+  border: 1px solid transparent;
+
+  &:hover:not(:disabled) {
+    background: #e6e0eb;
+  }
+}
+
+.btn-navy-outline {
+  @extend .btn;
+  color: var(--brand-navy);
+  background: #ffffff;
+  border: 1px solid var(--border-default);
+
+  &:hover:not(:disabled) {
+    background: #f7f5fa;
+    border-color: var(--brand-navy);
+  }
+}
+
+/* 5.3 Success (Green) Color Family */
+.btn-success-solid {
+  @extend .btn;
+  color: #ffffff;
+  background: var(--status-success-solid);
+  border: 1px solid var(--status-success-solid);
+
+  &:hover:not(:disabled) {
+    background: #059669;
+  }
+}
+
+.btn-success-soft {
+  @extend .btn;
+  color: var(--status-success-fg);
+  background: var(--status-success-bg);
+  border: 1px solid transparent;
+
+  &:hover:not(:disabled) {
+    background: #d1fae5;
+  }
+}
+
+.btn-success-outline {
+  @extend .btn;
+  color: var(--status-success-fg);
+  background: #ffffff;
+  border: 1px solid var(--status-success-solid);
+
+  &:hover:not(:disabled) {
+    background: var(--status-success-bg);
+  }
+}
+
+/* 5.4 Danger / Error (Red) Color Family */
+.btn-danger-solid {
+  @extend .btn;
+  color: #ffffff;
+  background: var(--status-error-solid);
+  border: 1px solid var(--status-error-solid);
+
+  &:hover:not(:disabled) {
+    background: #dc2626;
+  }
+}
+
+.btn-danger-soft {
+  @extend .btn;
+  color: var(--status-error-fg);
+  background: var(--status-error-bg);
+  border: 1px solid transparent;
+
+  &:hover:not(:disabled) {
+    background: #fee2e2;
+  }
+}
+
+.btn-danger-outline {
+  @extend .btn;
+  color: var(--status-error-fg);
+  background: #ffffff;
+  border: 1px solid var(--status-error-solid);
+
+  &:hover:not(:disabled) {
+    background: var(--status-error-bg);
+  }
+}
+
+// Legacy Alias
+.btn-secondary {
+  @extend .btn-navy-outline;
+}
+
+.btn-icon {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 10px;
+}
+
+// =============================================================================
+// 6. TWO-TONE BADGE & STATUS PILL SYSTEM
+// =============================================================================
+
+.status-pill,
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+
+  .pill-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+
+  // --- Success (Green) ---
+  &.success,
+  &.done,
+  &.approved,
+  &.badge-active {
+    background: var(--status-success-bg);
+    color: var(--status-success-fg);
+
+    .pill-dot {
+      background: var(--status-success-solid);
+    }
+
+    &.solid {
+      background: var(--status-success-solid);
+      color: #ffffff;
+    }
+  }
+
+  // --- Warning (Amber) ---
+  &.warning,
+  &.in-progress,
+  &.medium,
+  &.badge-pending {
+    background: var(--status-warning-bg);
+    color: var(--status-warning-fg);
+
+    .pill-dot {
+      background: var(--status-warning-solid);
+    }
+
+    &.solid {
+      background: var(--status-warning-solid);
+      color: #ffffff;
+    }
+  }
+
+  // --- Error / Danger (Red) ---
+  &.error,
+  &.danger,
+  &.blocked,
+  &.high,
+  &.critical,
+  &.badge-inactive {
+    background: var(--status-error-bg);
+    color: var(--status-error-fg);
+
+    .pill-dot {
+      background: var(--status-error-solid);
+    }
+
+    &.solid {
+      background: var(--status-error-solid);
+      color: #ffffff;
+    }
+  }
+
+  // --- Info (Blue) ---
+  &.info,
+  &.in-review,
+  &.low {
+    background: var(--status-info-bg);
+    color: var(--status-info-fg);
+
+    .pill-dot {
+      background: var(--status-info-solid);
+    }
+
+    &.solid {
+      background: var(--status-info-solid);
+      color: #ffffff;
+    }
+  }
+
+  // --- Purple ---
+  &.purple,
+  &.cso {
+    background: var(--status-purple-bg);
+    color: var(--status-purple-fg);
+
+    .pill-dot {
+      background: var(--status-purple-solid);
+    }
+
+    &.solid {
+      background: var(--status-purple-solid);
+      color: #ffffff;
+    }
+  }
+
+  // --- Neutral (Slate) ---
+  &.neutral,
+  &.todo {
+    background: var(--status-neutral-bg);
+    color: var(--status-neutral-fg);
+
+    .pill-dot {
+      background: var(--status-neutral-solid);
+    }
+
+    &.solid {
+      background: var(--status-neutral-solid);
+      color: #ffffff;
+    }
+  }
+}
+
+// =============================================================================
+// 7. Outline Material Icons Default
+// =============================================================================
+
+.material-symbols-outlined {
+  font-variation-settings:
+    'FILL' 0,
+    'wght' 400,
+    'GRAD' 0,
+    'opsz' 24;
+}
+
+// =============================================================================
+// 8. Global Layout, Search Bar, Table & Typography Standardization Overrides
+// =============================================================================
+
+/* Global Typography Enforcement */
+body, input, button, table {
+  font-family: 'Inter', sans-serif !important;
+}
+
+h1, h2, h3, h4, h5, h6, .sebsa-page-title {
+  font-family: 'Inter', 'Segoe UI', sans-serif !important;
+}
+
+// Data table defaults stay low-specificity so calendar and configuration layouts
+// retain their own geometry. Paint belongs to the owning component.
+:where(.sebsa-table) {
+  width: 100%; border-collapse: collapse; background: var(--surface-card);
+  th { padding: 12px 16px; text-align: left; font-size: 11px; font-weight: 600; color: var(--text-secondary); background: var(--surface-muted); border-bottom: 1px solid var(--border-default); }
+  td { padding: 14px 16px; font-size: 13px; border-bottom: 1px solid var(--border-subtle); }
+  tbody tr:hover { background: var(--surface-muted); }
+}
+
+/* Task 3: Glossy User Count Badge */
+.sebsa-glossy-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 24px; padding: 2px 8px; margin-left: 8px;
+  font-size: 12px; font-weight: 600; color: var(--brand-primary);
+  background: var(--brand-primary-100); border: 1px solid var(--border-default);
+  border-radius: 6px; vertical-align: middle;
+}
+
+// =============================================================================
+// Global Responsive Utilities & Form Resets
+// =============================================================================
+
+/* Universal Date Input & Calendar Picker Styling */
+input[type="date"] {
+  appearance: none;
+  -webkit-appearance: none;
+  font-family: var(--font-body);
+  color: var(--text-heading);
+  background-color: var(--surface-muted);
+  box-sizing: border-box;
+  max-width: 100%;
+  width: 100%;
+  cursor: pointer;
+
+  &::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.2s ease;
+    padding: 2px 4px;
+    border-radius: 4px;
+
+    &:hover {
+      opacity: 1;
+      background-color: var(--brand-primary-100);
+    }
+  }
+}
+
+[data-theme='dark'],
+.dark-theme,
+.theme-dark {
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(0.8);
+  }
+}
+
+@media (max-width: 640px) {
+  /* Prevent iOS Safari input auto-zoom by ensuring 16px font size on mobile inputs */
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+
+  /* Date inputs on mobile */
+  input[type="date"] {
+    min-height: 44px !important;
+    padding: 10px 14px !important;
+    font-size: 16px !important;
+  }
+
+  /* Priority Button Grid on Mobile */
+  .priority-group {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  /* Global Modal Container Mobile Default */
+  .modal-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 92vh !important;
+    max-height: 92dvh !important;
+    border-radius: 20px 20px 0 0 !important;
+    bottom: 0 !important;
+    top: auto !important;
+    left: 0 !important;
+    right: 0 !important;
+    transform: none !important;
+  }
+
+  /* Full Width Mobile Buttons in Modal Footers */
+  .modal-footer {
+    padding: 14px 18px !important;
+    gap: 10px !important;
+
+    button {
+      flex: 1;
+      justify-content: center;
+      padding: 12px 16px !important;
+    }
+  }
+
+  /* Ensure smooth momentum scrolling on touch devices */
+  .modal-body,
+  .page-content,
+  .table-responsive,
+  .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+.modal-body {
+  overflow-x: hidden !important;
+}
+
+@media (max-width: 768px) {
+  /* Universal Dropdown & Popover Containment */
+  .custom-select-dropdown,
+  .datepicker-popup,
+  .dropdown-menu,
+  .assignee-menu,
+  .members-dropdown,
+  .mention-menu,
+  .popover-menu,
+  .flyout-menu,
+  .day-flyout-card {
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+
+
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media (max-width: 768px) { :root { --page-gutter: 16px; --content-gap: 16px; } }

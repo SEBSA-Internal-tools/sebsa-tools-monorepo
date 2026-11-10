@@ -1,0 +1,187 @@
+<div class="sprint-container">
+  <!-- Error Message -->
+  @if (errorMessage()) {
+    <div style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: #fee2e2; border-radius: 6px; color: #991b1b;">
+      <span class="material-symbols-outlined" style="font-size: 18px;">error</span>
+      {{ errorMessage() }}
+    </div>
+  }
+
+  <!-- Loading State -->
+  @if (isLoading()) {
+    <div style="display: flex; align-items: center; justify-content: center; gap: 8px; padding: 16px; color: var(--app-text-muted);">
+      <span class="material-symbols-outlined" style="font-size: 20px;">refresh</span>
+      Loading sprints...
+    </div>
+  }
+
+  <!-- Header Section -->
+  <div class="sprint-header">
+    <div class="header-content">
+      <h2>Sprint Planning</h2>
+      <p class="sprint-count">{{ sprints().length }} sprints</p>
+    </div>
+    @if (canAddSprint()) {
+      <button type="button" class="btn-add-sprint" (click)="onOpenAddSprintModal()">
+        <span class="material-symbols-outlined">add</span>
+        Add Sprint
+      </button>
+    }
+  </div>
+
+  <!-- Sprints Tree View -->
+  <div class="sprints-tree">
+    @if (sprints().length > 0) {
+      @for (sprint of sprints(); track sprint.id) {
+        <div class="sprint-item">
+          <!-- Sprint Header (Expandable) -->
+          <div class="sprint-header-row">
+            <button
+              type="button"
+              class="toggle-button"
+              (click)="toggleSprint(sprint.id)"
+              [attr.aria-expanded]="expandedSprints()[sprint.id]"
+            >
+              <span class="material-symbols-outlined">
+                {{ expandedSprints()[sprint.id] ? 'expand_less' : 'expand_more' }}
+              </span>
+            </button>
+
+            <!-- Sprint Info -->
+            <div class="sprint-info">
+              <div class="sprint-title-section">
+                <h3 class="sprint-title">{{ sprint.name }}</h3>
+                <span [class]="'sprint-status ' + getStatusBadgeClass(sprint.status)">
+                  {{ getStatusLabel(sprint.status) }}
+                </span>
+              </div>
+
+              <div class="sprint-meta">
+                <span class="meta-item">
+                  <span class="material-symbols-outlined">calendar_today</span>
+                  {{ sprint.startDate | date:'yyyy-MM-dd' }} <strong>TO</strong> {{ sprint.endDate | date:'yyyy-MM-dd' }}
+                </span>
+                <span class="meta-item">
+                  <span class="material-symbols-outlined">task_alt</span>
+                  {{ getSprintStats(sprint.id).total }} cases
+                </span>
+              </div>
+            </div>
+
+            <!-- Sprint Progress & Actions -->
+            <div class="sprint-actions">
+              <div class="progress-section">
+                <div class="progress-bar">
+                  <div
+                    class="progress-fill"
+                    [style.width.%]="getProgressPercentage(sprint.id)"
+                  ></div>
+                </div>
+                <span class="progress-label">
+                  {{ getSprintStats(sprint.id).completed }}/{{ getSprintStats(sprint.id).total }}
+                </span>
+              </div>
+
+              <div class="action-buttons">
+                @if (isPM()) {
+                  <button
+                    type="button"
+                    class="action-btn delete"
+                    (click)="onDeleteSprint(sprint.id)"
+                    title="Delete sprint"
+                  >
+                    <span class="material-symbols-outlined">delete</span>
+                  </button>
+                }
+              </div>
+            </div>
+          </div>
+
+          <!-- Sprint Description -->
+          @if (sprint.description && expandedSprints()[sprint.id]) {
+            <div class="sprint-description">
+              <p>{{ sprint.description }}</p>
+            </div>
+          }
+
+          <!-- Sprint Tasks (Table View) -->
+          @if (expandedSprints()[sprint.id]) {
+            <div class="sprint-tasks-table">
+              @if (getSprintCases(sprint.id).length > 0) {
+                <table class="tasks-table">
+                  <thead>
+                    <tr>
+                      <th>Title</th>
+                      <th>Type</th>
+                      <th>Status</th>
+                      <th>Priority</th>
+                      <th>Assignee</th>
+                      <th>Due Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (kase of getSprintCases(sprint.id); track kase.id) {
+                      <tr class="task-row">
+                        <td class="col-title">
+                          <span class="task-title">{{ kase.title }}</span>
+                        </td>
+                        <td class="col-category">
+                          <span class="task-category">{{ kase.type }}</span>
+                        </td>
+                        <td class="col-status">
+                          <span [class]="'task-status ' + getStatusClass(kase.status)">
+                            {{ getCaseStatusLabel(kase.status) }}
+                          </span>
+                        </td>
+                        <td class="col-priority">
+                          <span [class]="'task-priority ' + getPriorityClass(kase.priority)">
+                            {{ kase.priority }}
+                          </span>
+                        </td>
+                        <td class="col-assignee">
+                          @if (kase.assignee) {
+                            <span class="assignee-badge">{{ kase.assignee }}</span>
+                          } @else {
+                            <span class="empty-cell">—</span>
+                          }
+                        </td>
+                        <td class="col-due-date">
+                          @if (kase.dueDate) {
+                            <span class="due-date">{{ kase.dueDate | date:'yyyy-MM-dd' }}</span>
+                          } @else {
+                            <span class="empty-cell">—</span>
+                          }
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              } @else {
+                <div class="empty-tasks">
+                  <span class="material-symbols-outlined">inbox</span>
+                  <p>No cases in this sprint</p>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      }
+    } @else {
+      <div class="empty-state">
+        <div class="empty-icon">
+          <span class="material-symbols-outlined">sprint</span>
+        </div>
+        <h3>No Sprints Created Yet</h3>
+        <p>Create your first sprint to start organizing tasks</p>
+      </div>
+    }
+  </div>
+
+  <!-- Add Sprint Modal -->
+  <add-sprint-modal
+    [isOpen]="isModalOpen()"
+    [projectId]="projectId"
+    (close)="onCloseModal()"
+    (submit)="onAddSprint($event)"
+  ></add-sprint-modal>
+</div>

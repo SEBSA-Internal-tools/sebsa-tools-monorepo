@@ -1,0 +1,63 @@
+<main class="auth-layout">
+  <section class="brand-panel" aria-labelledby="brand-heading">
+    <header class="brand-header">
+      <span class="brand-mark" role="img" aria-label="SEBSA"></span>
+      <span class="brand-label">SEBSA One</span>
+    </header>
+
+    <div class="brand-story">
+      <span class="brand-eyebrow">A clearer way to work</span>
+      <h1 id="brand-heading">Bring clarity to <br />every project<span class="headline-dot">.</span></h1>
+      <p>Connect your projects, cases, and people.<br class="desktop-break" /> Move forward with a shared view of the work.</p>
+
+      <div class="work-map" aria-hidden="true">
+        <div class="map-orbit orbit-one"></div><div class="map-orbit orbit-two"></div>
+        <div class="map-path"></div>
+        <div class="map-node node-project"><span class="node-icon material-symbols-outlined">folder_open</span><span><small>The big picture</small><strong>Projects</strong></span><span class="node-dot"></span></div>
+        <div class="map-node node-case"><span class="node-icon material-symbols-outlined">layers</span><span><small>Work in context</small><strong>Cases</strong></span><span class="node-dot"></span></div>
+        <div class="map-node node-task"><span class="node-icon material-symbols-outlined">check_circle</span><span><small>The next step</small><strong>Tasks</strong></span><span class="node-dot"></span></div>
+        <span class="map-caption">Connected work. Clear ownership.</span>
+      </div>
+    </div>
+
+    <footer class="brand-footer"><span class="material-symbols-outlined" aria-hidden="true">hub</span> SEBSA One. Shared momentum.</footer>
+  </section>
+
+  <section class="sign-in-panel" aria-labelledby="sign-in-heading">
+    <div class="sign-in-content">
+      <div class="form-heading">
+        <span class="form-emblem material-symbols-outlined" aria-hidden="true">space_dashboard</span>
+        <p class="form-eyebrow">Welcome to SEBSA One</p>
+        <h2 id="sign-in-heading">Welcome back</h2>
+        <p class="form-description">Sign in and pick up where you left off.</p>
+      </div>
+
+      @if (hasError()) {
+        <div class="auth-alert" role="alert" id="login-error"><span class="material-symbols-outlined" aria-hidden="true">error</span><p>{{ errorMessage() }}</p></div>
+      }
+
+      <form (submit)="login(); $event.preventDefault()" [attr.aria-busy]="isSubmitting()">
+        <div class="form-field">
+          <label for="email">Work email</label>
+          <input id="email" type="email" name="email" [(ngModel)]="email" autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false" placeholder="you@sebsaworld.com" [attr.aria-describedby]="hasError() ? 'login-error' : null" required />
+        </div>
+        <div class="form-field">
+          <label for="password">Password</label>
+          <div class="password-field">
+            <input id="password" [type]="showPassword() ? 'text' : 'password'" name="password" [(ngModel)]="password" autocomplete="current-password" [attr.aria-describedby]="hasError() ? 'login-error' : null" placeholder="Enter your password" required />
+            <button type="button" class="password-toggle" (click)="togglePasswordVisibility()" [attr.aria-label]="showPassword() ? 'Hide password' : 'Show password'" [attr.aria-pressed]="showPassword()"><span class="material-symbols-outlined" aria-hidden="true">{{ showPassword() ? 'visibility_off' : 'visibility' }}</span></button>
+          </div>
+        </div>
+        <button type="submit" class="sign-in-button" [disabled]="isSubmitting() || retryAfterSeconds() > 0">
+          @if (isSubmitting()) { <span class="spinner" aria-hidden="true"></span><span>Signing in...</span> } @else { <span>Sign in to SEBSA One</span><span class="material-symbols-outlined" aria-hidden="true">arrow_forward</span> }
+        </button>
+        <p class="sign-in-status" role="status">{{ isSubmitting() ? 'Signing you in. Please wait.' : '' }}</p>
+      </form>
+
+
+      <p class="signup-prompt">New to SEBSA? <a routerLink="/register">Request an account<span class="material-symbols-outlined" aria-hidden="true">north_east</span></a></p>
+      <div class="access-note"><span class="material-symbols-outlined" aria-hidden="true">help_outline</span><p>For SEBSA employees. Need access help?<br />Contact your system administrator.</p></div>
+    </div>
+    <footer class="auth-footer">&copy; {{ currentYear }} SEBSA (Pvt) Ltd.</footer>
+  </section>
+</main>

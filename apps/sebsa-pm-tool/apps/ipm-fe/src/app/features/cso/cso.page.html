@@ -1,0 +1,62 @@
+<section class="workspace-page">
+  <div class="cso-container">
+    <header class="sebsa-page-header">
+      <span class="sebsa-eyebrow">CUSTOMER SUCCESS</span>
+      <h1 class="sebsa-page-title">CSO</h1>
+      <p class="sebsa-page-desc">Customer Success Organization — projects, tasks, and cross-project visibility.</p>
+    </header>
+
+    <div class="cso-body" [class.dashboard-active]="activeTab === 'dashboard'">
+      <cso-nav-tabs
+        [activeTab]="activeTab"
+        [showConfiguration]="canViewConfiguration"
+        (tabChange)="onTabChange($event)"
+      ></cso-nav-tabs>
+
+      <div class="tab-content">
+        @switch (activeTab) {
+          @case ('dashboard') {
+            <cso-kpi-dashboard-tab></cso-kpi-dashboard-tab>
+          }
+          @case ('cso-board') {
+            <cso-dashboard-tab></cso-dashboard-tab>
+          }
+          @case ('overview') {
+            <cso-overview-tab></cso-overview-tab>
+          }
+          @case ('queue') {
+            <div class="queue-subnav" role="tablist" aria-label="Queue">
+              <button
+                type="button"
+                class="queue-subtab"
+                role="tab"
+                [attr.aria-selected]="activeQueueTab === 'functional'"
+                [class.active]="activeQueueTab === 'functional'"
+                (click)="onQueueTabChange('functional')"
+              >
+                <span class="material-symbols-outlined">psychology</span>
+                Functional Queue
+              </button>
+              <button
+                type="button"
+                class="queue-subtab"
+                role="tab"
+                [attr.aria-selected]="activeQueueTab === 'technical'"
+                [class.active]="activeQueueTab === 'technical'"
+                (click)="onQueueTabChange('technical')"
+              >
+                <span class="material-symbols-outlined">terminal</span>
+                Technical Queue
+              </button>
+            </div>
+
+            <cso-queue-tab [category]="activeQueueCategory"></cso-queue-tab>
+          }
+          @case ('configuration') {
+            <app-configuration-panel scope="CSO"></app-configuration-panel>
+          }
+        }
+      </div>
+    </div>
+  </div>
+</section>

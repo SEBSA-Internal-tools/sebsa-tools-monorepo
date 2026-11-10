@@ -1,0 +1,30 @@
+<section class="workspace-page">
+  <div class="customers-container">
+    <!-- Hero Section -->
+    <customers-hero></customers-hero>
+
+    @if (errorMessage()) {
+      <div class="page-error">{{ errorMessage() }}</div>
+    }
+
+    @if (isLoading()) {
+      <div class="page-loading">Loading customers&hellip;</div>
+    } @else {
+      <!-- Customers List Section -->
+      <customers-list
+        [customers]="customers()"
+        (newCustomerClick)="openCreateModal()"
+        (editCustomer)="openEditModal($event)"
+        (deleteCustomer)="onDeleteCustomer($event)"
+      ></customers-list>
+    }
+  </div>
+
+  <!-- Create/Edit Customer Modal -->
+  <create-customer-modal
+    [isOpen]="isModalOpen"
+    [editingCustomer]="editingCustomer"
+    (closed)="closeModal()"
+    (submitted)="onSubmitCustomer($event)"
+  ></create-customer-modal>
+</section>

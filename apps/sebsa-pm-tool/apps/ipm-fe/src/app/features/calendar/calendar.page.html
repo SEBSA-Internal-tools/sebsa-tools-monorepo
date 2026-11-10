@@ -1,0 +1,96 @@
+<div class="page-container">
+      <!-- Standard Hero Header -->
+      <header class="sebsa-page-header">
+        <div class="header-content-wrap">
+          <div>
+            <span class="sebsa-eyebrow">CASE TRACKING & SCHEDULING</span>
+            <h1 class="sebsa-page-title">Case Calendar</h1>
+            <p class="sebsa-page-desc">
+              Track deadlines, scheduled execution, and deliverables across all active customer cases.
+            </p>
+          </div>
+
+          <div class="header-actions">
+            <!-- Project Scope Filter -->
+            <app-custom-select
+              [value]="selectedProjectId()"
+              (valueChange)="onProjectFilterChanged($event)"
+              [options]="availableProjects()"
+              defaultOptionLabel="All Accessible Projects"
+              defaultOptionValue=""
+              ariaLabel="Scope by Project"
+              customClass="project-filter-select"
+            ></app-custom-select>
+
+            <!-- Refresh Button -->
+            <button
+              type="button"
+              class="btn-refresh"
+              [class.spinning]="isLoading()"
+              (click)="loadTasks(true)"
+              title="Refresh calendar cases"
+            >
+              <span class="material-symbols-outlined">refresh</span>
+            </button>
+
+            <!-- Create Case Button -->
+            @if (caseAccess.canCreateAny()) {
+            <button type="button" class="btn-header-primary" (click)="onCreateCaseClicked()">
+              <span class="material-symbols-outlined">add</span>
+              <span>Create Case</span>
+            </button>
+            }
+          </div>
+        </div>
+      </header>
+
+      <!-- Error Banner -->
+      @if (errorMessage()) {
+        <div class="calendar-error-banner" role="alert">
+          <div class="error-left">
+            <span class="material-symbols-outlined">error</span>
+            <span>{{ errorMessage() }}</span>
+          </div>
+          <button type="button" class="btn-retry-banner" (click)="loadTasks(true)">
+            Retry
+          </button>
+        </div>
+      }
+
+      <!-- KPI Summary Metrics (Real Backend Calculations) -->
+      <section class="kpi-cards-grid" aria-label="Calendar Summary Metrics">
+        @for (kpi of kpiMetrics(); track kpi.label) {
+          <div class="kpi-card">
+            <div class="kpi-icon-box" [ngClass]="'variant-' + kpi.colorVariant">
+              <span class="material-symbols-outlined">{{ kpi.icon }}</span>
+            </div>
+            <div class="kpi-content">
+              <span class="kpi-value">{{ kpi.value }}</span>
+              <span class="kpi-label">{{ kpi.label }}</span>
+            </div>
+          </div>
+        }
+      </section>
+
+      <!-- Standalone Calendar Component Connected to Cases Data -->
+      <main>
+        <app-calendar-view
+          [items]="calendarCases()"
+          [loading]="isLoading()"
+          [currentUserId]="authService.currentUser()?.id"
+          [currentUserName]="authService.currentUser()?.name"
+          (itemClick)="onCaseClicked($event)"
+          (createClick)="onCreateForDate($event)"
+        ></app-calendar-view>
+      </main>
+
+      <!-- Create Case Modal -->
+      <app-create-case-modal
+        [isOpen]="isCreateCaseOpen()"
+        [projectId]="selectedProjectId()"
+        [projectName]="selectedProjectName()"
+        [initialDueDate]="createCaseDueDate()"
+        (closed)="isCreateCaseOpen.set(false)"
+        (submitted)="onCreateCaseSubmit($event)"
+      ></app-create-case-modal>
+</div>

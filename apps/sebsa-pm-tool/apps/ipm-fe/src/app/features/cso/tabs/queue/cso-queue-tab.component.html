@@ -1,0 +1,147 @@
+<div class="cso-queue-tab" [class.technical]="category === 'TECHNICAL'">
+  <div class="tab-toolbar">
+    <p class="tab-subtitle">Every unassigned {{ queueLabel }} case across accessible CSO projects.</p>
+    <button
+      type="button"
+      class="btn-refresh"
+      [class.spinning]="isLoading()"
+      (click)="refresh()"
+      title="Refresh {{ queueLabel }} queue"
+      [attr.aria-label]="'Refresh ' + queueLabel + ' queue'"
+    >
+      <span class="material-symbols-outlined">refresh</span>
+    </button>
+    @if (caseAccess.canCreateCso()) {
+      <button type="button" class="btn-primary" (click)="openTaskModal()">
+        <span class="material-symbols-outlined">add</span>
+        Create Case
+      </button>
+    }
+  </div>
+
+  @if (errorMessage) {
+    <div class="error-banner">{{ errorMessage }}</div>
+  }
+
+  <div class="filter-bar">
+    <app-custom-select
+      [ngModel]="selectedProjectId()"
+      (ngModelChange)="selectedProjectId.set($event); applyFilters()"
+      [options]="csoProjects()"
+      defaultOptionLabel="All Projects"
+      defaultOptionValue=""
+      ariaLabel="Filter by Project"
+      customClass="filter-select"
+    ></app-custom-select>
+
+    <app-custom-select
+      [ngModel]="selectedCustomerId()"
+      (ngModelChange)="selectedCustomerId.set($event); applyFilters()"
+      [options]="availableCustomers()"
+      defaultOptionLabel="All Customers"
+      defaultOptionValue=""
+      ariaLabel="Filter by Customer"
+      customClass="filter-select"
+    ></app-custom-select>
+
+    <app-custom-select
+      [ngModel]="selectedStatus()"
+      (ngModelChange)="selectedStatus.set($event)"
+      [options]="statusFilterOptions"
+      defaultOptionLabel="All Statuses"
+      defaultOptionValue=""
+      ariaLabel="Filter by Status"
+      customClass="filter-select"
+    ></app-custom-select>
+
+    @if (hasActiveFilters()) {
+      <button
+        type="button"
+        class="clear-filters-btn"
+        (click)="clearFilters()"
+        title="Reset active filters"
+      >
+        <span class="material-symbols-outlined">filter_alt_off</span>
+        <span class="clear-btn-text">Clear</span>
+      </button>
+    }
+  </div>
+
+  <div class="results-card">
+    @if (isLoading()) {
+      <div class="loading-state">
+        <span class="material-symbols-outlined spin">progress_activity</span>
+        Loading {{ queueLabel }} queue...
+      </div>
+    } @else if (filteredCases().length === 0) {
+      <div class="empty-state">
+        <span class="material-symbols-outlined">inbox</span>
+        <p>No unassigned {{ queueLabel }} cases match these filters.</p>
+      </div>
+    } @else {
+      <div class="table-container">
+        <table class="results-table">
+          <thead>
+            <tr>
+              <th>Case</th>
+              <th>Project</th>
+              <th>Customer</th>
+              <th>Type</th>
+              <th>Priority</th>
+              <th>Status</th>
+              <th>Due Date</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (kase of filteredCases(); track kase.id) {
+              <tr
+                class="clickable-row"
+                (click)="onCaseClick(kase.id)"
+                (keydown.enter)="onCaseClick(kase.id)"
+                tabindex="0"
+              >
+                <td>{{ kase.title }}</td>
+                <td>{{ kase.projectName }}</td>
+                <td>{{ kase.customerName || '—' }}</td>
+                <td>{{ kase.caseType }}</td>
+                <td>
+                  <span class="priority-badge" [style.--priority-color]="kase.priorityColor || '#f59e0b'">
+                    {{ kase.priority }}
+                  </span>
+                </td>
+                <td>
+                  <span class="status-badge" [class]="'status-' + kase.statusLabel">
+                    {{ statusLabelText(kase.statusLabel) }}
+                  </span>
+                </td>
+                <td>{{ kase.dueDate ? (kase.dueDate | date: 'mediumDate') : '—' }}</td>
+                <td>
+                  @if (kase.canSelfAssign) {
+                    <button
+                      type="button"
+                      class="btn-primary"
+                      [disabled]="assigningId() === kase.id"
+                      (click)="assignToMe(kase, $event)"
+                      (keydown.enter)="$event.stopPropagation()"
+                    >
+                      {{ assigningId() === kase.id ? 'Assigning…' : 'Assign to me' }}
+                    </button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+
+  <app-create-case-modal
+    [isOpen]="isCaseModalOpen"
+    [forceCsoLabeled]="true"
+    [lockedCategory]="category"
+    (closed)="closeTaskModal()"
+    (submitted)="onCreateTask($event)"
+  ></app-create-case-modal>
+</div>

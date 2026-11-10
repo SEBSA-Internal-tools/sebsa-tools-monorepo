@@ -1,0 +1,208 @@
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { PrismaService } from '@sebsa-pm-tool/core';
+import { AuthUser, Sprint, SprintSummary } from '@sebsa-pm-tool/shared-models';
+import { Prisma } from '@prisma/client';
+import { CreateSprintDto } from './dto/create-sprint.dto';
+import { UpdateSprintDto } from './dto/update-sprint.dto';
+import { ProjectAccessService } from '../common/project-access.service';
+
+const ADMIN_SYSTEM_ROLES: AuthUser['systemRole'][] = ['ADMIN', 'SUPER_ADMIN'];
+
+const sprintDetailInclude = {
+  _count: { select: { cases: { where: { deletedAt: null } } } },
+} satisfies Prisma.SprintInclude;
+
+type SprintWithDetail = Prisma.SprintGetPayload<{ include: typeof sprintDetailInclude }>;
+
+@Injectable()
+export class SprintsService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly access: ProjectAccessService,
+  ) {}
+
+  async create(projectId: string, dto: CreateSprintDto, user: AuthUser): Promise<Sprint> {
+    await this.access.assertCan(projectId, user, 'canManageSprints');
+    this.assertValidDateRange(dto.startDate, dto.endDate);
+
+    const created = await this.prisma.sprint.create({
+      data: {
+        projectId,
+        name: dto.name,
+        goal: dto.goal,
+        startDate: new Date(dto.startDate),
+        endDate: new Date(dto.endDate),
+      },
+      include: sprintDetailInclude,
+    });
+
+    return this.toSprint(created);
+  }
+
+  async findByProject(projectId: string, user: AuthUser): Promise<SprintSummary[]> {
+    await this.assertCanAccessProject(projectId, user);
+
+    const sprints = await this.prisma.sprint.findMany({
+      where: { projectId, deletedAt: null },
+      include: sprintDetailInclude,
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return sprints.map((sprint) => this.toSprintSummary(sprint));
+  }
+
+  async findOne(id: string, projectId: string, user: AuthUser): Promise<Sprint> {
+    await this.assertCanAccessProject(projectId, user);
+
+    const sprint = await this.prisma.sprint.findFirst({
+      where: { id, projectId, deletedAt: null },
+      include: sprintDetailInclude,
+    });
+
+    if (!sprint) {
+      throw new NotFoundException('Sprint not found.');
+    }
+
+    return this.toSprint(sprint);
+  }
+
+  async update(
+    id: string,
+    projectId: string,
+    dto: UpdateSprintDto,
+    user: AuthUser,
+  ): Promise<Sprint> {
+    await this.access.assertCan(projectId, user, 'canManageSprints');
+
+    const existing = await this.prisma.sprint.findFirst({
+      where: { id, projectId, deletedAt: null },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('Sprint not found.');
+    }
+
+    const startDate = dto.startDate ? new Date(dto.startDate) : existing.startDate;
+    const endDate = dto.endDate ? new Date(dto.endDate) : existing.endDate;
+    this.assertValidDateRange(startDate.toISOString(), endDate.toISOString());
+
+    if (dto.status === 'ACTIVE') {
+      await this.assertOnlyOneActiveSprint(projectId, id);
+    }
+
+    const updated = await this.prisma.sprint.update({
+      where: { id },
+      data: {
+        name: dto.name,
+        goal: dto.goal,
+        startDate,
+        endDate,
+        status: dto.status,
+      },
+      include: sprintDetailInclude,
+    });
+
+    return this.toSprint(updated);
+  }
+
+  async remove(id: string, projectId: string, user: AuthUser): Promise<void> {
+    await this.access.assertCan(projectId, user, 'canManageSprints');
+
+    const sprint = await this.prisma.sprint.findFirst({
+      where: { id, projectId, deletedAt: null },
+    });
+
+    if (!sprint) {
+      throw new NotFoundException('Sprint not found.');
+    }
+
+    // Soft-deleted cases must not count, or a sprint whose cases were all
+    // deleted can never be removed.
+    const caseCount = await this.prisma.case.count({
+      where: { sprintId: id, deletedAt: null },
+    });
+
+    if (caseCount > 0) {
+      throw new BadRequestException(
+        'Cannot delete a sprint with associated cases. Move or remove cases first.',
+      );
+    }
+
+    await this.prisma.sprint.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Helpers
+  // ---------------------------------------------------------------------------
+
+  private async assertCanAccessProject(projectId: string, user: AuthUser): Promise<void> {
+    const isPrivileged = ADMIN_SYSTEM_ROLES.includes(user.systemRole) || user.systemRole === 'EXECUTIVE';
+
+    if (isPrivileged) return;
+
+    const membership = await this.prisma.projectMember.findFirst({
+      where: { projectId, userId: user.id, deletedAt: null },
+    });
+
+    if (!membership) {
+      throw new ForbiddenException('You do not have access to this project.');
+    }
+  }
+
+
+  private async assertOnlyOneActiveSprint(
+    projectId: string,
+    sprintId: string,
+  ): Promise<void> {
+    const existing = await this.prisma.sprint.findFirst({
+      where: {
+        projectId,
+        status: 'ACTIVE',
+        deletedAt: null,
+        id: { not: sprintId },
+      },
+    });
+
+    if (existing) {
+      throw new BadRequestException(
+        'A project can only have one active sprint at a time.',
+      );
+    }
+  }
+
+  private assertValidDateRange(startDate: string, endDate: string): void {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    if (start >= end) {
+      throw new BadRequestException('Start date must be before end date.');
+    }
+  }
+
+  private toSprintSummary(sprint: SprintWithDetail): SprintSummary {
+    return {
+      id: sprint.id,
+      projectId: sprint.projectId,
+      name: sprint.name,
+      goal: sprint.goal,
+      startDate: sprint.startDate.toISOString(),
+      endDate: sprint.endDate.toISOString(),
+      status: sprint.status,
+      caseCount: sprint._count.cases,
+      createdAt: sprint.createdAt.toISOString(),
+      updatedAt: sprint.updatedAt.toISOString(),
+    };
+  }
+
+  private toSprint(sprint: SprintWithDetail): Sprint {
+    return this.toSprintSummary(sprint);
+  }
+}

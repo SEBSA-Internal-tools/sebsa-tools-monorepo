@@ -1,0 +1,283 @@
+<main class="settings-page-wrapper">
+  <div class="settings-container">
+    <!-- Top Header -->
+    <header class="page-header">
+      <div class="header-content">
+        <div class="header-tag">
+          <span class="material-symbols-outlined">manage_accounts</span>
+          <span>Account & Profile</span>
+        </div>
+        <h1 class="page-title">Settings</h1>
+        <p class="page-subtitle">
+          Manage your personal identity details, corporate credentials, and security settings.
+        </p>
+      </div>
+    </header>
+
+    <!-- Profile Content -->
+    <div class="profile-content-wrapper">
+      @if (isLoadingProfile()) {
+        <div class="loading-state">
+          <span class="spinner"></span>
+          <span>Loading profile details...</span>
+        </div>
+      } @else {
+        <!-- User Identity Overview Banner Card -->
+        <section class="identity-banner-card sebsa-card">
+          <div class="avatar-upload-wrapper">
+            <app-user-avatar [name]="profile()?.name || ''" [avatarUrl]="profile()?.avatarUrl" size="xl"></app-user-avatar>
+            <button
+              type="button"
+              class="avatar-edit-btn"
+              (click)="triggerAvatarInput()"
+              [disabled]="isSavingAvatar()"
+              title="Change profile picture"
+              aria-label="Change profile picture"
+            >
+              <span class="material-symbols-outlined" aria-hidden="true">photo_camera</span>
+            </button>
+            <input
+              id="avatar-file-input"
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              class="avatar-file-input"
+              (change)="onAvatarFileSelected($event)"
+              hidden
+            />
+            @if (profile()?.avatarUrl) {
+              <button
+                type="button"
+                class="avatar-remove-btn"
+                (click)="removeAvatar()"
+                [disabled]="isSavingAvatar()"
+              >
+                Remove photo
+              </button>
+            }
+          </div>
+          <div class="identity-info">
+            <div class="identity-name-row">
+              <h2 class="identity-name">{{ profile()?.name || 'User Profile' }}</h2>
+              <span class="role-badge" [ngClass]="getRoleBadgeClass(profile()?.systemRole)">
+                {{ formatRoleLabel(profile()?.systemRole) }}
+              </span>
+            </div>
+            <div class="identity-meta-chips">
+              <div class="meta-chip">
+                <span class="material-symbols-outlined">mail</span>
+                <span>{{ profile()?.email }}</span>
+              </div>
+              @if (profile()?.departmentName) {
+                <div class="meta-chip">
+                  <span class="material-symbols-outlined">apartment</span>
+                  <span>{{ profile()?.departmentName }}</span>
+                </div>
+              }
+              <div class="meta-chip">
+                <span class="material-symbols-outlined">verified_user</span>
+                <span>Active Account</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 2-Column Grid for Personal Details and Password -->
+        <div class="cards-grid">
+          <!-- Personal Information Form Card -->
+          <section class="sebsa-card form-card">
+            <div class="card-header">
+              <div class="card-icon-wrapper">
+                <span class="material-symbols-outlined">badge</span>
+              </div>
+              <div>
+                <h3 class="card-title">Personal Information</h3>
+                <p class="card-desc">Update your display name and view corporate identity details.</p>
+              </div>
+            </div>
+
+            <form class="settings-form" (ngSubmit)="saveProfile()">
+              <div class="form-group">
+                <label for="fullName" class="form-label">Full Name</label>
+                <div class="input-with-icon">
+                  <span class="material-symbols-outlined input-icon">person</span>
+                  <input
+                    id="fullName"
+                    type="text"
+                    name="profileName"
+                    [(ngModel)]="profileName"
+                    class="form-control"
+                    placeholder="Enter your full name"
+                    autocomplete="name"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Corporate Email Address</label>
+                <div class="input-with-icon readonly-field">
+                  <span class="material-symbols-outlined input-icon">mail</span>
+                  <input
+                    type="email"
+                    [value]="profile()?.email"
+                    class="form-control"
+                    autocomplete="email"
+                    readonly
+                    disabled
+                  />
+                  <span class="verified-pill">
+                    <span class="material-symbols-outlined">check_circle</span>
+                    Verified
+                  </span>
+                </div>
+                <small class="field-hint">Corporate email addresses are managed by system administrators.</small>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Department</label>
+                  <div class="input-with-icon readonly-field">
+                    <span class="material-symbols-outlined input-icon">apartment</span>
+                    <input
+                      type="text"
+                      [value]="profile()?.departmentName || 'General'"
+                      class="form-control"
+                      readonly
+                      disabled
+                    />
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">System Access Tier</label>
+                  <div class="input-with-icon readonly-field">
+                    <span class="material-symbols-outlined input-icon">shield</span>
+                    <input
+                      type="text"
+                      [value]="formatRoleLabel(profile()?.systemRole)"
+                      class="form-control"
+                      readonly
+                      disabled
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div class="card-footer-actions">
+                <button
+                  type="submit"
+                  class="btn-primary"
+                  [disabled]="isSavingProfile() || !profileName.trim()"
+                >
+                  @if (isSavingProfile()) {
+                    <span class="spinner-sm"></span>
+                    <span>Saving Changes...</span>
+                  } @else {
+                    <span class="material-symbols-outlined">save</span>
+                    <span>Save Changes</span>
+                  }
+                </button>
+              </div>
+            </form>
+          </section>
+
+          <!-- Password & Security Card -->
+          <section class="sebsa-card form-card">
+            <div class="card-header">
+              <div class="card-icon-wrapper warning-tone">
+                <span class="material-symbols-outlined">lock_reset</span>
+              </div>
+              <div>
+                <h3 class="card-title">Security & Password</h3>
+                <p class="card-desc">Change your password to keep your project access safe and secure.</p>
+              </div>
+            </div>
+
+            <form class="settings-form" (ngSubmit)="changePassword()">
+              @if (passwordError) {
+                <div class="form-alert error" role="alert">
+                  <span class="material-symbols-outlined">error</span>
+                  <span>{{ passwordError }}</span>
+                </div>
+              }
+
+              <div class="form-group">
+                <label for="currentPassword" class="form-label">Current Password</label>
+                <div class="input-with-icon">
+                  <span class="material-symbols-outlined input-icon">key</span>
+                  <input
+                    id="currentPassword"
+                    type="password"
+                    name="currentPassword"
+                    [(ngModel)]="currentPassword"
+                    class="form-control"
+                    placeholder="Enter current password"
+                    autocomplete="current-password"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="newPassword" class="form-label">New Password</label>
+                <div class="input-with-icon">
+                  <span class="material-symbols-outlined input-icon">lock</span>
+                  <input
+                    id="newPassword"
+                    type="password"
+                    name="newPassword"
+                    [(ngModel)]="newPassword"
+                    class="form-control"
+                    placeholder="Minimum 6 characters"
+                    autocomplete="new-password"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="confirmPassword" class="form-label">Confirm New Password</label>
+                <div class="input-with-icon">
+                  <span class="material-symbols-outlined input-icon">check</span>
+                  <input
+                    id="confirmPassword"
+                    type="password"
+                    name="confirmPassword"
+                    [(ngModel)]="confirmPassword"
+                    class="form-control"
+                    placeholder="Re-enter new password"
+                    autocomplete="new-password"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div class="card-footer-actions">
+                <button
+                  type="submit"
+                  class="btn-secondary"
+                  [disabled]="isChangingPassword() || !currentPassword || !newPassword || !confirmPassword"
+                >
+                  @if (isChangingPassword()) {
+                    <span class="spinner-sm"></span>
+                    <span>Updating Password...</span>
+                  } @else {
+                    <span class="material-symbols-outlined">lock</span>
+                    <span>Update Password</span>
+                  }
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      }
+    </div>
+  </div>
+
+  <app-avatar-cropper-modal
+    [isOpen]="isCropperOpen()"
+    [file]="selectedAvatarFile()"
+    (cropped)="onAvatarCropped($event)"
+    (cancelled)="onCropperCancelled()"
+  ></app-avatar-cropper-modal>
+</main>

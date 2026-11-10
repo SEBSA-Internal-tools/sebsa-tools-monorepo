@@ -1,0 +1,14 @@
+@if (confirmation.active(); as request) {
+  <div class="confirmation-backdrop"></div>
+  <section #dialog class="confirmation-dialog" role="alertdialog" aria-modal="true"
+    aria-labelledby="confirmation-title" aria-describedby="confirmation-message confirmation-consequence">
+    <div class="confirmation-icon" aria-hidden="true"><span class="material-symbols-outlined">warning</span></div>
+    <h2 id="confirmation-title">{{ request.title }}</h2>
+    <p id="confirmation-message">{{ request.message }}</p>
+    <p id="confirmation-consequence" class="confirmation-consequence">{{ request.consequence }}</p>
+    <div class="confirmation-actions">
+      <button #cancelButton type="button" class="cancel-button" (click)="confirmation.respond(false)">Cancel</button>
+      <button type="button" class="confirm-button" (click)="confirmation.respond(true)">{{ request.confirmLabel }}</button>
+    </div>
+  </section>
+}

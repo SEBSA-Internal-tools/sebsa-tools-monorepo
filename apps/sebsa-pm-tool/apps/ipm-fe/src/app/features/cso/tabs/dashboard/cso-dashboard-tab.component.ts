@@ -1,0 +1,125 @@
+import { CommonModule } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
+import { DashboardInsightsComponent } from '../../../../core/components/dashboard-insights/dashboard-insights.component';
+import { workInsights } from '../../../../core/utils/work-insights';
+import { Router, RouterLink } from '@angular/router';
+import type { ProjectSummary } from '@sebsa-pm-tool/shared-models';
+import { CsoOverviewService } from '../../../../core/services/cso-overview.service';
+import { AuthService } from '../../../../core/services/auth.service';
+import { ProjectsService } from '../../../projects/services/projects.service';
+import {
+  CreateProjectModalComponent,
+  type ProjectFormData,
+} from '../../../projects/components/modals/create-project/create-project-modal.component';
+
+@Component({
+  standalone: true,
+  selector: 'cso-dashboard-tab',
+  imports: [CommonModule, CreateProjectModalComponent, DashboardInsightsComponent, RouterLink],
+  templateUrl: './cso-dashboard-tab.component.html',
+  styleUrl: './cso-dashboard-tab.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class CsoDashboardTabComponent implements OnInit {
+  private readonly projectsService = inject(ProjectsService);
+  private readonly csoOverviewService = inject(CsoOverviewService);
+  private readonly router = inject(Router);
+  private readonly auth = inject(AuthService);
+
+  /** Mirrors the backend rule: only ADMIN / SUPER_ADMIN may create projects. */
+  protected readonly canCreateProject = computed(() => {
+    const role = this.auth.currentUser()?.systemRole;
+    return role === 'ADMIN' || role === 'SUPER_ADMIN';
+  });
+
+  protected readonly csoTasks = this.csoOverviewService.tasks;
+  protected readonly caseError = this.csoOverviewService.errorMessage;
+  protected readonly insights = computed(() => workInsights(this.csoTasks().map(task => ({ id: task.id, title: task.title, status: task.rawStatus ?? (task.statusLabel === 'done' ? 'DONE' : 'IN_PROGRESS'), dueDate: task.dueDate, createdAt: task.createdAt, assigneeIds: task.assigneeIds }))));
+  protected readonly isLoadingTasks = this.csoOverviewService.isLoading;
+
+  protected readonly allProjects = signal<ProjectSummary[]>([]);
+  protected readonly csoProjects = computed(() =>
+    this.allProjects().filter((project) => project.isCsoProject),
+  );
+
+  protected readonly overdueCount = computed(() => {
+    const now = new Date();
+    return this.csoTasks().filter(
+      (task) => task.statusLabel !== 'done' && task.dueDate && new Date(task.dueDate) < now,
+    ).length;
+  });
+
+  protected isModalOpen = false;
+  protected errorMessage = '';
+  readonly projectError = signal('');
+  readonly loadingProjects = signal(true);
+
+  ngOnInit(): void {
+    this.loadProjects();
+    this.csoOverviewService.load({});
+  }
+
+  private loadProjects(): void {
+    this.projectError.set(''); this.loadingProjects.set(true);
+    this.projectsService.getProjects().subscribe({
+      next: p => { this.allProjects.set(p); this.loadingProjects.set(false); },
+      error: () => { this.projectError.set('CSO projects are unavailable. Please retry.'); this.loadingProjects.set(false); },
+    });
+  }
+
+  reload(): void { this.loadProjects(); this.csoOverviewService.load({}); }
+
+  openCreateModal(): void {
+    this.isModalOpen = true;
+  }
+
+  closeCreateModal(): void {
+    this.isModalOpen = false;
+  }
+
+  onProjectClick(projectId: string): void {
+    this.router.navigate(['/projects', projectId]);
+  }
+
+  onCreateProject(formData: ProjectFormData): void {
+    this.errorMessage = '';
+    this.projectsService
+      .createProject({
+        name: formData.name,
+        description: formData.description || undefined,
+        type: formData.type,
+        customType: formData.customType,
+        isCsoProject: formData.isCsoProject,
+        customerId: formData.customerId,
+      })
+      .subscribe({
+        next: (project) => {
+          this.closeCreateModal();
+          this.loadProjects();
+          this.assignInitialMembers(project.id, formData.memberIds);
+        },
+        error: (error: HttpErrorResponse) => {
+          this.errorMessage = error.error?.message ?? 'Failed to create project. Please try again.';
+        },
+      });
+  }
+
+  /** Best-effort: add the members picked in the create modal, using the project's default "Member" role. */
+  private assignInitialMembers(projectId: string, memberIds: string[]): void {
+    if (memberIds.length === 0) return;
+
+    this.projectsService.getRoles(projectId).subscribe({
+      next: (roles) => {
+        const memberRole = roles.find((role) => role.name === 'Member');
+        if (!memberRole) return;
+        memberIds.forEach((userId) => {
+          this.projectsService
+            .addMember(projectId, { userId, roleId: memberRole.id })
+            .subscribe({ error: () => undefined });
+        });
+      },
+      error: () => undefined,
+    });
+  }
+}

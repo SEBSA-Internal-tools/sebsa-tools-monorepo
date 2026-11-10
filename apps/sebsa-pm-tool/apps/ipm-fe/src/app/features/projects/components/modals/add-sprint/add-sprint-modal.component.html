@@ -1,0 +1,97 @@
+@if (isOpen) {
+  <div
+    class="modal-overlay"
+    (click)="onBackdropClick()"
+    (keydown.escape)="onCancel()"
+    tabindex="-1"
+    aria-hidden="true"
+  ></div>
+
+  <div class="modal-container">
+    <!-- Modal Header -->
+    <div class="modal-header">
+      <div class="header-content">
+        <p class="header-label">CREATE NEW SPRINT</p>
+        <h2>Plan your next sprint</h2>
+      </div>
+      <button type="button" class="close-btn" (click)="onCancel()" title="Close">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+
+    <!-- Modal Body -->
+    <div class="modal-body">
+      <!-- Error Message -->
+      @if (errorMessage()) {
+        <div class="error-message">
+          <span class="material-symbols-outlined">error</span>
+          {{ errorMessage() }}
+        </div>
+      }
+
+      <!-- Sprint Name -->
+      <div class="form-group full-width">
+        <label for="sprintName" class="form-label">
+          Sprint Name <span class="required">*</span>
+        </label>
+        <input
+          id="sprintName"
+          type="text"
+          [(ngModel)]="sprintName"
+          placeholder="e.g. Sprint 4: Feature Development"
+          class="form-input"
+        />
+      </div>
+
+      <!-- Dates Section -->
+      <div class="form-grid">
+        <!-- Start Date -->
+        <div class="form-group">
+          <label for="startDate" class="form-label">
+            Start Date <span class="required">*</span>
+          </label>
+          <app-custom-datepicker
+            [(ngModel)]="startDate"
+            placeholder="Select start date"
+            ariaLabel="Start date"
+          ></app-custom-datepicker>
+        </div>
+
+        <!-- End Date -->
+        <div class="form-group">
+          <label for="endDate" class="form-label">
+            End Date <span class="required">*</span>
+          </label>
+          <app-custom-datepicker
+            [(ngModel)]="endDate"
+            placeholder="Select end date"
+            ariaLabel="End date"
+          ></app-custom-datepicker>
+        </div>
+      </div>
+
+      <!-- Description -->
+      <div class="form-group full-width">
+        <label for="description" class="form-label">Description</label>
+        <textarea
+          id="description"
+          [(ngModel)]="description"
+          placeholder="Add sprint goals, theme, or notes..."
+          class="form-textarea"
+          rows="4"
+        ></textarea>
+      </div>
+    </div>
+
+    <!-- Modal Footer -->
+    <div class="modal-footer">
+      <button type="button" class="btn-cancel" (click)="onCancel()">
+        Cancel
+      </button>
+      <button type="button" class="btn-create" (click)="onSubmit()">
+        <span class="material-symbols-outlined">add</span>
+        Create Sprint
+      </button>
+    </div>
+  </div>
+}

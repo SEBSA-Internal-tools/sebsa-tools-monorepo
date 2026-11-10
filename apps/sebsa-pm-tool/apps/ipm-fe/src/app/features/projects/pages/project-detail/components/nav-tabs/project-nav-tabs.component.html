@@ -1,0 +1,27 @@
+<nav class="nav-tabs" aria-label="Project views">
+      <div class="tabs-list">
+        @for (tab of tabs; track tab.id) {
+          <button
+            type="button"
+            class="nav-tab"
+            [class.active]="activeTab === tab.id" [attr.aria-pressed]="activeTab === tab.id"
+            (click)="onTabClick(tab.id)"
+          >
+            <span class="material-symbols-outlined tab-icon">{{ tab.icon }}</span>
+            <span class="tab-label">{{ tab.label }}</span>
+          </button>
+        }
+      </div>
+
+      @if (canCreateCase) {
+        <button
+          type="button"
+          class="btn-add-task"
+          (click)="onAddTaskClick()"
+          title="Create new case"
+        >
+          <span class="material-symbols-outlined">add</span>
+          <span class="btn-label">New case</span>
+        </button>
+      }
+    </nav>

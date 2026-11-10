@@ -1,0 +1,46 @@
+<section class="workspace-page dashboard-page">
+  <div class="dashboard-container">
+    @if (errorMessage()) {
+      <div class="dashboard-error-banner" role="alert">
+        <div class="error-content">
+          <span class="material-symbols-outlined error-icon">error</span>
+          <span>{{ errorMessage() }}</span>
+        </div>
+        <button type="button" class="btn-retry" (click)="loadData()">
+          <span class="material-symbols-outlined">refresh</span>
+          Retry
+        </button>
+      </div>
+    }
+
+    <!-- Hero Section -->
+    <dashboard-hero [data]="(hero$ | async)"></dashboard-hero>
+
+    @if (portfolioInsights$ | async; as insights) {
+      <app-dashboard-insights title="Portfolio pulse" scope="All accessible projects / current snapshot" [items]="insights"></app-dashboard-insights>
+    }
+    @if (loadedAt()) { <p class="snapshot-note">Updated {{ loadedAt() | date: 'shortTime' }} / Priority work below shows up to five tasks.</p> }
+    <!-- Action Items & Urgent Tasks Widget -->
+    <app-dashboard-urgent-tasks
+      [tasks]="(urgentTasks$ | async)"
+      [loading]="isLoading()"
+      (taskCompleted)="onTaskCompleted($event)"
+    ></app-dashboard-urgent-tasks>
+
+    <!-- Summary Cards -->
+    <app-dashboard-summary-cards
+      [cards]="(summaryCards$ | async)"
+      [activeFilter]="activeCardFilter()"
+      [loading]="isLoading()"
+      (cardClick)="onCardFilterSelected($event)"
+    ></app-dashboard-summary-cards>
+
+    <!-- Project Health & Status Matrix -->
+    <app-dashboard-project-health-matrix
+      [projectHealthMatrix]="(projectHealthMatrix$ | async)"
+      [activeCardFilter]="activeCardFilter()"
+      [loading]="isLoading()"
+      (clearCardFilter)="clearCardFilter()"
+    ></app-dashboard-project-health-matrix>
+  </div>
+</section>

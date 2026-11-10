@@ -1,0 +1,168 @@
+@if (isOpen) {
+  <div
+    class="modal-overlay"
+    (click)="onBackdropClick()"
+    (keydown.escape)="onCancel()"
+    tabindex="-1"
+    aria-hidden="true"
+  ></div>
+
+  <div class="modal-container">
+    <!-- Modal Header -->
+    <div class="modal-header">
+      <div class="header-content">
+        <p class="header-label">ASSIGN USERS</p>
+        <h2>Add team members to project</h2>
+      </div>
+      <button type="button" class="close-btn" (click)="onCancel()" title="Close">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+
+    <!-- Modal Body -->
+    <div class="modal-body">
+      <!-- Email Input Section -->
+      <div class="email-input-section">
+        <div class="form-group full-width">
+          <label for="email" class="form-label">
+            Name or email <span class="required">*</span>
+          </label>
+          <div class="email-input-wrapper">
+            <div class="search-field">
+              <input
+                id="email"
+                type="text"
+                autocomplete="off"
+                role="combobox"
+                aria-autocomplete="list"
+                [attr.aria-expanded]="showSuggestions() && suggestions().length > 0"
+                [ngModel]="emailInput"
+                (ngModelChange)="onQueryChange($event)"
+                placeholder="Start typing a name or email"
+                class="form-input"
+                [disabled]="isLoading()"
+                (keydown)="onSearchKeydown($event)"
+              />
+              @if (showSuggestions()) {
+                <ul class="suggestions" role="listbox">
+                  @for (user of suggestions(); track user.id; let i = $index) {
+                    <li
+                      role="option"
+                      class="suggestion"
+                      [class.active]="i === activeSuggestion()"
+                      [attr.aria-selected]="i === activeSuggestion()"
+                      (mousedown)="$event.preventDefault(); onPickSuggestion(user)"
+                      (mouseenter)="activeSuggestion.set(i)"
+                    >
+                      <app-user-avatar [name]="user.name" [avatarUrl]="user.avatarUrl" size="sm"></app-user-avatar>
+                      <span class="suggestion-text">
+                        <span class="suggestion-name">{{ user.name }}</span>
+                        <span class="suggestion-email">{{ user.email }}</span>
+                      </span>
+                    </li>
+                  } @empty {
+                    <li class="suggestion-empty">{{ isSearching() ? 'Searching…' : 'No matching users' }}</li>
+                  }
+                </ul>
+              }
+            </div>
+            <button
+              type="button"
+              class="btn-add-user"
+              (click)="onAddUser()"
+              [disabled]="isLoading() || !emailInput.trim()"
+            >
+              @if (isLoading()) {
+                <span class="material-symbols-outlined spin">hourglass_empty</span>
+              } @else {
+                <span class="material-symbols-outlined">add</span>
+              }
+              <span class="btn-text">Add</span>
+            </button>
+          </div>
+          <p class="form-helper">
+            Pick a person from the suggestions, or type a full email and press Enter
+          </p>
+        </div>
+
+        <!-- Messages -->
+        @if (errorMessage()) {
+          <div class="message error-message">
+            <span class="material-symbols-outlined">error</span>
+            {{ errorMessage() }}
+          </div>
+        }
+        @if (successMessage()) {
+          <div class="message success-message">
+            <span class="material-symbols-outlined">check_circle</span>
+            {{ successMessage() }}
+          </div>
+        }
+      </div>
+
+      <!-- Role Selector -->
+      <div class="form-group full-width">
+        <label for="role" class="form-label">
+          Assign as <span class="required">*</span>
+        </label>
+        <app-custom-select
+          [(ngModel)]="selectedRoleId"
+          [options]="availableRoles()"
+          placeholder="Select a role..."
+          ariaLabel="Select role"
+        ></app-custom-select>
+      </div>
+
+      <!-- Selected Users Section -->
+      <div class="selected-users-section">
+        <h3 class="section-title">
+          Selected Users
+          <span class="user-count">({{ selectedUsers().length }})</span>
+        </h3>
+
+        @if (selectedUsers().length > 0) {
+          <div class="selected-users-list">
+            @for (user of selectedUsers(); track user.id) {
+              <div class="user-item">
+                <app-user-avatar class="user-avatar" [name]="user.name" [avatarUrl]="user.avatarUrl" size="md"></app-user-avatar>
+                <div class="user-details">
+                  <h4 class="user-name">{{ user.name }}</h4>
+                  <p class="user-email">{{ user.email }}</p>
+                </div>
+                <button
+                  type="button"
+                  class="btn-remove"
+                  (click)="onRemoveUser(user.id)"
+                  title="Remove user"
+                >
+                  <span class="material-symbols-outlined">close</span>
+                </button>
+              </div>
+            }
+          </div>
+        } @else {
+          <div class="empty-state">
+            <span class="material-symbols-outlined">person_add</span>
+            <p>No users added yet. Start typing a name or email above.</p>
+          </div>
+        }
+      </div>
+    </div>
+
+    <!-- Modal Footer -->
+    <div class="modal-footer">
+      <button type="button" class="btn-cancel" (click)="onCancel()">
+        Cancel
+      </button>
+      <button
+        type="button"
+        class="btn-assign"
+        (click)="onSubmit()"
+        [disabled]="selectedUsers().length === 0"
+      >
+        <span class="material-symbols-outlined">person_add</span>
+        Assign Users ({{ selectedUsers().length }})
+      </button>
+    </div>
+  </div>
+}
